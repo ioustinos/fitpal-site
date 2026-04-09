@@ -4,7 +4,7 @@ function App() {
   return (
     <BrowserRouter>
       <Routes>
-        <Route path="/" element={<div style={{ fontFamily: 'sans-serif', padding: 40 }}>🥗 Fitpal — scaffold ready</div>} />
+        <Route path="/" element={<div style={{ fontFamily: 'sans-serif', padding: 40 }}>i am a rockstar</div>} />
       </Routes>
     </BrowserRouter>
   )
