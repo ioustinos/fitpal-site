@@ -4,7 +4,7 @@ function App() {
   return (
     <BrowserRouter>
       <Routes>
-        <Route path="/" element={<div style={{ fontFamily: 'sans-serif', padding: 40 }}>i am a rockstar</div>} />
+        <Route path="/" element={<div style={{ fontFamily: 'sans-serif', padding: 40 }}>I am trying to be a rockstar but sometimes I am just an AI</div>} />
       </Routes>
     </BrowserRouter>
   )
