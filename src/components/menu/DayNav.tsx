@@ -3,7 +3,7 @@ import { useCartStore } from '../../store/useCartStore'
 import { WEEK_DATA } from '../../data/menu'
 import { totalCount } from '../../lib/helpers'
 
-const DAY_LABELS_EL = ['Δευ', 'Τρι', 'Τετ', 'Πεμ', 'Παρ']
+const DAY_LABELS_EL = ['Δευτ', 'Τρίτη', 'Τετ', 'Πέμπτη', 'Παρ']
 const DAY_LABELS_EN = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri']
 
 export function DayNav() {
@@ -29,11 +29,7 @@ export function DayNav() {
       {activeWeek > 0 && (
         <div className="week-toggle" onClick={() => goWeek(activeWeek - 1)}>
           <div className="wt-arrow">←</div>
-          <div className="wt-label">
-            {lang === 'el'
-              ? (weeks[activeWeek - 1]?.labelEl ?? '')
-              : (weeks[activeWeek - 1]?.labelEn ?? '')}
-          </div>
+          <div className="wt-label">{weekRange(weeks[activeWeek - 1]?.days ?? [], lang)}</div>
         </div>
       )}
 
@@ -56,12 +52,8 @@ export function DayNav() {
       {/* Next toggle — shown when more weeks exist */}
       {activeWeek < weeks.length - 1 && (
         <div className="week-toggle" onClick={() => goWeek(activeWeek + 1)}>
+          <div className="wt-label">{weekRange(weeks[activeWeek + 1]?.days ?? [], lang)}</div>
           <div className="wt-arrow">→</div>
-          <div className="wt-label">
-            {lang === 'el'
-              ? (weeks[activeWeek + 1]?.labelEl ?? '')
-              : (weeks[activeWeek + 1]?.labelEn ?? '')}
-          </div>
         </div>
       )}
     </div>
@@ -71,4 +63,14 @@ export function DayNav() {
 function formatDate(iso: string, lang: 'el' | 'en') {
   const d = new Date(iso + 'T12:00:00')
   return d.toLocaleDateString(lang === 'el' ? 'el-GR' : 'en-GB', { day: 'numeric', month: 'short' })
+}
+
+function weekRange(days: { date: string }[], lang: 'el' | 'en'): string {
+  const first = days[0]?.date
+  const last = days[days.length - 1]?.date
+  if (!first || !last) return ''
+  const d1 = new Date(first + 'T12:00:00')
+  const d2 = new Date(last + 'T12:00:00')
+  const month = d2.toLocaleDateString(lang === 'el' ? 'el-GR' : 'en-GB', { month: 'short' })
+  return `${d1.getDate()}–${d2.getDate()} ${month}`
 }

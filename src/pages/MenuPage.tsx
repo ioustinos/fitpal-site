@@ -7,6 +7,18 @@ import { CutoffBar } from '../components/menu/CutoffBar'
 import { MenuSection } from '../components/menu/MenuSection'
 import { CartSidebar } from '../components/cart/CartSidebar'
 import { MENU, SNACKS, WEEK_DATA, WALLET_PLANS } from '../data/menu'
+import { makeTr } from '../lib/translations'
+
+/** Returns "6–10 Απρ" or "6–10 Apr" from week days */
+function weekDateRange(days: { date: string }[], lang: 'el' | 'en'): string {
+  const first = days[0]?.date
+  const last = days[days.length - 1]?.date
+  if (!first || !last) return ''
+  const d1 = new Date(first + 'T12:00:00')
+  const d2 = new Date(last + 'T12:00:00')
+  const month = d2.toLocaleDateString(lang === 'el' ? 'el-GR' : 'en-GB', { month: 'short' })
+  return `${d1.getDate()}–${d2.getDate()} ${month}`
+}
 
 export function MenuPage() {
   const lang = useUIStore((s) => s.lang)
@@ -15,13 +27,16 @@ export function MenuPage() {
   const openWalletModal = useUIStore((s) => s.openWalletModal)
   const cart = useCartStore((s) => s.cart)
   const user = useAuthStore((s) => s.user)
+  const t = makeTr(lang)
+
   const week = WEEK_DATA[activeWeek] ?? WEEK_DATA[0]
   const day = week.days[activeDay]
   const dishIds = day?.dishIds ?? []
 
-  // Combine day-specific dishes + snacks (always available)
+  // Combine day-specific dishes + snacks, deduplicate by ID
   const dayDishes = dishIds.map((id) => MENU[id]).filter(Boolean)
-  const allDishes = [...dayDishes, ...SNACKS]
+  const seen = new Set(dayDishes.map((d) => d.id))
+  const allDishes = [...dayDishes, ...SNACKS.filter((s) => !seen.has(s.id))]
 
   const cartCount = Object.values(cart).reduce(
     (sum, items) => sum + items.reduce((s, i) => s + i.qty, 0), 0
@@ -29,12 +44,12 @@ export function MenuPage() {
 
   const walletActive = user?.wallet?.active
   const walletBalance = user?.wallet?.balance ?? 0
-
-  const weekLabel = lang === 'el' ? week.labelEl : week.labelEn
+  const dateRange = weekDateRange(week.days, lang)
+  const weekWord = lang === 'el' ? 'Εβδομάδα' : 'Week'
 
   return (
     <div className="page-wrap">
-      {/* Layout wrapper matching demo.html .layout */}
+      {/* Layout wrapper */}
       <div className="layout">
         <div className="main">
 
@@ -47,24 +62,16 @@ export function MenuPage() {
                     ? <>Εβδομαδιαίο <span>Μενού</span></>
                     : <>Weekly <span>Menu</span></>}
                 </div>
-                <div className="banner-sub">
-                  {lang === 'el'
-                    ? 'Φρέσκα γεύματα, καθημερινά διαφορετικά'
-                    : 'Fresh meals, different every day'}
-                </div>
+                <div className="banner-sub">{t('sub')}</div>
               </div>
               <div className="banner-pills">
-                <div className="banner-pill">{weekLabel}</div>
-                <div className="banner-pill green">
-                  {lang === 'el' ? 'Min €15 / ημέρα' : 'Min €15 / day'}
-                </div>
-                <div className="banner-pill">
-                  {lang === 'el' ? 'Παράδοση 9:00-15:00' : 'Delivery 9:00-15:00'}
-                </div>
+                <div className="banner-pill">{weekWord} {dateRange}</div>
+                <div className="banner-pill green">{t('pillMin')}</div>
+                <div className="banner-pill">{t('pillDelivery')}</div>
               </div>
             </div>
 
-            {/* Wallet promo */}
+            {/* Wallet promo — matches demo layout */}
             <div className="wallet-promo" onClick={openWalletModal}>
               <div className="wp-badge">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
@@ -91,18 +98,13 @@ export function MenuPage() {
                 <>
                   <div className="wp-title">
                     {lang === 'el'
-                      ? <>Πλήρωσε λιγότερα, <span>φάε περισσότερα</span></>
-                      : <>Pay less, <span>eat more</span></>}
-                  </div>
-                  <div className="wp-desc">
-                    {lang === 'el'
-                      ? 'Έκπτωση σε κάθε παραγγελία + bonus credits'
-                      : 'Discount on every order + bonus credits'}
+                      ? <>Μηνιαία συνδρομή με <span>bonus credits</span></>
+                      : <>Monthly subscription with <span>bonus credits</span></>}
                   </div>
                   <div className="wp-plans-mini">
                     {WALLET_PLANS.map((plan) => (
                       <div key={plan.id} className="wp-plan-chip">
-                        {plan.nameEn} <span className="wp-bonus">-{plan.discountPct}%</span>
+                        €{plan.price} <span className="wp-arrow">→</span> <span className="wp-bonus">€{plan.credits}</span>
                       </div>
                     ))}
                   </div>
@@ -111,7 +113,7 @@ export function MenuPage() {
               <button className="wp-cta">
                 {walletActive
                   ? (lang === 'el' ? 'Διαχείριση' : 'Manage')
-                  : (lang === 'el' ? 'Δες τα πακέτα' : 'See plans')}
+                  : (lang === 'el' ? 'Μάθε περισσότερα' : 'Learn more')}
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" width="12" height="12">
                   <polyline points="9 18 15 12 9 6"/>
                 </svg>
@@ -122,10 +124,8 @@ export function MenuPage() {
           {/* Day navigation */}
           <div className="day-section">
             <div className="day-section-hdr">
-              <div className="section-label">
-                {lang === 'el' ? 'Επέλεξε ημέρα' : 'Choose a day'}
-              </div>
-              <div className="week-label">{weekLabel}</div>
+              <div className="section-label">{t('daylabel')}</div>
+              <div className="week-label">{weekWord} {dateRange}</div>
             </div>
             <DayNav />
             <CutoffBar />
@@ -142,7 +142,7 @@ export function MenuPage() {
         <CartSidebar />
       </div>
 
-      {/* Mobile cart FAB */}
+      {/* Mobile cart FAB — hidden on desktop via CSS, taps open checkout */}
       {cartCount > 0 && (
         <button className="fab">
           <div className="fab-dot" />

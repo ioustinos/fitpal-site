@@ -8,14 +8,14 @@ export function WalletModal() {
   const lang = useUIStore((s) => s.lang)
   const openModal = useUIStore((s) => s.openModal)
   const closeModal = useUIStore((s) => s.closeModal)
+  const openAuthModal = useUIStore((s) => s.openAuthModal)
   const user = useAuthStore((s) => s.user)
   const updateWallet = useAuthStore((s) => s.updateWallet)
 
-  const [tab, setTab] = useState<'overview' | 'topup' | 'history'>('overview')
+  const [tab, setTab] = useState<'overview' | 'topup' | 'history'>(user ? 'overview' : 'topup')
   const isOpen = openModal === 'wallet'
 
   const wallet = user?.wallet
-  if (!user) return null
 
   return (
     <Modal open={isOpen} onClose={closeModal} innerClass="wallet-modal">
@@ -28,22 +28,24 @@ export function WalletModal() {
         </button>
       </div>
 
-      {/* Balance */}
-      <div className="wm-balance-card">
-        <div className="wm-balance-label">
-          {lang === 'el' ? 'Διαθέσιμο υπόλοιπο' : 'Available balance'}
-        </div>
-        <div className="wm-balance-amt">€{(wallet?.balance ?? 0).toFixed(2)}</div>
-        {wallet?.active && wallet.discountPct && (
-          <div className="wm-discount-badge">
-            -{wallet.discountPct}% {lang === 'el' ? 'σε κάθε παραγγελία' : 'on every order'}
+      {/* Balance — only shown when logged in */}
+      {user && (
+        <div className="wm-balance-card">
+          <div className="wm-balance-label">
+            {lang === 'el' ? 'Διαθέσιμο υπόλοιπο' : 'Available balance'}
           </div>
-        )}
-      </div>
+          <div className="wm-balance-amt">€{(wallet?.balance ?? 0).toFixed(2)}</div>
+          {wallet?.active && wallet.discountPct && (
+            <div className="wm-discount-badge">
+              -{wallet.discountPct}% {lang === 'el' ? 'σε κάθε παραγγελία' : 'on every order'}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Tabs */}
       <div className="wm-tabs">
-        {(['overview', 'topup', 'history'] as const).map((t) => (
+        {(user ? ['overview', 'topup', 'history'] as const : ['topup'] as const).map((t) => (
           <button
             key={t}
             className={`wm-tab${tab === t ? ' active' : ''}`}
@@ -92,6 +94,7 @@ export function WalletModal() {
                 key={plan.id}
                 className={`wallet-plan-card${wallet?.planId === plan.id ? ' active' : ''}`}
                 onClick={() => {
+                  if (!user) { closeModal(); openAuthModal(); return }
                   updateWallet({
                     active: true,
                     planId: plan.id,
@@ -110,6 +113,13 @@ export function WalletModal() {
               </button>
             ))}
           </div>
+          {!user && (
+            <p className="wm-login-cta">
+              {lang === 'el'
+                ? <><button className="wm-inline-btn" onClick={() => { closeModal(); openAuthModal() }}>Σύνδεση</button> για να αγοράσεις πακέτο</>
+                : <><button className="wm-inline-btn" onClick={() => { closeModal(); openAuthModal() }}>Sign in</button> to purchase a package</>}
+            </p>
+          )}
         </div>
       )}
 

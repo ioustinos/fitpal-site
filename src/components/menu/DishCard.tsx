@@ -145,8 +145,8 @@ export function DishCard({ dish, dayIndex }: DishCardProps) {
         {/* Full-width add button */}
         <button className={`btn-add${inCart > 0 ? ' in-cart' : ''}`} onClick={handleAdd}>
           {inCart > 0
-            ? `${inCart > 1 ? `${inCart}× ` : ''}+ ${t('addToCart')}`
-            : `+ ${t('addToCart')}`}
+            ? `${inCart > 1 ? `${inCart}× ` : ''}+ ${t('addCart')}`
+            : `+ ${t('addCart')}`}
         </button>
       </div>
     </div>
@@ -155,12 +155,12 @@ export function DishCard({ dish, dayIndex }: DishCardProps) {
 
 function tagLabel(tag: string, lang: 'el' | 'en') {
   const map: Record<string, { el: string; en: string }> = {
-    hot:      { el: 'Νέο',      en: 'New'       },
+    hot:      { el: 'Δημοφιλές', en: 'Popular'  },
     popular:  { el: 'Δημοφιλές', en: 'Popular'  },
-    veg:      { el: 'Vegan',    en: 'Vegan'     },
-    lc:       { el: 'Low Carb', en: 'Low Carb'  },
-    hp:       { el: 'High Pro', en: 'High Pro'  },
-    sale:     { el: 'Έκπτωση', en: 'Sale'       },
+    veg:      { el: 'Veg',       en: 'Veg'      },
+    lc:       { el: 'Low Carb',  en: 'Low Carb' },
+    hp:       { el: 'High Pro',  en: 'High Pro' },
+    sale:     { el: 'Έκπτωση',  en: 'Sale'      },
   }
   return (map[tag]?.[lang]) ?? tag
 }
