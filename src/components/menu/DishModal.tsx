@@ -57,6 +57,8 @@ export function DishModal() {
       price: finalPrice,
       qty,
       macros: variant.macros,
+      img: dish!.img,
+      emoji: dish!.emoji,
     })
     toast(lang === 'el' ? `${name} προστέθηκε!` : `${name} added!`)
     closeModal()

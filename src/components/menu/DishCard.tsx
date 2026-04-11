@@ -23,16 +23,16 @@ export function DishCard({ dish, dayIndex }: DishCardProps) {
   const inCart = dayItems.filter((ci) => ci.dishId === dish.id).reduce((s, ci) => s + ci.qty, 0)
 
   const defaultVariant = dish.variants[0]
-  const price = effPrice(defaultVariant.price, dish.discount)
-
+  const minPrice = defaultVariant.price
   const walletDiscount = user?.wallet?.active ? user.wallet.discountPct ?? 0 : 0
-  const finalPrice = walletDiscount > 0 ? effPrice(price, walletDiscount) : price
+  const discPrice = effPrice(defaultVariant.price, dish.discount)
+  const finalPrice = walletDiscount > 0 ? effPrice(discPrice, walletDiscount) : discPrice
 
   const macros = defaultVariant.macros
   const name = lang === 'el' ? dish.nameEl : dish.nameEn
   const desc = lang === 'el' ? dish.descEl : dish.descEn
 
-  function handleQuickAdd(e: React.MouseEvent) {
+  function handleAdd(e: React.MouseEvent) {
     e.stopPropagation()
     if (dish.variants.length > 1) {
       openDishModal(dish, dayIndex)
@@ -48,6 +48,8 @@ export function DishCard({ dish, dayIndex }: DishCardProps) {
       price: finalPrice,
       qty: 1,
       macros: defaultVariant.macros,
+      img: dish.img,
+      emoji: dish.emoji,
     })
   }
 
@@ -56,7 +58,7 @@ export function DishCard({ dish, dayIndex }: DishCardProps) {
       className={`dish-card${inCart > 0 ? ' in-cart' : ''}`}
       onClick={() => openDishModal(dish, dayIndex)}
     >
-      {/* Image area — matches demo.html .dish-img-wrap */}
+      {/* Image area — 3:2 ratio */}
       <div className="dish-img-wrap">
         {dish.img ? (
           <img
@@ -78,64 +80,74 @@ export function DishCard({ dish, dayIndex }: DishCardProps) {
           {dish.emoji}
         </div>
 
-        {/* Tags overlaid on image */}
-        <div className="dish-tags">
-          {dish.tags?.map((tag) => (
-            <span key={tag} className={`tag tag-${tag}`}>
-              {tagLabel(tag, lang)}
-            </span>
-          ))}
-          {dish.discount && (
-            <span className="tag tag-sale">-{dish.discount}%</span>
-          )}
-        </div>
+        {/* Tags — absolute top-left */}
+        {dish.tags && dish.tags.length > 0 && (
+          <div className="dish-tags">
+            {dish.tags.map((tag) => (
+              <span key={tag} className={`tag tag-${tag}`}>
+                {tagLabel(tag, lang)}
+              </span>
+            ))}
+          </div>
+        )}
+
+        {/* Discount ribbon — top right */}
+        {dish.discount && (
+          <div className="disc-ribbon">−{dish.discount}%</div>
+        )}
+
+        {/* Price badge — bottom right */}
+        {dish.discount ? (
+          <div className="price-badge has-disc">
+            <span className="price-badge-was">{lang === 'el' ? 'από' : 'from'} €{minPrice.toFixed(2)}</span>
+            <span className="price-badge-now">€{finalPrice.toFixed(2)}</span>
+          </div>
+        ) : (
+          <div className="price-badge">
+            <span className="from">{lang === 'el' ? 'από ' : 'from '}</span>
+            €{finalPrice.toFixed(2)}
+          </div>
+        )}
       </div>
 
-      {/* Card body: name + desc + macros + price/button */}
-      <div className="dish-card-body">
-        <div className="dish-info">
-          <div className="dish-name">{name}</div>
-          {desc && <div className="dish-desc">{desc}</div>}
+      {/* Card body */}
+      <div className="dish-body">
+        <div className="dish-name">{name}</div>
 
-          {macros && (
-            <MacroDotsRow
-              cal={macros.cal}
-              pro={macros.pro}
-              carb={macros.carb}
-              fat={macros.fat}
-              labels={{
-                kcal: `${macros.cal} kcal`,
-                pro: `${macros.pro}g ${t('protein')}`,
-                carb: `${macros.carb}g ${t('carbs')}`,
-                fat: `${macros.fat}g ${t('fat')}`,
-              }}
-            />
-          )}
-        </div>
-
-        <div className="dish-card-right">
-          <div className="dish-price-wrap">
-            {dish.discount && (
-              <div className="dish-price-orig">€{defaultVariant.price.toFixed(2)}</div>
-            )}
-            <div className="dish-price">€{finalPrice.toFixed(2)}</div>
+        {/* Discount line in body */}
+        {dish.discount && (
+          <div className="disc-card-line">
+            <span className="disc-card-pct">−{dish.discount}%</span>
+            <span className="disc-card-was">€{minPrice.toFixed(2)}</span>
+            <span className="disc-card-arr">→</span>
+            <span className="disc-card-now">€{effPrice(minPrice, dish.discount).toFixed(2)}</span>
           </div>
+        )}
 
-          {inCart > 0 ? (
-            <button className="dish-add-btn in-cart" onClick={handleQuickAdd}>
-              <span className="cart-count">{inCart}</span>
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
-              </svg>
-            </button>
-          ) : (
-            <button className="dish-add-btn" onClick={handleQuickAdd}>
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
-              </svg>
-            </button>
-          )}
-        </div>
+        {desc && <div className="dish-desc">{desc}</div>}
+
+        {/* Macros — 4-column cream grid */}
+        {macros && (
+          <MacroDotsRow
+            cal={macros.cal}
+            pro={macros.pro}
+            carb={macros.carb}
+            fat={macros.fat}
+            labels={{
+              kcal: 'kcal',
+              pro: t('protein'),
+              carb: t('carbs'),
+              fat: t('fat'),
+            }}
+          />
+        )}
+
+        {/* Full-width add button */}
+        <button className={`btn-add${inCart > 0 ? ' in-cart' : ''}`} onClick={handleAdd}>
+          {inCart > 0
+            ? `${inCart > 1 ? `${inCart}× ` : ''}+ ${t('addToCart')}`
+            : `+ ${t('addToCart')}`}
+        </button>
       </div>
     </div>
   )
@@ -143,11 +155,12 @@ export function DishCard({ dish, dayIndex }: DishCardProps) {
 
 function tagLabel(tag: string, lang: 'el' | 'en') {
   const map: Record<string, { el: string; en: string }> = {
-    hot:  { el: 'Νέο', en: 'New' },
-    veg:  { el: 'Vegan', en: 'Vegan' },
-    lc:   { el: 'Low Carb', en: 'Low Carb' },
-    hp:   { el: 'High Pro', en: 'High Pro' },
-    sale: { el: 'Έκπτωση', en: 'Sale' },
+    hot:      { el: 'Νέο',      en: 'New'       },
+    popular:  { el: 'Δημοφιλές', en: 'Popular'  },
+    veg:      { el: 'Vegan',    en: 'Vegan'     },
+    lc:       { el: 'Low Carb', en: 'Low Carb'  },
+    hp:       { el: 'High Pro', en: 'High Pro'  },
+    sale:     { el: 'Έκπτωση', en: 'Sale'       },
   }
   return (map[tag]?.[lang]) ?? tag
 }

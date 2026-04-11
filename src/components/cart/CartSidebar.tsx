@@ -19,7 +19,12 @@ export function CartSidebar() {
 
   const week = WEEK_DATA[activeWeek] ?? WEEK_DATA[0]
   const total = subTotal(cart, voucher)
-  const hasItems = activeDays(cart).length > 0
+  const days = activeDays(cart)
+  const hasItems = days.length > 0
+  const canCheckout = days.every((d) => {
+    const amt = (cart[d] ?? []).reduce((s, i) => s + i.price * i.qty, 0)
+    return amt >= MIN_ORDER
+  })
 
   function handleCheckout() {
     if (!user) { openAuthModal(); return }
@@ -27,60 +32,71 @@ export function CartSidebar() {
   }
 
   return (
-    <aside className="cart-sidebar">
+    <aside className="sidebar">
       <div className="cart-header">
         <h2 className="cart-title">{t('yourOrder')}</h2>
       </div>
 
-      {!hasItems ? (
-        <div className="cart-empty">
-          <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="cart-empty-icon">
-            <path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 01-8 0"/>
-          </svg>
-          <p>{lang === 'el' ? 'Η παραγγελία σου είναι άδεια' : 'Your order is empty'}</p>
-          <p className="cart-empty-sub">{lang === 'el' ? 'Πρόσθεσε πιάτα από το μενού' : 'Add dishes from the menu'}</p>
-        </div>
-      ) : (
-        <div className="cart-days">
-          {week.days.map((day, i) => (
-            <DayOrderGroup key={day.date} dayIndex={i} day={day} editable />
-          ))}
-        </div>
-      )}
-
-      {hasItems && (
-        <div className="cart-footer">
-          <VoucherInput />
-
-          <div className="cart-summary">
-            {voucher.applied && voucher.value != null && (
-              <div className="cart-summary-row discount">
-                <span>{t('discount')}</span>
-                <span>{voucher.type === 'pct' ? `-${voucher.value}%` : `-€${voucher.value.toFixed(2)}`}</span>
-              </div>
-            )}
-            <div className="cart-summary-row total">
-              <span>{t('total')}</span>
-              <span>€{total.toFixed(2)}</span>
+      <div id="cart-content" className="cart-content">
+        {!hasItems ? (
+          <div className="cart-empty">
+            <div className="cart-empty-img">🛒</div>
+            <div className="cart-empty-title">
+              {lang === 'el' ? 'Η παραγγελία σου είναι άδεια' : 'Your order is empty'}
+            </div>
+            <div className="cart-empty-sub">
+              {lang === 'el' ? 'Πρόσθεσε πιάτα από το μενού' : 'Add dishes from the menu'}
             </div>
           </div>
-
-          {total < MIN_ORDER && (
-            <div className="cart-min-warning">
-              {lang === 'el'
-                ? `Ελάχιστη παραγγελία €${MIN_ORDER}. Χρειάζεσαι ακόμα €${(MIN_ORDER - total).toFixed(2)}`
-                : `Minimum order €${MIN_ORDER}. Add €${(MIN_ORDER - total).toFixed(2)} more`}
+        ) : (
+          <>
+            {/* Scrollable items */}
+            <div className="cart-scroll">
+              {week.days.map((day, i) => (
+                <DayOrderGroup key={day.date} dayIndex={i} day={day} editable />
+              ))}
             </div>
-          )}
 
-          <button className="btn-checkout" disabled={total < MIN_ORDER} onClick={handleCheckout}>
-            {!user ? t('signInToOrder') : t('proceedToCheckout')}
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-              <polyline points="9 18 15 12 9 6"/>
-            </svg>
-          </button>
-        </div>
-      )}
+            {/* Sticky footer */}
+            <div className="cart-ftr">
+              <VoucherInput />
+
+              {/* Voucher discount line */}
+              {voucher.applied && voucher.value != null && (
+                <div className="cart-total-row" style={{ marginBottom: 6 }}>
+                  <span className="cart-total-lbl" style={{ color: 'var(--green-dark)', fontSize: 13 }}>
+                    {t('discount')}
+                  </span>
+                  <span style={{ fontWeight: 900, color: 'var(--green)', fontSize: 14 }}>
+                    {voucher.type === 'pct' ? `-${voucher.value}%` : `-€${voucher.value.toFixed(2)}`}
+                  </span>
+                </div>
+              )}
+
+              <div className="cart-total-row">
+                <span className="cart-total-lbl">{t('total')}</span>
+                <span className="cart-total-amt">€{total.toFixed(2)}</span>
+              </div>
+
+              <button
+                className="btn-checkout"
+                disabled={!canCheckout}
+                onClick={handleCheckout}
+              >
+                {!user ? t('signInToOrder') : t('checkout')} →
+              </button>
+
+              {!canCheckout && hasItems && (
+                <div className="min-warn">
+                  {lang === 'el'
+                    ? `Ελάχιστη παραγγελία €${MIN_ORDER} ανά ημέρα`
+                    : `Minimum order €${MIN_ORDER} per day`}
+                </div>
+              )}
+            </div>
+          </>
+        )}
+      </div>
     </aside>
   )
 }

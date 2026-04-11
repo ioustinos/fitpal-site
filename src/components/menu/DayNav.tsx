@@ -1,7 +1,7 @@
 import { useUIStore } from '../../store/useUIStore'
 import { useCartStore } from '../../store/useCartStore'
 import { WEEK_DATA } from '../../data/menu'
-import { totalCount, getCutoffDate } from '../../lib/helpers'
+import { totalCount } from '../../lib/helpers'
 
 const DAY_LABELS_EL = ['Δευ', 'Τρι', 'Τετ', 'Πεμ', 'Παρ']
 const DAY_LABELS_EN = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri']
@@ -18,45 +18,52 @@ export function DayNav() {
   const days = week.days
   const labels = lang === 'el' ? DAY_LABELS_EL : DAY_LABELS_EN
 
+  function goWeek(w: number) {
+    setActiveWeek(w)
+    setActiveDay(0)
+  }
+
   return (
-    <div className="day-nav-wrap">
-      {/* Week selector */}
-      {weeks.length > 1 && (
-        <div className="week-selector">
-          {weeks.map((w, i) => (
-            <button
-              key={w.id}
-              className={`week-btn${activeWeek === i ? ' active' : ''}`}
-              onClick={() => { setActiveWeek(i); setActiveDay(0) }}
-            >
-              {lang === 'el' ? w.labelEl : w.labelEn}
-            </button>
-          ))}
+    <div className="day-nav">
+      {/* Back toggle — shown when not on first week */}
+      {activeWeek > 0 && (
+        <div className="week-toggle" onClick={() => goWeek(activeWeek - 1)}>
+          <div className="wt-arrow">←</div>
+          <div className="wt-label">
+            {lang === 'el'
+              ? (weeks[activeWeek - 1]?.labelEl ?? '')
+              : (weeks[activeWeek - 1]?.labelEn ?? '')}
+          </div>
         </div>
       )}
 
-      {/* Day pills */}
-      <div className="day-nav">
-        {days.map((day, i) => {
-          const count = totalCount(cart, i)
-          const cutoff = getCutoffDate(day.date)
-          const now = new Date()
-          const isPast = now > cutoff
+      {/* Day tabs */}
+      {days.map((day, i) => {
+        const count = totalCount(cart, i)
+        return (
+          <div
+            key={day.date}
+            className={`day-tab${activeDay === i ? ' active' : ''}`}
+            onClick={() => setActiveDay(i)}
+          >
+            <div className="dn">{labels[i]}</div>
+            <div className="dd">{formatDate(day.date, lang)}</div>
+            {count > 0 && <div className="day-badge">{count}</div>}
+          </div>
+        )
+      })}
 
-          return (
-            <button
-              key={day.date}
-              className={`day-btn${activeDay === i ? ' active' : ''}${isPast ? ' past' : ''}`}
-              onClick={() => setActiveDay(i)}
-            >
-              <span className="day-short">{labels[i]}</span>
-              <span className="day-date">{formatDate(day.date, lang)}</span>
-              {count > 0 && <span className="day-badge">{count}</span>}
-              {isPast && <span className="day-past-label">{lang === 'el' ? 'Έκλεισε' : 'Closed'}</span>}
-            </button>
-          )
-        })}
-      </div>
+      {/* Next toggle — shown when more weeks exist */}
+      {activeWeek < weeks.length - 1 && (
+        <div className="week-toggle" onClick={() => goWeek(activeWeek + 1)}>
+          <div className="wt-arrow">→</div>
+          <div className="wt-label">
+            {lang === 'el'
+              ? (weeks[activeWeek + 1]?.labelEl ?? '')
+              : (weeks[activeWeek + 1]?.labelEn ?? '')}
+          </div>
+        </div>
+      )}
     </div>
   )
 }

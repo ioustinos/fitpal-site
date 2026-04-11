@@ -14,6 +14,8 @@ export interface CartItem {
   price: number          // effective unit price (after dish-level discount + wallet)
   qty: number
   macros?: Macros
+  img?: string           // dish image URL for cart thumbnails
+  emoji?: string         // emoji fallback for cart thumbnails
 }
 
 export interface DeliveryInfo {

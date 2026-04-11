@@ -1,5 +1,5 @@
 /**
- * Macro display components — matches demo.html MACRO_ICONS_SM + .macro/.macros CSS structure
+ * Macro display components — matches demo.html CSS exactly
  */
 
 type MacroKey = 'cal' | 'pro' | 'carb' | 'fat'
@@ -9,7 +9,7 @@ function cssType(type: MacroKey): string {
   return type === 'pro' ? 'prot' : type
 }
 
-// SVG icons from demo.html MACRO_ICONS_SM
+// SVG icons matching MACRO_ICONS_SM from demo.html
 function MacroIcon({ type }: { type: MacroKey }) {
   switch (type) {
     case 'cal':
@@ -58,24 +58,6 @@ function getLevel(type: MacroKey, value: number): number {
   return 5
 }
 
-interface MacroDotsProps { type: MacroKey; value: number; label: string }
-
-/** Single macro chip: icon + label + 5-dot scale. Matches .macro CSS from demo.html */
-export function MacroDots({ type, value, label }: MacroDotsProps) {
-  const level = getLevel(type, value)
-  return (
-    <div className={`macro ${cssType(type)}`}>
-      <div className="macro-ico"><MacroIcon type={type} /></div>
-      <div className="macro-l">{label}</div>
-      <div className="macro-dots">
-        {[1, 2, 3, 4, 5].map((n) => (
-          <div key={n} className={`macro-dot${n <= level ? ' filled' : ''}`} />
-        ))}
-      </div>
-    </div>
-  )
-}
-
 interface MacroBarProps {
   cal: number
   pro: number
@@ -84,14 +66,35 @@ interface MacroBarProps {
   labels: { kcal: string; pro: string; carb: string; fat: string }
 }
 
-/** Full row of 4 macros for dish cards. Matches .macros from demo.html */
+/**
+ * Card macro row — 4-col grid of cream boxes matching .macros CSS from demo.html
+ * Layout per box: icon → label → dots (no numeric value, matches buildDishCard JS)
+ */
 export function MacroDotsRow({ cal, pro, carb, fat, labels }: MacroBarProps) {
+  const items: Array<{ val: number; label: string; type: MacroKey }> = [
+    { val: cal,  label: labels.kcal, type: 'cal'  },
+    { val: pro,  label: labels.pro,  type: 'pro'  },
+    { val: carb, label: labels.carb, type: 'carb' },
+    { val: fat,  label: labels.fat,  type: 'fat'  },
+  ]
   return (
     <div className="macros">
-      <MacroDots type="cal"  value={cal}  label={labels.kcal} />
-      <MacroDots type="pro"  value={pro}  label={labels.pro} />
-      <MacroDots type="carb" value={carb} label={labels.carb} />
-      <MacroDots type="fat"  value={fat}  label={labels.fat} />
+      {items.map((m) => {
+        const level = getLevel(m.type, m.val)
+        return (
+          <div key={m.type} className={`macro ${cssType(m.type)}`}>
+            <div className="macro-ico">
+              <MacroIcon type={m.type} />
+            </div>
+            <div className="macro-l">{m.label}</div>
+            <div className="macro-dots">
+              {[1, 2, 3, 4, 5].map((n) => (
+                <div key={n} className={`macro-dot${n <= level ? ' filled' : ''}`} />
+              ))}
+            </div>
+          </div>
+        )
+      })}
     </div>
   )
 }
@@ -99,10 +102,10 @@ export function MacroDotsRow({ cal, pro, carb, fat, labels }: MacroBarProps) {
 /** Big numeric macro display for dish modal. Matches .dm-macro CSS from demo.html */
 export function MacroBoxes({ cal, pro, carb, fat, labels }: MacroBarProps) {
   const items: Array<{ val: number; label: string; type: MacroKey }> = [
-    { val: cal,  label: labels.kcal, type: 'cal' },
-    { val: pro,  label: labels.pro,  type: 'pro' },
+    { val: cal,  label: labels.kcal, type: 'cal'  },
+    { val: pro,  label: labels.pro,  type: 'pro'  },
     { val: carb, label: labels.carb, type: 'carb' },
-    { val: fat,  label: labels.fat,  type: 'fat' },
+    { val: fat,  label: labels.fat,  type: 'fat'  },
   ]
   return (
     <div className="dm-macros">

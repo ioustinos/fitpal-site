@@ -10,7 +10,6 @@ interface MenuSectionProps {
 
 export function MenuSection({ dishes, dayIndex }: MenuSectionProps) {
   const lang = useUIStore((s) => s.lang)
-  const activeCat = useUIStore((s) => s.activeCat)
 
   // Group by category
   const grouped = new Map<string, Dish[]>()
@@ -20,31 +19,35 @@ export function MenuSection({ dishes, dayIndex }: MenuSectionProps) {
     grouped.get(cat)!.push(dish)
   }
 
-  // Filter categories
-  const entries = activeCat
-    ? [...grouped.entries()].filter(([catId]) => catId === activeCat)
-    : [...grouped.entries()]
+  // Show all categories in canonical order, skip 'all'
+  const entries = CATS
+    .filter((c) => c.id !== 'all')
+    .map((c) => ({ cat: c, dishes: grouped.get(c.id) ?? [] }))
+    .filter((e) => e.dishes.length > 0)
 
   if (entries.length === 0) {
     return (
       <div className="menu-empty">
-        {lang === 'el' ? 'Δεν βρέθηκαν πιάτα.' : 'No dishes found.'}
+        <div className="menu-empty-text">
+          {lang === 'el' ? 'Δεν υπάρχουν πιάτα σήμερα' : 'No dishes today'}
+        </div>
       </div>
     )
   }
 
   return (
-    <div className="menu-sections">
-      {entries.map(([catId, catDishes]) => {
-        const catInfo = CATS.find((c) => c.id === catId)
-        const catLabel = catInfo
-          ? (lang === 'el' ? catInfo.labelEl : catInfo.labelEn)
-          : catId
+    <div id="menu-grid">
+      {entries.map(({ cat, dishes: catDishes }) => {
+        const catLabel = lang === 'el' ? cat.labelEl : cat.labelEn
+        const dishWord = lang === 'el' ? 'πιάτα' : 'dishes'
 
         return (
-          <div key={catId} className="menu-section" id={`cat-${catId}`}>
-            <h3 className="menu-section-title">{catLabel}</h3>
-            <div className="dish-grid">
+          <div key={cat.id} className="cat-section" id={`cat-sec-${cat.id}`}>
+            <div className="cat-section-hdr">
+              <span className="cat-section-name">{catLabel}</span>
+              <span className="cat-section-count">{catDishes.length} {dishWord}</span>
+            </div>
+            <div className="cat-section-grid">
               {catDishes.map((dish) => (
                 <DishCard key={dish.id} dish={dish} dayIndex={dayIndex} />
               ))}

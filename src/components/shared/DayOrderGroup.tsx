@@ -36,12 +36,11 @@ export function DayOrderGroup({
   const dateStr = formatDate(day.date, lang)
 
   return (
-    <div className="cart-day-group">
+    <div className="cart-day-block">
       {/* Day header */}
-      <div className="cart-day-header">
+      <div className="cart-day-hdr">
         <span className="cart-day-name">{label}</span>
-        <span className="cart-day-date">{dateStr}</span>
-        <span className="cart-day-amt">€{amt.toFixed(2)}</span>
+        <span className="cart-day-amt">{lang === 'el' ? `€${amt.toFixed(2)}` : `€${amt.toFixed(2)}`}</span>
       </div>
 
       {/* Items */}
