@@ -25,6 +25,7 @@ export function MenuPage() {
   const activeDay = useUIStore((s) => s.activeDay)
   const activeWeek = useUIStore((s) => s.activeWeek)
   const openWalletModal = useUIStore((s) => s.openWalletModal)
+  const goToWalletPage = useUIStore((s) => s.goToWalletPage)
   const cart = useCartStore((s) => s.cart)
   const user = useAuthStore((s) => s.user)
   const t = makeTr(lang)
@@ -72,7 +73,7 @@ export function MenuPage() {
             </div>
 
             {/* Wallet promo — matches demo layout */}
-            <div className="wallet-promo" onClick={openWalletModal}>
+            <div className="wallet-promo" onClick={walletActive ? openWalletModal : goToWalletPage}>
               <div className="wp-badge">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                   <rect x="2" y="5" width="20" height="14" rx="2"/>
@@ -98,8 +99,8 @@ export function MenuPage() {
                 <>
                   <div className="wp-title">
                     {lang === 'el'
-                      ? <>Μηνιαία συνδρομή με <span>bonus credits</span></>
-                      : <>Monthly subscription with <span>bonus credits</span></>}
+                      ? <>Μηνιαία συνδρομή με <span>bonus credits</span> έως +{Math.max(...WALLET_PLANS.map(p => p.bonusPct))}%</>
+                      : <>Monthly subscription with <span>bonus credits</span> up to +{Math.max(...WALLET_PLANS.map(p => p.bonusPct))}%</>}
                   </div>
                   <div className="wp-plans-mini">
                     {WALLET_PLANS.map((plan) => (
@@ -110,7 +111,7 @@ export function MenuPage() {
                   </div>
                 </>
               )}
-              <button className="wp-cta">
+              <button className="wp-cta" onClick={(e) => { e.stopPropagation(); walletActive ? openWalletModal() : goToWalletPage() }}>
                 {walletActive
                   ? (lang === 'el' ? 'Διαχείριση' : 'Manage')
                   : (lang === 'el' ? 'Μάθε περισσότερα' : 'Learn more')}

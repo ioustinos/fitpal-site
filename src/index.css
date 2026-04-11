@@ -917,6 +917,70 @@ header {
 .wm-empty { font-size: 13px; color: var(--text-muted); font-weight: 600; text-align: center; padding: 20px 0; }
 
 /* ══════════════════════════════════════════
+   WALLET LANDING PAGE
+══════════════════════════════════════════ */
+.wallet-page { max-width: 900px; margin: 0 auto; padding: 24px 24px 80px; }
+
+/* Back link */
+.wlp-back { margin-bottom: 20px; }
+.wlp-back-btn { display: inline-flex; align-items: center; gap: 6px; background: none; border: none; color: var(--text-muted); font-size: 13px; font-weight: 700; cursor: pointer; padding: 0; transition: color 0.18s; }
+.wlp-back-btn:hover { color: var(--green-dark); }
+
+/* Hero */
+.wlp-hero { background: linear-gradient(135deg, var(--green-dark) 0%, #006644 60%, #00a060 100%); border-radius: var(--radius-lg); padding: 52px 40px; text-align: center; margin-bottom: 40px; position: relative; overflow: hidden; }
+.wlp-hero::before { content: ''; position: absolute; right: -60px; top: -60px; width: 240px; height: 240px; background: rgba(255,255,255,0.05); border-radius: 50%; }
+.wlp-hero::after { content: ''; position: absolute; left: -40px; bottom: -40px; width: 160px; height: 160px; background: rgba(0,185,107,0.15); border-radius: 50%; }
+.wlp-hero-badge { display: inline-flex; align-items: center; gap: 6px; background: rgba(0,185,107,0.3); border: 1px solid rgba(0,185,107,0.5); border-radius: 999px; padding: 5px 14px; font-size: 10px; font-weight: 900; color: #7DFFBE; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 20px; position: relative; z-index: 1; }
+.wlp-hero-title { font-size: 44px; font-weight: 900; color: var(--white); line-height: 1.1; letter-spacing: -1.5px; margin-bottom: 18px; position: relative; z-index: 1; }
+.wlp-hero-title span { color: #7DFFBE; }
+.wlp-hero-desc { font-size: 15px; color: rgba(255,255,255,0.7); font-weight: 600; line-height: 1.6; max-width: 520px; margin: 0 auto; position: relative; z-index: 1; }
+
+/* How-it-works steps */
+.wlp-steps-wrap { margin-bottom: 52px; }
+.wlp-steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; }
+.wlp-step { background: var(--white); border: 1.5px solid var(--border); border-radius: var(--radius); padding: 28px 24px; text-align: center; }
+.wlp-step-num { width: 44px; height: 44px; background: rgba(0,185,107,0.12); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 18px; font-weight: 900; color: var(--green); margin: 0 auto 16px; }
+.wlp-step-title { font-size: 15px; font-weight: 900; color: var(--green-dark); margin-bottom: 8px; }
+.wlp-step-desc { font-size: 13px; color: var(--text-muted); font-weight: 600; line-height: 1.55; }
+
+/* Plans */
+.wlp-plans-wrap { }
+.wlp-plans-title { font-size: 28px; font-weight: 900; color: var(--green-dark); letter-spacing: -0.8px; text-align: center; margin-bottom: 8px; }
+.wlp-plans-sub { font-size: 14px; color: var(--text-muted); font-weight: 600; text-align: center; margin-bottom: 32px; }
+.wlp-plans-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; margin-bottom: 28px; }
+
+/* Plan cards */
+.wlp-plan-card { background: var(--white); border: 2px solid var(--border); border-radius: var(--radius); padding: 28px 24px; display: flex; flex-direction: column; gap: 0; position: relative; transition: all 0.2s; }
+.wlp-plan-card:hover { border-color: var(--green-light); box-shadow: 0 4px 20px rgba(0,185,107,0.1); }
+.wlp-plan-card.popular { border-color: #E8450A; border-width: 2.5px; box-shadow: 0 8px 32px rgba(232,69,10,0.12); }
+.wlp-plan-card.current { border-color: var(--green); background: var(--green-pale); }
+
+.wlp-popular-badge { background: #E8450A; color: var(--white); font-size: 9px; font-weight: 900; letter-spacing: 0.8px; text-transform: uppercase; padding: 4px 12px; border-radius: 999px; text-align: center; margin-bottom: 18px; width: fit-content; margin-left: auto; margin-right: auto; }
+.wlp-plan-name { font-size: 13px; font-weight: 900; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px; text-align: center; }
+.wlp-plan-price { font-size: 40px; font-weight: 900; color: var(--text); letter-spacing: -1.5px; text-align: center; margin-bottom: 4px; line-height: 1; }
+.wlp-plan-period { font-size: 16px; font-weight: 700; color: var(--text-muted); }
+.wlp-plan-credits-row { display: flex; align-items: center; justify-content: center; gap: 6px; font-size: 14px; font-weight: 800; margin-bottom: 20px; }
+.wlp-arrow { color: var(--text-muted); }
+.wlp-credits-val { color: var(--green); }
+.wlp-plan-features { display: flex; flex-direction: column; gap: 8px; margin-bottom: 24px; flex: 1; }
+.wlp-feature { display: flex; align-items: flex-start; gap: 7px; font-size: 12px; font-weight: 700; color: var(--text-mid); line-height: 1.4; }
+.wlp-feature svg { color: var(--green); flex-shrink: 0; margin-top: 1px; }
+
+.wlp-plan-btn { width: 100%; padding: 12px; background: var(--green-pale); color: var(--green-dark); border: 2px solid var(--green-light); border-radius: var(--radius-sm); font-size: 13px; font-weight: 900; cursor: pointer; transition: all 0.18s; }
+.wlp-plan-btn:hover:not(:disabled) { background: var(--green); color: var(--white); border-color: var(--green); }
+.wlp-plan-btn.popular { background: #E8450A; color: var(--white); border-color: #E8450A; }
+.wlp-plan-btn.popular:hover { background: #cc3c09; border-color: #cc3c09; }
+.wlp-plan-btn.active-btn { background: var(--green-pale); color: var(--green-dark); border-color: var(--green); cursor: default; }
+.wlp-plan-btn:disabled { opacity: 1; }
+
+/* Footer notes */
+.wlp-login-note { text-align: center; font-size: 13px; font-weight: 600; color: var(--text-muted); margin-bottom: 20px; }
+.wlp-inline-btn { background: none; border: none; color: var(--green-dark); font-size: 13px; font-weight: 900; cursor: pointer; text-decoration: underline; padding: 0; }
+.wlp-inline-btn:hover { color: var(--green); }
+.wlp-bonus-note { display: flex; align-items: flex-start; gap: 8px; background: var(--green-pale); border: 1px solid var(--green-light); border-radius: var(--radius-sm); padding: 14px 16px; font-size: 12px; font-weight: 700; color: var(--text-mid); line-height: 1.5; }
+.wlp-bonus-note svg { color: var(--green); flex-shrink: 0; margin-top: 1px; }
+
+/* ══════════════════════════════════════════
    AUTH MODAL (new class names)
 ══════════════════════════════════════════ */
 .auth-form { display: flex; flex-direction: column; gap: 14px; }
@@ -964,4 +1028,7 @@ header {
   .form-row.two-col { grid-template-columns: 1fr; }
   .checkout-page { padding: 16px 12px 80px; }
   .progress-step span { display: none; }
+  .wlp-plans-grid { grid-template-columns: 1fr; }
+  .wlp-plan-card.popular { order: -1; }
+  .wlp-steps { grid-template-columns: 1fr; }
 }

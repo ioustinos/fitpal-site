@@ -15,6 +15,7 @@ interface UIStore {
   isCheckout: boolean
   isAccountPage: boolean
   isSubscriptionPage: boolean
+  isWalletPage: boolean
 
   setLang: (lang: Lang) => void
   setActiveDay: (day: number) => void
@@ -30,6 +31,8 @@ interface UIStore {
   closeAccount: () => void
   goToSubscription: () => void
   closeSubscription: () => void
+  goToWalletPage: () => void
+  closeWalletPage: () => void
 }
 
 export const useUIStore = create<UIStore>((set) => ({
@@ -43,6 +46,7 @@ export const useUIStore = create<UIStore>((set) => ({
   isCheckout: false,
   isAccountPage: false,
   isSubscriptionPage: false,
+  isWalletPage: false,
 
   setLang: (lang) => set({ lang }),
   setActiveDay: (activeDay) => set({ activeDay, activeCat: null }),
@@ -58,4 +62,6 @@ export const useUIStore = create<UIStore>((set) => ({
   closeAccount: () => set({ isAccountPage: false }),
   goToSubscription: () => set({ isSubscriptionPage: true }),
   closeSubscription: () => set({ isSubscriptionPage: false }),
+  goToWalletPage: () => set({ isWalletPage: true }),
+  closeWalletPage: () => set({ isWalletPage: false }),
 }))
