@@ -298,21 +298,23 @@ header {
 .dm-macro.fat  .dm-macro-ico { color: #C2703A; }
 .dm-macro-v { font-size: 20px; font-weight: 900; color: var(--green-dark); line-height: 1; }
 .dm-macro-l { font-size: 9px; font-weight: 800; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; }
-.dm-section-title { font-size: 11px; font-weight: 900; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 10px; }
-.dm-variants { display: flex; flex-direction: column; gap: 8px; margin-bottom: 16px; }
-.dm-variant { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border: 2px solid var(--border); border-radius: var(--radius-sm); cursor: pointer; transition: all 0.18s; background: var(--white); }
-.dm-variant:hover, .dm-variant.sel { border-color: var(--green); background: var(--green-pale); }
-.dm-variant.sel { box-shadow: 0 0 0 3px rgba(0,185,107,0.12); }
-.dm-variant-radio { width: 16px; height: 16px; border-radius: 50%; border: 2px solid var(--border); flex-shrink: 0; transition: all 0.18s; display: flex; align-items: center; justify-content: center; }
-.dm-variant.sel .dm-variant-radio { border-color: var(--green); background: var(--green); }
-.dm-variant.sel .dm-variant-radio::after { content: ''; width: 6px; height: 6px; border-radius: 50%; background: white; }
-.dm-variant-label { flex: 1; font-size: 12px; font-weight: 700; color: var(--text); line-height: 1.35; }
-.dm-variant-price { font-size: 14px; font-weight: 900; color: var(--green-dark); white-space: nowrap; }
-.dm-variant-orig { font-size: 11px; color: var(--text-muted); text-decoration: line-through; font-weight: 600; }
-.dm-comment-wrap { margin-bottom: 16px; }
-.dm-comment-lbl { font-size: 11px; font-weight: 700; color: var(--text-muted); margin-bottom: 6px; }
-.dm-comment { width: 100%; padding: 9px 12px; border: 1.5px solid var(--border); border-radius: var(--radius-sm); font-size: 13px; resize: none; transition: border-color 0.18s; background: var(--white); color: var(--text); }
+.dm-section-title { font-size: 13px; font-weight: 900; color: var(--text); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 10px; }
+.dm-variants { display: flex; flex-direction: column; gap: 8px; margin-bottom: 24px; max-height: 260px; overflow-y: auto; padding-right: 10px; margin-right: -10px; }
+/* variant-row — matches demo.html exactly */
+.variant-row { display: flex; align-items: center; gap: 12px; padding: 12px 14px; border: 2px solid var(--border); border-radius: var(--radius); cursor: pointer; transition: all 0.18s; background: var(--white); }
+.variant-row:hover, .variant-row.sel { border-color: var(--green); background: var(--green-pale); }
+.vr-radio { width: 18px; height: 18px; border-radius: 50%; border: 2px solid var(--border); flex-shrink: 0; position: relative; transition: all 0.18s; }
+.variant-row.sel .vr-radio { border-color: var(--green); background: var(--green); }
+.variant-row.sel .vr-radio::after { content: ''; position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%); width: 6px; height: 6px; border-radius: 50%; background: white; }
+.vr-info { flex: 1; min-width: 0; }
+.vr-label { font-size: 13px; font-weight: 800; color: var(--text); line-height: 1.3; }
+.vr-macros { font-size: 11px; font-weight: 600; color: var(--text-muted); margin-top: 3px; }
+.vr-price { font-size: 17px; font-weight: 900; color: var(--green-dark); flex-shrink: 0; }
+.dm-comment-wrap { margin-bottom: 20px; }
+.dm-comment-lbl { font-size: 11px; font-weight: 800; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.4px; margin-bottom: 6px; }
+.dm-comment { width: 100%; padding: 10px 12px; border: 1.5px solid var(--border); border-radius: var(--radius-sm); font-size: 13px; font-family: inherit; color: var(--text); background: var(--white); resize: vertical; min-height: 38px; max-height: 100px; transition: border-color 0.18s; box-sizing: border-box; }
 .dm-comment:focus { outline: none; border-color: var(--green); }
+.dm-comment::placeholder { color: var(--text-muted); font-style: italic; opacity: 0.6; }
 .dm-actions { display: flex; align-items: center; gap: 14px; }
 .dm-qty { display: flex; align-items: center; border: 1.5px solid var(--border); border-radius: var(--radius-sm); overflow: hidden; }
 .dm-qty-btn { width: 36px; height: 40px; border: none; background: var(--cream); font-size: 18px; font-weight: 900; cursor: pointer; color: var(--text); transition: all 0.15s; display: flex; align-items: center; justify-content: center; }
@@ -683,6 +685,7 @@ header {
 .ci-info { flex: 1; min-width: 0; }
 .ci-name { font-size: 12px; font-weight: 800; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .ci-var { font-size: 10px; font-weight: 600; color: var(--text-muted); margin-top: 1px; }
+.ci-comment { font-size: 11px; font-style: italic; color: var(--text-muted); margin-top: 2px; line-height: 1.3; }
 /* Right side */
 .ci-right { display: flex; flex-direction: column; align-items: flex-end; gap: 5px; }
 .ci-price { font-size: 13px; font-weight: 900; color: var(--green-dark); }

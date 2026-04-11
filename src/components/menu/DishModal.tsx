@@ -21,6 +21,7 @@ export function DishModal() {
 
   const [variantId, setVariantId] = useState<string>('')
   const [qty, setQty] = useState(1)
+  const [comment, setComment] = useState('')
   const [imgError, setImgError] = useState(false)
 
   const dish = selectedDish
@@ -30,6 +31,7 @@ export function DishModal() {
     if (dish) {
       setVariantId(dish.variants[0]?.id ?? '')
       setQty(1)
+      setComment('')
       setImgError(false)
     }
   }, [dish])
@@ -59,6 +61,7 @@ export function DishModal() {
       macros: variant.macros,
       img: dish!.img,
       emoji: dish!.emoji,
+      comment: comment.trim() || undefined,
     })
     toast(lang === 'el' ? `${name} προστέθηκε!` : `${name} added!`)
     closeModal()
@@ -73,7 +76,7 @@ export function DishModal() {
         </svg>
       </button>
 
-      {/* Image — matches demo.html dm-img-wrap */}
+      {/* Image */}
       <div className="dm-img-wrap">
         {dish.img && !imgError ? (
           <img
@@ -90,17 +93,19 @@ export function DishModal() {
       {/* Body */}
       <div className="dm-body">
         {/* Tags */}
-        <div className="dm-tags">
-          {dish.tags?.map((tag) => (
-            <span key={tag} className={`tag tag-${tag}`}>{tagLabel(tag, lang)}</span>
-          ))}
-          {dish.discount && (
-            <span className="tag tag-sale">-{dish.discount}%</span>
-          )}
-        </div>
+        {(dish.tags?.length || dish.discount) ? (
+          <div className="dm-tags">
+            {dish.tags?.map((tag) => (
+              <span key={tag} className={`tag tag-${tag}`}>{tagLabel(tag, lang)}</span>
+            ))}
+            {dish.discount && (
+              <span className="tag tag-sale">-{dish.discount}%</span>
+            )}
+          </div>
+        ) : null}
 
-        <h2 className="dm-name">{name}</h2>
-        {desc && <p className="dm-desc">{desc}</p>}
+        <div className="dm-name">{name}</div>
+        {desc && <div className="dm-desc">{desc}</div>}
 
         {/* Macros */}
         {macros && (
@@ -118,49 +123,65 @@ export function DishModal() {
           />
         )}
 
-        {/* Variant selector */}
+        {/* Variant selector — matches demo .variant-row layout */}
         {dish.variants.length > 1 && (
           <div className="dm-variants">
-            <div className="dm-section-label">{t('selectVariant')}</div>
+            <div className="dm-section-title">{t('selectSize')}</div>
             <div className="dm-variant-list">
               {dish.variants.map((v) => {
                 const vBase = effPrice(v.price, dish.discount)
                 const vFinal = walletDiscount > 0 ? effPrice(vBase, walletDiscount) : vBase
+                const isActive = variantId === v.id
                 return (
-                  <button
+                  <div
                     key={v.id}
-                    className={`dm-variant-btn${variantId === v.id ? ' active' : ''}`}
+                    className={`variant-row${isActive ? ' sel' : ''}`}
                     onClick={() => setVariantId(v.id)}
                   >
-                    <span className="dm-variant-label">
-                      {lang === 'el' ? v.labelEl : v.labelEn}
-                    </span>
-                    <span className="dm-variant-macros">
-                      {v.macros ? `${v.macros.cal} kcal • ${v.macros.pro}g ${t('protein')}` : ''}
-                    </span>
-                    <span className="dm-variant-price">€{vFinal.toFixed(2)}</span>
-                  </button>
+                    <div className="vr-radio" />
+                    <div className="vr-info">
+                      <div className="vr-label">{lang === 'el' ? v.labelEl : v.labelEn}</div>
+                      {v.macros && (
+                        <div className="vr-macros">
+                          {v.macros.cal} kcal · {v.macros.pro}g {t('protein')} · {v.macros.carb}g {t('carbs')} · {v.macros.fat}g {t('fat')}
+                        </div>
+                      )}
+                    </div>
+                    <div className="vr-price">€{vFinal.toFixed(2)}</div>
+                  </div>
                 )
               })}
             </div>
           </div>
         )}
 
-        {/* Qty + Add */}
-        <div className="dm-footer">
+        {/* Dish comment */}
+        <div className="dm-comment-wrap">
+          <div className="dm-comment-lbl">{t('dishComment')}</div>
+          <textarea
+            className="dm-comment"
+            rows={1}
+            placeholder={t('dishCommentPh')}
+            value={comment}
+            onChange={(e) => setComment(e.target.value)}
+          />
+        </div>
+
+        {/* Actions — matches demo .dm-actions layout */}
+        <div className="dm-actions">
           <div className="dm-qty">
             <button
-              className="qty-btn"
+              className="dm-qty-btn"
               onClick={() => setQty((q) => Math.max(1, q - 1))}
               disabled={qty <= 1}
             >−</button>
-            <span className="qty-val">{qty}</span>
+            <span className="dm-qty-n">{qty}</span>
             <button
-              className="qty-btn"
+              className="dm-qty-btn"
               onClick={() => setQty((q) => q + 1)}
             >+</button>
           </div>
-          <button className="btn-add-to-cart" onClick={handleAdd}>
+          <button className="btn-dm-add" onClick={handleAdd}>
             {t('addToCart')} • €{(finalPrice * qty).toFixed(2)}
           </button>
         </div>

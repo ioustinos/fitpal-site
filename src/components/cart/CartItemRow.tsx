@@ -47,6 +47,7 @@ export function CartItemRow({ item, dayIndex, itemIndex }: CartItemRowProps) {
       <div className="ci-info">
         <div className="ci-name">{name}</div>
         {variant && <div className="ci-var">{variant}</div>}
+        {item.comment && <div className="ci-comment">"{item.comment}"</div>}
       </div>
 
       {/* Right — price + qty controls */}

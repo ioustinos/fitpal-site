@@ -16,6 +16,7 @@ export interface CartItem {
   macros?: Macros
   img?: string           // dish image URL for cart thumbnails
   emoji?: string         // emoji fallback for cart thumbnails
+  comment?: string       // dish-level note from customer
 }
 
 export interface DeliveryInfo {
