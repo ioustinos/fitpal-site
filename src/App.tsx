@@ -1,13 +1,35 @@
-import { BrowserRouter, Routes, Route } from 'react-router-dom'
+import { useUIStore } from './store/useUIStore'
+import { Header } from './components/layout/Header'
+import { Toast } from './components/ui/Toast'
+import { MenuPage } from './pages/MenuPage'
+import { CheckoutPage } from './pages/CheckoutPage'
+import { AccountPage } from './pages/AccountPage'
+import { DishModal } from './components/menu/DishModal'
+import { AuthModal } from './components/layout/AuthModal'
+import { WalletModal } from './components/wallet/WalletModal'
 
-function App() {
+export default function App() {
+  const isCheckout = useUIStore((s) => s.isCheckout)
+  const isAccountPage = useUIStore((s) => s.isAccountPage)
+
   return (
-    <BrowserRouter>
-      <Routes>
-        <Route path="/" element={<div style={{ fontFamily: 'sans-serif', padding: 40 }}>I am commiting this to Dev first and then to prod.</div>} />
-      </Routes>
-    </BrowserRouter>
+    <>
+      <Header />
+      <main>
+        {isCheckout ? (
+          <CheckoutPage />
+        ) : isAccountPage ? (
+          <AccountPage />
+        ) : (
+          <MenuPage />
+        )}
+      </main>
+
+      {/* Global modals */}
+      <DishModal />
+      <AuthModal />
+      <WalletModal />
+      <Toast />
+    </>
   )
 }
-
-export default App

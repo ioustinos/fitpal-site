@@ -1,0 +1,61 @@
+import { create } from 'zustand'
+import type { Lang } from '../lib/translations'
+import type { Dish } from '../data/menu'
+
+type Modal = 'auth' | 'dish' | 'wallet' | null
+
+interface UIStore {
+  lang: Lang
+  activeDay: number
+  activeWeek: number
+  activeCat: string | null          // null = show all
+  openModal: Modal
+  selectedDish: Dish | null
+  selectedDayIndex: number | null   // day index for dish modal context
+  isCheckout: boolean
+  isAccountPage: boolean
+  isSubscriptionPage: boolean
+
+  setLang: (lang: Lang) => void
+  setActiveDay: (day: number) => void
+  setActiveWeek: (week: number) => void
+  setActiveCat: (cat: string | null) => void
+  openDishModal: (dish: Dish, dayIndex: number) => void
+  openAuthModal: () => void
+  openWalletModal: () => void
+  closeModal: () => void
+  goToCheckout: () => void
+  closeCheckout: () => void
+  goToAccount: () => void
+  closeAccount: () => void
+  goToSubscription: () => void
+  closeSubscription: () => void
+}
+
+export const useUIStore = create<UIStore>((set) => ({
+  lang: 'el',
+  activeDay: 0,
+  activeWeek: 0,
+  activeCat: null,
+  openModal: null,
+  selectedDish: null,
+  selectedDayIndex: null,
+  isCheckout: false,
+  isAccountPage: false,
+  isSubscriptionPage: false,
+
+  setLang: (lang) => set({ lang }),
+  setActiveDay: (activeDay) => set({ activeDay, activeCat: null }),
+  setActiveWeek: (activeWeek) => set({ activeWeek, activeDay: 0, activeCat: null }),
+  setActiveCat: (activeCat) => set({ activeCat }),
+  openDishModal: (dish, dayIndex) => set({ openModal: 'dish', selectedDish: dish, selectedDayIndex: dayIndex }),
+  openAuthModal: () => set({ openModal: 'auth' }),
+  openWalletModal: () => set({ openModal: 'wallet' }),
+  closeModal: () => set({ openModal: null, selectedDish: null, selectedDayIndex: null }),
+  goToCheckout: () => set({ isCheckout: true }),
+  closeCheckout: () => set({ isCheckout: false }),
+  goToAccount: () => set({ isAccountPage: true }),
+  closeAccount: () => set({ isAccountPage: false }),
+  goToSubscription: () => set({ isSubscriptionPage: true }),
+  closeSubscription: () => set({ isSubscriptionPage: false }),
+}))
