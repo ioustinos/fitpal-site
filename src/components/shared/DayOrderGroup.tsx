@@ -34,12 +34,11 @@ export function DayOrderGroup({
   const del: DeliveryInfo | undefined = delivery[dayIndex]
   const label = lang === 'el' ? DAY_LABELS_EL[dayIndex] : DAY_LABELS_EN[dayIndex]
   const dateStr = formatDate(day.date, lang)
-
   return (
     <div className="cart-day-block">
       {/* Day header */}
       <div className="cart-day-hdr">
-        <span className="cart-day-name">{label}</span>
+        <span className="cart-day-name">{label} <span className="cart-day-date">{dateStr}</span></span>
         <span className="cart-day-amt">{lang === 'el' ? `€${amt.toFixed(2)}` : `€${amt.toFixed(2)}`}</span>
       </div>
 

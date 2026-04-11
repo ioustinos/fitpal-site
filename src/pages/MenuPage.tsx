@@ -7,7 +7,6 @@ import { CutoffBar } from '../components/menu/CutoffBar'
 import { MenuSection } from '../components/menu/MenuSection'
 import { CartSidebar } from '../components/cart/CartSidebar'
 import { MENU, SNACKS, WEEK_DATA, WALLET_PLANS } from '../data/menu'
-import { makeTr } from '../lib/translations'
 
 export function MenuPage() {
   const lang = useUIStore((s) => s.lang)
@@ -16,8 +15,6 @@ export function MenuPage() {
   const openWalletModal = useUIStore((s) => s.openWalletModal)
   const cart = useCartStore((s) => s.cart)
   const user = useAuthStore((s) => s.user)
-  const t = makeTr(lang)
-
   const week = WEEK_DATA[activeWeek] ?? WEEK_DATA[0]
   const day = week.days[activeDay]
   const dishIds = day?.dishIds ?? []
