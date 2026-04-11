@@ -33,20 +33,17 @@ export function CartSidebar() {
 
   return (
     <aside className="sidebar">
-      <div className="cart-header">
-        <h2 className="cart-title">{t('yourOrder')}</h2>
+      <div className="sidebar-hdr">
+        <div className="sidebar-title">{t('cartTitle')}</div>
+        <div className="sidebar-sub">{t('cartSub')}</div>
       </div>
 
       <div id="cart-content" className="cart-content">
         {!hasItems ? (
           <div className="cart-empty">
             <div className="cart-empty-img">🛒</div>
-            <div className="cart-empty-title">
-              {lang === 'el' ? 'Η παραγγελία σου είναι άδεια' : 'Your order is empty'}
-            </div>
-            <div className="cart-empty-sub">
-              {lang === 'el' ? 'Πρόσθεσε πιάτα από το μενού' : 'Add dishes from the menu'}
-            </div>
+            <div className="cart-empty-title">{t('cartEmpty')}</div>
+            <div className="cart-empty-sub">{t('cartEmptySub')}</div>
           </div>
         ) : (
           <>
@@ -87,11 +84,7 @@ export function CartSidebar() {
               </button>
 
               {!canCheckout && hasItems && (
-                <div className="min-warn">
-                  {lang === 'el'
-                    ? `Ελάχιστη παραγγελία €${MIN_ORDER} ανά ημέρα`
-                    : `Minimum order €${MIN_ORDER} per day`}
-                </div>
+                <div className="min-warn">{t('minWarn')}</div>
               )}
             </div>
           </>

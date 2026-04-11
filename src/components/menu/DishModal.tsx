@@ -116,8 +116,8 @@ export function DishModal() {
             fat={macros.fat}
             labels={{
               kcal: t('kcal'),
-              pro: t('protein'),
-              carb: t('carbs'),
+              pro: t('pro'),
+              carb: t('carb'),
               fat: t('fat'),
             }}
           />
@@ -143,7 +143,7 @@ export function DishModal() {
                       <div className="vr-label">{lang === 'el' ? v.labelEl : v.labelEn}</div>
                       {v.macros && (
                         <div className="vr-macros">
-                          {v.macros.cal} kcal · {v.macros.pro}g {t('protein')} · {v.macros.carb}g {t('carbs')} · {v.macros.fat}g {t('fat')}
+                          {v.macros.cal} kcal · {v.macros.pro}g {t('pro')} · {v.macros.carb}g {t('carb')} · {v.macros.fat}g {t('fat')}
                         </div>
                       )}
                     </div>

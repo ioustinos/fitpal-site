@@ -387,8 +387,7 @@ header {
 .checkout-btn:hover { background: var(--green-dark); box-shadow: 0 6px 20px rgba(0,185,107,0.4); }
 .checkout-btn:disabled { opacity: 0.5; cursor: not-allowed; }
 
-.fab { position: fixed; bottom: 24px; right: 24px; z-index: 90; background: var(--green); color: var(--white); border: none; border-radius: 999px; padding: 14px 20px; font-size: 14px; font-weight: 900; cursor: pointer; box-shadow: 0 6px 20px rgba(0,185,107,0.45); display: flex; align-items: center; gap: 8px; transition: all 0.2s; }
-.fab:hover { background: var(--green-dark); }
+.fab { display: none; } /* hidden on desktop — shown only on mobile via @media below */
 .fab-count { background: var(--white); color: var(--green-dark); border-radius: 999px; padding: 1px 8px; font-size: 12px; }
 .fab-dot { width: 8px; height: 8px; background: var(--white); border-radius: 50%; opacity: 0.7; }
 
@@ -951,6 +950,9 @@ header {
   .checkout-sidebar { display: none; }
   .account-layout { grid-template-columns: 1fr; }
   .account-nav { position: static; }
+  /* Mobile cart FAB — only visible when sidebar is hidden */
+  .fab { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%); z-index: 200; background: var(--green); color: var(--white); border: none; border-radius: 999px; padding: 14px 24px; font-size: 14px; font-weight: 900; cursor: pointer; box-shadow: 0 6px 20px rgba(0,185,107,0.45); display: flex; align-items: center; gap: 8px; transition: all 0.2s; white-space: nowrap; }
+  .fab:hover { background: var(--green-dark); }
 }
 @media (max-width: 600px) {
   .main { padding: 16px 16px 100px; }

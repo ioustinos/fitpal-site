@@ -135,8 +135,8 @@ export function DishCard({ dish, dayIndex }: DishCardProps) {
             fat={macros.fat}
             labels={{
               kcal: 'kcal',
-              pro: t('protein'),
-              carb: t('carbs'),
+              pro: t('pro'),
+              carb: t('carb'),
               fat: t('fat'),
             }}
           />
