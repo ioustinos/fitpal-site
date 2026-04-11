@@ -1,10 +1,10 @@
 import { useCartStore } from '../../store/useCartStore'
 import { useUIStore } from '../../store/useUIStore'
 import { useAuthStore } from '../../store/useAuthStore'
-import { CartItemRow } from './CartItemRow'
+import { DayOrderGroup } from '../shared/DayOrderGroup'
 import { VoucherInput } from './VoucherInput'
 import { makeTr } from '../../lib/translations'
-import { subTotal, dayAmt, activeDays, MIN_ORDER } from '../../lib/helpers'
+import { subTotal, activeDays, MIN_ORDER } from '../../lib/helpers'
 import { WEEK_DATA } from '../../data/menu'
 
 export function CartSidebar() {
@@ -18,19 +18,11 @@ export function CartSidebar() {
   const t = makeTr(lang)
 
   const week = WEEK_DATA[activeWeek] ?? WEEK_DATA[0]
-  const days = week.days
-  const dayLabelsEl = ['Δευτέρα', 'Τρίτη', 'Τετάρτη', 'Πέμπτη', 'Παρασκευή']
-  const dayLabelsEn = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday']
-
   const total = subTotal(cart, voucher)
-  const daysWithItems = activeDays(cart)
-  const hasItems = daysWithItems.length > 0
+  const hasItems = activeDays(cart).length > 0
 
   function handleCheckout() {
-    if (!user) {
-      openAuthModal()
-      return
-    }
+    if (!user) { openAuthModal(); return }
     goToCheckout()
   }
 
@@ -50,26 +42,9 @@ export function CartSidebar() {
         </div>
       ) : (
         <div className="cart-days">
-          {days.map((day, i) => {
-            const items = cart[i] ?? []
-            if (items.length === 0) return null
-            const amt = dayAmt(cart, i)
-            const label = lang === 'el' ? dayLabelsEl[i] : dayLabelsEn[i]
-            const dateStr = formatDate(day.date, lang)
-
-            return (
-              <div key={day.date} className="cart-day-group">
-                <div className="cart-day-header">
-                  <span className="cart-day-name">{label}</span>
-                  <span className="cart-day-date">{dateStr}</span>
-                  <span className="cart-day-amt">€{amt.toFixed(2)}</span>
-                </div>
-                {items.map((item, j) => (
-                  <CartItemRow key={`${day.date}-${j}`} item={item} dayIndex={i} itemIndex={j} />
-                ))}
-              </div>
-            )
-          })}
+          {week.days.map((day, i) => (
+            <DayOrderGroup key={day.date} dayIndex={i} day={day} editable />
+          ))}
         </div>
       )}
 
@@ -81,9 +56,7 @@ export function CartSidebar() {
             {voucher.applied && voucher.value != null && (
               <div className="cart-summary-row discount">
                 <span>{t('discount')}</span>
-                <span>
-                  {voucher.type === 'pct' ? `-${voucher.value}%` : `-€${voucher.value.toFixed(2)}`}
-                </span>
+                <span>{voucher.type === 'pct' ? `-${voucher.value}%` : `-€${voucher.value.toFixed(2)}`}</span>
               </div>
             )}
             <div className="cart-summary-row total">
@@ -100,14 +73,8 @@ export function CartSidebar() {
             </div>
           )}
 
-          <button
-            className="btn-checkout"
-            disabled={total < MIN_ORDER}
-            onClick={handleCheckout}
-          >
-            {!user
-              ? t('signInToOrder')
-              : t('proceedToCheckout')}
+          <button className="btn-checkout" disabled={total < MIN_ORDER} onClick={handleCheckout}>
+            {!user ? t('signInToOrder') : t('proceedToCheckout')}
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
               <polyline points="9 18 15 12 9 6"/>
             </svg>
@@ -116,9 +83,4 @@ export function CartSidebar() {
       )}
     </aside>
   )
-}
-
-function formatDate(iso: string, lang: 'el' | 'en') {
-  const d = new Date(iso + 'T12:00:00')
-  return d.toLocaleDateString(lang === 'el' ? 'el-GR' : 'en-GB', { day: 'numeric', month: 'short' })
 }
