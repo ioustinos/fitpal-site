@@ -95,17 +95,17 @@ export function WalletModal() {
                   updateWallet({
                     active: true,
                     planId: plan.id,
-                    planEl: plan.labelEl,
-                    planEn: plan.labelEn,
-                    balance: plan.creditsAwarded,
+                    planEl: plan.nameEl,
+                    planEn: plan.nameEn,
+                    balance: plan.credits,
                     discountPct: plan.discountPct,
                     autoRenew: true,
                   })
                 }}
               >
-                <div className="wp-name">{lang === 'el' ? plan.labelEl : plan.labelEn}</div>
+                <div className="wp-name">{lang === 'el' ? plan.nameEl : plan.nameEn}</div>
                 <div className="wp-price">€{plan.price.toFixed(2)}</div>
-                <div className="wp-credits">→ €{plan.creditsAwarded.toFixed(2)} credits</div>
+                <div className="wp-credits">→ €{plan.credits.toFixed(2)} credits</div>
                 <div className="wp-bonus">+{plan.discountPct}% {lang === 'el' ? 'έκπτωση' : 'discount'}</div>
               </button>
             ))}

@@ -29,7 +29,6 @@ export function DishCard({ dish, dayIndex }: DishCardProps) {
   const finalPrice = walletDiscount > 0 ? effPrice(price, walletDiscount) : price
 
   const macros = defaultVariant.macros
-
   const name = lang === 'el' ? dish.nameEl : dish.nameEn
   const desc = lang === 'el' ? dish.descEl : dish.descEn
 
@@ -57,25 +56,47 @@ export function DishCard({ dish, dayIndex }: DishCardProps) {
       className={`dish-card${inCart > 0 ? ' in-cart' : ''}`}
       onClick={() => openDishModal(dish, dayIndex)}
     >
-      {/* Tags */}
-      <div className="dish-tags">
-        {dish.tags?.map((tag) => (
-          <span key={tag} className={`dish-tag tag-${tag}`}>
-            {tagLabel(tag, lang)}
-          </span>
-        ))}
-        {dish.discount && (
-          <span className="dish-tag tag-sale">-{dish.discount}%</span>
-        )}
+      {/* Image area — matches demo.html .dish-img-wrap */}
+      <div className="dish-img-wrap">
+        {dish.img ? (
+          <img
+            className="dish-img"
+            src={dish.img}
+            alt={name}
+            loading="lazy"
+            onError={(e) => {
+              const wrap = e.currentTarget.parentElement
+              if (wrap) {
+                e.currentTarget.style.display = 'none'
+                const fb = wrap.querySelector('.dish-img-fallback') as HTMLElement
+                if (fb) fb.style.display = 'flex'
+              }
+            }}
+          />
+        ) : null}
+        <div className="dish-img-fallback" style={{ display: dish.img ? 'none' : 'flex' }}>
+          {dish.emoji}
+        </div>
+
+        {/* Tags overlaid on image */}
+        <div className="dish-tags">
+          {dish.tags?.map((tag) => (
+            <span key={tag} className={`tag tag-${tag}`}>
+              {tagLabel(tag, lang)}
+            </span>
+          ))}
+          {dish.discount && (
+            <span className="tag tag-sale">-{dish.discount}%</span>
+          )}
+        </div>
       </div>
 
-      {/* Content */}
+      {/* Card body: name + desc + macros + price/button */}
       <div className="dish-card-body">
         <div className="dish-info">
           <div className="dish-name">{name}</div>
           {desc && <div className="dish-desc">{desc}</div>}
 
-          {/* Macros row */}
           {macros && (
             <MacroDotsRow
               cal={macros.cal}
@@ -92,7 +113,6 @@ export function DishCard({ dish, dayIndex }: DishCardProps) {
           )}
         </div>
 
-        {/* Price + add */}
         <div className="dish-card-right">
           <div className="dish-price-wrap">
             {dish.discount && (
