@@ -101,18 +101,18 @@ export function MacroDotsRow({ cal, pro, carb, fat, labels }: MacroBarProps) {
 
 /** Big numeric macro display for dish modal. Matches .dm-macro CSS from demo.html */
 export function MacroBoxes({ cal, pro, carb, fat, labels }: MacroBarProps) {
-  const items: Array<{ val: number; label: string; type: MacroKey }> = [
+  const items: Array<{ val: number; label: string; type: MacroKey; unit?: string }> = [
     { val: cal,  label: labels.kcal, type: 'cal'  },
-    { val: pro,  label: labels.pro,  type: 'pro'  },
-    { val: carb, label: labels.carb, type: 'carb' },
-    { val: fat,  label: labels.fat,  type: 'fat'  },
+    { val: pro,  label: labels.pro,  type: 'pro',  unit: 'g' },
+    { val: carb, label: labels.carb, type: 'carb', unit: 'g' },
+    { val: fat,  label: labels.fat,  type: 'fat',  unit: 'g' },
   ]
   return (
     <div className="dm-macros">
       {items.map((m) => (
         <div key={m.type} className={`dm-macro ${cssType(m.type)}`}>
           <div className="dm-macro-ico"><MacroIcon type={m.type} /></div>
-          <div className="dm-macro-v">{m.val}</div>
+          <div className="dm-macro-v">{m.val}{m.unit}</div>
           <div className="dm-macro-l">{m.label}</div>
         </div>
       ))}
