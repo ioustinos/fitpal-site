@@ -38,7 +38,7 @@ interface UIStore {
 export const useUIStore = create<UIStore>((set) => ({
   lang: 'el',
   activeDay: 0,
-  activeWeek: 0,
+  activeWeek: 1,
   activeCat: null,
   openModal: null,
   selectedDish: null,
