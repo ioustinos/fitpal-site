@@ -204,6 +204,7 @@ header {
 /* ══════════════════════════════════════════
    DISH CARDS — matches demo.html exactly
 ══════════════════════════════════════════ */
+/* .dish-grid is an unused legacy alias — real class is .cat-section-grid */
 .dish-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 18px; }
 .dish-card { background: var(--white); border: 1.5px solid var(--border); border-radius: var(--radius-lg); overflow: hidden; cursor: pointer; transition: all 0.22s cubic-bezier(0.34,1.56,0.64,1); display: flex; flex-direction: column; }
 .dish-card:hover { transform: translateY(-4px) scale(1.01); box-shadow: 0 16px 40px var(--shadow-md); border-color: transparent; }
@@ -1022,7 +1023,8 @@ header {
 @media (max-width: 600px) {
   .main { padding: 16px 16px 100px; }
   header { padding: 0 16px; }
-  .dish-grid { grid-template-columns: 1fr 1fr; }
+  .cat-section-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .dish-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .page-wrap { padding: 0 12px 80px; }
   .slot-grid { grid-template-columns: repeat(3, 1fr); }
   .goals-grid { grid-template-columns: 1fr; }
@@ -1048,6 +1050,7 @@ header {
 @media (max-width: 440px) {
   .main { padding: 12px 12px 100px; }
   .page-wrap { padding: 0 8px 80px; }
+  .cat-section-grid { grid-template-columns: 1fr; }
   .dish-grid { grid-template-columns: 1fr; }
   /* Restore comfortable body padding for full-width cards */
   .dish-body { padding: 14px 14px 14px; }
