@@ -7,11 +7,13 @@ interface ModalProps {
   children: ReactNode
   /** Extra class on the inner container, e.g. 'dish-modal' or 'auth-box' */
   innerClass?: string
+  /** Extra class on the overlay backdrop */
+  overlayClass?: string
   /** Don't close when clicking backdrop */
   disableBackdropClose?: boolean
 }
 
-export function Modal({ open, onClose, children, innerClass, disableBackdropClose }: ModalProps) {
+export function Modal({ open, onClose, children, innerClass, overlayClass, disableBackdropClose }: ModalProps) {
   // Lock body scroll when open
   useEffect(() => {
     if (open) {
@@ -34,7 +36,7 @@ export function Modal({ open, onClose, children, innerClass, disableBackdropClos
 
   return (
     <div
-      className="overlay"
+      className={`overlay${overlayClass ? ' ' + overlayClass : ''}`}
       onClick={(e) => {
         if (!disableBackdropClose && e.target === e.currentTarget) onClose()
       }}

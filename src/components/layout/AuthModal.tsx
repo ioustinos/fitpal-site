@@ -26,19 +26,21 @@ export function AuthModal() {
   }
 
   return (
-    <Modal open={isOpen} onClose={closeModal} innerClass="auth-box">
+    <Modal open={isOpen} onClose={closeModal} innerClass="auth-box" overlayClass="auth-open">
+      <div className="auth-logo">fitpal<span>meals</span></div>
+
       <div className="auth-tabs">
         <button
           className={`auth-tab${authTab === 'login' ? ' active' : ''}`}
           onClick={() => setAuthTab('login')}
         >
-          {t('signIn')}
+          Σύνδεση / Sign In
         </button>
         <button
           className={`auth-tab${authTab === 'register' ? ' active' : ''}`}
           onClick={() => setAuthTab('register')}
         >
-          {t('register')}
+          Εγγραφή / Register
         </button>
       </div>
 
@@ -57,34 +59,47 @@ export function AuthModal() {
             />
           </div>
           <div className="form-row">
-            <label className="form-label">{t('password')}</label>
+            <label className="form-label">Password</label>
             <input
               className="form-input"
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              placeholder="••••"
+              placeholder="••••••••"
               autoComplete="current-password"
               required
             />
           </div>
           {authError && <div className="auth-error">{authError}</div>}
           <button className="btn-auth" type="submit" disabled={loading}>
-            {loading ? '...' : t('signIn')}
+            {loading ? '...' : 'Σύνδεση / Sign In'}
           </button>
-          <div className="auth-hint">
-            {lang === 'el' ? 'Demo: ' : 'Demo: '}
-            <code>demo@fitpal.gr / 1234</code>
+          <div className="auth-hint">Demo: demo@fitpal.gr / 1234</div>
+          <div className="auth-switch">
+            Δεν έχεις λογαριασμό; <span onClick={() => setAuthTab('register')}>Εγγραφή</span>
           </div>
         </form>
       ) : (
-        <div className="auth-form">
-          <p className="auth-coming-soon">
-            {lang === 'el'
-              ? 'Η εγγραφή θα είναι διαθέσιμη σύντομα.'
-              : 'Registration coming soon.'}
-          </p>
-        </div>
+        <form className="auth-form" onSubmit={(e) => e.preventDefault()}>
+          <div className="form-row">
+            <label className="form-label">Ονοματεπώνυμο / Full Name</label>
+            <input className="form-input" type="text" placeholder="Γιώργης Παπαδόπουλος" />
+          </div>
+          <div className="form-row">
+            <label className="form-label">Email</label>
+            <input className="form-input" type="email" placeholder="demo@fitpal.gr" />
+          </div>
+          <div className="form-row">
+            <label className="form-label">Password</label>
+            <input className="form-input" type="password" placeholder="••••••••" />
+          </div>
+          <button className="btn-auth" type="button" disabled>
+            Εγγραφή — Σύντομα διαθέσιμο
+          </button>
+          <div className="auth-switch">
+            Έχεις ήδη λογαριασμό; <span onClick={() => setAuthTab('login')}>Σύνδεση</span>
+          </div>
+        </form>
       )}
     </Modal>
   )

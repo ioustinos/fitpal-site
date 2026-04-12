@@ -27,7 +27,6 @@ export function CartSidebar() {
   })
 
   function handleCheckout() {
-    if (!user) { openAuthModal(); return }
     goToCheckout()
   }
 
@@ -85,7 +84,7 @@ export function CartSidebar() {
                 disabled={!canCheckout}
                 onClick={handleCheckout}
               >
-                {!user ? t('signInToOrder') : t('checkout')} →
+                {t('checkout')} →
               </button>
 
               {!canCheckout && hasItems && (
