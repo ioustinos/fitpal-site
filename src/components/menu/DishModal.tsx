@@ -192,7 +192,7 @@ export function DishModal() {
 
 function tagLabel(tag: string, lang: 'el' | 'en') {
   const map: Record<string, { el: string; en: string }> = {
-    hot:  { el: 'Νέο', en: 'New' },
+    hot:  { el: 'Δημοφιλές', en: 'Popular' },
     veg:  { el: 'Vegan', en: 'Vegan' },
     lc:   { el: 'Low Carb', en: 'Low Carb' },
     hp:   { el: 'High Pro', en: 'High Pro' },
