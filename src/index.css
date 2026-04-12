@@ -120,7 +120,7 @@ header {
 .banner-sub { font-size: 13px; color: rgba(255,255,255,0.5); }
 .banner-pills { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; position: relative; z-index: 1; }
 .banner-pill { padding: 5px 14px; background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.15); border-radius: 999px; font-size: 11px; font-weight: 700; color: rgba(255,255,255,0.8); letter-spacing: 0.3px; }
-.banner-pill.green { background: rgba(0,185,107,0.25); border-color: rgba(0,185,107,0.4); color: #7DFFBE; }
+.banner-pill.green { background: var(--green); border-color: var(--green); color: var(--white); }
 
 /* ══════════════════════════════════════════
    DAY NAVIGATION
@@ -643,11 +643,13 @@ header {
 .wallet-promo::before { content: ''; position: absolute; left: -20px; bottom: -20px; width: 80px; height: 80px; background: rgba(0,185,107,0.15); border-radius: 50%; }
 .wp-badge { display: inline-flex; align-items: center; gap: 5px; background: rgba(0,185,107,0.3); border: 1px solid rgba(0,185,107,0.5); border-radius: 999px; padding: 3px 10px; font-size: 9px; font-weight: 900; color: #7DFFBE; text-transform: uppercase; letter-spacing: 1px; width: fit-content; margin-bottom: 8px; position: relative; z-index: 1; }
 .wp-badge svg { width: 12px; height: 12px; }
-.wp-title { font-size: 17px; font-weight: 900; color: var(--white); letter-spacing: -0.3px; margin-bottom: 4px; position: relative; z-index: 1; line-height: 1.2; }
+.wp-title { font-size: 11px; font-weight: 700; color: rgba(255,255,255,0.65); letter-spacing: 0.1px; margin-bottom: 8px; position: relative; z-index: 1; line-height: 1.4; }
 .wp-title span { color: #7DFFBE; }
 .wp-desc { font-size: 12px; color: rgba(255,255,255,0.6); font-weight: 600; line-height: 1.4; position: relative; z-index: 1; margin-bottom: 10px; }
-.wp-plans-mini { display: flex; gap: 6px; position: relative; z-index: 1; }
-.wp-plan-chip { background: rgba(255,255,255,0.12); border: 1px solid rgba(255,255,255,0.2); border-radius: 999px; padding: 4px 10px; font-size: 10px; font-weight: 800; color: rgba(255,255,255,0.85); }
+.wp-headline { font-size: 20px; font-weight: 900; color: var(--white); letter-spacing: -0.5px; margin-bottom: 3px; position: relative; z-index: 1; line-height: 1.2; }
+.wp-headline span { color: #7DFFBE; }
+.wp-plans-mini { display: flex; gap: 5px; flex-wrap: nowrap; position: relative; z-index: 1; margin-bottom: 0; }
+.wp-plan-chip { background: rgba(255,255,255,0.12); border: 1px solid rgba(255,255,255,0.2); border-radius: 999px; padding: 4px 8px; font-size: 9.5px; font-weight: 800; color: rgba(255,255,255,0.85); white-space: nowrap; }
 .wp-plan-chip .wp-bonus { color: #7DFFBE; font-weight: 900; }
 .wp-cta { display: inline-flex; align-items: center; gap: 5px; background: var(--green); color: var(--white); border: none; border-radius: 999px; padding: 7px 16px; font-size: 11px; font-weight: 900; cursor: pointer; transition: all 0.18s; margin-top: 10px; width: fit-content; position: relative; z-index: 1; }
 .wp-cta:hover { background: #00a060; }
