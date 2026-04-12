@@ -97,15 +97,15 @@ export function MenuPage() {
                 </>
               ) : (
                 <>
-                  <div className="wp-headline">
+                  <div className="wp-title">
                     {lang === 'el'
                       ? <>Πλήρωσε λιγότερα, <span>φάε περισσότερα</span></>
                       : <>Pay less, <span>eat more</span></>}
                   </div>
-                  <div className="wp-title">
+                  <div className="wp-desc">
                     {lang === 'el'
-                      ? <>Μηνιαία συνδρομή με <span>bonus credits</span> έως +{Math.max(...WALLET_PLANS.map(p => p.bonusPct))}%</>
-                      : <>Monthly subscription with <span>bonus credits</span> up to +{Math.max(...WALLET_PLANS.map(p => p.bonusPct))}%</>}
+                      ? <>Μηνιαία συνδρομή με bonus credits έως +{Math.max(...WALLET_PLANS.map(p => p.bonusPct))}%</>
+                      : <>Monthly subscription with bonus credits up to +{Math.max(...WALLET_PLANS.map(p => p.bonusPct))}%</>}
                   </div>
                   <div className="wp-plans-mini">
                     {WALLET_PLANS.map((plan) => (
