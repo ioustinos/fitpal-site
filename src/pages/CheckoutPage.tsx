@@ -8,7 +8,7 @@ import { ExtrasSection } from '../components/checkout/ExtrasSection'
 import { OrderSummary } from '../components/checkout/OrderSummary'
 import { ConfirmationScreen } from '../components/checkout/ConfirmationScreen'
 import { makeTr } from '../lib/translations'
-import { activeDays, delivOk, subTotal } from '../lib/helpers'
+import { activeDays, dayAmt, delivOk, fmt, MIN_ORDER, subTotal } from '../lib/helpers'
 import { WEEK_DATA } from '../data/menu'
 import { useToast } from '../components/ui/Toast'
 
@@ -138,6 +138,21 @@ export function CheckoutPage() {
                     </div>
                     <AddressSection dayIndex={i} />
                     <TimeSlotPicker dayIndex={i} />
+                    {(() => {
+                      const amt = dayAmt(cart, i)
+                      return (
+                        <div className="checkout-day-totals">
+                          <span className="checkout-day-amt">
+                            {lang === 'el' ? 'Σύνολο ημέρας:' : 'Day total:'} <strong>{fmt(amt)}</strong>
+                          </span>
+                          {amt < MIN_ORDER && (
+                            <div className="min-warn">
+                              ⚠ {t('minWarn')}
+                            </div>
+                          )}
+                        </div>
+                      )
+                    })()}
                   </div>
                 )
               })}
