@@ -97,6 +97,11 @@ export function MenuPage() {
                 </>
               ) : (
                 <>
+                  <div className="wp-headline">
+                    {lang === 'el'
+                      ? <>Πλήρωσε λιγότερα, <span>φάε περισσότερα</span></>
+                      : <>Pay less, <span>eat more</span></>}
+                  </div>
                   <div className="wp-title">
                     {lang === 'el'
                       ? <>Μηνιαία συνδρομή με <span>bonus credits</span> έως +{Math.max(...WALLET_PLANS.map(p => p.bonusPct))}%</>
