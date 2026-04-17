@@ -1,22 +1,43 @@
 import { create } from 'zustand'
+import { supabase } from '../lib/supabase'
+import {
+  signIn,
+  signUp as apiSignUp,
+  signOut,
+  fetchFullUser,
+} from '../lib/api/auth'
+import { fetchWallet } from '../lib/api/wallet'
+import { fetchUserOrders, type OrderHistoryItem } from '../lib/api/orders'
 
 // ─── Domain types ─────────────────────────────────────────────────────────────
 
 export interface Address {
+  id: string
+  labelEl: string
+  labelEn: string
   street: string
   area: string
   zip?: string
+  floor?: string
+  doorbell?: string
   notes?: string
 }
 
+export interface MacroRange {
+  min?: number
+  max?: number
+}
+
 export interface UserGoals {
-  calories?: number
-  protein?: number
-  carbs?: number
-  fat?: number
+  enabled?: boolean
+  calories?: number | MacroRange
+  protein?: number | MacroRange
+  carbs?: number | MacroRange
+  fat?: number | MacroRange
 }
 
 export interface WalletTransaction {
+  type: 'credit' | 'debit'
   descEl: string
   descEn: string
   date: string
@@ -29,8 +50,13 @@ export interface UserWallet {
   planEl?: string
   planEn?: string
   balance: number
-  discountPct?: number
+  baseBalance?: number
+  bonusBalance?: number
+  bonusPct?: number
   autoRenew?: boolean
+  nextRenewal?: string   // ISO date string
+  monthlyAmount?: number
+  creditAmount?: number
   transactions?: WalletTransaction[]
 }
 
@@ -39,11 +65,17 @@ export interface UserPrefs {
   glutenFree?: boolean
   lowCarb?: boolean
   paymentMethod?: string
+  cutlery?: boolean
+  invoice?: boolean
+  slots?: Record<number, string>       // preferred time slot per day-of-week
+  dayAddress?: Record<number, string>   // preferred address ID per day-of-week
   lang?: string
   newsletter?: boolean
+  goalTracking?: boolean               // show on-page goal vs order comparison
 }
 
 export interface FitpalUser {
+  id: string                // Supabase user ID
   name: string
   nameEn?: string
   email: string
@@ -52,7 +84,7 @@ export interface FitpalUser {
   prefs: UserPrefs
   goals: UserGoals
   wallet: UserWallet
-  orders?: any[]
+  orders?: OrderHistoryItem[]
 }
 
 // ─── Store interface ───────────────────────────────────────────────────────────
@@ -62,70 +94,58 @@ interface AuthStore {
   isLoading: boolean
   authError: string | null
   authTab: 'login' | 'register'
+  sessionChecked: boolean     // true once we've checked for existing session
 
   setUser: (user: FitpalUser | null) => void
   setAuthTab: (tab: 'login' | 'register') => void
   setError: (error: string | null) => void
   login: (email: string, password: string) => Promise<boolean>
-  logout: () => void
+  signup: (email: string, password: string, name?: string) => Promise<boolean>
+  logout: () => Promise<void>
+  /** Rehydrate user from existing Supabase session (call on app mount) */
+  checkSession: () => Promise<void>
+  /** Re-fetch all user data (profile, addresses, goals, prefs, wallet, orders) */
+  refreshUser: (userId: string) => Promise<void>
   updateAddresses: (addresses: Address[]) => void
   updatePrefs: (prefs: Partial<UserPrefs>) => void
   updateGoals: (goals: UserGoals) => void
   updateWallet: (wallet: Partial<UserWallet>) => void
 }
 
-// ─── Mock users (replace with Supabase auth — WEC-13) ────────────────────────
+// ─── Helpers ────────────────────────────────────────────────────────────────
 
-const MOCK_USERS: Record<string, FitpalUser & { password: string }> = {
-  'demo@fitpal.gr': {
-    password: '1234',
-    name: 'Ιουστίνος Σάρρης',
-    nameEn: 'Ioustinos Sarris',
-    email: 'demo@fitpal.gr',
-    phone: '+30 697 123 4567',
-    addresses: [
-      { street: 'Λεωφόρος Κηφισίας 45', area: 'Αμαρούσι', zip: '15123', notes: 'Κουδούνι αριστερά, 3ος όροφος' },
-      { street: 'Βασιλίσσης Σοφίας 12', area: 'Αθήνα', zip: '10674', notes: 'Ρεσεψιόν — πείτε Fitpal, 5ος' },
-    ],
-    prefs: {
-      paymentMethod: 'card',
-      lang: 'el',
-      newsletter: true,
-    },
-    goals: {
-      calories: 1800,
-      protein: 120,
-      carbs: 200,
-      fat: 60,
-    },
-    wallet: {
-      active: true,
-      planId: 'plus',
-      planEl: 'Plus',
-      planEn: 'Plus',
-      balance: 78.40,
-      discountPct: 10,
-      autoRenew: true,
-      transactions: [
-        { descEl: 'Αναπλήρωση Plus', descEn: 'Plus Top-up', date: '2026-04-01', amount: 110 },
-        { descEl: 'Παραγγελία #FP-260401', descEn: 'Order #FP-260401', date: '2026-04-03', amount: -18.50 },
-        { descEl: 'Παραγγελία #FP-260405', descEn: 'Order #FP-260405', date: '2026-04-05', amount: -13.10 },
-      ],
-    },
-    orders: [
-      { id: 'FP-260405', date: '2026-04-05', status: 'Παραδόθηκε', total: 13.10 },
-      { id: 'FP-260401', date: '2026-04-01', status: 'Παραδόθηκε', total: 18.50 },
-    ],
-  },
+async function buildFullUser(userId: string, email: string): Promise<FitpalUser | null> {
+  // Fetch profile + wallet + orders in parallel
+  const [userRes, walletRes, ordersRes] = await Promise.all([
+    fetchFullUser(userId),
+    fetchWallet(userId),
+    fetchUserOrders(userId),
+  ])
+
+  if (!userRes.data) return null
+
+  return {
+    id: userId,
+    name: userRes.data.name,
+    nameEn: userRes.data.nameEn,
+    email,
+    phone: userRes.data.phone,
+    addresses: userRes.data.addresses,
+    prefs: userRes.data.prefs,
+    goals: userRes.data.goals,
+    wallet: walletRes.data ?? { active: false, balance: 0 },
+    orders: ordersRes.data ?? [],
+  }
 }
 
 // ─── Store ────────────────────────────────────────────────────────────────────
 
-export const useAuthStore = create<AuthStore>((set) => ({
+export const useAuthStore = create<AuthStore>((set, get) => ({
   user: null,
   isLoading: false,
   authError: null,
   authTab: 'login',
+  sessionChecked: false,
 
   setUser: (user) => set({ user }),
   setAuthTab: (authTab) => set({ authTab, authError: null }),
@@ -133,19 +153,73 @@ export const useAuthStore = create<AuthStore>((set) => ({
 
   login: async (email, password) => {
     set({ isLoading: true, authError: null })
-    // Simulate network latency — replace with Supabase signIn (WEC-13)
-    await new Promise((r) => setTimeout(r, 400))
-    const mock = MOCK_USERS[email.toLowerCase()]
-    if (mock && mock.password === password) {
-      const { password: _p, ...user } = mock
-      set({ user, isLoading: false })
-      return true
+
+    const { data, error } = await signIn(email, password)
+    if (error || !data) {
+      set({ authError: error ?? 'Login failed', isLoading: false })
+      return false
     }
-    set({ authError: 'Λάθος email ή κωδικός', isLoading: false })
-    return false
+
+    const user = await buildFullUser(data.userId, email)
+    if (!user) {
+      set({ authError: 'Failed to load user data', isLoading: false })
+      return false
+    }
+
+    set({ user, isLoading: false })
+    return true
   },
 
-  logout: () => set({ user: null }),
+  signup: async (email, password, name) => {
+    set({ isLoading: true, authError: null })
+
+    const { data, error } = await apiSignUp(email, password, name)
+    if (error || !data) {
+      set({ authError: error ?? 'Signup failed', isLoading: false })
+      return false
+    }
+
+    // After signup, fetch user data (the signup trigger creates profiles/goals/prefs)
+    const user = await buildFullUser(data.userId, email)
+    if (!user) {
+      // User might need to confirm email first — still successful signup
+      set({ isLoading: false })
+      return true
+    }
+
+    set({ user, isLoading: false })
+    return true
+  },
+
+  logout: async () => {
+    await signOut()
+    set({ user: null })
+  },
+
+  checkSession: async () => {
+    if (get().sessionChecked) return
+
+    const { data: sessionData } = await supabase.auth.getSession()
+    const session = sessionData?.session
+
+    if (session?.user) {
+      const user = await buildFullUser(
+        session.user.id,
+        session.user.email ?? '',
+      )
+      set({ user, sessionChecked: true })
+    } else {
+      set({ sessionChecked: true })
+    }
+  },
+
+  refreshUser: async (userId: string) => {
+    const currentUser = get().user
+    if (!currentUser) return
+
+    const user = await buildFullUser(userId, currentUser.email)
+    if (user) set({ user })
+  },
 
   updateAddresses: (addresses) =>
     set((state) => state.user ? { user: { ...state.user, addresses } } : state),

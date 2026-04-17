@@ -4,18 +4,22 @@ import { MacroBoxes } from '../ui/MacroDots'
 import { useUIStore } from '../../store/useUIStore'
 import { useCartStore } from '../../store/useCartStore'
 import { useAuthStore } from '../../store/useAuthStore'
+import { useMenuStore } from '../../store/useMenuStore'
 import { useToast } from '../ui/Toast'
-import { effPrice } from '../../lib/helpers'
+import { effPrice, isDayOrderable } from '../../lib/helpers'
 import { makeTr } from '../../lib/translations'
 
 export function DishModal() {
   const lang = useUIStore((s) => s.lang)
+  const activeWeek = useUIStore((s) => s.activeWeek)
   const openModal = useUIStore((s) => s.openModal)
   const selectedDish = useUIStore((s) => s.selectedDish)
   const selectedDayIndex = useUIStore((s) => s.selectedDayIndex)
   const closeModal = useUIStore((s) => s.closeModal)
   const addItem = useCartStore((s) => s.addItem)
   const user = useAuthStore((s) => s.user)
+  const weeksMeta = useMenuStore((s) => s.weeksMeta)
+  const settings = useMenuStore((s) => s.settings)
   const toast = useToast((s) => s.show)
   const t = makeTr(lang)
 
@@ -40,15 +44,21 @@ export function DishModal() {
 
   const variant = dish.variants.find((v) => v.id === variantId) ?? dish.variants[0]
 
-  const walletDiscount = user?.wallet?.active ? user.wallet.discountPct ?? 0 : 0
   const basePrice = effPrice(variant.price, dish.discount)
-  const finalPrice = walletDiscount > 0 ? effPrice(basePrice, walletDiscount) : basePrice
+  const finalPrice = basePrice
 
   const name = lang === 'el' ? dish.nameEl : dish.nameEn
   const desc = lang === 'el' ? dish.descEl : dish.descEn
   const macros = variant.macros
 
+  // Is the day this modal was opened in still orderable?
+  const dayDate = selectedDayIndex != null
+    ? weeksMeta[activeWeek]?.days[selectedDayIndex]?.date
+    : undefined
+  const unavailable = dayDate ? !isDayOrderable(dayDate, settings) : false
+
   function handleAdd() {
+    if (unavailable) return
     addItem(selectedDayIndex!, {
       dishId: dish!.id,
       variantId: variant.id,
@@ -130,7 +140,7 @@ export function DishModal() {
             <div className="dm-variant-list">
               {dish.variants.map((v) => {
                 const vBase = effPrice(v.price, dish.discount)
-                const vFinal = walletDiscount > 0 ? effPrice(vBase, walletDiscount) : vBase
+                const vFinal = vBase
                 const isActive = variantId === v.id
                 return (
                   <div
@@ -181,8 +191,14 @@ export function DishModal() {
               onClick={() => setQty((q) => q + 1)}
             >+</button>
           </div>
-          <button className="btn-dm-add" onClick={handleAdd}>
-            {t('addToCart')} • €{(finalPrice * qty).toFixed(2)}
+          <button
+            className={`btn-dm-add${unavailable ? ' closed' : ''}`}
+            onClick={handleAdd}
+            disabled={unavailable}
+          >
+            {unavailable
+              ? (lang === 'el' ? 'Οι παραγγελίες έχουν κλείσει' : 'Orders closed')
+              : `${t('addToCart')} • €${(finalPrice * qty).toFixed(2)}`}
           </button>
         </div>
       </div>

@@ -1,22 +1,30 @@
 import { useState } from 'react'
 import { useCartStore } from '../../store/useCartStore'
 import { useUIStore } from '../../store/useUIStore'
+import { useAuthStore } from '../../store/useAuthStore'
 import { makeTr } from '../../lib/translations'
+import { subTotal, activeDays, dayAmt } from '../../lib/helpers'
 
 export function VoucherInput() {
   const lang = useUIStore((s) => s.lang)
   const voucher = useCartStore((s) => s.voucher)
   const applyVoucher = useCartStore((s) => s.applyVoucher)
   const removeVoucher = useCartStore((s) => s.removeVoucher)
+  const voucherLoading = useCartStore((s) => s.voucherLoading)
+  const cart = useCartStore((s) => s.cart)
+  const user = useAuthStore((s) => s.user)
   const t = makeTr(lang)
 
   const [code, setCode] = useState('')
   const [error, setError] = useState('')
 
-  function handleApply() {
-    const result = applyVoucher(code.trim().toUpperCase())
-    if (!result) {
-      setError(lang === 'el' ? 'Μη έγκυρο κουπόνι' : 'Invalid voucher code')
+  // Calculate raw cart total for voucher validation
+  const rawTotal = activeDays(cart).reduce((sum, i) => sum + dayAmt(cart, i), 0)
+
+  async function handleApply() {
+    const result = await applyVoucher(code.trim().toUpperCase(), rawTotal, user?.id)
+    if (!result.ok) {
+      setError(result.error ?? (lang === 'el' ? 'Μη έγκυρο κουπόνι' : 'Invalid voucher code'))
     } else {
       setCode('')
       setError('')
@@ -46,8 +54,8 @@ export function VoucherInput() {
         onChange={(e) => { setCode(e.target.value); setError('') }}
         onKeyDown={(e) => e.key === 'Enter' && handleApply()}
       />
-      <button className="voucher-btn" onClick={handleApply} disabled={!code.trim()}>
-        {t('apply')}
+      <button className="voucher-btn" onClick={handleApply} disabled={!code.trim() || voucherLoading}>
+        {voucherLoading ? '...' : t('apply')}
       </button>
       {error && <div className="voucher-error">{error}</div>}
     </div>

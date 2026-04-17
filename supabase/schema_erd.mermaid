@@ -1,0 +1,292 @@
+erDiagram
+    %% ═══════════════════════════════════════════
+    %% Fitpal Ordering Platform — Entity Relationship Diagram
+    %% ═══════════════════════════════════════════
+
+    auth_users ||--|| profiles : "extends"
+    profiles ||--o{ addresses : "has"
+    profiles ||--o{ orders : "places"
+    profiles ||--|| wallets : "has"
+    profiles ||--o{ profile_allergies : "has"
+    allergies ||--o{ profile_allergies : "tagged in"
+
+    orders ||--|{ child_orders : "contains"
+    child_orders ||--|{ order_items : "contains"
+
+    orders ||--o{ payment_links : "paid via"
+    orders ||--o{ voucher_uses : "used"
+    orders ||--o{ admin_change_log : "tracked in"
+
+    wallets }o--|| wallet_plans : "subscribes to"
+    wallets ||--o{ wallet_transactions : "logs"
+
+    vouchers ||--o{ voucher_uses : "redeemed"
+
+    categories ||--o{ dishes : "groups"
+    dishes ||--|{ dish_variants : "has"
+    dishes ||--o{ menu_day_dishes : "scheduled in"
+    weekly_menus ||--o{ menu_day_dishes : "defines"
+
+    order_items }o--o| dishes : "references"
+    order_items }o--o| dish_variants : "references"
+
+    %% ─── USER & AUTH ───────────────────────────
+
+    auth_users {
+        uuid id PK
+        text email
+        jsonb raw_user_meta_data
+    }
+
+    profiles {
+        uuid id PK "= auth.users.id"
+        text name
+        text phone
+        text lang "el | en"
+        int goal_calories
+        int goal_protein
+        int goal_carbs
+        int goal_fat
+        bool pref_vegetarian
+        bool pref_gluten_free
+        bool pref_low_carb
+        text pref_payment
+        bool pref_cutlery
+        bool pref_invoice
+        text pref_slot_mon "thru _fri"
+        uuid pref_addr_mon "thru _fri"
+        text dietician
+        text dietary_notes
+    }
+
+    addresses {
+        uuid id PK
+        uuid user_id FK
+        text label_el
+        text label_en
+        text street
+        text area
+        text zip
+        text floor
+        text doorbell
+        text notes
+        bool is_default
+    }
+
+    allergies {
+        uuid id PK
+        text name_el
+        text name_en
+        text description
+    }
+
+    profile_allergies {
+        uuid profile_id FK
+        uuid allergy_id FK
+    }
+
+    %% ─── MENU SYSTEM ──────────────────────────
+
+    categories {
+        text id PK "breakfast, cooked..."
+        text name_el
+        text name_en
+        int sort_order
+        bool active
+    }
+
+    dishes {
+        text id PK "a01, b05..."
+        text category_id FK
+        text name_el
+        text name_en
+        text desc_el
+        text desc_en
+        text image_url
+        text emoji
+        text[] tags "hot, veg, hp..."
+        enum temp "hot | cold | ambient"
+        int discount_pct
+        bool active
+    }
+
+    dish_variants {
+        text id PK "a01-v1..."
+        text dish_id FK
+        text label_el
+        text label_en
+        int price "cents"
+        int calories
+        int protein
+        int carbs
+        int fat
+        int sort_order
+    }
+
+    weekly_menus {
+        uuid id PK
+        text name
+        date from_date
+        date to_date
+        bool active
+    }
+
+    menu_day_dishes {
+        uuid id PK
+        uuid menu_id FK
+        date date
+        text dish_id FK
+        int sort_order
+    }
+
+    %% ─── ORDER HIERARCHY ──────────────────────
+
+    orders {
+        uuid id PK
+        text order_number UK "FP-000001"
+        uuid user_id FK "nullable for guests"
+        text customer_name
+        text customer_email
+        text customer_phone
+        int subtotal "cents"
+        int discount_amount "cents"
+        int total "cents"
+        enum payment_method
+        enum payment_status
+        text voucher_code
+        int voucher_discount
+        enum status "placed, confirmed..."
+        bool cutlery
+        enum invoice_type "receipt | invoice"
+        text invoice_name
+        text invoice_vat
+        text notes
+        text admin_order_id
+        text admin_notes
+    }
+
+    child_orders {
+        uuid id PK
+        uuid order_id FK
+        date delivery_date
+        text time_slot "09:00-11:00"
+        text address_street "snapshot"
+        text address_area "snapshot"
+        text address_zip "snapshot"
+        text address_floor "snapshot"
+        int day_subtotal "cents"
+        text driver
+        int stop_number
+        text eta
+    }
+
+    order_items {
+        uuid id PK
+        uuid child_order_id FK
+        text dish_id FK "reference"
+        text variant_id FK "reference"
+        text name_el "snapshot"
+        text name_en "snapshot"
+        text variant_label_el "snapshot"
+        int quantity
+        int unit_price "cents"
+        int total_price "cents"
+        int calories "snapshot"
+        int protein "snapshot"
+        int carbs "snapshot"
+        int fat "snapshot"
+        text comment
+    }
+
+    %% ─── WALLET & PAYMENTS ────────────────────
+
+    wallet_plans {
+        text id PK "basic, plus, premium"
+        text name_el
+        text name_en
+        int price "cents"
+        int credits "cents incl bonus"
+        int bonus_pct
+        int discount_pct
+    }
+
+    wallets {
+        uuid id PK
+        uuid user_id FK "unique"
+        text plan_id FK
+        int balance "cents"
+        int base_balance "cents"
+        int bonus_balance "cents"
+        int discount_pct
+        bool auto_renew
+        date next_renewal
+        bool active
+    }
+
+    wallet_transactions {
+        uuid id PK
+        uuid wallet_id FK
+        enum type "credit | debit"
+        int amount "cents"
+        text description_el
+        text description_en
+        uuid order_id FK "if debit"
+    }
+
+    vouchers {
+        uuid id PK
+        text code UK "FITPAL10..."
+        enum type "pct | fixed"
+        int value
+        int min_order "cents"
+        int max_uses
+        int uses_count
+        int per_user_limit
+        timestamptz expires_at
+        bool active
+    }
+
+    voucher_uses {
+        uuid id PK
+        uuid voucher_id FK
+        uuid user_id FK
+        uuid order_id FK
+        timestamptz used_at
+    }
+
+    payment_links {
+        uuid id PK
+        uuid order_id FK
+        bigint viva_ref_code
+        text payment_url
+        enum status "pending | success | failure"
+    }
+
+    %% ─── INFRASTRUCTURE ───────────────────────
+
+    delivery_zones {
+        uuid id PK
+        text name_el
+        text name_en
+        text[] postcodes
+        bool active
+    }
+
+    settings {
+        text key PK
+        jsonb value
+        text description
+    }
+
+    admin_change_log {
+        bigint id PK
+        uuid order_id FK
+        uuid child_order_id FK
+        uuid order_item_id FK
+        text table_name
+        text field_name
+        text old_value
+        text new_value
+        text label
+        text admin_user
+    }

@@ -1,7 +1,7 @@
 import { DishCard } from './DishCard'
 import { useUIStore } from '../../store/useUIStore'
+import { useMenuStore } from '../../store/useMenuStore'
 import type { Dish } from '../../data/menu'
-import { CATS } from '../../data/menu'
 
 interface MenuSectionProps {
   dishes: Dish[]
@@ -10,6 +10,7 @@ interface MenuSectionProps {
 
 export function MenuSection({ dishes, dayIndex }: MenuSectionProps) {
   const lang = useUIStore((s) => s.lang)
+  const categories = useMenuStore((s) => s.categories)
 
   // Group by category
   const grouped = new Map<string, Dish[]>()
@@ -20,7 +21,7 @@ export function MenuSection({ dishes, dayIndex }: MenuSectionProps) {
   }
 
   // Show all categories in canonical order, skip 'all'
-  const entries = CATS
+  const entries = categories
     .filter((c) => c.id !== 'all')
     .map((c) => ({ cat: c, dishes: grouped.get(c.id) ?? [] }))
     .filter((e) => e.dishes.length > 0)

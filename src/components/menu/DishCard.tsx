@@ -1,7 +1,8 @@
 import { useUIStore } from '../../store/useUIStore'
 import { useCartStore } from '../../store/useCartStore'
 import { useAuthStore } from '../../store/useAuthStore'
-import { effPrice } from '../../lib/helpers'
+import { useMenuStore } from '../../store/useMenuStore'
+import { effPrice, isDayOrderable } from '../../lib/helpers'
 import { MacroDotsRow } from '../ui/MacroDots'
 import { makeTr } from '../../lib/translations'
 import type { Dish } from '../../data/menu'
@@ -13,20 +14,26 @@ interface DishCardProps {
 
 export function DishCard({ dish, dayIndex }: DishCardProps) {
   const lang = useUIStore((s) => s.lang)
+  const activeWeek = useUIStore((s) => s.activeWeek)
   const openDishModal = useUIStore((s) => s.openDishModal)
   const cart = useCartStore((s) => s.cart)
   const addItem = useCartStore((s) => s.addItem)
   const user = useAuthStore((s) => s.user)
+  const weeksMeta = useMenuStore((s) => s.weeksMeta)
+  const settings = useMenuStore((s) => s.settings)
   const t = makeTr(lang)
+
+  // Is this day still orderable?
+  const dayDate = weeksMeta[activeWeek]?.days[dayIndex]?.date
+  const unavailable = dayDate ? !isDayOrderable(dayDate, settings) : false
 
   const dayItems = cart[dayIndex] ?? []
   const inCart = dayItems.filter((ci) => ci.dishId === dish.id).reduce((s, ci) => s + ci.qty, 0)
 
   const defaultVariant = dish.variants[0]
   const minPrice = defaultVariant.price
-  const walletDiscount = user?.wallet?.active ? user.wallet.discountPct ?? 0 : 0
   const discPrice = effPrice(defaultVariant.price, dish.discount)
-  const finalPrice = walletDiscount > 0 ? effPrice(discPrice, walletDiscount) : discPrice
+  const finalPrice = discPrice
 
   const macros = defaultVariant.macros
   const name = lang === 'el' ? dish.nameEl : dish.nameEn
@@ -34,6 +41,11 @@ export function DishCard({ dish, dayIndex }: DishCardProps) {
 
   function handleAdd(e: React.MouseEvent) {
     e.stopPropagation()
+    // Closed day — open modal so user can still view details, but don't add.
+    if (unavailable) {
+      openDishModal(dish, dayIndex)
+      return
+    }
     if (dish.variants.length > 1) {
       openDishModal(dish, dayIndex)
       return
@@ -126,7 +138,7 @@ export function DishCard({ dish, dayIndex }: DishCardProps) {
 
         {desc && <div className="dish-desc">{desc}</div>}
 
-        {/* Macros — 4-column cream grid */}
+        {/* Macros — 4-column cream grid with admin-set dot levels */}
         {macros && (
           <MacroDotsRow
             cal={macros.cal}
@@ -139,14 +151,26 @@ export function DishCard({ dish, dayIndex }: DishCardProps) {
               carb: t('carb'),
               fat: t('fat'),
             }}
+            levels={dish.previewCal ? {
+              cal: dish.previewCal,
+              pro: dish.previewPro,
+              carb: dish.previewCarb,
+              fat: dish.previewFat,
+            } : undefined}
           />
         )}
 
         {/* Full-width add button */}
-        <button className={`btn-add${inCart > 0 ? ' in-cart' : ''}`} onClick={handleAdd}>
-          {inCart > 0
-            ? `${inCart > 1 ? `${inCart}× ` : ''}+ ${t('addCart')}`
-            : `+ ${t('addCart')}`}
+        <button
+          className={`btn-add${inCart > 0 ? ' in-cart' : ''}${unavailable ? ' closed' : ''}`}
+          onClick={handleAdd}
+          title={unavailable ? (lang === 'el' ? 'Οι παραγγελίες για αυτή την ημέρα έχουν κλείσει' : 'Orders for this day are closed') : undefined}
+        >
+          {unavailable
+            ? (lang === 'el' ? 'Κλειστό' : 'Closed')
+            : inCart > 0
+              ? `${inCart > 1 ? `${inCart}× ` : ''}+ ${t('addCart')}`
+              : `+ ${t('addCart')}`}
         </button>
       </div>
     </div>

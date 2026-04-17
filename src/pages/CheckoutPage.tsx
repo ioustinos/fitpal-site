@@ -1,6 +1,7 @@
-import { useState } from 'react'
+import { useState, useEffect, useRef, useMemo } from 'react'
 import { useUIStore } from '../store/useUIStore'
 import { useCartStore } from '../store/useCartStore'
+import { useAuthStore } from '../store/useAuthStore'
 import { AddressSection } from '../components/checkout/AddressSection'
 import { TimeSlotPicker } from '../components/checkout/TimeSlotPicker'
 import { PaymentSection } from '../components/checkout/PaymentSection'
@@ -8,12 +9,10 @@ import { ExtrasSection } from '../components/checkout/ExtrasSection'
 import { OrderSummary } from '../components/checkout/OrderSummary'
 import { ConfirmationScreen } from '../components/checkout/ConfirmationScreen'
 import { makeTr } from '../lib/translations'
-import { activeDays, dayAmt, delivOk, fmt, MIN_ORDER, subTotal } from '../lib/helpers'
-import { WEEK_DATA } from '../data/menu'
+import { activeDays, dayAmt, fmt, subTotal, zoneOk } from '../lib/helpers'
+import { useMenuStore } from '../store/useMenuStore'
 import { useToast } from '../components/ui/Toast'
-
-const STEPS = ['delivery', 'payment', 'review'] as const
-type Step = typeof STEPS[number]
+import { submitOrder } from '../lib/api/orders'
 
 export function CheckoutPage() {
   const lang = useUIStore((s) => s.lang)
@@ -23,177 +22,353 @@ export function CheckoutPage() {
   const delivery = useCartStore((s) => s.delivery)
   const payment = useCartStore((s) => s.payment)
   const voucher = useCartStore((s) => s.voucher)
+  const setDelivery = useCartStore((s) => s.setDelivery)
+  const setPayment = useCartStore((s) => s.setPayment)
+  const user = useAuthStore((s) => s.user)
   const t = makeTr(lang)
   const toast = useToast((s) => s.show)
 
-  const [step, setStep] = useState<Step>('delivery')
   const [confirmed, setConfirmed] = useState(false)
+  const [orderNumber, setOrderNumber] = useState('')
+  const [submitting, setSubmitting] = useState(false)
+  const deliveryRef = useRef<HTMLDivElement>(null)
+  const paymentRef = useRef<HTMLDivElement>(null)
+  const extrasRef = useRef<HTMLDivElement>(null)
 
-  const week = WEEK_DATA[activeWeek] ?? WEEK_DATA[0]
-  const days = week.days
+  const weeks = useMenuStore((s) => s.weeks)
+  const zones = useMenuStore((s) => s.zones)
+  const minOrder = useMenuStore((s) => s.settings.minOrder)
+  const week = weeks[activeWeek] ?? weeks[0]
+  const days = week?.days ?? []
   const dayLabelsEl = ['Δευτέρα', 'Τρίτη', 'Τετάρτη', 'Πέμπτη', 'Παρασκευή']
   const dayLabelsEn = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday']
-  const activeDayIdxs = activeDays(cart)
+  const activeDayIdxs = useMemo(() => activeDays(cart), [cart])
 
   const total = subTotal(cart, voucher)
 
-  function validateDelivery(): boolean {
-    for (const i of activeDayIdxs) {
-      const del = delivery[i]
-      if (!del?.street || !del?.area) {
-        toast(
-          lang === 'el'
-            ? `Παρακαλώ συμπλήρωσε διεύθυνση για ${dayLabelsEl[i]}`
-            : `Please add address for ${dayLabelsEn[i]}`
-        )
-        return false
-      }
-      if (!del?.timeSlot) {
-        toast(
-          lang === 'el'
-            ? `Παρακαλώ επίλεξε ώρα παράδοσης για ${dayLabelsEl[i]}`
-            : `Please select delivery time for ${dayLabelsEn[i]}`
-        )
-        return false
-      }
-      if (!delivOk(del.area, total)) {
-        toast(
-          lang === 'el'
-            ? `Η ελάχιστη παραγγελία για ${del.area} δεν έχει συμπληρωθεί`
-            : `Minimum order for ${del.area} not met`
-        )
-        return false
-      }
+  // ─── Per-day + overall validation ─────────────────────────────────────────────
+
+  const validationIssues: string[] = []
+
+  activeDayIdxs.forEach((i) => {
+    const del = delivery[i]
+    const label = lang === 'el' ? dayLabelsEl[i] : dayLabelsEn[i]
+    const amt = dayAmt(cart, i)
+
+    if (!del?.street || !del?.area) {
+      validationIssues.push(
+        lang === 'el'
+          ? `${label}: Δεν έχει επιλεγεί διεύθυνση`
+          : `${label}: No address selected`
+      )
+    } else if (!zoneOk(del.area, zones)) {
+      validationIssues.push(
+        lang === 'el'
+          ? `${label}: Η περιοχή "${del.area}" είναι εκτός ζώνης`
+          : `${label}: Area "${del.area}" is outside delivery zone`
+      )
     }
-    return true
+
+    if (!del?.timeSlot) {
+      validationIssues.push(
+        lang === 'el'
+          ? `${label}: Δεν έχει επιλεγεί ώρα παράδοσης`
+          : `${label}: No delivery time selected`
+      )
+    }
+
+    if (amt < minOrder) {
+      validationIssues.push(
+        lang === 'el'
+          ? `${label}: Ελάχιστη παραγγελία €${minOrder} (τρέχον: €${amt.toFixed(2)})`
+          : `${label}: Minimum order €${minOrder} (current: €${amt.toFixed(2)})`
+      )
+    }
+  })
+
+  if (!payment.method) {
+    validationIssues.push(
+      lang === 'el'
+        ? 'Δεν έχει επιλεγεί τρόπος πληρωμής'
+        : 'No payment method selected'
+    )
   }
 
-  function validatePayment(): boolean {
-    if (!payment.method) {
+  const deliveryOk = activeDayIdxs.every((i) => {
+    const del = delivery[i]
+    const amt = dayAmt(cart, i)
+    return del?.street && del?.area && del?.timeSlot && zoneOk(del.area, zones) && amt >= minOrder
+  })
+
+  const paymentOk = !!payment.method
+
+  const extrasOk = deliveryOk && paymentOk
+
+  const allOk = deliveryOk && paymentOk
+
+  // ─── Prepopulate from user preferences on mount ──────────────────────────────
+
+  // Scroll to top on mount
+  useEffect(() => {
+    window.scrollTo(0, 0)
+  }, [])
+
+  const prepopulatedFor = useRef<string | null>(null)
+  useEffect(() => {
+    if (!user) return
+    // Only prepopulate once per user (allows re-running when logging in mid-checkout)
+    if (prepopulatedFor.current === user.email) return
+    prepopulatedFor.current = user.email
+
+    // Prepopulate payment preferences
+    if (user.prefs.cutlery !== undefined) {
+      setPayment({ cutlery: user.prefs.cutlery })
+    }
+    if (user.prefs.invoice !== undefined) {
+      setPayment({ invoice: user.prefs.invoice })
+    }
+    if (user.prefs.paymentMethod) {
+      setPayment({ method: user.prefs.paymentMethod as 'cash' | 'card' | 'link' | 'transfer' | 'wallet' })
+    }
+
+    // Prepopulate delivery preferences (slots and saved addresses)
+    const dayIdxs = activeDays(cart)
+    for (const dayIdx of dayIdxs) {
+      // Prepopulate time slot if available
+      if (user.prefs.slots?.[dayIdx]) {
+        setDelivery(dayIdx, { timeSlot: user.prefs.slots[dayIdx] })
+      }
+
+      // Prepopulate address if saved
+      if (user.prefs.dayAddress?.[dayIdx]) {
+        const addrId = user.prefs.dayAddress[dayIdx]
+        const addr = user.addresses.find((a) => a.id === addrId)
+        if (addr) {
+          setDelivery(dayIdx, {
+            addrId,
+            street: addr.street,
+            area: addr.area,
+            zip: addr.zip,
+            floor: addr.floor,
+            doorbell: addr.doorbell,
+            notes: addr.notes,
+          })
+        }
+      }
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user])
+
+  // ─── Navigation ──────────────────────────────────────────────────────────────
+
+  function scrollToSection(ref: React.RefObject<HTMLDivElement>) {
+    ref.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  }
+
+  async function handlePlaceOrder() {
+    if (!deliveryOk) {
+      toast(lang === 'el' ? 'Παρακαλώ συμπλήρωσε τα στοιχεία παράδοσης' : 'Please complete delivery details')
+      scrollToSection(deliveryRef)
+      return
+    }
+    if (!paymentOk) {
       toast(lang === 'el' ? 'Παρακαλώ επίλεξε τρόπο πληρωμής' : 'Please select a payment method')
-      return false
+      scrollToSection(paymentRef)
+      return
     }
-    return true
-  }
 
-  function handleNext() {
-    if (step === 'delivery') {
-      if (!validateDelivery()) return
-      setStep('payment')
-    } else if (step === 'payment') {
-      if (!validatePayment()) return
-      setStep('review')
-    } else {
-      // Place order
-      setConfirmed(true)
+    setSubmitting(true)
+
+    // Parse time slots "HH:MM–HH:MM" into timeFrom / timeTo
+    const parseSlot = (slot: string) => {
+      const parts = slot.split('–')
+      return { from: parts[0]?.trim() ?? '', to: parts[1]?.trim() ?? '' }
     }
+
+    const dayPayloads = activeDayIdxs.map((i) => {
+      const del = delivery[i]
+      const items = cart[i] ?? []
+      const dayDate = days[i]?.date ?? ''
+      const { from, to } = parseSlot(del?.timeSlot ?? '')
+
+      return {
+        deliveryDate: dayDate,
+        timeFrom: from,
+        timeTo: to,
+        addressStreet: del?.street ?? '',
+        addressArea: del?.area ?? '',
+        addressZip: del?.zip,
+        addressFloor: del?.floor,
+        items: items.map((item) => ({
+          dishId: item.dishId,
+          variantId: item.variantId,
+          quantity: item.qty,
+          comment: item.comment,
+        })),
+      }
+    })
+
+    const { data, error } = await submitOrder({
+      userId: user?.id,
+      customerName: user?.name ?? '',
+      customerEmail: user?.email ?? '',
+      customerPhone: user?.phone,
+      paymentMethod: payment.method as 'cash' | 'card' | 'link' | 'transfer' | 'wallet',
+      cutlery: payment.cutlery ?? false,
+      invoiceType: payment.invoice ? 'receipt' : undefined,
+      invoiceName: payment.invoiceName,
+      invoiceVat: payment.invoiceVat,
+      notes: payment.notes,
+      voucherCode: voucher.applied ? voucher.code : undefined,
+      days: dayPayloads,
+    })
+
+    setSubmitting(false)
+
+    if (error) {
+      toast(error)
+      return
+    }
+
+    setOrderNumber(data?.orderNumber ?? '')
+    setConfirmed(true)
   }
 
-  function handleBack() {
-    if (step === 'payment') setStep('delivery')
-    else if (step === 'review') setStep('payment')
-    else closeCheckout()
-  }
+  if (confirmed) return <ConfirmationScreen orderNumber={orderNumber} />
 
-  if (confirmed) return <ConfirmationScreen />
-
-  const stepLabels = {
-    delivery: { el: 'Παράδοση', en: 'Delivery' },
-    payment:  { el: 'Πληρωμή', en: 'Payment' },
-    review:   { el: 'Επισκόπηση', en: 'Review' },
-  }
+  const sections = [
+    {
+      id: 'sec-delivery',
+      label: lang === 'el' ? '1.Παράδοση' : '1.Delivery',
+      ok: deliveryOk,
+      ref: deliveryRef,
+    },
+    {
+      id: 'sec-payment',
+      label: lang === 'el' ? '2.Πληρωμή' : '2.Payment',
+      ok: paymentOk,
+      ref: paymentRef,
+    },
+    {
+      id: 'sec-extras',
+      label: lang === 'el' ? '3.Επιπλέον Επιλογές' : '3.Extras',
+      ok: extrasOk,
+      ref: extrasRef,
+    },
+  ]
 
   return (
     <div className="checkout-page">
-      {/* Progress pills */}
-      <div className="checkout-progress">
-        {STEPS.map((s, i) => (
-          <div
-            key={s}
-            className={`progress-step${step === s ? ' active' : ''}${STEPS.indexOf(step) > i ? ' done' : ''}`}
+      {/* Header: back button + title on one line */}
+      <div className="co-page-top">
+        <button className="btn-co-back" onClick={closeCheckout}>←</button>
+        <h1 className="co-page-title">
+          {lang === 'el' ? 'Ολοκλήρωση Παραγγελίας' : 'Checkout'}
+        </h1>
+      </div>
+
+      {/* Section nav pills — on own line */}
+      <div className="co-sections-nav">
+        {sections.map((sec) => (
+          <button
+            key={sec.id}
+            className={`co-pill${sec.ok ? ' co-pill-done' : ''}`}
+            onClick={() => scrollToSection(sec.ref)}
           >
-            <div className="progress-dot">{STEPS.indexOf(step) > i ? '✓' : i + 1}</div>
-            <span>{lang === 'el' ? stepLabels[s].el : stepLabels[s].en}</span>
-          </div>
+            {sec.ok && <span className="co-pill-checkmark">✓ </span>}
+            <span>{sec.label}</span>
+          </button>
         ))}
       </div>
 
       <div className="checkout-layout">
         <div className="checkout-main">
+          {/* SECTION 1: Delivery */}
+          <div className="co-section" ref={deliveryRef} id="sec-delivery">
+            <h2 className="co-section-title">
+              {lang === 'el' ? 'ΣΤΟΙΧΕΙΑ ΠΑΡΑΔΟΣΗΣ' : 'DELIVERY DETAILS'}
+            </h2>
+            {activeDayIdxs.map((i) => {
+              const day = days[i]
+              const label = lang === 'el' ? dayLabelsEl[i] : dayLabelsEn[i]
+              return (
+                <div key={day.date} className="day-deliv-block">
+                  <div className="ddb-title">
+                    {label} — {formatDate(day.date, lang)}
+                  </div>
 
-          {/* STEP 1: Delivery */}
-          {step === 'delivery' && (
-            <div className="checkout-step">
-              <h2 className="checkout-step-title">{t('deliveryDetails')}</h2>
-              {activeDayIdxs.map((i) => {
-                const day = days[i]
-                const label = lang === 'el' ? dayLabelsEl[i] : dayLabelsEn[i]
-                return (
-                  <div key={day.date} className="checkout-day-block">
-                    <div className="checkout-day-label">
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                        <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>
-                      </svg>
-                      {label} — {formatDate(day.date, lang)}
+                  {/* Time slots FIRST (matches demo) */}
+                  <div className="ddb-zone">
+                    <div className="ddb-section-hdr">
+                      <span className="ddb-section-ico">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
+                        </svg>
+                      </span>
+                      {lang === 'el' ? 'ΠΑΡΑΘΥΡΟ ΠΑΡΑΔΟΣΗΣ' : 'DELIVERY WINDOW'}
+                    </div>
+                    <TimeSlotPicker dayIndex={i} inline />
+                  </div>
+
+                  {/* Address SECOND (matches demo) */}
+                  <div className="ddb-zone">
+                    <div className="ddb-section-hdr">
+                      <span className="ddb-section-ico">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/>
+                        </svg>
+                      </span>
+                      {lang === 'el' ? 'ΔΙΕΥΘΥΝΣΗ' : 'ADDRESS'}
                     </div>
                     <AddressSection dayIndex={i} />
-                    <TimeSlotPicker dayIndex={i} />
-                    {(() => {
-                      const amt = dayAmt(cart, i)
-                      return (
-                        <div className="checkout-day-totals">
-                          <span className="checkout-day-amt">
-                            {lang === 'el' ? 'Σύνολο ημέρας:' : 'Day total:'} <strong>{fmt(amt)}</strong>
-                          </span>
-                          {amt < MIN_ORDER && (
-                            <div className="min-warn">
-                              ⚠ {t('minWarn')}
-                            </div>
-                          )}
-                        </div>
-                      )
-                    })()}
                   </div>
-                )
-              })}
-            </div>
-          )}
+                </div>
+              )
+            })}
+          </div>
 
-          {/* STEP 2: Payment */}
-          {step === 'payment' && (
-            <div className="checkout-step">
-              <h2 className="checkout-step-title">{t('paymentMethod')}</h2>
-              <PaymentSection />
-              <h2 className="checkout-step-title" style={{ marginTop: 24 }}>{t('extras')}</h2>
-              <ExtrasSection />
-            </div>
-          )}
+          {/* SECTION 2: Payment */}
+          <div className="co-section" ref={paymentRef} id="sec-payment">
+            <h2 className="co-section-title">
+              {lang === 'el' ? 'ΤΡΟΠΟΣ ΠΛΗΡΩΜΗΣ' : 'PAYMENT METHOD'}
+            </h2>
+            <PaymentSection />
+          </div>
 
-          {/* STEP 3: Review */}
-          {step === 'review' && (
-            <div className="checkout-step">
-              <h2 className="checkout-step-title">{t('reviewOrder')}</h2>
-              <OrderSummary />
-            </div>
-          )}
+          {/* SECTION 3: Extras */}
+          <div className="co-section" ref={extrasRef} id="sec-extras">
+            <h2 className="co-section-title">
+              {lang === 'el' ? 'ΕΠΙΠΛΕΟΝ ΕΠΙΛΟΓΕΣ' : 'EXTRAS'}
+            </h2>
+            <ExtrasSection />
+          </div>
 
-          {/* Navigation */}
-          <div className="checkout-nav">
-            <button className="btn-back" onClick={handleBack}>
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                <polyline points="15 18 9 12 15 6"/>
-              </svg>
-              {step === 'delivery' ? t('backToMenu') : t('back')}
+          {/* Footer with action buttons */}
+          <div className="checkout-footer">
+            <button className="btn-back" onClick={closeCheckout}>
+              {lang === 'el' ? '← Πίσω' : '← Back'}
             </button>
-            <button className="btn-next" onClick={handleNext}>
-              {step === 'review'
-                ? (lang === 'el' ? 'Ολοκλήρωση παραγγελίας' : 'Place order')
-                : t('continue')}
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                <polyline points="9 18 15 12 9 6"/>
-              </svg>
+            <button
+              className="btn-place-order"
+              onClick={handlePlaceOrder}
+              disabled={!allOk || submitting}
+            >
+              {submitting
+                ? (lang === 'el' ? 'Υποβολή...' : 'Submitting...')
+                : (lang === 'el' ? 'Ολοκλήρωση παραγγελίας →' : 'Place order →')}
             </button>
           </div>
+
+          {/* Validation reasons */}
+          {validationIssues.length > 0 && (
+            <div className="checkout-validation">
+              {validationIssues.map((issue, idx) => (
+                <div key={idx} className="validation-issue">
+                  <span className="validation-dot">●</span> {issue}
+                </div>
+              ))}
+            </div>
+          )}
         </div>
 
         {/* Sidebar summary (desktop) */}

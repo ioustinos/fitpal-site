@@ -1,6 +1,7 @@
 import { useUIStore } from '../../store/useUIStore'
 import { useCartStore } from '../../store/useCartStore'
-import { dayAmt, MIN_ORDER } from '../../lib/helpers'
+import { useMenuStore } from '../../store/useMenuStore'
+import { dayAmt } from '../../lib/helpers'
 import { CartItemRow } from '../cart/CartItemRow'
 import type { WeekDay } from '../../data/menu'
 import type { DeliveryInfo } from '../../store/useCartStore'
@@ -26,6 +27,7 @@ export function DayOrderGroup({
   const lang = useUIStore((s) => s.lang)
   const cart = useCartStore((s) => s.cart)
   const delivery = useCartStore((s) => s.delivery)
+  const minOrder = useMenuStore((s) => s.settings.minOrder)
 
   const items = cart[dayIndex] ?? []
   if (items.length === 0) return null
@@ -39,9 +41,9 @@ export function DayOrderGroup({
       {/* Day header */}
       <div className="cart-day-hdr">
         <span className="cart-day-name">{label} <span className="cart-day-date">{dateStr}</span></span>
-        {amt < MIN_ORDER ? (
+        {amt < minOrder ? (
           <span className="cart-day-min-pill">
-            €{amt.toFixed(2)} <span className="cart-day-min-label">/ min €{MIN_ORDER}</span>
+            €{amt.toFixed(2)} <span className="cart-day-min-label">/ min €{minOrder}</span>
           </span>
         ) : (
           <span className="cart-day-amt">€{amt.toFixed(2)}</span>

@@ -1,6 +1,5 @@
 import { create } from 'zustand'
 import type { Macros } from '../data/menu'
-import { VOUCHERS } from '../lib/helpers'
 
 // ─── Domain types ─────────────────────────────────────────────────────────────
 
@@ -12,6 +11,7 @@ export interface CartItem {
   variantLabelEl: string
   variantLabelEn: string
   price: number          // effective unit price (after dish-level discount + wallet)
+  originalPrice?: number // pre-discount price, shown as strikethrough when present
   qty: number
   macros?: Macros
   img?: string           // dish image URL for cart thumbnails
@@ -23,8 +23,11 @@ export interface DeliveryInfo {
   street: string
   area: string
   zip?: string
+  floor?: string
+  doorbell?: string
   notes?: string
   timeSlot?: string
+  addrId?: string  // ID of the selected saved address (if any)
 }
 
 export interface PaymentInfo {
@@ -62,8 +65,9 @@ interface CartStore {
 
   setPayment: (info: Partial<PaymentInfo>) => void
 
-  applyVoucher: (code: string) => boolean
+  applyVoucher: (code: string, cartTotal: number, userId?: string) => Promise<{ ok: boolean; error?: string }>
   removeVoucher: () => void
+  voucherLoading: boolean
 }
 
 // ─── Defaults ─────────────────────────────────────────────────────────────────
@@ -80,6 +84,7 @@ export const useCartStore = create<CartStore>((set) => ({
   delivery: {},
   payment: defaultPayment,
   voucher: defaultVoucher,
+  voucherLoading: false,
 
   addItem: (dayIndex, newItem) =>
     set((state) => {
@@ -146,11 +151,35 @@ export const useCartStore = create<CartStore>((set) => ({
   setPayment: (info) =>
     set((state) => ({ payment: { ...state.payment, ...info } })),
 
-  applyVoucher: (code) => {
-    const v = VOUCHERS[code.toUpperCase()]
-    if (!v) return false
-    set({ voucher: { code: code.toUpperCase(), applied: true, type: v.type, value: v.value } })
-    return true
+  applyVoucher: async (code, cartTotal, userId) => {
+    set({ voucherLoading: true })
+    try {
+      const res = await fetch('/api/validate-voucher', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code: code.toUpperCase(), cartTotal, userId }),
+      })
+      const json = await res.json()
+
+      if (!json.valid) {
+        set({ voucherLoading: false })
+        return { ok: false, error: json.error ?? 'Invalid voucher code' }
+      }
+
+      set({
+        voucher: {
+          code: json.code,
+          applied: true,
+          type: json.type as 'pct' | 'fixed',
+          value: json.value,
+        },
+        voucherLoading: false,
+      })
+      return { ok: true }
+    } catch {
+      set({ voucherLoading: false })
+      return { ok: false, error: 'Network error' }
+    }
   },
 
   removeVoucher: () => set({ voucher: defaultVoucher }),

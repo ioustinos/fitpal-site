@@ -30,6 +30,10 @@ export interface Dish {
   tags?: string[]
   discount?: number
   variants: Variant[]
+  previewCal?: number   // 1–5 admin-set dot levels for menu card display
+  previewPro?: number
+  previewCarb?: number
+  previewFat?: number
 }
 
 export interface WeekDay {
@@ -57,7 +61,6 @@ export interface WalletPlan {
   price: number
   credits: number
   bonusPct: number
-  discountPct: number
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -1725,7 +1728,6 @@ export const WALLET_PLANS: WalletPlan[] = [
     price: 50,
     credits: 53.5,
     bonusPct: 7,
-    discountPct: 5,
   },
   {
     id: 'plus',
@@ -1734,7 +1736,6 @@ export const WALLET_PLANS: WalletPlan[] = [
     price: 100,
     credits: 110,
     bonusPct: 10,
-    discountPct: 8,
   },
   {
     id: 'premium',
@@ -1743,6 +1744,5 @@ export const WALLET_PLANS: WalletPlan[] = [
     price: 150,
     credits: 168,
     bonusPct: 12,
-    discountPct: 10,
   },
 ]

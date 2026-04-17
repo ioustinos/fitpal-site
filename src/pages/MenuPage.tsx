@@ -1,15 +1,18 @@
+import { useEffect } from 'react'
 import { useUIStore } from '../store/useUIStore'
 import { useCartStore } from '../store/useCartStore'
 import { useAuthStore } from '../store/useAuthStore'
+import { useMenuStore } from '../store/useMenuStore'
 import { DayNav } from '../components/menu/DayNav'
 import { CategoryFilter } from '../components/menu/CategoryFilter'
 import { CutoffBar } from '../components/menu/CutoffBar'
 import { MenuSection } from '../components/menu/MenuSection'
 import { CartSidebar } from '../components/cart/CartSidebar'
-import { MENU, SNACKS, WEEK_DATA, WALLET_PLANS } from '../data/menu'
+import { WALLET_PLANS } from '../data/menu'
 import { makeTr } from '../lib/translations'
+import FpLoader from '../components/ui/FpLoader'
 
-/** Returns "6–10 Απρ" or "6–10 Apr" from week days */
+/** Returns "6 – 10 Απρ" or "6 – 10 Apr" from week days */
 function weekDateRange(days: { date: string }[], lang: 'el' | 'en'): string {
   const first = days[0]?.date
   const last = days[days.length - 1]?.date
@@ -17,7 +20,7 @@ function weekDateRange(days: { date: string }[], lang: 'el' | 'en'): string {
   const d1 = new Date(first + 'T12:00:00')
   const d2 = new Date(last + 'T12:00:00')
   const month = d2.toLocaleDateString(lang === 'el' ? 'el-GR' : 'en-GB', { month: 'short' })
-  return `${d1.getDate()}–${d2.getDate()} ${month}`
+  return `${d1.getDate()} – ${d2.getDate()} ${month}`
 }
 
 export function MenuPage() {
@@ -30,14 +33,30 @@ export function MenuPage() {
   const user = useAuthStore((s) => s.user)
   const t = makeTr(lang)
 
-  const week = WEEK_DATA[activeWeek] ?? WEEK_DATA[0]
-  const day = week.days[activeDay]
+  // ── Supabase menu data ──
+  const weeksMeta = useMenuStore((s) => s.weeksMeta)
+  const weeks = useMenuStore((s) => s.weeks)
+  const loadedWeekIds = useMenuStore((s) => s.loadedWeekIds)
+  const weekLoading = useMenuStore((s) => s.weekLoading)
+  const dishMap = useMenuStore((s) => s.dishMap)
+  const isLoading = useMenuStore((s) => s.isLoading)
+  const menuError = useMenuStore((s) => s.error)
+  const loadMenu = useMenuStore((s) => s.load)
+
+  useEffect(() => { loadMenu() }, [loadMenu])
+
+  const week = weeks[activeWeek] ?? weeks[0]
+  const weekMetaForRange = weeksMeta[activeWeek] ?? weeksMeta[0]
+  const day = week?.days[activeDay]
   const dishIds = day?.dishIds ?? []
 
-  // Combine day-specific dishes + snacks, deduplicate by ID
-  const dayDishes = dishIds.map((id) => MENU[id]).filter(Boolean)
-  const seen = new Set(dayDishes.map((d) => d.id))
-  const allDishes = [...dayDishes, ...SNACKS.filter((s) => !seen.has(s.id))]
+  // Resolve dish IDs → full Dish objects
+  const allDishes = dishIds.map((id) => dishMap[id]).filter(Boolean)
+
+  // Active week's dish content still loading?
+  const activeWeekId = weeksMeta[activeWeek]?.id
+  const activeWeekLoading =
+    !!activeWeekId && !loadedWeekIds.has(activeWeekId) && !!weekLoading[activeWeekId]
 
   const cartCount = Object.values(cart).reduce(
     (sum, items) => sum + items.reduce((s, i) => s + i.qty, 0), 0
@@ -45,8 +64,40 @@ export function MenuPage() {
 
   const walletActive = user?.wallet?.active
   const walletBalance = user?.wallet?.balance ?? 0
-  const dateRange = weekDateRange(week.days, lang)
+  const dateRange = weekMetaForRange ? weekDateRange(weekMetaForRange.days, lang) : ''
   const weekWord = lang === 'el' ? 'Εβδομάδα' : 'Week'
+
+  // ── Loading / error states ──
+  if (isLoading) {
+    return (
+      <div className="page-wrap">
+        <div className="layout">
+          <div className="main">
+            <FpLoader label={lang === 'el' ? 'Φόρτωση μενού…' : 'Loading menu…'} />
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  if (menuError) {
+    return (
+      <div className="page-wrap">
+        <div className="layout">
+          <div className="main">
+            <div className="menu-empty">
+              <div className="menu-empty-text">
+                {lang === 'el' ? 'Σφάλμα φόρτωσης μενού' : 'Error loading menu'}
+              </div>
+              <div className="menu-empty-text" style={{ fontSize: '0.85rem', opacity: 0.7 }}>
+                {menuError}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="page-wrap">
@@ -91,8 +142,8 @@ export function MenuPage() {
                   </div>
                   <div className="wp-desc">
                     {lang === 'el'
-                      ? `-${user?.wallet?.discountPct}% έκπτωση σε κάθε παραγγελία`
-                      : `-${user?.wallet?.discountPct}% discount on every order`}
+                      ? `+${user?.wallet?.bonusPct ?? 0}% bonus credits`
+                      : `+${user?.wallet?.bonusPct ?? 0}% bonus credits`}
                   </div>
                 </>
               ) : (
@@ -131,17 +182,21 @@ export function MenuPage() {
           <div className="day-section">
             <div className="day-section-hdr">
               <div className="section-label">{t('daylabel')}</div>
-              <div className="week-label">{weekWord} {dateRange}</div>
+              <div className="week-label">{dateRange}</div>
             </div>
             <DayNav />
             <CutoffBar />
           </div>
 
-          {/* Category filter */}
-          <CategoryFilter dishes={allDishes} />
+          {/* Category filter — hidden while active week's dishes are still loading */}
+          {!activeWeekLoading && <CategoryFilter dishes={allDishes} />}
 
-          {/* Menu grid */}
-          <MenuSection dishes={allDishes} dayIndex={activeDay} />
+          {/* Menu grid (or loader while active week lazy-loads) */}
+          {activeWeekLoading ? (
+            <FpLoader label={lang === 'el' ? 'Φόρτωση μενού…' : 'Loading menu…'} />
+          ) : (
+            <MenuSection dishes={allDishes} dayIndex={activeDay} />
+          )}
         </div>
 
         {/* Sidebar */}

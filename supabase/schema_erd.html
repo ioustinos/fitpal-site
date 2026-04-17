@@ -1,0 +1,489 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Fitpal DB Schema — Final</title>
+<style>
+  body { margin: 0; padding: 20px; background: #0d1117; font-family: system-ui, sans-serif; }
+  h1 { color: #e6edf3; text-align: center; font-size: 1.4rem; margin-bottom: 4px; }
+  p.sub { color: #7d8590; text-align: center; font-size: 0.85rem; margin-top: 0; }
+
+  .legend { max-width: 860px; margin: 16px auto; display: flex; gap: 24px; justify-content: center; flex-wrap: wrap; font-size: 0.78rem; color: #8b949e; }
+  .legend span { display: flex; align-items: center; gap: 5px; }
+  .dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
+  .dot.user   { background: #58a6ff; }
+  .dot.menu   { background: #3fb950; }
+  .dot.order  { background: #d29922; }
+  .dot.wallet { background: #bc8cff; }
+  .dot.system { background: #8b949e; }
+
+  .changes { max-width: 860px; margin: 0 auto 20px; padding: 14px 18px; background: #161b22; border: 1px solid #30363d; border-radius: 8px; color: #c9d1d9; font-size: 0.8rem; line-height: 1.6; }
+  .changes h3 { color: #58a6ff; margin: 0 0 8px; font-size: 0.88rem; }
+  .changes h4 { color: #d29922; margin: 10px 0 4px; font-size: 0.82rem; }
+  .changes ul { margin: 0 0 6px; padding-left: 18px; }
+  .changes li { margin-bottom: 2px; }
+  .add    { color: #3fb950; }
+  .remove { color: #f85149; }
+  .change { color: #d29922; }
+
+  #diagram { display: flex; justify-content: center; overflow: auto; padding: 10px 0; }
+  .mermaid { max-width: 100%; }
+</style>
+</head>
+<body>
+<h1>Fitpal Ordering Platform — Database Schema (Final)</h1>
+<p class="sub">27 tables · All money in cents · Bilingual _el/_en · Reconciled 2026-04-15</p>
+
+<div class="legend">
+  <span><span class="dot user"></span> User &amp; prefs</span>
+  <span><span class="dot menu"></span> Menu &amp; catalogue</span>
+  <span><span class="dot order"></span> Orders &amp; delivery</span>
+  <span><span class="dot wallet"></span> Wallet &amp; payments</span>
+  <span><span class="dot system"></span> System &amp; admin</span>
+</div>
+
+<div class="changes">
+  <h3>Changes from design review &amp; codebase audit (Apr 15)</h3>
+
+  <h4>Structural changes</h4>
+  <ul>
+    <li class="remove"><strong>profiles</strong>: removed goal_*, pref_*, pref_slot_mon, pref_addr_mon — split into dedicated tables</li>
+    <li class="add"><strong>user_goals</strong>: new table — enabled toggle + min/max range per macro</li>
+    <li class="add"><strong>user_prefs</strong>: new table — payment, cutlery, invoice, dietary, lang, newsletter, only_admin_orders</li>
+    <li class="add"><strong>user_day_prefs</strong>: new table — per-day default address + time window (Mon–Fri)</li>
+    <li class="add"><strong>tags</strong>: new table — free-form labels with bg_color + font_color for UI pills</li>
+    <li class="add"><strong>dish_tags</strong>: new junction table — replaces array tags on dishes</li>
+    <li class="add"><strong>zone_time_slots</strong>: new table — maps delivery zones to available time windows</li>
+    <li class="add"><strong>meal_services</strong>: new table — employee-curated meal selection subscriptions</li>
+  </ul>
+
+  <h4>Column changes</h4>
+  <ul>
+    <li class="change"><strong>child_orders</strong>: time_slot text → time_from (time) + time_to (time); dropped driver, stop_number, eta (stays in Airtable for now); dropped day_subtotal (derived from order_items)</li>
+    <li class="change"><strong>profiles</strong>: added name_en, avatar_url; kept dietician, dietary_notes</li>
+    <li class="change"><strong>addresses</strong>: added lat, lng for zone validation; added sort_order; kept is_default + area</li>
+    <li class="change"><strong>dishes</strong>: dropped array tags (→ dish_tags), dropped enum temp (→ tags)</li>
+    <li class="change"><strong>order_items</strong>: added variant_label_en, comment</li>
+    <li class="change"><strong>orders</strong>: dropped voucher_code, voucher_discount (voucher_uses is now source of truth); kept discount_amount as total</li>
+    <li class="change"><strong>vouchers</strong>: added nullable user_id for customer-linked vouchers; added remaining (int) for credit vouchers that deplete over multiple uses</li>
+    <li class="change"><strong>voucher_uses</strong>: added amount (int) — how much discount was applied from this voucher on this order</li>
+    <li class="change"><strong>user_prefs</strong>: added only_admin_orders boolean</li>
+    <li class="change"><strong>wallet_plans</strong>: reworked from fixed tiers to purchase history — stores calculator snapshot (consumer_type, meals, people, days, frequency, cost, credits, bonus_pct, bonus_amount, bonus_expires_at)</li>
+    <li class="change"><strong>wallets</strong>: now references active_plan_id; dropped discount_pct (lives on plan); added bonus expiry support</li>
+    <li class="change"><strong>All tables</strong>: added created_at / updated_at timestamps</li>
+  </ul>
+
+  <h4>Auth strategy</h4>
+  <ul>
+    <li><strong>Launch:</strong> Email + password with one-time email verification link</li>
+    <li><strong>Later:</strong> Magic link (passwordless email), Phone + OTP (SMS via Twilio)</li>
+    <li>All auth managed by Supabase Auth — no custom auth tables needed</li>
+    <li>On signup trigger creates profiles, user_goals, user_prefs rows</li>
+  </ul>
+
+  <h4>Considered &amp; rejected</h4>
+  <ul>
+    <li>Translations table instead of _el/_en columns — rejected (2 languages only, JOINs add latency, no practical benefit)</li>
+  </ul>
+</div>
+
+<div id="diagram">
+<pre class="mermaid">
+erDiagram
+    %% ── User & prefs ──────────────────────────────────
+    auth_users ||--|| profiles : "extends"
+    profiles ||--o{ addresses : "has"
+    profiles ||--|| user_goals : "configures"
+    profiles ||--|| user_prefs : "configures"
+    profiles ||--o{ user_day_prefs : "configures"
+    profiles ||--o{ profile_allergies : "has"
+    profiles ||--o| meal_services : "subscribed to"
+    user_day_prefs }o--o| addresses : "defaults to"
+    allergies ||--o{ profile_allergies : "tagged in"
+
+    %% ── Menu & catalogue ──────────────────────────────
+    categories ||--o{ dishes : "groups"
+    dishes ||--|{ dish_variants : "has"
+    dishes ||--o{ dish_tags : "labelled with"
+    tags ||--o{ dish_tags : "applied to"
+    dishes ||--o{ menu_day_dishes : "scheduled in"
+    weekly_menus ||--o{ menu_day_dishes : "defines"
+
+    %% ── Orders & delivery ─────────────────────────────
+    profiles ||--o{ orders : "places"
+    orders ||--|{ child_orders : "contains"
+    child_orders ||--|{ order_items : "contains"
+    order_items }o--o| dishes : "references"
+    order_items }o--o| dish_variants : "references"
+
+    %% ── Delivery zones ────────────────────────────────
+    delivery_zones ||--o{ zone_time_slots : "offers"
+
+    %% ── Wallet & payments ─────────────────────────────
+    profiles ||--|| wallets : "has"
+    wallets ||--o{ wallet_plans : "purchased"
+    wallets }o--o| wallet_plans : "active plan"
+    wallets ||--o{ wallet_transactions : "logs"
+    orders ||--o{ payment_links : "paid via"
+
+    %% ── Vouchers ──────────────────────────────────────
+    vouchers ||--o{ voucher_uses : "redeemed"
+    orders ||--o{ voucher_uses : "used"
+
+    %% ── System ────────────────────────────────────────
+    orders ||--o{ admin_change_log : "tracked in"
+
+    %% ════════════════════════════════════════════════════
+    %% TABLE DEFINITIONS
+    %% ════════════════════════════════════════════════════
+
+    auth_users["auth.users (Supabase-managed)"] {
+        uuid id PK
+        text email
+        text phone
+        jsonb raw_user_meta_data
+        text _note "Not our table - managed by Supabase Auth"
+    }
+
+    profiles {
+        uuid id PK
+        text name
+        text name_en
+        text phone
+        text avatar_url
+        text dietician
+        text dietary_notes
+        timestamptz created_at
+        timestamptz updated_at
+    }
+
+    addresses {
+        uuid id PK
+        uuid user_id FK
+        text label_el
+        text label_en
+        text street
+        text area
+        text zip
+        text floor
+        text doorbell
+        text notes
+        float lat
+        float lng
+        bool is_default
+        int sort_order
+        timestamptz created_at
+        timestamptz updated_at
+    }
+
+    user_goals {
+        uuid user_id PK
+        bool enabled
+        int cal_min
+        int cal_max
+        int protein_min
+        int protein_max
+        int carbs_min
+        int carbs_max
+        int fat_min
+        int fat_max
+        timestamptz updated_at
+    }
+
+    user_prefs {
+        uuid user_id PK
+        text payment_method
+        bool cutlery
+        bool invoice
+        bool vegetarian
+        bool gluten_free
+        bool low_carb
+        text lang
+        bool newsletter
+        bool only_admin_orders
+        timestamptz updated_at
+    }
+
+    user_day_prefs {
+        uuid id PK
+        uuid user_id FK
+        int day_of_week
+        uuid address_id FK
+        time time_from
+        time time_to
+        timestamptz updated_at
+    }
+
+    allergies {
+        uuid id PK
+        text name_el
+        text name_en
+        text description
+    }
+
+    profile_allergies {
+        uuid profile_id FK
+        uuid allergy_id FK
+    }
+
+    meal_services {
+        uuid id PK
+        uuid user_id FK
+        uuid curator_id FK
+        date start_date
+        date end_date
+        bool active
+        text notes
+        timestamptz created_at
+        timestamptz updated_at
+    }
+
+    categories {
+        text id PK
+        text name_el
+        text name_en
+        int sort_order
+        bool active
+    }
+
+    dishes {
+        text id PK
+        text category_id FK
+        text name_el
+        text name_en
+        text desc_el
+        text desc_en
+        text image_url
+        text emoji
+        int discount_pct
+        bool active
+        timestamptz created_at
+        timestamptz updated_at
+    }
+
+    tags {
+        text id PK
+        text label_el
+        text label_en
+        text bg_color
+        text font_color
+        int sort_order
+    }
+
+    dish_tags {
+        text dish_id FK
+        text tag_id FK
+    }
+
+    dish_variants {
+        text id PK
+        text dish_id FK
+        text label_el
+        text label_en
+        int price
+        int calories
+        int protein
+        int carbs
+        int fat
+        int sort_order
+    }
+
+    weekly_menus {
+        uuid id PK
+        text name
+        date from_date
+        date to_date
+        bool active
+    }
+
+    menu_day_dishes {
+        uuid id PK
+        uuid menu_id FK
+        date date
+        text dish_id FK
+        int sort_order
+    }
+
+    orders {
+        uuid id PK
+        text order_number UK
+        uuid user_id FK
+        text customer_name
+        text customer_email
+        text customer_phone
+        int subtotal
+        int discount_amount
+        int total
+        enum payment_method
+        enum payment_status
+        enum status
+        bool cutlery
+        enum invoice_type
+        text invoice_name
+        text invoice_vat
+        text notes
+        text admin_order_id
+        text admin_notes
+        timestamptz created_at
+        timestamptz updated_at
+    }
+
+    child_orders {
+        uuid id PK
+        uuid order_id FK
+        date delivery_date
+        time time_from
+        time time_to
+        text address_street
+        text address_area
+        text address_zip
+        text address_floor
+        timestamptz created_at
+        timestamptz updated_at
+    }
+
+    order_items {
+        uuid id PK
+        uuid child_order_id FK
+        text dish_id FK
+        text variant_id FK
+        text name_el
+        text name_en
+        text variant_label_el
+        text variant_label_en
+        int quantity
+        int unit_price
+        int total_price
+        int calories
+        int protein
+        int carbs
+        int fat
+        text comment
+    }
+
+    wallet_plans {
+        uuid id PK
+        uuid wallet_id FK
+        enum consumer_type
+        bool meal_breakfast
+        bool meal_lunch
+        bool meal_dinner
+        int people
+        int days_per_week
+        enum frequency
+        int cost
+        int credits
+        int bonus_pct
+        int bonus_amount
+        timestamptz bonus_expires_at
+        timestamptz created_at
+    }
+
+    wallets {
+        uuid id PK
+        uuid user_id FK
+        uuid active_plan_id FK
+        int balance
+        int base_balance
+        int bonus_balance
+        bool auto_renew
+        date next_renewal
+        bool active
+        timestamptz created_at
+        timestamptz updated_at
+    }
+
+    wallet_transactions {
+        uuid id PK
+        uuid wallet_id FK
+        enum type
+        int amount
+        text description_el
+        text description_en
+        uuid order_id FK
+        timestamptz created_at
+    }
+
+    vouchers {
+        uuid id PK
+        text code UK
+        uuid user_id FK
+        enum type
+        int value
+        int remaining
+        int min_order
+        int max_uses
+        int uses_count
+        int per_user_limit
+        timestamptz expires_at
+        bool active
+        timestamptz created_at
+    }
+
+    voucher_uses {
+        uuid id PK
+        uuid voucher_id FK
+        uuid user_id FK
+        uuid order_id FK
+        int amount
+        timestamptz used_at
+    }
+
+    payment_links {
+        uuid id PK
+        uuid order_id FK
+        bigint viva_ref_code
+        text payment_url
+        enum status
+        timestamptz created_at
+        timestamptz updated_at
+    }
+
+    delivery_zones {
+        uuid id PK
+        text name_el
+        text name_en
+        array postcodes
+        bool active
+    }
+
+    zone_time_slots {
+        uuid id PK
+        uuid zone_id FK
+        time time_from
+        time time_to
+        bool active
+    }
+
+    settings {
+        text key PK
+        jsonb value
+        text description
+    }
+
+    admin_change_log {
+        bigint id PK
+        uuid order_id FK
+        uuid child_order_id FK
+        uuid order_item_id FK
+        text table_name
+        text field_name
+        text old_value
+        text new_value
+        text label
+        text admin_user
+        timestamptz created_at
+    }
+</pre>
+</div>
+<script type="module">
+  import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs';
+  mermaid.initialize({
+    startOnLoad: true,
+    theme: 'dark',
+    er: { useMaxWidth: false, fontSize: 12 }
+  });
+</script>
+</body>
+</html>

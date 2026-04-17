@@ -52,6 +52,9 @@ export function CartItemRow({ item, dayIndex, itemIndex }: CartItemRowProps) {
 
       {/* Right — price + qty controls */}
       <div className="ci-right">
+        {item.originalPrice && item.originalPrice > item.price && (
+          <div className="ci-price-was">€{(item.originalPrice * item.qty).toFixed(2)}</div>
+        )}
         <div className="ci-price">€{(item.price * item.qty).toFixed(2)}</div>
         <div className="qty-ctrl">
           <button

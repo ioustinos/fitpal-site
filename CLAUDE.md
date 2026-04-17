@@ -1,0 +1,170 @@
+# Fitpal Ordering Platform — Claude Context
+
+## Stack
+- React 18 + TypeScript + Vite
+- Netlify (hosting + serverless functions in `netlify/functions/`)
+- Supabase (auth + database) — project ID: `rhwetztxwjxfstffalwl`
+- Viva Payments (payment processing — not yet integrated)
+
+## Local Dev
+```bash
+netlify dev   # → http://localhost:8888
+```
+- Vite hot-reloads on every file save — no deploy needed during iteration
+- `netlify.toml` has only the `/api/*` redirect — no `/*` catch-all (that broke Vite module requests)
+- The `/*` SPA fallback lives in `public/_redirects` for production only
+
+## Git Push Rules — CRITICAL
+- **NEVER run git from the workspace folder** — the FUSE mount blocks `unlink`, permanently breaking git lock files
+- **NEVER push to GitHub unless Ioustinos explicitly says so**
+- **Iterate on localhost:8888, batch fixes, commit only on command**
+- When a push IS requested, use this pattern (clone fresh if `/tmp/fitpal-push` doesn't exist):
+
+```bash
+# Note: $GITHUB_PAT must be set in the shell env before running — never commit the literal token.
+git clone https://${GITHUB_PAT}@github.com/ioustinos/fitpal-site.git /tmp/fitpal-push
+cd /tmp/fitpal-push && git checkout dev
+git config user.email "ioustinos.sarris@gmail.com" && git config user.name "ioustinos"
+
+export GIT_DIR=/tmp/fitpal-push/.git
+export GIT_WORK_TREE="/sessions/<session-id>/mnt/Fitpal New Site"
+
+git add src/specific/file.tsx   # specific files only — never git add -A
+git commit -m "description"
+git push origin dev
+```
+
+Branches:
+- `dev` → https://dev--fitpal-order.netlify.app
+- `main` → https://fitpal-order.netlify.app (production)
+
+## Demo Account
+- Email: `demo@fitpal.gr` / Password: `1234`
+- Pre-confirmed in Supabase, no email verification needed
+- Supabase user ID: `4613c0d8-8c88-4e9f-bbfe-7256ba9d3eee`
+
+## Project Structure
+```
+src/
+  components/
+    cart/        CartSidebar.tsx, DayOrderGroup.tsx
+    layout/      Header.tsx, AuthModal.tsx, Footer.tsx
+    menu/        MenuPage.tsx, ProductCard.tsx, ProductModal.tsx
+    checkout/    CheckoutPage.tsx
+    ui/          Modal.tsx, Button.tsx, etc.
+  lib/
+    helpers.ts   dayAmt(), subTotal(), MIN_ORDER=15, fmt(), activeDays(), delivOk()
+    translations.ts  makeTr() — bilingual string maps
+    supabase.ts
+  store/
+    useCartStore.ts    Zustand — cart items keyed by day
+    useUIStore.ts      Zustand — sidebar, auth modal, lang, page navigation
+    useAuthStore.ts    Zustand — user session, mock user data (profile, addresses, goals, prefs, orders, wallet)
+  pages/
+    AccountPage.tsx    All 6 account tabs as inline components (orders, wallet, addresses, goals, prefs, profile)
+  index.css            Global styles — single file (refactor to Tailwind planned, see Linear backlog)
+```
+
+## Key Design Decisions
+- Single `index.css` currently — **refactor to Tailwind or CSS Modules is in backlog**
+- Zustand for all global state (cart, UI, auth)
+- Bilingual Greek/English via `lang` toggle in header, `t()` helper for string lookups
+- Order hierarchy: Order → ChildOrder (one per day) → OrderItem
+- Minimum order per day: €15 (`MIN_ORDER` constant in helpers.ts)
+- Delivery time windows: 9-11, 10-12, 11-13, 12-14, 13-15
+- Payment options: cash on delivery, card online, payment link sent later, bank transfer, wallet (deduct from Fitpal wallet balance)
+
+## Cutoff model (WEC-101 family)
+`getCutoffDate(isoDate, settings)` resolves in this order (first match wins):
+1. `settings.cutoffDateOverrides[isoDate]` — ad-hoc per-date (holidays, long weekends). Key = delivery date YYYY-MM-DD. Value = `{ cutoffDate, hour }`.
+2. `settings.cutoffWeekdayOverrides[deliveryIsoDow]` — recurring weekday rule. Key = ISO weekday 1–7 (1=Mon..7=Sun). Value = `{ dow, hour }` meaning cutoff lands on weekday `dow` (most recent before delivery) at `hour`. Currently seeded: `{ "1": { "dow": 6, "hour": 18 } }` → **Monday deliveries close on Saturday 18:00**.
+3. Default — previous calendar day at `settings.cutoffHour` (currently 18).
+
+All cutoff-related code flows through this one helper: `findLandingDay`, `isDayOrderable`, `CutoffBar`, and server-side `submit-order.ts` (WEC-106).
+
+## Critical Behaviours
+- No login gate on checkout — users can proceed as guest
+- Per-day minimum order shown as yellow pill in cart sidebar and warning in checkout
+- Menu is weekly — navigation is per-day, not per-category
+
+## Linear
+- Workspace: Wecook, Team key: WEC
+- Project: Fitpal Ordering Platform
+- Check Linear for open issues before starting new work
+
+## Database Schema (Definitive — 27 tables)
+
+Full ERD with column details: `supabase/schema_erd.html`
+Schema decisions tracked in Linear: WEC-82
+
+### Auth
+- Supabase Auth manages `auth.users` — we don't touch it
+- Launch: email + password with one-time email verification
+- Later: magic link, phone + OTP (SMS)
+- On signup trigger creates `profiles`, `user_goals`, `user_prefs`
+
+### User & Prefs
+- `profiles` (extends auth.users) — name, name_en, phone, avatar_url, dietician, dietary_notes
+- `addresses` — label_el/en, street, area, zip, floor, doorbell, notes, lat, lng, is_default, sort_order
+- `user_goals` — enabled, cal/protein/carbs/fat min+max (one row per user)
+- `user_prefs` — payment_method, cutlery, invoice, vegetarian, gluten_free, low_carb, lang, newsletter, only_admin_orders, goal_tracking (bool, default false — on-page goal vs order comparison)
+- `user_day_prefs` — day_of_week (1–5), address_id, time_from (time), time_to (time)
+- `allergies` + `profile_allergies` junction
+- `meal_services` — user_id, curator_id, start_date, end_date, active, notes
+
+### Menu & Catalogue
+- `categories` — text id, name_el/en, sort_order, active
+- `dishes` — text id, category_id, name_el/en, desc_el/en, image_url, emoji, discount_pct, active, preview_cal/pro/carb/fat (smallint 1–5, admin-set dot levels for menu card display)
+- `dish_variants` — text id, dish_id, label_el/en, price (cents), calories, protein, carbs, fat, sort_order
+- `tags` — text id, label_el/en, bg_color, font_color, sort_order
+- `dish_tags` — dish_id + tag_id junction
+- `weekly_menus` — name, from_date, to_date, active
+- `menu_day_dishes` — menu_id, date, dish_id, sort_order
+
+### Orders
+- `orders` — order_number, user_id, customer_name/email/phone, subtotal, discount_amount, total, payment_method (enum), payment_status (enum), status (enum), cutlery, invoice_type/name/vat, notes, admin_order_id, admin_notes
+- `child_orders` — order_id, delivery_date, time_from (time), time_to (time), address_street/area/zip/floor
+- `order_items` — child_order_id, dish_id, variant_id, name_el/en, variant_label_el/en, quantity, unit_price, total_price, calories, protein, carbs, fat, comment
+
+### Wallet & Payments
+- `wallet_plans` — wallet_id, consumer_type (enum), meal_breakfast/lunch/dinner (bools), people, days_per_week, frequency (enum), cost, credits, bonus_pct, bonus_amount, bonus_expires_at (purchase history — one row per package bought)
+- `wallets` — user_id, active_plan_id, balance, base_balance, bonus_balance, auto_renew, next_renewal, active (live wallet state — one row per user)
+- `wallet_transactions` — wallet_id, type (enum: topup/bonus/debit/refund/bonus_expired/adjustment), amount, description_el/en, order_id
+- `payment_links` — order_id, viva_ref_code, payment_url, status (enum)
+
+### Vouchers
+- `vouchers` — code (unique), user_id (nullable, for customer-linked), type (enum), value, remaining (int, for credit vouchers that deplete), min_order, max_uses, uses_count, per_user_limit, expires_at, active
+- `voucher_uses` — voucher_id, user_id, order_id, amount (int, discount applied), used_at (source of truth for applied vouchers per order)
+
+### System
+- `delivery_zones` — name_el/en, postcodes (array), active
+- `zone_time_slots` — zone_id, time_from (time), time_to (time), active
+- `settings` — key (PK), value (jsonb), description
+- `admin_change_log` — order/child_order/order_item ids, table_name, field_name, old/new value, label, admin_user
+
+### Conventions
+- All money in cents (int)
+- Bilingual: `_el` / `_en` suffix columns
+- All tables have `created_at` / `updated_at` (timestamptz) where relevant
+- `fmtTimeSlot(from, to)` helper derives display string from time fields
+- Voucher discounts tracked via `voucher_uses`, not on orders directly (supports double voucher stacking)
+
+## Database Status (Live — seeded 2026-04-16)
+- All 27 tables created via 9 Supabase migrations (enums → user/prefs → menu/catalogue → orders → wallet/payments → vouchers → system → signup trigger → RLS policies)
+- RLS enabled on all tables; public read for menu/settings, user-own-data policies for the rest
+- Signup trigger: `handle_new_user()` auto-creates `profiles`, `user_goals`, `user_prefs` on `auth.users` INSERT
+- `updated_at` auto-update triggers on all mutable tables
+- Demo user seeded: `demo@fitpal.gr` / `1234` (Supabase ID: `4613c0d8-8c88-4e9f-bbfe-7256ba9d3eee`)
+- Seed data: 53 dishes, 122 variants, 2 weekly menus (Apr 6–10, Apr 13–17), 130 menu-day assignments, 3 orders (9 items, 4 child orders), wallet (Plus plan, €78.40 balance), 21 delivery zones (105 time slots), 4 vouchers
+- Enum values to remember:
+  - `consumer_type`: light, medium, regular, large, athletic
+  - `wallet_frequency`: biweekly, monthly, quarterly
+  - `voucher_type`: pct, fixed, credit
+  - `payment_method`: cash, card, link, transfer, wallet
+  - `payment_status`: pending, paid, failed, refunded
+  - `order_status`: pending, confirmed, preparing, delivering, delivered, cancelled
+- Next step: replace mock data in `useAuthStore` + `menu.ts` with real Supabase queries
+
+## Show Before Execute
+Before ANY action in Linear, Supabase, GitHub, Netlify or any other external system —
+write out exactly what you plan to do and wait for explicit approval from Ioustinos.

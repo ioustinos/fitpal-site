@@ -4,8 +4,8 @@ import { useAuthStore } from '../../store/useAuthStore'
 import { DayOrderGroup } from '../shared/DayOrderGroup'
 import { VoucherInput } from './VoucherInput'
 import { makeTr } from '../../lib/translations'
-import { subTotal, activeDays, MIN_ORDER } from '../../lib/helpers'
-import { WEEK_DATA } from '../../data/menu'
+import { subTotal, activeDays } from '../../lib/helpers'
+import { useMenuStore } from '../../store/useMenuStore'
 
 export function CartSidebar() {
   const lang = useUIStore((s) => s.lang)
@@ -17,13 +17,15 @@ export function CartSidebar() {
   const user = useAuthStore((s) => s.user)
   const t = makeTr(lang)
 
-  const week = WEEK_DATA[activeWeek] ?? WEEK_DATA[0]
+  const weeks = useMenuStore((s) => s.weeks)
+  const minOrder = useMenuStore((s) => s.settings.minOrder)
+  const week = weeks[activeWeek] ?? weeks[0]
   const total = subTotal(cart, voucher)
   const days = activeDays(cart)
   const hasItems = days.length > 0
   const canCheckout = days.every((d) => {
     const amt = (cart[d] ?? []).reduce((s, i) => s + i.price * i.qty, 0)
-    return amt >= MIN_ORDER
+    return amt >= minOrder
   })
 
   function handleCheckout() {
@@ -53,7 +55,7 @@ export function CartSidebar() {
           <>
             {/* Scrollable items */}
             <div className="cart-scroll">
-              {week.days.map((day, i) => (
+              {(week?.days ?? []).map((day, i) => (
                 <DayOrderGroup key={day.date} dayIndex={i} day={day} editable />
               ))}
             </div>

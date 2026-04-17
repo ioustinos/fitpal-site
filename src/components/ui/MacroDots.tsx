@@ -2,7 +2,7 @@
  * Macro display components — matches demo.html CSS exactly
  */
 
-type MacroKey = 'cal' | 'pro' | 'carb' | 'fat'
+export type MacroKey = 'cal' | 'pro' | 'carb' | 'fat'
 
 // CSS class uses 'prot' (not 'pro') to match demo.html selectors
 function cssType(type: MacroKey): string {
@@ -10,7 +10,7 @@ function cssType(type: MacroKey): string {
 }
 
 // SVG icons matching MACRO_ICONS_SM from demo.html
-function MacroIcon({ type }: { type: MacroKey }) {
+export function MacroIcon({ type }: { type: MacroKey }) {
   switch (type) {
     case 'cal':
       return (
@@ -64,13 +64,15 @@ interface MacroBarProps {
   carb: number
   fat: number
   labels: { kcal: string; pro: string; carb: string; fat: string }
+  /** Optional pre-set 1–5 dot levels (admin-set). When provided, skip threshold calc. */
+  levels?: { cal?: number; pro?: number; carb?: number; fat?: number }
 }
 
 /**
  * Card macro row — 4-col grid of cream boxes matching .macros CSS from demo.html
  * Layout per box: icon → label → dots (no numeric value, matches buildDishCard JS)
  */
-export function MacroDotsRow({ cal, pro, carb, fat, labels }: MacroBarProps) {
+export function MacroDotsRow({ cal, pro, carb, fat, labels, levels }: MacroBarProps) {
   const items: Array<{ val: number; label: string; type: MacroKey }> = [
     { val: cal,  label: labels.kcal, type: 'cal'  },
     { val: pro,  label: labels.pro,  type: 'pro'  },
@@ -80,7 +82,7 @@ export function MacroDotsRow({ cal, pro, carb, fat, labels }: MacroBarProps) {
   return (
     <div className="macros">
       {items.map((m) => {
-        const level = getLevel(m.type, m.val)
+        const level = levels?.[m.type] ?? getLevel(m.type, m.val)
         return (
           <div key={m.type} className={`macro ${cssType(m.type)}`}>
             <div className="macro-ico">

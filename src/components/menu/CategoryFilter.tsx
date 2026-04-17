@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useUIStore } from '../../store/useUIStore'
-import { CATS } from '../../data/menu'
+import { useMenuStore } from '../../store/useMenuStore'
 import type { Dish } from '../../data/menu'
 
 interface CategoryFilterProps {
@@ -9,6 +9,7 @@ interface CategoryFilterProps {
 
 export function CategoryFilter({ dishes }: CategoryFilterProps) {
   const lang = useUIStore((s) => s.lang)
+  const categories = useMenuStore((s) => s.categories)
   const [activeCat, setActiveCat] = useState<string | null>(null)
 
   // Count dishes per category (only categories that exist in current day)
@@ -19,7 +20,7 @@ export function CategoryFilter({ dishes }: CategoryFilterProps) {
   }
 
   // Only show cats that have dishes today, skip 'all'
-  const visibleCats = CATS.filter((c) => c.id !== 'all' && (countByCat.get(c.id) ?? 0) > 0)
+  const visibleCats = categories.filter((c) => c.id !== 'all' && (countByCat.get(c.id) ?? 0) > 0)
 
   function handlePillClick(catId: string) {
     setActiveCat(catId)

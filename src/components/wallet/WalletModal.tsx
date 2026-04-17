@@ -35,9 +35,9 @@ export function WalletModal() {
             {lang === 'el' ? 'Διαθέσιμο υπόλοιπο' : 'Available balance'}
           </div>
           <div className="wm-balance-amt">€{(wallet?.balance ?? 0).toFixed(2)}</div>
-          {wallet?.active && wallet.discountPct && (
+          {wallet?.active && wallet.planId && (
             <div className="wm-discount-badge">
-              -{wallet.discountPct}% {lang === 'el' ? 'σε κάθε παραγγελία' : 'on every order'}
+              +{wallet.bonusPct ?? 0}% bonus credits
             </div>
           )}
         </div>
@@ -69,10 +69,6 @@ export function WalletModal() {
             <div className="wm-plan-info">
               <div className="wm-plan-name">{lang === 'el' ? wallet.planEl ?? '' : wallet.planEn ?? ''}</div>
               <div className="wm-plan-row">
-                <span>{lang === 'el' ? 'Έκπτωση:' : 'Discount:'}</span>
-                <strong>{wallet.discountPct}%</strong>
-              </div>
-              <div className="wm-plan-row">
                 <span>{lang === 'el' ? 'Ανανέωση:' : 'Renewal:'}</span>
                 <strong>{wallet.autoRenew ? (lang === 'el' ? 'Αυτόματη' : 'Automatic') : (lang === 'el' ? 'Χειροκίνητη' : 'Manual')}</strong>
               </div>
@@ -85,8 +81,8 @@ export function WalletModal() {
         <div className="wm-topup">
           <p className="wm-topup-intro">
             {lang === 'el'
-              ? 'Επέλεξε ένα πακέτο και απόλαυσε bonus credits + έκπτωση σε κάθε παραγγελία.'
-              : 'Choose a package to get bonus credits and a discount on every order.'}
+              ? 'Επέλεξε ένα πακέτο και απόλαυσε bonus credits.'
+              : 'Choose a package to get bonus credits.'}
           </p>
           <div className="wallet-plans">
             {WALLET_PLANS.map((plan) => (
@@ -101,7 +97,6 @@ export function WalletModal() {
                     planEl: plan.nameEl,
                     planEn: plan.nameEn,
                     balance: plan.credits,
-                    discountPct: plan.discountPct,
                     autoRenew: true,
                   })
                 }}
@@ -109,7 +104,7 @@ export function WalletModal() {
                 <div className="wp-name">{lang === 'el' ? plan.nameEl : plan.nameEn}</div>
                 <div className="wp-price">€{plan.price.toFixed(2)}</div>
                 <div className="wp-credits">→ €{plan.credits.toFixed(2)} credits</div>
-                <div className="wp-bonus">+{plan.discountPct}% {lang === 'el' ? 'έκπτωση' : 'discount'}</div>
+                <div className="wp-bonus">+{plan.bonusPct}% bonus credits</div>
               </button>
             ))}
           </div>
