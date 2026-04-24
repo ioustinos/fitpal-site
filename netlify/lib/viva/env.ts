@@ -14,16 +14,15 @@ export interface VivaCredentials {
   env: VivaEnv
   /** OAuth2 token endpoint host. */
   accountsHost: string
-  /** REST API host (create order, retrieve transaction, refund). */
+  /** REST API host (create order, retrieve transaction). */
   apiHost: string
-  /** Hosted checkout host — the URL the customer is redirected to. */
+  /** Hosted checkout host — customer redirect + /api/messages/config/token. */
   checkoutHost: string
   sourceCode: string
   clientId: string
   clientSecret: string
-  webhookKey: string
-  /** Legacy Basic-auth creds. Required for refunds (Viva's
-   *  /api/transactions/{id} endpoint doesn't accept OAuth). */
+  /** Legacy Basic-auth creds. Required for refunds and for fetching the
+   *  webhook verification key (neither endpoint accepts OAuth). */
   merchantId: string
   apiKey: string
 }
@@ -53,7 +52,6 @@ export function getVivaCreds(): VivaCredentials {
     sourceCode:   req(`VIVA_SOURCE_CODE_${suffix}`),
     clientId:     req(`VIVA_CLIENT_ID_${suffix}`),
     clientSecret: req(`VIVA_CLIENT_SECRET_${suffix}`),
-    webhookKey:   req(`VIVA_WEBHOOK_KEY_${suffix}`),
     merchantId:   req(`VIVA_MERCHANT_ID_${suffix}`),
     apiKey:       req(`VIVA_API_KEY_${suffix}`),
   }
