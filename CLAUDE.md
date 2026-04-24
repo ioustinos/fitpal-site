@@ -1,33 +1,42 @@
 # Fitpal Ordering Platform — Claude Context
 
 ## Stack
-- React 18 + TypeScript + Vite
-- Netlify (hosting + serverless functions in `netlify/functions/`)
+- React 19 + TypeScript + Vite
+- Netlify (hosting + serverless functions in `netlify/functions/`, shared server lib in `netlify/lib/`)
 - Supabase (auth + database) — project ID: `rhwetztxwjxfstffalwl`
-- Viva Payments (payment processing — not yet integrated)
+- Viva Payments — Smart Checkout (redirect) + webhooks + refunds, integrated via WEC-125 (dev sandbox only so far, prod creds pending)
 
 ## Local Dev
 ```bash
 netlify dev   # → http://localhost:8888
 ```
 - Vite hot-reloads on every file save — no deploy needed during iteration
-- `netlify.toml` has only the `/api/*` redirect — no `/*` catch-all (that broke Vite module requests)
-- The `/*` SPA fallback lives in `public/_redirects` for production only
+- **Build command is `vite build`, NOT `tsc -b && vite build`**. `tsc -b` was dropped because WEC-141's 24 TS errors were blocking every dev deploy since Apr 13. Type-checking moved to `npm run typecheck` (tsc -b --noEmit) — available, not gating.
+- **Redirect priority:** Netlify evaluates `_redirects` BEFORE `netlify.toml`. Both `/api/*` (to functions) and `/*` (SPA fallback) now live in `public/_redirects` in that order. `netlify.toml` has no redirects — stripped to avoid the ordering footgun.
 
 ## Git Push Rules — CRITICAL
 - **NEVER run git from the workspace folder** — the FUSE mount blocks `unlink`, permanently breaking git lock files
 - **NEVER push to GitHub unless Ioustinos explicitly says so**
 - **Iterate on localhost:8888, batch fixes, commit only on command**
-- When a push IS requested, use this pattern (clone fresh if `/tmp/fitpal-push` doesn't exist):
+- Credentials live in `/sessions/<session>/mnt/.auto-memory/github_credentials.sh`. The var is `$GITHUB_TOKEN` (not `$GITHUB_PAT`). Source it at the start of every bash call since env doesn't persist across calls.
+- `/tmp/fitpal-push` from old sessions has stale ownership and can't be deleted/modified. Use a fresh path (e.g. `/tmp/fitpal-push2`, `/tmp/fitpal-push3`) per new session.
+- When a push IS requested, use this pattern:
 
 ```bash
-# Note: $GITHUB_PAT must be set in the shell env before running — never commit the literal token.
-git clone https://${GITHUB_PAT}@github.com/ioustinos/fitpal-site.git /tmp/fitpal-push
-cd /tmp/fitpal-push && git checkout dev
-git config user.email "ioustinos.sarris@gmail.com" && git config user.name "ioustinos"
+source /sessions/<session>/mnt/.auto-memory/github_credentials.sh
+git config --global --add safe.directory "/sessions/<session>/mnt/Fitpal New Site"
 
-export GIT_DIR=/tmp/fitpal-push/.git
-export GIT_WORK_TREE="/sessions/<session-id>/mnt/Fitpal New Site"
+# Fresh clone to a NEW path (old /tmp/fitpal-push* may have stale ownership)
+PUSH_DIR=/tmp/fitpal-pushN
+rm -rf "$PUSH_DIR"
+git clone --depth 50 -b dev \
+  "https://${GITHUB_USER}:${GITHUB_TOKEN}@github.com/${GITHUB_USER}/${FITPAL_REPO}.git" "$PUSH_DIR"
+cd "$PUSH_DIR"
+git config user.email "ioustinos.sarris@gmail.com" && git config user.name "ioustinos"
+git config --global --add safe.directory "$PUSH_DIR"
+
+export GIT_DIR="$PUSH_DIR/.git"
+export GIT_WORK_TREE="/sessions/<session>/mnt/Fitpal New Site"
 
 git add src/specific/file.tsx   # specific files only — never git add -A
 git commit -m "description"
@@ -209,6 +218,78 @@ Zone membership is determined **exclusively by postcode**. `delivery_zones.name_
 Real order placed by Ioustinos via the customer flow, visible in `/admin/orders`. Status-change + confirmation-screen UX audit tracked as WEC-123 (post-V1 polish).
 
 - Next step: replace mock data in `useAuthStore` + `menu.ts` with real Supabase queries
+
+## Viva Payments Integration (WEC-125, applied 2026-04-24/25)
+
+### Architecture — three-layer payment confirmation
+All three layers converge on one idempotent `markPaid(orderId, transactionId, amountCents)` — a guarded UPDATE with `WHERE payment_status = 'pending'` so concurrent calls from different layers produce exactly one row change.
+
+- **Layer 1 — Return URL verify (UX).** Viva redirects customer to `/order/pending/success?t=<transactionId>&s=<orderCode>`. `OrderReturn.tsx` calls `/api/viva-verify`, which calls Viva's Retrieve Transaction API, validates orderCode + amount + statusId, flips to `paid`.
+- **Layer 2 — Webhook (authoritative).** Viva POSTs to `/api/viva-webhook`. Dedupe by MessageId via `webhook_events` table, then re-fetch the transaction from Viva (never trust the payload), then `markPaid`.
+- **Layer 3 — Reconcile poll (safety net).** `netlify/functions/viva-reconcile.ts` runs on cron `*/5 * * * *`. Picks `card`/`link` orders stuck in `pending` for >3 min (via `viva_stale_pending_orders` RPC), re-verifies with Viva. Also cancels orphaned pending orders >48h.
+
+### Key gotchas discovered (2026-04-25)
+
+- **Webhook verification Key is Viva-generated, not merchant-chosen.** `viva-webhook.ts` GET handler fetches it live via `GET https://{checkoutHost}/api/messages/config/token` with Basic auth (Merchant ID + API Key), caches 1h in-memory, echoes `{"Key":"<40-char-hex>"}`. The first integration attempt returned a made-up key and Viva rejected it.
+- **No HMAC on incoming webhooks.** Viva's webhook docs don't describe an HMAC signature. Security model is: (1) re-fetch transaction via API before state change, (2) MessageId dedupe, (3) future IP-allowlist Viva's published ranges.
+- **Refund endpoint is legacy, Basic auth, POST** — NOT the OAuth `DELETE /checkout/v2/...`. Confirmed by Viva support: `POST https://{apiHost}/api/transactions/{id}?Amount=X&SourceCode=Y` with `Authorization: Basic Base64(MerchantId:ApiKey)`. OAuth doesn't work for refunds even on Smart Checkout accounts.
+- **Separate demo account required** — no sandbox/test channel inside the live merchant account. Viva's AI support confirmed. We use `demo.vivapayments.com` for dev, real merchant for prod.
+
+### Netlify Functions (all under `netlify/functions/`)
+- `viva-create-order` — HTTP wrapper, dev-only (returns 404 in prod even if `VIVA_INTERNAL_TOKEN` is set). `submit-order.ts` imports `createVivaOrder` directly for the real flow.
+- `viva-verify` — public GET with `?t=<transactionId>`. Used by the success-page polling.
+- `viva-webhook` — Viva's webhook receiver. GET = handshake (fetch Viva's Key, echo back). POST = event dispatch (dedupe → verify → markPaid).
+- `viva-reconcile` — scheduled every 5 min. Inserts into `reconcile_runs` for observability.
+- `viva-refund` — admin-only (validates via `is_admin()` RPC on the caller's JWT).
+- `viva-regenerate-link` — admin-only, invalidates old `payment_links` row and creates a fresh Viva order (for expired payment links).
+
+### Shared server lib — `netlify/lib/viva/`
+- `env.ts` — `getVivaCreds()` resolves per-env. 8 env vars per env (DEV + PROD suffix).
+- `auth.ts` — OAuth2 token cache (3600s, 5-min safety margin) for Smart Checkout endpoints.
+- `createOrder.ts` — `createVivaOrder({ orderId, amountCents, customerEmail, customerFullName, mode })`.
+- `verify.ts` — `verifyVivaTransaction(transactionId)`. Calls Retrieve Transaction, normalizes amount (Viva returns euros as decimals, we store cents), dispatches to `markPaid` / `markFailed`.
+- `markPaid.ts` — guarded UPDATE + audit log (admin_user=`'system_viva'`).
+- `refund.ts` — legacy POST with Basic auth. Updates `orders.refund_amount`, flips to `'refunded'` when cumulative ≥ total.
+
+### Env vars (per environment)
+Per env, with `_DEV` or `_PROD` suffix:
+- `VIVA_SOURCE_CODE_*` — 4-digit source code from the payment source configured in the Viva dashboard.
+- `VIVA_CLIENT_ID_*` / `VIVA_CLIENT_SECRET_*` — Smart Checkout OAuth2 credentials. Used for create-order and retrieve-transaction.
+- `VIVA_MERCHANT_ID_*` / `VIVA_API_KEY_*` — Legacy Basic-auth credentials. Used for refunds and webhook-key fetch.
+
+Optional: `VIVA_INTERNAL_TOKEN` — shared secret for the dev-only `viva-create-order` HTTP wrapper (curl testing). Ignored in prod (endpoint returns 404).
+
+`VIVA_WEBHOOK_KEY_*` is NO LONGER NEEDED — key is fetched dynamically from Viva. Env var can be deleted from Netlify, harmless if left.
+
+Env resolution: `VIVA_ENV=prod` or Netlify `CONTEXT=production` → uses `_PROD` suffix. Otherwise `_DEV`.
+
+### Sandbox state (dev — 2026-04-25)
+- Demo account at `demo.vivapayments.com`, merchant `ac579f8f-4349-49f8-8992-e508ac56e7ff`.
+- Source: "Fitpal Ordering — dev", code `6751`. Success/Failure URLs set to `https://dev--fitpal-order.netlify.app/order/pending/{success,failure}`.
+- All 6 `VIVA_*_DEV` env vars set in Netlify `branch-deploy` context.
+- All 3 webhooks (Transaction Payment Created / Failed / Reversal Created) registered, verified, active.
+- Sandbox test card: `4111 1111 1111 1111`, any future expiry, any CVV, 3DS OTP `111111`.
+
+### Schema additions (all applied)
+- `payment_links` + `viva_order_code`, `transaction_id`, `status_id`, `last_verified_at` (migration `wec171_viva_payment_flow`).
+- `orders.refund_amount int not null default 0` (same migration).
+- `webhook_events (provider, message_id UNIQUE, event_type_id, received_at, processed_at, payload)` — RLS locked, service-role only.
+- `viva_stale_pending_orders(p_limit)` — SQL function powering reconcile (migration `wec174_viva_reconcile_rpc`).
+- `wallet_debit_for_order(order_id, user_id, amount_cents)` — atomic SELECT FOR UPDATE + debit + flip to paid (migration `wec177_wallet_debit_rpc`, closes WEC-145).
+- `reconcile_runs` — per-run audit for the scheduled function (migration `wec174b_reconcile_runs_log`). Keeps recent ops visible in `/admin` dashboard.
+
+### Debugging playbook
+- **"Customer paid but order still pending."** Check `/admin/orders` → Payment tab (order drawer) for event timeline. Reconcile should catch within 5 min. If not, check Netlify function logs for `viva-webhook` and `viva-reconcile`. Most likely cause: Supabase service role key missing or Viva API outage.
+- **"Webhook verification fails in Viva dashboard."** Hit `/api/viva-webhook` in browser — should return `{"Key":"<40-char hex>"}`. If it returns a different shape or an error, check Merchant ID + API Key env vars are set + correct. The key is fetched live from Viva; can't work if Basic auth creds are wrong.
+- **"Refund returns 401 / 400."** Legacy endpoint. Check `VIVA_MERCHANT_ID_*` + `VIVA_API_KEY_*` are set. These differ from Smart Checkout Client ID/Secret.
+- **"Orders all say `paymentSetupFailed: true`."** `createVivaOrder` can't reach Viva or OAuth token fetch is failing. Check `VIVA_CLIENT_ID_*` + `VIVA_CLIENT_SECRET_*`.
+
+### Production checklist (WEC-179)
+Not yet done. To do before prod switch:
+- Create payment source + OAuth creds + webhooks on the real Fitpal merchant at `www.vivapayments.com`.
+- Add all 6 `VIVA_*_PROD` env vars in Netlify `production` context.
+- Real €1 smoke test with Ioustinos's card, pay, refund, verify bank statement.
+- Sentry / log-based alerting on all 5 Viva functions (5xx + reconcile-rescued-paid > 0 canary).
 
 ## Show Before Execute
 Before ANY action in Linear, Supabase, GitHub, Netlify or any other external system —
