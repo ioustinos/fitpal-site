@@ -9,7 +9,6 @@
   targetPort = 5173
   publish = "dist"
 
-[[redirects]]
-  from = "/api/*"
-  to = "/.netlify/functions/:splat"
-  status = 200
+# NOTE: /api/* rewrite lives in public/_redirects (not here) because
+# Netlify evaluates _redirects BEFORE netlify.toml at runtime, and the
+# /* SPA fallback in _redirects was swallowing /api/* requests otherwise.

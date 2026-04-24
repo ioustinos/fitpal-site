@@ -1,1 +1,7 @@
-/* /index.html 200
+# API routes — must come BEFORE the SPA fallback, or /* eats them.
+# Kept here (instead of in netlify.toml) because Netlify's resolved order
+# puts _redirects rules first and we need /api/* to win.
+/api/*  /.netlify/functions/:splat  200
+
+# SPA fallback — catch-all, last.
+/*      /index.html                 200
