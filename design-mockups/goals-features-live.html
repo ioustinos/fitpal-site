@@ -1,0 +1,1098 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Fitpal · Goals features — live style</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+<style>
+/* ──────────────────────────────────────────────────────────
+   FITPAL — GOALS FEATURES · LIVE STYLE
+   Tokens and component classes mirror src/index.css so the
+   final code keeps the existing look and can reuse classes.
+────────────────────────────────────────────────────────── */
+:root{
+  --green:        #00B96B;
+  --green-dark:   #004739;
+  --green-mid:    #006647;
+  --green-light:  #D4F5E5;
+  --green-pale:   #F0FAF5;
+  --cream:        #FCF2D9;
+  --cream-dark:   #F0E3C0;
+  --cream-light:  #FFFDF5;
+  --white:        #FFFFFF;
+  --text:         #1C2B1C;
+  --text-mid:     #3D5A3D;
+  --text-muted:   #7A957A;
+  --border:       #E2EDE2;
+  --shadow:       rgba(0, 71, 57, 0.08);
+  --shadow-md:    rgba(0, 71, 57, 0.14);
+  --accent:       #FF6B35;
+
+  /* macro tints (live) */
+  --m-cal:  #D97706;
+  --m-prot: #059669;
+  --m-carb: #B8860B;
+  --m-fat:  #C2703A;
+
+  --radius:       8px;
+  --radius-sm:    5px;
+  --radius-lg:    12px;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth;-webkit-font-smoothing:antialiased}
+body{
+  font-family:'Nunito',system-ui,sans-serif;
+  background:var(--cream-light);
+  color:var(--text);
+  line-height:1.55;
+}
+button,input,select{font-family:inherit;color:inherit}
+button{cursor:pointer;border:0;background:none}
+svg{flex-shrink:0}
+.ico{width:14px;height:14px;stroke-width:2;stroke:currentColor;fill:none;stroke-linecap:round;stroke-linejoin:round}
+.ico-xs{width:11px;height:11px}.ico-sm{width:13px;height:13px}.ico-lg{width:18px;height:18px}
+
+/* ──────────────────────────────────────────────────────────
+   DOC SHELL
+────────────────────────────────────────────────────────── */
+.doc-hdr{padding:24px 0 10px;text-align:center;border-bottom:1.5px solid var(--border);margin-bottom:20px}
+.doc-hdr h1{font-weight:900;font-size:24px;letter-spacing:-0.5px;color:var(--green-dark)}
+.doc-hdr p{color:var(--text-muted);font-weight:600;font-size:12px;margin-top:4px}
+.wrap{max-width:1240px;margin:0 auto;padding:0 24px 120px}
+.jump{display:flex;flex-wrap:wrap;gap:6px;justify-content:center;margin-bottom:20px}
+.jump a{
+  padding:5px 12px;border-radius:999px;background:var(--white);border:1.5px solid var(--border);
+  font-size:11px;font-weight:800;color:var(--text-mid);text-decoration:none;letter-spacing:.3px
+}
+.jump a:hover{border-color:var(--green)}
+
+.deck-sec{margin-bottom:40px;scroll-margin-top:12px}
+.deck-sec-hdr{display:flex;align-items:baseline;gap:12px;margin-bottom:12px;flex-wrap:wrap}
+.deck-badge{
+  display:inline-flex;align-items:center;gap:4px;
+  font-size:10px;letter-spacing:1px;text-transform:uppercase;font-weight:900;
+  padding:4px 10px;border-radius:999px;background:var(--green-dark);color:var(--white)
+}
+.deck-sec-hdr h2{font-weight:900;font-size:18px;letter-spacing:-0.3px;color:var(--text)}
+.deck-sec-hdr .req{font-weight:700;font-size:11.5px;color:var(--text-muted);letter-spacing:.2px}
+
+.annot{
+  background:var(--cream);border:1.5px solid var(--cream-dark);border-radius:var(--radius-sm);
+  padding:9px 13px;margin-bottom:12px;font-size:12px;color:var(--text-mid);font-weight:600;
+  display:flex;gap:8px;line-height:1.5
+}
+.annot .ico{color:var(--green-dark);margin-top:2px;flex-shrink:0}
+
+.card{
+  background:var(--white);border:1.5px solid var(--border);border-radius:var(--radius-lg);
+  padding:16px 18px
+}
+.card + .card{margin-top:12px}
+.row2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+@media (max-width:900px){.row2{grid-template-columns:1fr}}
+
+.state-chip{
+  display:inline-flex;align-items:center;gap:5px;
+  font-size:10px;letter-spacing:.8px;text-transform:uppercase;font-weight:900;
+  padding:3px 10px;border-radius:999px;background:var(--cream);color:var(--text-mid);
+  border:1.5px solid var(--cream-dark);margin-bottom:10px
+}
+.state-chip.on{background:var(--green-pale);color:var(--green-dark);border-color:var(--green-light)}
+
+/* ──────────────────────────────────────────────────────────
+   BANNER + DAY NAV (reuses live classes)
+────────────────────────────────────────────────────────── */
+.page-banner{
+  background:var(--green-dark);border-radius:var(--radius-lg);padding:14px 20px;
+  margin-bottom:14px;position:relative;overflow:hidden
+}
+.page-banner::after{content:'';position:absolute;right:-40px;top:-40px;width:200px;height:200px;background:var(--green);border-radius:50%;opacity:.12}
+.banner-top{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;position:relative;z-index:1}
+.banner-heading{font-size:18px;font-weight:900;color:var(--white);letter-spacing:-.5px}
+.banner-heading span{color:var(--green-light)}
+.banner-sub{font-size:12px;color:rgba(255,255,255,.55);font-weight:600}
+.banner-pills{display:flex;gap:6px;margin-top:8px;flex-wrap:wrap;position:relative;z-index:1}
+.banner-pill{padding:4px 12px;background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.15);border-radius:999px;font-size:10.5px;font-weight:700;color:rgba(255,255,255,.8);letter-spacing:.3px}
+.banner-pill.green{background:rgba(0,185,107,.25);border-color:transparent;color:#7DFFBE}
+
+.day-section{margin-bottom:14px}
+.day-section-hdr{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
+.section-label{font-size:10px;font-weight:800;color:var(--text-muted);text-transform:uppercase;letter-spacing:1px}
+.week-label{font-size:10px;font-weight:700;color:var(--text-muted)}
+.day-nav{display:flex;gap:6px;overflow-x:auto;padding:4px 2px}
+.day-nav::-webkit-scrollbar{display:none}
+.day-tab{
+  flex:0 0 auto;min-width:76px;background:var(--white);border:1.5px solid var(--border);border-radius:var(--radius-sm);
+  padding:7px 10px;cursor:pointer;text-align:center;transition:all .18s;position:relative
+}
+.day-tab:hover{border-color:var(--green)}
+.day-tab.active{background:var(--green-dark);border-color:var(--green-dark);box-shadow:0 3px 10px rgba(0,71,57,.25)}
+.day-tab .dn{font-size:12px;font-weight:800;color:var(--text);line-height:1.2}
+.day-tab .dd{font-size:10px;color:var(--text-muted);margin-top:2px;font-weight:600}
+.day-tab.active .dn,.day-tab.active .dd{color:var(--white)}
+.day-badge{position:absolute;top:-5px;right:-5px;background:var(--green);color:var(--white);border-radius:50%;width:16px;height:16px;font-size:9px;font-weight:900;display:flex;align-items:center;justify-content:center;border:2px solid var(--cream-light)}
+
+/* ──────────────────────────────────────────────────────────
+   ① INTAKE HERO  (feature 3)
+   Uses cream panels for macro cells, matching live .macros
+────────────────────────────────────────────────────────── */
+.intake-hero{
+  background:var(--white);border:1.5px solid var(--border);border-radius:var(--radius-lg);
+  padding:12px 14px;margin-bottom:16px;
+  display:grid;grid-template-columns:auto 1fr auto;gap:14px;align-items:center
+}
+.ih-left{display:flex;align-items:center;gap:10px;min-width:0}
+.ih-icon{
+  width:34px;height:34px;border-radius:10px;background:var(--green-pale);color:var(--green-dark);
+  display:grid;place-items:center;border:1.5px solid var(--green-light);flex-shrink:0
+}
+.ih-lbl{font-size:10px;font-weight:800;color:var(--text-muted);text-transform:uppercase;letter-spacing:.8px}
+.ih-day{font-size:13px;font-weight:900;color:var(--text);letter-spacing:-.2px}
+
+.ih-macros{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}
+.ih-macro{
+  background:var(--cream);border-radius:8px;padding:6px 10px;
+  display:flex;flex-direction:column;gap:3px
+}
+.ih-macro .mh{display:flex;align-items:baseline;gap:4px}
+.ih-macro .mh .macro-ico{width:12px;height:12px;opacity:.8}
+.ih-macro .val{font-size:14px;font-weight:900;color:var(--green-dark);line-height:1;font-variant-numeric:tabular-nums}
+.ih-macro .unit{font-size:10px;font-weight:700;color:var(--text-muted)}
+.ih-macro .goal-lbl{font-size:9px;color:var(--text-muted);font-weight:700;letter-spacing:.3px}
+.ih-macro.cal  .macro-ico{color:var(--m-cal)}
+.ih-macro.prot .macro-ico{color:var(--m-prot)}
+.ih-macro.carb .macro-ico{color:var(--m-carb)}
+.ih-macro.fat  .macro-ico{color:var(--m-fat)}
+
+.ih-bar{height:4px;border-radius:2px;background:var(--cream-dark);margin-top:2px;overflow:hidden;position:relative}
+.ih-bar i{display:block;height:100%;border-radius:2px}
+.ih-macro.cal  .ih-bar i{background:var(--m-cal)}
+.ih-macro.prot .ih-bar i{background:var(--m-prot)}
+.ih-macro.carb .ih-bar i{background:var(--m-carb)}
+.ih-macro.fat  .ih-bar i{background:var(--m-fat)}
+.ih-bar .range{position:absolute;top:-2px;width:1.5px;height:8px;background:var(--text-muted);opacity:.45}
+
+.ih-right{display:flex;align-items:center;flex-shrink:0}
+.ih-status{
+  display:inline-flex;align-items:center;gap:5px;
+  font-size:10.5px;font-weight:900;letter-spacing:.3px;text-transform:uppercase;
+  padding:5px 10px;border-radius:999px;background:var(--green-pale);color:var(--green-dark);
+  border:1.5px solid var(--green-light)
+}
+.ih-status.warn{background:#FFF7ED;color:#C2410C;border-color:#FED7AA}
+.ih-status.bad{background:#FEE8E6;color:#B02A1C;border-color:#F4CBC6}
+
+/* Goals off variant — no bars, neutral status */
+.intake-hero.no-goals .ih-bar{display:none}
+.intake-hero.no-goals .ih-icon{background:var(--cream);color:var(--text-mid);border-color:var(--cream-dark)}
+.intake-hero.no-goals .ih-status{background:var(--cream);color:var(--text-mid);border-color:var(--cream-dark)}
+
+@media (max-width:760px){
+  .intake-hero{grid-template-columns:1fr;gap:10px}
+  .ih-macros{grid-template-columns:repeat(2,1fr)}
+}
+
+/* ──────────────────────────────────────────────────────────
+   ② CART / CHECKOUT GOALS MODULE (features 1 + 2)
+   Fits inside the existing .sidebar / .cart-day-group structure
+────────────────────────────────────────────────────────── */
+.sidebar-mock{
+  background:var(--white);border-left:1px solid var(--border);border-right:1px solid var(--border);
+  border-top:1px solid var(--border);border-bottom:1px solid var(--border);
+  border-radius:var(--radius-lg);overflow:hidden;max-width:370px
+}
+.sidebar-hdr{padding:14px 16px 12px;border-bottom:1px solid var(--border);background:var(--cream)}
+.sidebar-title{font-size:15px;font-weight:900;color:var(--text)}
+.sidebar-sub{font-size:11px;color:var(--text-muted);font-weight:600;margin-top:2px}
+
+.cart-day-group{border-bottom:1px solid var(--border);padding-bottom:6px}
+.cart-day-hdr{display:flex;align-items:center;justify-content:space-between;padding:10px 16px 4px}
+.cart-day-label{font-size:10px;font-weight:900;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px}
+.cart-day-total{font-size:11px;font-weight:800;color:var(--green-dark)}
+.cart-item-placeholder{
+  margin:6px 16px;padding:8px 12px;background:var(--green-pale);border:1.5px dashed var(--green-light);
+  border-radius:var(--radius-sm);font-size:11px;color:var(--text-mid);font-weight:600
+}
+
+/* Goals module proper */
+.gm{
+  margin:8px 16px 12px;padding:10px 12px;border-radius:var(--radius-sm);
+  background:var(--cream-light);border:1.5px solid var(--border)
+}
+.gm-title{
+  display:inline-flex;align-items:center;gap:5px;
+  font-size:10px;letter-spacing:.5px;text-transform:uppercase;font-weight:900;color:var(--green-dark);margin-bottom:8px
+}
+.gm-title .ico{color:var(--green-dark)}
+
+.gm-row{display:grid;grid-template-columns:52px 1fr 72px;gap:8px;align-items:center;padding:2px 0}
+.gm-row .k{display:inline-flex;align-items:center;gap:4px;font-size:10.5px;font-weight:800;color:var(--text-mid);text-transform:uppercase;letter-spacing:.3px}
+.gm-row .k .ico{width:11px;height:11px}
+.gm-row.cal  .k .ico{color:var(--m-cal)}
+.gm-row.prot .k .ico{color:var(--m-prot)}
+.gm-row.carb .k .ico{color:var(--m-carb)}
+.gm-row.fat  .k .ico{color:var(--m-fat)}
+
+.gm-bar{height:6px;border-radius:3px;background:var(--cream);overflow:hidden;position:relative;border:1px solid var(--cream-dark)}
+.gm-bar i{display:block;height:100%;border-radius:3px}
+.gm-row.cal  .gm-bar i{background:var(--m-cal)}
+.gm-row.prot .gm-bar i{background:var(--m-prot)}
+.gm-row.carb .gm-bar i{background:var(--m-carb)}
+.gm-row.fat  .gm-bar i{background:var(--m-fat)}
+.gm-bar.warn i{background:#C2410C}
+.gm-bar.bad  i{background:#B02A1C}
+.gm-bar .goal-min,.gm-bar .goal-max{position:absolute;top:-2px;width:2px;height:10px;background:var(--text-muted);opacity:.4;border-radius:1px}
+
+.gm-val{text-align:right;font-size:11px;font-weight:900;color:var(--green-dark);font-variant-numeric:tabular-nums;line-height:1.2}
+.gm-val .goal{color:var(--text-muted);font-weight:700;font-size:9.5px;display:block;margin-top:1px}
+
+/* Goals OFF — pill variant (no bars, no status) */
+.gm.no-bars .gm-title{color:var(--text-mid)}
+.gm-pills{display:flex;gap:4px;flex-wrap:wrap;margin-top:6px}
+.gm-pill{
+  display:inline-flex;align-items:center;gap:4px;
+  font-size:10.5px;font-weight:800;font-variant-numeric:tabular-nums;
+  padding:3px 8px;border-radius:999px;background:var(--white);border:1.5px solid var(--border);color:var(--text-mid);letter-spacing:.2px
+}
+.gm-pill .ico{width:10px;height:10px}
+.gm-pill.cal  .ico{color:var(--m-cal)}
+.gm-pill.prot .ico{color:var(--m-prot)}
+.gm-pill.carb .ico{color:var(--m-carb)}
+.gm-pill.fat  .ico{color:var(--m-fat)}
+
+.gm-day-label{font-size:9.5px;letter-spacing:.5px;font-weight:900;color:var(--text-muted);text-transform:uppercase;margin-bottom:4px}
+.gm-day{margin-bottom:10px}
+.gm-day:last-child{margin-bottom:0}
+
+/* ──────────────────────────────────────────────────────────
+   ACCOUNT PAGE FRAME  (features 4, 5, 6)
+────────────────────────────────────────────────────────── */
+.page-frame{
+  background:var(--white);border:1.5px solid var(--border);border-radius:var(--radius-lg);
+  padding:18px 20px
+}
+.acct-tabs{
+  display:flex;gap:0;margin-bottom:16px;border-bottom:1.5px solid var(--border);overflow-x:auto;
+  margin-left:-20px;margin-right:-20px;padding:0 16px
+}
+.acct-tabs::-webkit-scrollbar{display:none}
+.acct-tab{
+  padding:8px 14px 10px;font-size:12.5px;font-weight:800;color:var(--text-muted);
+  border-bottom:2.5px solid transparent;margin-bottom:-1.5px;
+  display:inline-flex;align-items:center;gap:6px;white-space:nowrap;background:none;
+  flex-shrink:0;cursor:pointer;transition:color .18s
+}
+.acct-tab:hover{color:var(--text)}
+.acct-tab.on{color:var(--green-dark);font-weight:900;border-bottom-color:var(--green)}
+.acct-tab small{color:var(--text-muted);font-weight:700;margin-left:3px;font-size:10px}
+
+/* Filter bar */
+.fbar{
+  display:flex;gap:10px;flex-wrap:wrap;align-items:center;
+  padding:10px 12px;background:var(--cream-light);border:1.5px solid var(--border);border-radius:var(--radius-sm);
+  margin-bottom:12px
+}
+.fbar .fg{display:flex;align-items:center;gap:6px}
+.fbar label{font-size:10px;font-weight:900;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px}
+.fbar input[type="date"],.fbar select{
+  padding:6px 10px;border:1.5px solid var(--border);border-radius:var(--radius-sm);
+  font-size:11.5px;font-weight:700;color:var(--text);background:var(--white);min-width:120px
+}
+.fbar input[type="date"]:focus,.fbar select:focus{outline:0;border-color:var(--green)}
+.fbar input[type="search"]{
+  padding:6px 10px 6px 28px;border:1.5px solid var(--border);border-radius:999px;min-width:200px;
+  font-size:11.5px;font-weight:700;color:var(--text);background:var(--white);
+  background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%237A957A' stroke-width='2.3' stroke-linecap='round' stroke-linejoin='round'><circle cx='11' cy='11' r='7'/><path d='M21 21l-4-4'/></svg>");
+  background-repeat:no-repeat;background-position:10px center;background-size:12px
+}
+.fchip{
+  display:inline-flex;align-items:center;gap:4px;
+  padding:5px 11px;border-radius:999px;background:var(--white);border:1.5px solid var(--border);
+  font-size:11px;font-weight:800;color:var(--text-mid);letter-spacing:.3px
+}
+.fchip.on{background:var(--green-dark);color:var(--white);border-color:var(--green-dark)}
+.fchip .x{opacity:.6;margin-left:3px}
+.fbar .grow{flex:1}
+
+/* Period switch (Days/Weeks/Months/Forecast) */
+.period-switch{
+  display:inline-flex;border:1.5px solid var(--border);border-radius:999px;padding:3px;
+  background:var(--white);margin-bottom:12px
+}
+.period-switch button{
+  padding:5px 14px;border-radius:999px;font-size:11.5px;font-weight:800;color:var(--text-muted);letter-spacing:.3px
+}
+.period-switch button.on{background:var(--green-dark);color:var(--white)}
+.period-switch button .ico{width:11px;height:11px;vertical-align:-1px;margin-right:3px}
+
+/* Table */
+.tbl{width:100%;border-collapse:collapse;font-size:12.5px}
+.tbl thead th{
+  font-size:10px;letter-spacing:.6px;text-transform:uppercase;font-weight:900;color:var(--text-muted);
+  text-align:left;padding:9px 12px;background:var(--cream);border-bottom:1.5px solid var(--border)
+}
+.tbl tbody td{padding:10px 12px;border-bottom:1px solid var(--border);font-weight:600;vertical-align:middle}
+.tbl tbody tr:hover td{background:var(--cream-light)}
+.tbl tbody tr.expanded td{background:var(--green-pale)}
+.tbl tbody tr.expanded + tr td{background:var(--cream-light);padding:0}
+.tbl .td-num{font-variant-numeric:tabular-nums;font-weight:800}
+.tbl .td-date{font-weight:900;color:var(--text)}
+
+/* Mini macro cell in goals table */
+.mc{display:flex;align-items:center;gap:6px}
+.mc .mi{width:12px;height:12px;stroke-width:2.2}
+.mc.cal  .mi{color:var(--m-cal)}
+.mc.prot .mi{color:var(--m-prot)}
+.mc.carb .mi{color:var(--m-carb)}
+.mc.fat  .mi{color:var(--m-fat)}
+.mc .num{font-variant-numeric:tabular-nums;font-weight:900;color:var(--green-dark);min-width:38px;font-size:12px}
+.mc .mb{width:60px;height:4px;border-radius:2px;background:var(--cream-dark);position:relative;overflow:hidden}
+.mc .mb i{display:block;height:100%;border-radius:2px}
+.mc.cal  .mb i{background:var(--m-cal)}
+.mc.prot .mb i{background:var(--m-prot)}
+.mc.carb .mb i{background:var(--m-carb)}
+.mc.fat  .mb i{background:var(--m-fat)}
+
+/* Status pills */
+.sp{
+  display:inline-flex;align-items:center;gap:4px;
+  font-size:10px;font-weight:900;letter-spacing:.5px;text-transform:uppercase;
+  padding:3px 9px;border-radius:999px;border:1.5px solid var(--border);background:var(--white);color:var(--text-mid)
+}
+.sp.ok{background:var(--green-pale);color:var(--green-dark);border-color:var(--green-light)}
+.sp.warn{background:#FFF7ED;color:#C2410C;border-color:#FED7AA}
+.sp.bad{background:#FEE8E6;color:#B02A1C;border-color:#F4CBC6}
+.sp.pending{background:var(--cream);color:var(--text-mid);border-color:var(--cream-dark)}
+.sp .ico{width:10px;height:10px;stroke-width:2.7}
+
+/* Order expansion */
+.order-exp{padding:12px 14px;background:var(--cream-light)}
+.order-exp-hdr{
+  display:flex;align-items:center;gap:6px;
+  font-size:10px;letter-spacing:.6px;text-transform:uppercase;font-weight:900;color:var(--text-muted);margin-bottom:8px
+}
+.order-exp-hdr .ico{color:var(--green-dark)}
+.day-rows{display:flex;flex-direction:column;gap:6px}
+.day-row{
+  display:grid;grid-template-columns:120px 1fr auto;gap:12px;align-items:center;
+  padding:8px 12px;border-radius:var(--radius-sm);background:var(--white);border:1.5px solid var(--border)
+}
+.day-row .date{font-weight:900;font-size:12px;color:var(--text)}
+.day-row .date small{color:var(--text-muted);font-weight:700;margin-left:5px;font-size:10.5px}
+.day-row .intake{display:flex;gap:4px;flex-wrap:wrap}
+.day-row .meals{font-size:10.5px;color:var(--text-muted);font-weight:700;white-space:nowrap}
+.day-row .meals b{color:var(--green-dark);font-weight:900}
+
+/* Forecast row tint */
+.fc-row td{background:#F4FAFF !important}
+.fc-ribbon{
+  display:inline-flex;align-items:center;gap:5px;
+  font-size:9.5px;letter-spacing:.6px;font-weight:900;text-transform:uppercase;
+  padding:3px 10px;border-radius:999px;background:#E9F3FF;color:#1E4E8A;border:1.5px solid #BCD6F0
+}
+
+/* Pagination */
+.pager{
+  display:flex;align-items:center;justify-content:space-between;gap:10px;
+  margin-top:12px;padding-top:10px;border-top:1.5px solid var(--border)
+}
+.pager-info{font-size:11.5px;color:var(--text-muted);font-weight:700}
+.pager-info b{color:var(--green-dark);font-weight:900}
+.pager-nav{display:flex;gap:4px}
+.pg{
+  min-width:30px;height:30px;padding:0 8px;border-radius:var(--radius-sm);
+  display:inline-grid;place-items:center;
+  background:var(--white);border:1.5px solid var(--border);
+  font-size:11.5px;font-weight:800;color:var(--text-mid)
+}
+.pg:hover:not(:disabled):not(.on){border-color:var(--green)}
+.pg.on{background:var(--green-dark);color:var(--white);border-color:var(--green-dark)}
+.pg:disabled{opacity:.4;cursor:not-allowed}
+
+/* ──────────────────────────────────────────────────────────
+   MINI MENU FRAME (for intake hero context)
+────────────────────────────────────────────────────────── */
+.menu-frame{padding:14px 16px;background:var(--cream-light);border:1.5px solid var(--border);border-radius:var(--radius-lg)}
+.dishes-row{display:flex;gap:10px;margin-top:12px}
+.mini-dish{
+  flex:1;background:var(--white);border:1.5px solid var(--border);border-radius:var(--radius);
+  padding:8px;display:flex;align-items:center;gap:8px
+}
+.mini-dish .th{width:40px;height:40px;border-radius:6px;background:var(--cream) center/cover;flex-shrink:0}
+.mini-dish .nm{font-weight:900;font-size:11.5px;line-height:1.25;color:var(--text)}
+.mini-dish .pr{font-size:10.5px;color:var(--text-muted);font-weight:700}
+
+.proposal-badge{
+  position:fixed;bottom:14px;right:14px;z-index:100;padding:7px 12px;border-radius:999px;
+  background:var(--green-dark);color:var(--white);
+  font-size:11px;font-weight:800;letter-spacing:.3px
+}
+.proposal-badge em{color:#7DFFBE;font-style:normal;margin-left:4px}
+
+/* Doc tweaks */
+.doc-ftr{text-align:center;padding:20px 0;color:var(--text-muted);font-size:11px;font-weight:600}
+</style>
+</head>
+<body>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
+<symbol id="i-flame" viewBox="0 0 24 24"><path d="M12 2c0 4-4 6-4 10a4 4 0 0 0 8 0c0-2-1-3-1-5 0 2 2 3 2 6a5 5 0 0 1-10 0c0-5 5-7 5-11z"/></symbol>
+<symbol id="i-dumbbell" viewBox="0 0 24 24"><path d="M6 5v14M18 5v14"/><rect x="3" y="9" width="3" height="6" rx="1"/><rect x="18" y="9" width="3" height="6" rx="1"/><path d="M6 12h12"/></symbol>
+<symbol id="i-wheat" viewBox="0 0 24 24"><path d="M12 22V10"/><path d="M5 9l2-3 2 3-2 3zM15 9l2-3 2 3-2 3zM5 14l2-3 2 3-2 3zM15 14l2-3 2 3-2 3zM10 6l2-3 2 3-2 3z"/></symbol>
+<symbol id="i-droplet" viewBox="0 0 24 24"><path d="M12 2s7 7 7 12a7 7 0 0 1-14 0c0-5 7-12 7-12z"/></symbol>
+<symbol id="i-target" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1.5" fill="currentColor" stroke="none"/></symbol>
+<symbol id="i-cart" viewBox="0 0 24 24"><circle cx="9" cy="21" r="1.5"/><circle cx="18" cy="21" r="1.5"/><path d="M3 4h2l2.7 12.4a2 2 0 0 0 2 1.6h8.4a2 2 0 0 0 2-1.6L22 7H6"/></symbol>
+<symbol id="i-cal" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M8 3v4M16 3v4M3 10h18"/></symbol>
+<symbol id="i-check" viewBox="0 0 24 24"><path d="M4 12l5 5L20 6"/></symbol>
+<symbol id="i-alert" viewBox="0 0 24 24"><path d="M12 2L1 21h22z"/><path d="M12 9v5M12 17h.01"/></symbol>
+<symbol id="i-info" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 8h.01M11 12h1v5h1"/></symbol>
+<symbol id="i-chev-left" viewBox="0 0 24 24"><path d="M15 6l-6 6 6 6"/></symbol>
+<symbol id="i-chev-right" viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></symbol>
+<symbol id="i-chev-down" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></symbol>
+<symbol id="i-trend" viewBox="0 0 24 24"><path d="M3 17l6-6 4 4 8-8"/><path d="M14 7h7v7"/></symbol>
+<symbol id="i-sparkle" viewBox="0 0 24 24"><path d="M12 3l1.5 5 5 1.5-5 1.5-1.5 5-1.5-5-5-1.5 5-1.5z"/></symbol>
+</defs></svg>
+
+<div class="wrap">
+
+  <div class="doc-hdr">
+    <h1>Fitpal · Goals features</h1>
+    <p>Design deck — matches the live site's look & tokens</p>
+  </div>
+
+  <div class="jump">
+    <a href="#f3">① Menu intake hero</a>
+    <a href="#f1">② Cart goals module</a>
+    <a href="#f2">③ Checkout mirror</a>
+    <a href="#f4">④ Orders · per-day intake</a>
+    <a href="#f5">⑤ Goals · day/week/month/forecast</a>
+    <a href="#f6">⑥ Orders · filter + pagination</a>
+  </div>
+
+  <!-- ───────────────────────────────────────
+       FEATURE 3 — Menu intake hero
+  ─────────────────────────────────────── -->
+  <section class="deck-sec" id="f3">
+    <div class="deck-sec-hdr">
+      <span class="deck-badge">Feature 3</span>
+      <h2>Menu — per-day intake hero</h2>
+      <span class="req">Sits right under the day navigation. Updates per active day.</span>
+    </div>
+    <div class="annot">
+      <svg class="ico"><use xlink:href="#i-info"/></svg>
+      Cream-panelled macro cells keep the live <code>.macros</code> language. Goals on → 4 thin progress bars with goal-min/max ticks + overall status pill. Goals off → identical layout, bars hidden.
+    </div>
+
+    <div class="card">
+      <span class="state-chip on"><svg class="ico ico-xs"><use xlink:href="#i-target"/></svg>Goals enabled</span>
+      <div class="menu-frame">
+
+        <div class="page-banner">
+          <div class="banner-top">
+            <div class="banner-heading">Weekly <span>menu</span></div>
+            <div class="banner-sub">Chef-built, measured, delivered.</div>
+          </div>
+          <div class="banner-pills">
+            <div class="banner-pill">Week 13 – 17 April</div>
+            <div class="banner-pill green">Min €15 / day</div>
+            <div class="banner-pill">Delivery 9–15h</div>
+          </div>
+        </div>
+
+        <div class="day-section">
+          <div class="day-section-hdr">
+            <div class="section-label">Pick a day</div>
+            <div class="week-label">13 – 17 Apr</div>
+          </div>
+          <div class="day-nav">
+            <div class="day-tab"><div class="dn">Mon</div><div class="dd">13 Apr</div></div>
+            <div class="day-tab active"><div class="dn">Tue</div><div class="dd">14 Apr</div><div class="day-badge">3</div></div>
+            <div class="day-tab"><div class="dn">Wed</div><div class="dd">15 Apr</div><div class="day-badge">2</div></div>
+            <div class="day-tab"><div class="dn">Thu</div><div class="dd">16 Apr</div></div>
+            <div class="day-tab"><div class="dn">Fri</div><div class="dd">17 Apr</div><div class="day-badge">1</div></div>
+          </div>
+        </div>
+
+        <!-- NEW: intake hero -->
+        <div class="intake-hero">
+          <div class="ih-left">
+            <div class="ih-icon"><svg class="ico"><use xlink:href="#i-target"/></svg></div>
+            <div>
+              <div class="ih-lbl">Tuesday · 3 meals planned</div>
+              <div class="ih-day">Your intake</div>
+            </div>
+          </div>
+          <div class="ih-macros">
+            <div class="ih-macro cal">
+              <div class="mh"><span class="macro-ico"><svg viewBox="0 0 24 24" class="ico"><use xlink:href="#i-flame"/></svg></span><span class="val">1 385</span><span class="unit">kcal</span></div>
+              <div class="goal-lbl">of 1 600</div>
+              <div class="ih-bar"><i style="width:86%"></i><span class="range" style="left:75%"></span><span class="range" style="left:100%"></span></div>
+            </div>
+            <div class="ih-macro prot">
+              <div class="mh"><span class="macro-ico"><svg viewBox="0 0 24 24" class="ico"><use xlink:href="#i-dumbbell"/></svg></span><span class="val">96</span><span class="unit">g</span></div>
+              <div class="goal-lbl">of 110 pro</div>
+              <div class="ih-bar"><i style="width:87%"></i><span class="range" style="left:82%"></span><span class="range" style="left:100%"></span></div>
+            </div>
+            <div class="ih-macro carb">
+              <div class="mh"><span class="macro-ico"><svg viewBox="0 0 24 24" class="ico"><use xlink:href="#i-wheat"/></svg></span><span class="val">130</span><span class="unit">g</span></div>
+              <div class="goal-lbl">of 160 carb</div>
+              <div class="ih-bar"><i style="width:81%"></i><span class="range" style="left:60%"></span><span class="range" style="left:100%"></span></div>
+            </div>
+            <div class="ih-macro fat">
+              <div class="mh"><span class="macro-ico"><svg viewBox="0 0 24 24" class="ico"><use xlink:href="#i-droplet"/></svg></span><span class="val">48</span><span class="unit">g</span></div>
+              <div class="goal-lbl">of 55 fat</div>
+              <div class="ih-bar"><i style="width:87%"></i><span class="range" style="left:65%"></span><span class="range" style="left:100%"></span></div>
+            </div>
+          </div>
+          <div class="ih-right">
+            <span class="ih-status"><svg class="ico"><use xlink:href="#i-check"/></svg>On target 86%</span>
+          </div>
+        </div>
+
+        <div class="dishes-row">
+          <div class="mini-dish"><div class="th" style="background-image:url('https://images.unsplash.com/photo-1512621776951-a57141f2eefd?auto=format&fit=crop&w=120&q=70')"></div><div><div class="nm">Grilled chicken</div><div class="pr">€9.80</div></div></div>
+          <div class="mini-dish"><div class="th" style="background-image:url('https://images.unsplash.com/photo-1540914124281-342587941389?auto=format&fit=crop&w=120&q=70')"></div><div><div class="nm">Miso salmon</div><div class="pr">€11.60</div></div></div>
+          <div class="mini-dish"><div class="th" style="background-image:url('https://images.unsplash.com/photo-1607532941433-304659e8198a?auto=format&fit=crop&w=120&q=70')"></div><div><div class="nm">Overnight oats</div><div class="pr">€7.00</div></div></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card" style="margin-top:14px">
+      <span class="state-chip"><svg class="ico ico-xs"><use xlink:href="#i-target"/></svg>Goal tracking OFF</span>
+      <div class="menu-frame">
+        <div class="intake-hero no-goals">
+          <div class="ih-left">
+            <div class="ih-icon"><svg class="ico"><use xlink:href="#i-sparkle"/></svg></div>
+            <div>
+              <div class="ih-lbl">Tuesday · 3 meals planned</div>
+              <div class="ih-day">Your intake</div>
+            </div>
+          </div>
+          <div class="ih-macros">
+            <div class="ih-macro cal"><div class="mh"><span class="macro-ico"><svg viewBox="0 0 24 24" class="ico"><use xlink:href="#i-flame"/></svg></span><span class="val">1 385</span><span class="unit">kcal</span></div><div class="goal-lbl">total</div></div>
+            <div class="ih-macro prot"><div class="mh"><span class="macro-ico"><svg viewBox="0 0 24 24" class="ico"><use xlink:href="#i-dumbbell"/></svg></span><span class="val">96</span><span class="unit">g</span></div><div class="goal-lbl">protein</div></div>
+            <div class="ih-macro carb"><div class="mh"><span class="macro-ico"><svg viewBox="0 0 24 24" class="ico"><use xlink:href="#i-wheat"/></svg></span><span class="val">130</span><span class="unit">g</span></div><div class="goal-lbl">carbs</div></div>
+            <div class="ih-macro fat"><div class="mh"><span class="macro-ico"><svg viewBox="0 0 24 24" class="ico"><use xlink:href="#i-droplet"/></svg></span><span class="val">48</span><span class="unit">g</span></div><div class="goal-lbl">fat</div></div>
+          </div>
+          <div class="ih-right">
+            <span class="ih-status"><svg class="ico"><use xlink:href="#i-info"/></svg>Turn on goals</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ───────────────────────────────────────
+       FEATURE 1 — Cart goals module
+  ─────────────────────────────────────── -->
+  <section class="deck-sec" id="f1">
+    <div class="deck-sec-hdr">
+      <span class="deck-badge">Feature 1</span>
+      <h2>Cart — goals module (ON + OFF)</h2>
+      <span class="req">Per-day intake shown always. Bars only when goal tracking is enabled.</span>
+    </div>
+    <div class="annot">
+      <svg class="ico"><use xlink:href="#i-info"/></svg>
+      Drops into every <code>.cart-day-group</code> in <code>CartSidebar</code>. Bars reference <code>user.goals</code>; pills-only variant requires no goal data.
+    </div>
+
+    <div class="row2">
+      <!-- Goals ON -->
+      <div>
+        <span class="state-chip on"><svg class="ico ico-xs"><use xlink:href="#i-target"/></svg>Goals enabled</span>
+        <div class="sidebar-mock">
+          <div class="sidebar-hdr">
+            <div class="sidebar-title">Your order</div>
+            <div class="sidebar-sub">3 days · 6 meals</div>
+          </div>
+
+          <div class="cart-day-group">
+            <div class="cart-day-hdr">
+              <div class="cart-day-label">Tuesday · 14 Apr</div>
+              <div class="cart-day-total">€28.40</div>
+            </div>
+            <div class="cart-item-placeholder">3 items · collapsed for preview</div>
+            <div class="gm">
+              <div class="gm-title"><svg class="ico ico-xs"><use xlink:href="#i-target"/></svg>Day intake vs goals</div>
+              <div class="gm-row cal"><span class="k"><svg class="ico"><use xlink:href="#i-flame"/></svg>kcal</span><div class="gm-bar"><i style="width:86%"></i><span class="goal-min" style="left:75%"></span><span class="goal-max" style="left:100%"></span></div><span class="gm-val">1 385<span class="goal">1 200–1 600</span></span></div>
+              <div class="gm-row prot"><span class="k"><svg class="ico"><use xlink:href="#i-dumbbell"/></svg>pro</span><div class="gm-bar"><i style="width:87%"></i><span class="goal-min" style="left:82%"></span><span class="goal-max" style="left:100%"></span></div><span class="gm-val">96g<span class="goal">90–110</span></span></div>
+              <div class="gm-row carb"><span class="k"><svg class="ico"><use xlink:href="#i-wheat"/></svg>carb</span><div class="gm-bar"><i style="width:81%"></i><span class="goal-min" style="left:60%"></span><span class="goal-max" style="left:100%"></span></div><span class="gm-val">130g<span class="goal">100–160</span></span></div>
+              <div class="gm-row fat"><span class="k"><svg class="ico"><use xlink:href="#i-droplet"/></svg>fat</span><div class="gm-bar warn"><i style="width:100%"></i><span class="goal-min" style="left:45%"></span><span class="goal-max" style="left:82%"></span></div><span class="gm-val">48g<span class="goal">25–45</span></span></div>
+            </div>
+          </div>
+
+          <div class="cart-day-group">
+            <div class="cart-day-hdr">
+              <div class="cart-day-label">Wednesday · 15 Apr</div>
+              <div class="cart-day-total">€14.80</div>
+            </div>
+            <div class="cart-item-placeholder">2 items · collapsed</div>
+            <div class="gm">
+              <div class="gm-title"><svg class="ico ico-xs"><use xlink:href="#i-target"/></svg>Day intake vs goals</div>
+              <div class="gm-row cal"><span class="k"><svg class="ico"><use xlink:href="#i-flame"/></svg>kcal</span><div class="gm-bar bad"><i style="width:58%"></i><span class="goal-min" style="left:75%"></span><span class="goal-max" style="left:100%"></span></div><span class="gm-val">930<span class="goal">1 200–1 600</span></span></div>
+              <div class="gm-row prot"><span class="k"><svg class="ico"><use xlink:href="#i-dumbbell"/></svg>pro</span><div class="gm-bar bad"><i style="width:54%"></i><span class="goal-min" style="left:82%"></span><span class="goal-max" style="left:100%"></span></div><span class="gm-val">60g<span class="goal">90–110</span></span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Goals OFF -->
+      <div>
+        <span class="state-chip"><svg class="ico ico-xs"><use xlink:href="#i-target"/></svg>Goal tracking OFF</span>
+        <div class="sidebar-mock">
+          <div class="sidebar-hdr">
+            <div class="sidebar-title">Your order</div>
+            <div class="sidebar-sub">3 days · 6 meals</div>
+          </div>
+
+          <div class="cart-day-group">
+            <div class="cart-day-hdr">
+              <div class="cart-day-label">Tuesday · 14 Apr</div>
+              <div class="cart-day-total">€28.40</div>
+            </div>
+            <div class="cart-item-placeholder">3 items · collapsed</div>
+            <div class="gm no-bars">
+              <div class="gm-title"><svg class="ico ico-xs"><use xlink:href="#i-sparkle"/></svg>Day intake</div>
+              <div class="gm-pills">
+                <span class="gm-pill cal"><svg class="ico"><use xlink:href="#i-flame"/></svg>1 385 kcal</span>
+                <span class="gm-pill prot"><svg class="ico"><use xlink:href="#i-dumbbell"/></svg>96g pro</span>
+                <span class="gm-pill carb"><svg class="ico"><use xlink:href="#i-wheat"/></svg>130g carb</span>
+                <span class="gm-pill fat"><svg class="ico"><use xlink:href="#i-droplet"/></svg>48g fat</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="cart-day-group">
+            <div class="cart-day-hdr">
+              <div class="cart-day-label">Wednesday · 15 Apr</div>
+              <div class="cart-day-total">€14.80</div>
+            </div>
+            <div class="cart-item-placeholder">2 items · collapsed</div>
+            <div class="gm no-bars">
+              <div class="gm-title"><svg class="ico ico-xs"><use xlink:href="#i-sparkle"/></svg>Day intake</div>
+              <div class="gm-pills">
+                <span class="gm-pill cal"><svg class="ico"><use xlink:href="#i-flame"/></svg>930 kcal</span>
+                <span class="gm-pill prot"><svg class="ico"><use xlink:href="#i-dumbbell"/></svg>60g pro</span>
+                <span class="gm-pill carb"><svg class="ico"><use xlink:href="#i-wheat"/></svg>70g carb</span>
+                <span class="gm-pill fat"><svg class="ico"><use xlink:href="#i-droplet"/></svg>40g fat</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="cart-day-group">
+            <div class="cart-day-hdr">
+              <div class="cart-day-label">Friday · 17 Apr</div>
+              <div class="cart-day-total">€10.90</div>
+            </div>
+            <div class="cart-item-placeholder">1 item · collapsed</div>
+            <div class="gm no-bars">
+              <div class="gm-title"><svg class="ico ico-xs"><use xlink:href="#i-sparkle"/></svg>Day intake</div>
+              <div class="gm-pills">
+                <span class="gm-pill cal"><svg class="ico"><use xlink:href="#i-flame"/></svg>575 kcal</span>
+                <span class="gm-pill prot"><svg class="ico"><use xlink:href="#i-dumbbell"/></svg>44g pro</span>
+                <span class="gm-pill carb"><svg class="ico"><use xlink:href="#i-wheat"/></svg>40g carb</span>
+                <span class="gm-pill fat"><svg class="ico"><use xlink:href="#i-droplet"/></svg>24g fat</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ───────────────────────────────────────
+       FEATURE 2 — Checkout mirror
+  ─────────────────────────────────────── -->
+  <section class="deck-sec" id="f2">
+    <div class="deck-sec-hdr">
+      <span class="deck-badge">Feature 2</span>
+      <h2>Checkout — identical goals module</h2>
+      <span class="req">Factor as <code>&lt;GoalsModule /&gt;</code>; render from both <code>CartSidebar</code> and <code>OrderSummary</code>.</span>
+    </div>
+    <div class="annot">
+      <svg class="ico"><use xlink:href="#i-info"/></svg>
+      Co-locate in <code>src/components/shared/GoalsModule.tsx</code>. Reads <code>cart</code> + <code>user.prefs.goalTracking</code> + <code>user.goals</code>. No new stores. Same visual output in both contexts — even the wrapper paddings match live <code>.cart-day-group</code>.
+    </div>
+
+    <div class="card">
+      <div style="display:grid;grid-template-columns:1fr 370px;gap:14px;align-items:start" class="row2">
+        <div>
+          <div style="font-size:11px;font-weight:900;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">Checkout main</div>
+          <div style="padding:40px 20px;background:var(--cream);border:1.5px dashed var(--cream-dark);border-radius:var(--radius);text-align:center;color:var(--text-muted);font-weight:700;font-size:12px">
+            (Delivery · Payment · Extras — unchanged)
+          </div>
+        </div>
+        <div class="sidebar-mock">
+          <div class="sidebar-hdr">
+            <div class="sidebar-title">Your order</div>
+            <div class="sidebar-sub">3 days · 6 meals</div>
+          </div>
+          <div class="cart-day-group">
+            <div class="cart-day-hdr"><div class="cart-day-label">Tuesday · 14 Apr</div><div class="cart-day-total">€28.40</div></div>
+            <div class="cart-item-placeholder">3 items</div>
+            <div class="gm">
+              <div class="gm-title"><svg class="ico ico-xs"><use xlink:href="#i-target"/></svg>Day intake vs goals</div>
+              <div class="gm-row cal"><span class="k"><svg class="ico"><use xlink:href="#i-flame"/></svg>kcal</span><div class="gm-bar"><i style="width:86%"></i><span class="goal-min" style="left:75%"></span><span class="goal-max" style="left:100%"></span></div><span class="gm-val">1 385<span class="goal">1 200–1 600</span></span></div>
+              <div class="gm-row prot"><span class="k"><svg class="ico"><use xlink:href="#i-dumbbell"/></svg>pro</span><div class="gm-bar"><i style="width:87%"></i><span class="goal-min" style="left:82%"></span><span class="goal-max" style="left:100%"></span></div><span class="gm-val">96g<span class="goal">90–110</span></span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ───────────────────────────────────────
+       FEATURE 4 — Orders per-day intake (expansion)
+  ─────────────────────────────────────── -->
+  <section class="deck-sec" id="f4">
+    <div class="deck-sec-hdr">
+      <span class="deck-badge">Feature 4</span>
+      <h2>Account · Orders — per-day intake</h2>
+      <span class="req">Expand a row → see its child orders with intake pills.</span>
+    </div>
+    <div class="annot">
+      <svg class="ico"><use xlink:href="#i-info"/></svg>
+      Rows render inline, no new page. Pills match the cart "goals off" style for consistency regardless of whether goal tracking is currently on.
+    </div>
+
+    <div class="page-frame">
+      <div class="acct-tabs">
+        <button class="acct-tab">Profile</button>
+        <button class="acct-tab on"><svg class="ico ico-sm"><use xlink:href="#i-cart"/></svg>Orders<small>· 28</small></button>
+        <button class="acct-tab"><svg class="ico ico-sm"><use xlink:href="#i-target"/></svg>Goals</button>
+        <button class="acct-tab">Wallet</button>
+        <button class="acct-tab">Addresses</button>
+        <button class="acct-tab">Preferences</button>
+      </div>
+
+      <table class="tbl">
+        <thead><tr>
+          <th>Order</th><th>Placed</th><th>Days</th><th>Meals</th><th>Total</th><th>Status</th><th></th>
+        </tr></thead>
+        <tbody>
+          <tr>
+            <td class="td-num">#FP-1042</td><td>13 Apr 2026</td><td>14 Apr → 17 Apr</td><td>6</td><td class="td-num">€48.69</td>
+            <td><span class="sp ok"><svg class="ico"><use xlink:href="#i-check"/></svg>Delivered</span></td>
+            <td><button class="fchip">Details <svg class="ico ico-xs"><use xlink:href="#i-chev-right"/></svg></button></td>
+          </tr>
+
+          <tr class="expanded">
+            <td class="td-num">#FP-1038</td><td>6 Apr 2026</td><td>7 Apr → 10 Apr</td><td>8</td><td class="td-num">€64.20</td>
+            <td><span class="sp ok"><svg class="ico"><use xlink:href="#i-check"/></svg>Delivered</span></td>
+            <td><button class="fchip on">Hide <svg class="ico ico-xs"><use xlink:href="#i-chev-down"/></svg></button></td>
+          </tr>
+          <tr>
+            <td colspan="7">
+              <div class="order-exp">
+                <div class="order-exp-hdr"><svg class="ico ico-sm"><use xlink:href="#i-target"/></svg>Per-day intake</div>
+                <div class="day-rows">
+                  <div class="day-row">
+                    <div><span class="date">Tuesday <small>7 Apr</small></span></div>
+                    <div class="intake">
+                      <span class="gm-pill cal"><svg class="ico"><use xlink:href="#i-flame"/></svg>1 420 kcal</span>
+                      <span class="gm-pill prot"><svg class="ico"><use xlink:href="#i-dumbbell"/></svg>98g pro</span>
+                      <span class="gm-pill carb"><svg class="ico"><use xlink:href="#i-wheat"/></svg>125g carb</span>
+                      <span class="gm-pill fat"><svg class="ico"><use xlink:href="#i-droplet"/></svg>46g fat</span>
+                    </div>
+                    <span class="meals"><b>3 meals</b> · €28.40</span>
+                  </div>
+                  <div class="day-row">
+                    <div><span class="date">Wednesday <small>8 Apr</small></span></div>
+                    <div class="intake">
+                      <span class="gm-pill cal"><svg class="ico"><use xlink:href="#i-flame"/></svg>910 kcal</span>
+                      <span class="gm-pill prot"><svg class="ico"><use xlink:href="#i-dumbbell"/></svg>58g pro</span>
+                      <span class="gm-pill carb"><svg class="ico"><use xlink:href="#i-wheat"/></svg>70g carb</span>
+                      <span class="gm-pill fat"><svg class="ico"><use xlink:href="#i-droplet"/></svg>38g fat</span>
+                    </div>
+                    <span class="meals"><b>2 meals</b> · €14.80</span>
+                  </div>
+                  <div class="day-row">
+                    <div><span class="date">Thursday <small>9 Apr</small></span></div>
+                    <div class="intake">
+                      <span class="gm-pill cal"><svg class="ico"><use xlink:href="#i-flame"/></svg>1 180 kcal</span>
+                      <span class="gm-pill prot"><svg class="ico"><use xlink:href="#i-dumbbell"/></svg>84g pro</span>
+                      <span class="gm-pill carb"><svg class="ico"><use xlink:href="#i-wheat"/></svg>108g carb</span>
+                      <span class="gm-pill fat"><svg class="ico"><use xlink:href="#i-droplet"/></svg>42g fat</span>
+                    </div>
+                    <span class="meals"><b>2 meals</b> · €19.60</span>
+                  </div>
+                  <div class="day-row">
+                    <div><span class="date">Friday <small>10 Apr</small></span></div>
+                    <div class="intake">
+                      <span class="gm-pill cal"><svg class="ico"><use xlink:href="#i-flame"/></svg>575 kcal</span>
+                      <span class="gm-pill prot"><svg class="ico"><use xlink:href="#i-dumbbell"/></svg>44g pro</span>
+                      <span class="gm-pill carb"><svg class="ico"><use xlink:href="#i-wheat"/></svg>40g carb</span>
+                      <span class="gm-pill fat"><svg class="ico"><use xlink:href="#i-droplet"/></svg>24g fat</span>
+                    </div>
+                    <span class="meals"><b>1 meal</b> · €10.90</span>
+                  </div>
+                </div>
+              </div>
+            </td>
+          </tr>
+
+          <tr>
+            <td class="td-num">#FP-1029</td><td>30 Mar 2026</td><td>31 Mar → 3 Apr</td><td>5</td><td class="td-num">€42.10</td>
+            <td><span class="sp ok"><svg class="ico"><use xlink:href="#i-check"/></svg>Delivered</span></td>
+            <td><button class="fchip">Details <svg class="ico ico-xs"><use xlink:href="#i-chev-right"/></svg></button></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- ───────────────────────────────────────
+       FEATURE 5 — Goals page
+  ─────────────────────────────────────── -->
+  <section class="deck-sec" id="f5">
+    <div class="deck-sec-hdr">
+      <span class="deck-badge">Feature 5</span>
+      <h2>Goals — Days · Weeks · Months · Forecast</h2>
+      <span class="req">Period switch, date filter, pagination (50/page; hide if &lt; 50).</span>
+    </div>
+    <div class="annot">
+      <svg class="ico"><use xlink:href="#i-info"/></svg>
+      One table shell. Period switch changes row grain: Days = one per delivery date; Weeks/Months = averages; Forecast = upcoming delivery dates from placed orders + projected averages.
+    </div>
+
+    <div class="page-frame">
+      <div class="acct-tabs">
+        <button class="acct-tab">Profile</button>
+        <button class="acct-tab">Orders</button>
+        <button class="acct-tab on"><svg class="ico ico-sm"><use xlink:href="#i-target"/></svg>Goals</button>
+        <button class="acct-tab">Wallet</button>
+        <button class="acct-tab">Preferences</button>
+      </div>
+
+      <div class="period-switch">
+        <button class="on">Days</button>
+        <button>Weeks <span style="opacity:.5">(avg)</span></button>
+        <button>Months <span style="opacity:.5">(avg)</span></button>
+        <button><svg class="ico"><use xlink:href="#i-trend"/></svg>Forecast</button>
+      </div>
+
+      <div class="fbar">
+        <div class="fg"><label>From</label><input type="date" value="2026-01-01"></div>
+        <div class="fg"><label>To</label><input type="date" value="2026-04-20"></div>
+        <div class="fg" style="margin-left:4px">
+          <button class="fchip on">On target</button>
+          <button class="fchip">Below</button>
+          <button class="fchip">Above</button>
+        </div>
+        <span class="grow"></span>
+        <span class="fchip"><svg class="ico ico-xs"><use xlink:href="#i-sparkle"/></svg>142 days</span>
+      </div>
+
+      <table class="tbl">
+        <thead><tr>
+          <th>Date</th>
+          <th><span class="mc cal"><svg class="ico mi"><use xlink:href="#i-flame"/></svg>kcal</span></th>
+          <th><span class="mc prot"><svg class="ico mi"><use xlink:href="#i-dumbbell"/></svg>protein</span></th>
+          <th><span class="mc carb"><svg class="ico mi"><use xlink:href="#i-wheat"/></svg>carbs</span></th>
+          <th><span class="mc fat"><svg class="ico mi"><use xlink:href="#i-droplet"/></svg>fat</span></th>
+          <th>Status</th>
+          <th>Meals</th>
+        </tr></thead>
+        <tbody>
+          <tr>
+            <td class="td-date">Mon 20 Apr</td>
+            <td><div class="mc cal"><span class="num">1 440</span><div class="mb"><i style="width:90%"></i></div></div></td>
+            <td><div class="mc prot"><span class="num">98g</span><div class="mb"><i style="width:89%"></i></div></div></td>
+            <td><div class="mc carb"><span class="num">125g</span><div class="mb"><i style="width:78%"></i></div></div></td>
+            <td><div class="mc fat"><span class="num">44g</span><div class="mb"><i style="width:80%"></i></div></div></td>
+            <td><span class="sp ok"><svg class="ico"><use xlink:href="#i-check"/></svg>On target</span></td>
+            <td class="td-num">3</td>
+          </tr>
+          <tr>
+            <td class="td-date">Fri 17 Apr</td>
+            <td><div class="mc cal"><span class="num">575</span><div class="mb"><i style="width:36%"></i></div></div></td>
+            <td><div class="mc prot"><span class="num">44g</span><div class="mb"><i style="width:40%"></i></div></div></td>
+            <td><div class="mc carb"><span class="num">40g</span><div class="mb"><i style="width:25%"></i></div></div></td>
+            <td><div class="mc fat"><span class="num">24g</span><div class="mb"><i style="width:44%"></i></div></div></td>
+            <td><span class="sp warn"><svg class="ico"><use xlink:href="#i-alert"/></svg>Below</span></td>
+            <td class="td-num">1</td>
+          </tr>
+          <tr>
+            <td class="td-date">Wed 15 Apr</td>
+            <td><div class="mc cal"><span class="num">930</span><div class="mb"><i style="width:58%"></i></div></div></td>
+            <td><div class="mc prot"><span class="num">60g</span><div class="mb"><i style="width:54%"></i></div></div></td>
+            <td><div class="mc carb"><span class="num">70g</span><div class="mb"><i style="width:44%"></i></div></div></td>
+            <td><div class="mc fat"><span class="num">40g</span><div class="mb"><i style="width:73%"></i></div></div></td>
+            <td><span class="sp warn"><svg class="ico"><use xlink:href="#i-alert"/></svg>Below</span></td>
+            <td class="td-num">2</td>
+          </tr>
+          <tr>
+            <td class="td-date">Tue 14 Apr</td>
+            <td><div class="mc cal"><span class="num">1 385</span><div class="mb"><i style="width:87%"></i></div></div></td>
+            <td><div class="mc prot"><span class="num">96g</span><div class="mb"><i style="width:87%"></i></div></div></td>
+            <td><div class="mc carb"><span class="num">130g</span><div class="mb"><i style="width:81%"></i></div></div></td>
+            <td><div class="mc fat"><span class="num">48g</span><div class="mb"><i style="width:87%"></i></div></div></td>
+            <td><span class="sp ok"><svg class="ico"><use xlink:href="#i-check"/></svg>On target</span></td>
+            <td class="td-num">3</td>
+          </tr>
+          <tr>
+            <td class="td-date">Thu 9 Apr</td>
+            <td><div class="mc cal"><span class="num">1 180</span><div class="mb"><i style="width:74%"></i></div></div></td>
+            <td><div class="mc prot"><span class="num">84g</span><div class="mb"><i style="width:76%"></i></div></div></td>
+            <td><div class="mc carb"><span class="num">108g</span><div class="mb"><i style="width:68%"></i></div></div></td>
+            <td><div class="mc fat"><span class="num">42g</span><div class="mb"><i style="width:76%"></i></div></div></td>
+            <td><span class="sp ok"><svg class="ico"><use xlink:href="#i-check"/></svg>On target</span></td>
+            <td class="td-num">2</td>
+          </tr>
+
+          <tr class="fc-row">
+            <td colspan="7"><span class="fc-ribbon"><svg class="ico ico-xs"><use xlink:href="#i-trend"/></svg>Forecast · upcoming</span></td>
+          </tr>
+          <tr class="fc-row">
+            <td class="td-date">Tue 21 Apr</td>
+            <td><div class="mc cal"><span class="num">1 410</span><div class="mb"><i style="width:88%"></i></div></div></td>
+            <td><div class="mc prot"><span class="num">94g</span><div class="mb"><i style="width:85%"></i></div></div></td>
+            <td><div class="mc carb"><span class="num">128g</span><div class="mb"><i style="width:80%"></i></div></div></td>
+            <td><div class="mc fat"><span class="num">46g</span><div class="mb"><i style="width:84%"></i></div></div></td>
+            <td><span class="sp pending"><svg class="ico"><use xlink:href="#i-cal"/></svg>Planned</span></td>
+            <td class="td-num">3</td>
+          </tr>
+          <tr class="fc-row">
+            <td class="td-date">Wed 22 Apr</td>
+            <td><div class="mc cal"><span class="num">1 280</span><div class="mb"><i style="width:80%"></i></div></div></td>
+            <td><div class="mc prot"><span class="num">88g</span><div class="mb"><i style="width:80%"></i></div></div></td>
+            <td><div class="mc carb"><span class="num">115g</span><div class="mb"><i style="width:72%"></i></div></div></td>
+            <td><div class="mc fat"><span class="num">42g</span><div class="mb"><i style="width:76%"></i></div></div></td>
+            <td><span class="sp pending"><svg class="ico"><use xlink:href="#i-cal"/></svg>Planned</span></td>
+            <td class="td-num">2</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <div class="pager">
+        <div class="pager-info">Showing <b>1–50</b> of <b>142</b> days</div>
+        <div class="pager-nav">
+          <button class="pg" disabled><svg class="ico ico-xs"><use xlink:href="#i-chev-left"/></svg></button>
+          <button class="pg on">1</button>
+          <button class="pg">2</button>
+          <button class="pg">3</button>
+          <button class="pg"><svg class="ico ico-xs"><use xlink:href="#i-chev-right"/></svg></button>
+        </div>
+      </div>
+
+      <!-- Weeks variant preview -->
+      <div style="margin-top:18px;padding-top:16px;border-top:1.5px dashed var(--border)">
+        <span class="state-chip on" style="margin-bottom:10px">Weeks (avg) · same table, grain = week</span>
+        <table class="tbl">
+          <thead><tr><th>Week</th><th>Avg kcal</th><th>Avg pro</th><th>Avg carb</th><th>Avg fat</th><th>On target</th><th>Meals</th></tr></thead>
+          <tbody>
+            <tr>
+              <td class="td-date">Week 16 · 13–17 Apr</td>
+              <td><div class="mc cal"><span class="num">1 140</span><div class="mb"><i style="width:72%"></i></div></div></td>
+              <td><div class="mc prot"><span class="num">78g</span><div class="mb"><i style="width:71%"></i></div></div></td>
+              <td><div class="mc carb"><span class="num">100g</span><div class="mb"><i style="width:63%"></i></div></div></td>
+              <td><div class="mc fat"><span class="num">40g</span><div class="mb"><i style="width:73%"></i></div></div></td>
+              <td class="td-num">2 / 5</td><td class="td-num">6</td>
+            </tr>
+            <tr>
+              <td class="td-date">Week 15 · 6–10 Apr</td>
+              <td><div class="mc cal"><span class="num">1 265</span><div class="mb"><i style="width:79%"></i></div></div></td>
+              <td><div class="mc prot"><span class="num">86g</span><div class="mb"><i style="width:78%"></i></div></div></td>
+              <td><div class="mc carb"><span class="num">115g</span><div class="mb"><i style="width:72%"></i></div></div></td>
+              <td><div class="mc fat"><span class="num">42g</span><div class="mb"><i style="width:76%"></i></div></div></td>
+              <td class="td-num">3 / 4</td><td class="td-num">8</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- ───────────────────────────────────────
+       FEATURE 6 — Orders filter + pagination
+  ─────────────────────────────────────── -->
+  <section class="deck-sec" id="f6">
+    <div class="deck-sec-hdr">
+      <span class="deck-badge">Feature 6</span>
+      <h2>Orders — filter + pagination</h2>
+      <span class="req">Same filter + pager shell as Goals. 50/page, hidden under 50.</span>
+    </div>
+    <div class="annot">
+      <svg class="ico"><use xlink:href="#i-info"/></svg>
+      URL-synced filters (<code>?from=&amp;to=&amp;status=&amp;page=</code>) so filtered views are bookmarkable. Same pagination component reused.
+    </div>
+
+    <div class="page-frame">
+      <div class="acct-tabs">
+        <button class="acct-tab">Profile</button>
+        <button class="acct-tab on"><svg class="ico ico-sm"><use xlink:href="#i-cart"/></svg>Orders<small>· 87</small></button>
+        <button class="acct-tab">Goals</button>
+        <button class="acct-tab">Wallet</button>
+      </div>
+
+      <div class="fbar">
+        <div class="fg"><label>From</label><input type="date" value="2026-01-01"></div>
+        <div class="fg"><label>To</label><input type="date" value="2026-04-20"></div>
+        <div class="fg" style="margin-left:4px">
+          <button class="fchip on">Delivered</button>
+          <button class="fchip">Pending</button>
+          <button class="fchip">Cancelled</button>
+        </div>
+        <span class="grow"></span>
+        <input type="search" placeholder="Order # or dish…">
+      </div>
+
+      <table class="tbl">
+        <thead><tr>
+          <th>Order</th><th>Placed</th><th>Days</th><th>Meals</th><th>Intake (sum)</th><th>Total</th><th>Status</th><th></th>
+        </tr></thead>
+        <tbody>
+          <tr>
+            <td class="td-num">#FP-1042</td><td>13 Apr</td><td>14 Apr → 17 Apr</td><td>6</td>
+            <td><span class="gm-pill cal"><svg class="ico"><use xlink:href="#i-flame"/></svg>7 980</span> <span class="gm-pill prot"><svg class="ico"><use xlink:href="#i-dumbbell"/></svg>540g</span></td>
+            <td class="td-num">€48.69</td>
+            <td><span class="sp ok"><svg class="ico"><use xlink:href="#i-check"/></svg>Delivered</span></td>
+            <td><button class="fchip">View</button></td>
+          </tr>
+          <tr>
+            <td class="td-num">#FP-1038</td><td>6 Apr</td><td>7 Apr → 10 Apr</td><td>8</td>
+            <td><span class="gm-pill cal"><svg class="ico"><use xlink:href="#i-flame"/></svg>10 240</span> <span class="gm-pill prot"><svg class="ico"><use xlink:href="#i-dumbbell"/></svg>720g</span></td>
+            <td class="td-num">€64.20</td>
+            <td><span class="sp ok"><svg class="ico"><use xlink:href="#i-check"/></svg>Delivered</span></td>
+            <td><button class="fchip">View</button></td>
+          </tr>
+          <tr>
+            <td class="td-num">#FP-1029</td><td>30 Mar</td><td>31 Mar → 3 Apr</td><td>5</td>
+            <td><span class="gm-pill cal"><svg class="ico"><use xlink:href="#i-flame"/></svg>6 850</span> <span class="gm-pill prot"><svg class="ico"><use xlink:href="#i-dumbbell"/></svg>475g</span></td>
+            <td class="td-num">€42.10</td>
+            <td><span class="sp ok"><svg class="ico"><use xlink:href="#i-check"/></svg>Delivered</span></td>
+            <td><button class="fchip">View</button></td>
+          </tr>
+          <tr>
+            <td class="td-num">#FP-1024</td><td>23 Mar</td><td>24 Mar → 27 Mar</td><td>6</td>
+            <td><span class="gm-pill cal"><svg class="ico"><use xlink:href="#i-flame"/></svg>8 120</span> <span class="gm-pill prot"><svg class="ico"><use xlink:href="#i-dumbbell"/></svg>562g</span></td>
+            <td class="td-num">€52.70</td>
+            <td><span class="sp ok"><svg class="ico"><use xlink:href="#i-check"/></svg>Delivered</span></td>
+            <td><button class="fchip">View</button></td>
+          </tr>
+        </tbody>
+      </table>
+
+      <div class="pager">
+        <div class="pager-info">Showing <b>1–50</b> of <b>87</b> orders</div>
+        <div class="pager-nav">
+          <button class="pg" disabled><svg class="ico ico-xs"><use xlink:href="#i-chev-left"/></svg></button>
+          <button class="pg on">1</button>
+          <button class="pg">2</button>
+          <button class="pg"><svg class="ico ico-xs"><use xlink:href="#i-chev-right"/></svg></button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <div class="doc-ftr">Fitpal · live style · static mock · no code touched</div>
+
+</div>
+
+<div class="proposal-badge">Goals features<em>· live style</em></div>
+
+</body>
+</html>

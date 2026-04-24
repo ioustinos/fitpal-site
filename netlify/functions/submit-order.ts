@@ -1,4 +1,5 @@
 import { createClient } from '@supabase/supabase-js'
+import { createVivaOrder } from '../lib/viva/createOrder'
 
 // ─── Env ────────────────────────────────────────────────────────────────────
 
@@ -60,6 +61,8 @@ interface CutoffSettings {
   cutoffHour: number
   weekdayOverrides: Record<number, WeekdayCutoff>
   dateOverrides: Record<string, DateCutoff>
+  /** cents — admin-configurable minimum per child order */
+  minOrderCents: number
 }
 
 const toIsoDow = (jsDay: number): number => (jsDay === 0 ? 7 : jsDay)
@@ -98,6 +101,7 @@ const DEFAULT_CUTOFF: CutoffSettings = {
   cutoffHour: 18,
   weekdayOverrides: {},
   dateOverrides: {},
+  minOrderCents: 1500,
 }
 
 /** Parse DB settings rows into a CutoffSettings config. */
@@ -106,6 +110,8 @@ function parseCutoffSettings(rows: { key: string; value: unknown }[] | null): Cu
   for (const row of rows ?? []) {
     if (row.key === 'cutoff_hour' && typeof row.value === 'number') {
       cfg.cutoffHour = row.value
+    } else if (row.key === 'min_order' && typeof row.value === 'number') {
+      cfg.minOrderCents = row.value
     } else if (row.key === 'cutoff_weekday_overrides' && row.value && typeof row.value === 'object') {
       const wd: Record<number, WeekdayCutoff> = {}
       for (const [k, v] of Object.entries(row.value as Record<string, WeekdayCutoff>)) {
@@ -140,7 +146,6 @@ function todayIso(): string {
 // ─── Basic payload validation ───────────────────────────────────────────────
 
 const VALID_METHODS = ['cash', 'card', 'link', 'transfer', 'wallet']
-const MIN_ORDER_CENTS = 1500 // €15 minimum per day
 
 function validatePayload(body: OrderPayload): Errors {
   const errors: Errors = {}
@@ -229,7 +234,6 @@ export default async (request: Request) => {
     const allVariantIds = [...new Set(body.days.flatMap((d) => d.items.map((it) => it.variantId)))]
     const allDishIds = [...new Set(body.days.flatMap((d) => d.items.map((it) => it.dishId)))]
     const allDates = [...new Set(body.days.map((d) => d.deliveryDate))]
-    const allAreas = [...new Set(body.days.map((d) => d.addressArea))]
 
     const [variantsRes, dishesRes, menuDaysRes, zonesRes, settingsRes] = await Promise.all([
       // Variant prices + macros
@@ -257,11 +261,11 @@ export default async (request: Request) => {
         .select('id, name_el, name_en, postcodes, active, zone_time_slots(time_from, time_to, active)')
         .eq('active', true),
 
-      // Cutoff settings (cutoff_hour + weekday/date overrides)
+      // Cutoff + min-order + enabled-methods settings
       supabase
         .from('settings')
         .select('key, value')
-        .in('key', ['cutoff_hour', 'cutoff_weekday_overrides', 'cutoff_date_overrides']),
+        .in('key', ['cutoff_hour', 'cutoff_weekday_overrides', 'cutoff_date_overrides', 'min_order', 'payment_methods_enabled']),
     ])
 
     if (variantsRes.error) return Response.json({ error: 'Failed to look up item prices' }, { status: 500 })
@@ -273,6 +277,28 @@ export default async (request: Request) => {
     const cutoffCfg = parseCutoffSettings(
       settingsRes.error ? null : (settingsRes.data as { key: string; value: unknown }[] | null),
     )
+
+    // ── WEC-177: server-side enabled-methods guard ───────────────────────
+    // Client UI already filters by this, but never trust it.
+    const methodsRow = (settingsRes.data ?? [] as { key: string; value: unknown }[])
+      .find((r: { key: string }) => r.key === 'payment_methods_enabled')
+    if (methodsRow && Array.isArray(methodsRow.value)) {
+      const enabled = methodsRow.value as string[]
+      if (enabled.length > 0 && !enabled.includes(body.paymentMethod)) {
+        return Response.json(
+          { error: `Payment method "${body.paymentMethod}" is not enabled`, validationErrors: { general: [`Payment method "${body.paymentMethod}" is not enabled`] } },
+          { status: 400 },
+        )
+      }
+    }
+
+    // ── WEC-177: wallet method needs a logged-in user ────────────────────
+    if (body.paymentMethod === 'wallet' && !userId) {
+      return Response.json(
+        { error: 'Wallet payment requires login', validationErrors: { general: ['Wallet payment requires login'] } },
+        { status: 401 },
+      )
+    }
     const today = todayIso()
     const nowMs = Date.now()
 
@@ -343,25 +369,21 @@ export default async (request: Request) => {
       }
 
       // 3b. Minimum order per day
-      if (dayTotal > 0 && dayTotal < MIN_ORDER_CENTS) {
-        addError(errors, k, `Minimum order is €${(MIN_ORDER_CENTS / 100).toFixed(2)} (current: €${(dayTotal / 100).toFixed(2)})`)
+      if (dayTotal > 0 && dayTotal < cutoffCfg.minOrderCents) {
+        addError(errors, k, `Minimum order is €${(cutoffCfg.minOrderCents / 100).toFixed(2)} (current: €${(dayTotal / 100).toFixed(2)})`)
       }
 
-      // 3c. Delivery zone validation
-      // Find a zone that covers the area (check postcodes array or name match)
+      // 3c. Delivery zone — postcode only. Zone names are admin-organisational
+      // labels, never matched against the customer's free-text area field.
       const zip = day.addressZip?.trim()
-      const area = day.addressArea.trim().toLowerCase()
-      const matchedZone = zones.find((z: any) => {
-        // Match by postcode if available
-        if (zip && z.postcodes?.length) {
-          return z.postcodes.includes(zip)
+      let matchedZone: any = null
+      if (!zip) {
+        addError(errors, k, 'Postcode is required to determine delivery zone')
+      } else {
+        matchedZone = zones.find((z: any) => Array.isArray(z.postcodes) && z.postcodes.includes(zip)) ?? null
+        if (!matchedZone) {
+          addError(errors, k, `Postcode ${zip} is not in any active delivery zone. Ask an admin to assign it to a zone under /admin/zones.`)
         }
-        // Match by area name (case-insensitive)
-        return z.name_el?.toLowerCase() === area || z.name_en?.toLowerCase() === area
-      })
-
-      if (!matchedZone) {
-        addError(errors, k, `Area "${day.addressArea}" is not in a valid delivery zone`)
       }
 
       // 3d. Time slot validation
@@ -581,12 +603,81 @@ export default async (request: Request) => {
       }
     }
 
+    // ─── Phase 6: Payment-method-specific finalization ──────────────────
+    //
+    // card / link → Viva Smart Checkout (WEC-171)
+    // wallet      → atomic debit via RPC (WEC-177, closes WEC-145)
+    // cash        → pending until admin marks on delivery
+    // transfer    → pending until admin reconciles bank statement
+
+    let paymentUrl: string | null = null
+    let paymentSetupFailed = false
+    let paidStatus: 'paid' | 'pending' = 'pending'
+
+    if (body.paymentMethod === 'card' || body.paymentMethod === 'link') {
+      try {
+        const result = await createVivaOrder({
+          orderId,
+          amountCents: orderTotal,
+          customerEmail: body.customerEmail,
+          customerFullName: body.customerName,
+          mode: body.paymentMethod,
+        })
+        paymentUrl = result.paymentUrl
+      } catch (err) {
+        console.error('Viva create-order failed for orderId=%s:', orderId, err)
+        paymentSetupFailed = true
+        // Order row stays pending, admin can regenerate via WEC-176.
+      }
+    } else if (body.paymentMethod === 'wallet') {
+      // Atomic: lock wallet, verify balance, debit, record tx, mark order paid.
+      // If the RPC raises P0002 (insufficient balance), delete the order
+      // (cascade cleans child_orders + order_items + voucher_uses) and
+      // surface a 402 so the user can pick another method.
+      const { error: debitErr } = await supabase.rpc('wallet_debit_for_order', {
+        p_order_id: orderId,
+        p_user_id: userId,
+        p_amount_cents: orderTotal,
+      })
+      if (debitErr) {
+        const code = (debitErr as { code?: string }).code ?? ''
+        const msg = debitErr.message ?? ''
+        console.error('wallet_debit_for_order failed for orderId=%s:', orderId, debitErr)
+        // Roll back the order row. Cascade cleans descendants.
+        await supabase.from('orders').delete().eq('id', orderId)
+        // Roll back voucher use if any.
+        if (voucherId) {
+          await supabase.from('voucher_uses').delete().eq('order_id', orderId)
+        }
+        if (code === 'P0002' || msg.includes('insufficient_balance')) {
+          return Response.json(
+            { error: 'Insufficient wallet balance', validationErrors: { general: ['Insufficient wallet balance'] } },
+            { status: 402 },
+          )
+        }
+        if (code === 'P0001' || msg.includes('wallet_not_found')) {
+          return Response.json(
+            { error: 'No wallet found for this user', validationErrors: { general: ['No wallet found for this user'] } },
+            { status: 400 },
+          )
+        }
+        return Response.json(
+          { error: 'Wallet debit failed', validationErrors: { general: [msg || 'Wallet debit failed'] } },
+          { status: 500 },
+        )
+      }
+      paidStatus = 'paid'
+    }
+
     // ─── Success ────────────────────────────────────────────────────────
 
     return Response.json({
       orderNumber,
       orderId,
       total: orderTotal / 100,
+      paymentUrl,
+      paymentSetupFailed,
+      paymentStatus: paidStatus,
     })
   } catch (err) {
     console.error('Order submission error:', err)

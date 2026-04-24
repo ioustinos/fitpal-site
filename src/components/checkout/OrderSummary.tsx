@@ -1,46 +1,12 @@
 import { useState } from 'react'
-import { useCartStore, type CartItem } from '../../store/useCartStore'
+import { useCartStore } from '../../store/useCartStore'
 import { useUIStore } from '../../store/useUIStore'
 import { useAuthStore } from '../../store/useAuthStore'
 import { makeTr } from '../../lib/translations'
 import { activeDays, dayAmt, subTotal, fmt } from '../../lib/helpers'
 import { useMenuStore } from '../../store/useMenuStore'
-
-const DAY_LABELS_EL = ['ΔΕΥΤΕΡΑ', 'ΤΡΙΤΗ', 'ΤΕΤΑΡΤΗ', 'ΠΕΜΠΤΗ', 'ΠΑΡΑΣΚΕΥΗ']
-const DAY_LABELS_EN = ['MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY']
-const DAY_FULL_EL = ['Δευτέρα', 'Τρίτη', 'Τετάρτη', 'Πέμπτη', 'Παρασκευή']
-const DAY_FULL_EN = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday']
-
-/* ── Goal helpers ── */
-function coGoalStatus(key: string, value: number, goals: any): string | null {
-  if (!goals?.enabled) return null
-  const map: Record<string, string> = { cal: 'calories', protein: 'protein', carbs: 'carbs', fat: 'fat' }
-  const g = goals[map[key] ?? key]
-  if (!g || typeof g !== 'object') return null
-  if (g.min && value < g.min) return 'below'
-  if (g.max && value > g.max) return 'above'
-  if (g.min || g.max) return 'ok'
-  return null
-}
-
-function dayCartMacros(items: CartItem[]): { cal: number; protein: number; carbs: number; fat: number } {
-  return items.reduce(
-    (a, i) => ({
-      cal: a.cal + (i.macros?.cal ?? 0) * i.qty,
-      protein: a.protein + (i.macros?.pro ?? 0) * i.qty,
-      carbs: a.carbs + (i.macros?.carb ?? 0) * i.qty,
-      fat: a.fat + (i.macros?.fat ?? 0) * i.qty,
-    }),
-    { cal: 0, protein: 0, carbs: 0, fat: 0 },
-  )
-}
-
-const coMacroIcons = {
-  cal: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22c-4 0-7-3-7-7.5 0-3 1.5-5.5 3.5-8C10.5 4 12 2 12 2s1.5 2 3.5 4.5c2 2.5 3.5 5 3.5 8C19 19 16 22 12 22z"/></svg>,
-  protein: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M20 14v6M17 17h6"/><circle cx="9" cy="7" r="4"/><path d="M2 21v-2a5 5 0 015-5h4"/></svg>,
-  carbs: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M2 22L12 2l10 20H2z"/></svg>,
-  fat: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><ellipse cx="12" cy="12" rx="4" ry="7"/><circle cx="12" cy="10" r="1" fill="currentColor" stroke="none"/></svg>,
-}
+import { dayLabel as dayLabelFor } from '../../lib/datelabels'
+import { DayMacrosBlock } from '../shared/DayMacrosBlock'
 
 export function OrderSummary() {
   const lang = useUIStore((s) => s.lang)
@@ -112,7 +78,7 @@ export function OrderSummary() {
           const day = week?.days[i]
           const amt = dayAmt(cart, i)
           const low = amt < minOrder
-          const dayLabel = lang === 'el' ? DAY_LABELS_EL[i] : DAY_LABELS_EN[i]
+          const dayLabel = day?.date ? dayLabelFor(day.date, lang, 'upper') : ''
 
           return (
             <div key={day?.date ?? i} className="cart-day-block">
@@ -183,45 +149,14 @@ export function OrderSummary() {
                   </div>
                 )
               })}
+
+              {/* WEC-165: inline per-day macro block — same component + same
+                  visual language as the cart sidebar. Handles both
+                  "goals on → bars" and "goals off / guest → numbers only". */}
+              <DayMacrosBlock dayIndex={i} />
             </div>
           )
         })}
-
-        {/* Macro overview per day (when goals enabled) */}
-        {user?.goals?.enabled && dayIdxs.length > 0 && (
-          <div className="co-macro-section">
-            <div className="co-macro-title">
-              {lang === 'el' ? 'Μακροθρεπτικά ημέρας' : 'Day macros'}
-            </div>
-            {dayIdxs.map((i) => {
-              const items = cart[i] ?? []
-              const m = dayCartMacros(items)
-              const dayLabel = lang === 'el' ? DAY_FULL_EL[i] : DAY_FULL_EN[i]
-              const pills = [
-                { k: 'cal', v: m.cal, icon: coMacroIcons.cal },
-                { k: 'protein', v: m.protein, icon: coMacroIcons.protein },
-                { k: 'carbs', v: m.carbs, icon: coMacroIcons.carbs },
-                { k: 'fat', v: m.fat, icon: coMacroIcons.fat },
-              ]
-              return (
-                <div key={i}>
-                  <div className="co-macro-day-label">{dayLabel}</div>
-                  <div className="co-macro-summary">
-                    {pills.map((p) => {
-                      const s = coGoalStatus(p.k, p.v, user.goals)
-                      return (
-                        <div key={p.k} className={`co-macro-pill ${s ?? 'none'}`}>
-                          {p.icon}
-                          <span>{p.v}</span>
-                        </div>
-                      )
-                    })}
-                  </div>
-                </div>
-              )
-            })}
-          </div>
-        )}
       </div>
 
       {/* Footer: voucher + total + back */}

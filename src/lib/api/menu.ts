@@ -153,15 +153,17 @@ export async function fetchActiveWeeksMeta(): Promise<{
 }> {
   const { data: menuRows, error: menuErr } = await supabase
     .from('weekly_menus')
-    .select('id, name, from_date, to_date, active')
+    .select('id, name, from_date, to_date, active, inactive_dates')
     .eq('active', true)
     .order('from_date')
 
   if (menuErr) return { data: null, error: menuErr.message }
-  const menus = (menuRows ?? []) as DbWeeklyMenu[]
+  const menus = (menuRows ?? []) as Array<DbWeeklyMenu & { inactive_dates: string[] | null }>
   if (menus.length === 0) return { data: null, error: 'No active menu found' }
 
   const menuIds = menus.map((m) => m.id)
+  const inactiveByMenu = new Map<string, Set<string>>()
+  for (const m of menus) inactiveByMenu.set(m.id, new Set(m.inactive_dates ?? []))
 
   // Distinct dates per menu (we don't need dish_ids for meta)
   const { data: dayRows, error: dayErr } = await supabase
@@ -172,9 +174,11 @@ export async function fetchActiveWeeksMeta(): Promise<{
 
   if (dayErr) return { data: null, error: dayErr.message }
 
-  // Build a { menuId → Set<date> } map, preserving order by date
+  // Build a { menuId → Set<date> } map, preserving order by date.
+  // Skip any date marked closed via weekly_menus.inactive_dates.
   const dateMap = new Map<string, string[]>()
   for (const row of (dayRows ?? []) as { menu_id: string; date: string }[]) {
+    if (inactiveByMenu.get(row.menu_id)?.has(row.date)) continue
     const list = dateMap.get(row.menu_id) ?? []
     if (!list.includes(row.date)) list.push(row.date)
     dateMap.set(row.menu_id, list)

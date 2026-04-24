@@ -1,4 +1,7 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
+import PhoneInput from 'react-phone-number-input'
+import flags from 'react-phone-number-input/flags'
+import 'react-phone-number-input/style.css'
 import { useUIStore } from '../store/useUIStore'
 import { useAuthStore, type Address, type MacroRange } from '../store/useAuthStore'
 import { makeTr } from '../lib/translations'
@@ -7,6 +10,15 @@ import { useMenuStore } from '../store/useMenuStore'
 import { Toggle } from '../components/ui/Toggle'
 import { MacroIcon } from '../components/ui/MacroDots'
 import { WALLET_PLANS } from '../data/menu'
+import { COUNTRIES, DEFAULT_COUNTRY, isValidPhone, phoneLabels } from '../lib/phone'
+import { showGoalProgress, goalStatus, goalPct } from '../lib/goals'
+import { matchesRange, type RangePreset } from '../lib/dateRange'
+import { DateRangeFilter } from '../components/shared/DateRangeFilter'
+import { Pagination } from '../components/shared/Pagination'
+
+/** WEC-169: orders list shows 50 per page; the pagination bar hides itself
+ *  when the filtered list fits on one page. */
+const ORDERS_PAGE_SIZE = 50
 
 type AccountTab = 'orders' | 'wallet' | 'addresses' | 'goals' | 'prefs' | 'profile'
 
@@ -57,8 +69,15 @@ const icons: Record<AccountTab | 'logout', JSX.Element> = {
 export function AccountPage() {
   const lang = useUIStore((s) => s.lang)
   const closeAccount = useUIStore((s) => s.closeAccount)
+  const goToMenu = useUIStore((s) => s.goToMenu)
   const accountTab = useUIStore((s) => s.accountTab)
   const { user, logout, updatePrefs, updateGoals, updateAddresses } = useAuthStore()
+
+  // WEC-141: sign out always lands on the menu (same contract as the header).
+  const handleSignOut = async () => {
+    await logout()
+    goToMenu()
+  }
   const t = makeTr(lang)
 
   const [tab, setTab] = useState<AccountTab>((accountTab as AccountTab) || 'orders')
@@ -119,7 +138,7 @@ export function AccountPage() {
           ))}
           <button
             className="account-nav-item danger"
-            onClick={() => { logout(); closeAccount() }}
+            onClick={handleSignOut}
           >
             {icons.logout}
             {lang === 'el' ? 'Αποσύνδεση' : 'Sign Out'}
@@ -145,17 +164,33 @@ export function AccountPage() {
 ═══════════════════════════════════════════════════════════════════════════════ */
 
 function ProfileTab({ user, lang }: any) {
+  const setUser = useAuthStore((s) => s.setUser)
   const [name, setName] = useState(user.name ?? '')
   const [email] = useState(user.email ?? '')
-  const [phone, setPhone] = useState(user.phone ?? '')
+  const [phone, setPhone] = useState<string>(user.phone ?? '')
   const [saved, setSaved] = useState(false)
   const [saving, setSaving] = useState(false)
+  const [attemptedSave, setAttemptedSave] = useState(false)
+
+  // Same curated country list + GR default as checkout (WEC-130)
+  const countries = useMemo(() => COUNTRIES, [])
+  const labels = useMemo(() => phoneLabels(lang), [lang])
+
+  // Phone is optional at the field level but must be valid E.164 when present.
+  // Name is required.
+  const nameInvalid = attemptedSave && !name.trim()
+  const phoneInvalid = attemptedSave && !!phone && !isValidPhone(phone)
+  const canSave = !!name.trim() && (!phone || isValidPhone(phone))
 
   const handleSave = async () => {
+    setAttemptedSave(true)
+    if (!canSave) return
     setSaving(true)
     const { updateProfile } = await import('../lib/api/auth')
     const { error } = await updateProfile(user.id, { name, phone })
     if (!error) {
+      // Keep the in-memory store in sync so header/avatar/checkout prefill all update
+      setUser({ ...user, name, phone })
       setSaved(true)
       setTimeout(() => setSaved(false), 2000)
     }
@@ -168,7 +203,14 @@ function ProfileTab({ user, lang }: any) {
       <div className="profile-form">
         <div className="form-row">
           <label className="form-label">{lang === 'el' ? 'Ονοματεπώνυμο' : 'Full Name'}</label>
-          <input className="form-input" type="text" value={name} onChange={(e) => setName(e.target.value)} />
+          <input
+            className={`form-input${nameInvalid ? ' is-invalid' : ''}`}
+            type="text"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            autoComplete="name"
+            aria-invalid={nameInvalid || undefined}
+          />
         </div>
         <div className="form-row">
           <label className="form-label">Email</label>
@@ -176,7 +218,24 @@ function ProfileTab({ user, lang }: any) {
         </div>
         <div className="form-row">
           <label className="form-label">{lang === 'el' ? 'Τηλέφωνο' : 'Phone'}</label>
-          <input className="form-input" type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} />
+          <PhoneInput
+            className={`co-phone-input${phoneInvalid ? ' is-invalid' : ''}`}
+            international
+            defaultCountry={DEFAULT_COUNTRY}
+            countries={countries}
+            labels={labels}
+            flags={flags}
+            countryCallingCodeEditable={false}
+            value={phone || undefined}
+            onChange={(v) => setPhone(v ?? '')}
+            placeholder="69X XXX XXXX"
+            autoComplete="tel"
+          />
+          {phoneInvalid && (
+            <div className="form-hint form-hint-error">
+              {lang === 'el' ? 'Μη έγκυρος αριθμός τηλεφώνου' : 'Invalid phone number'}
+            </div>
+          )}
         </div>
       </div>
       <button className="btn-save-green" onClick={handleSave} disabled={saving}>
@@ -194,6 +253,7 @@ function ProfileTab({ user, lang }: any) {
 
 function PrefsTab({ user, lang, updatePrefs }: any) {
   const t = makeTr(lang)
+  const setLang = useUIStore((s) => s.setLang)
   const addresses = user.addresses ?? []
   const [prefs, setPrefs] = useState({ ...user.prefs })
   const [saved, setSaved] = useState(false)
@@ -232,6 +292,13 @@ function PrefsTab({ user, lang, updatePrefs }: any) {
     const { error } = await savePrefs(user.id, prefs)
     if (!error) {
       updatePrefs(prefs)
+      // If the saved default language differs from the current UI language,
+      // reflect it in the header toggle right away. Without this, users who
+      // change their default to EN and hit save would still see the EL UI
+      // until they reload.
+      if ((prefs.lang === 'el' || prefs.lang === 'en') && prefs.lang !== lang) {
+        setLang(prefs.lang)
+      }
       setSaved(true)
       setTimeout(() => setSaved(false), 2000)
     }
@@ -336,6 +403,41 @@ function PrefsTab({ user, lang, updatePrefs }: any) {
               onChange={(v) => setPrefs({ ...prefs, lowCarb: v })}
             />
           </div>
+        </div>
+      </div>
+
+      {/* Language preference (WEC-141) */}
+      <div className="prefs-section-card">
+        <div className="prefs-section-header">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15 15 0 010 20M12 2a15 15 0 000 20"/>
+          </svg>
+          <div>
+            <div className="prefs-section-title">
+              {lang === 'el' ? 'Γλώσσα' : 'Language'}
+            </div>
+            <div className="prefs-section-desc">
+              {lang === 'el'
+                ? 'Η προεπιλεγμένη γλώσσα για όταν συνδέεσαι.'
+                : 'Default language when you sign in.'}
+            </div>
+          </div>
+        </div>
+        <div className="prefs-payment-grid">
+          <button
+            type="button"
+            className={`prefs-payment-btn${prefs.lang === 'el' ? ' active' : ''}`}
+            onClick={() => setPrefs({ ...prefs, lang: 'el' })}
+          >
+            Ελληνικά
+          </button>
+          <button
+            type="button"
+            className={`prefs-payment-btn${prefs.lang === 'en' ? ' active' : ''}`}
+            onClick={() => setPrefs({ ...prefs, lang: 'en' })}
+          >
+            English
+          </button>
         </div>
       </div>
 
@@ -506,6 +608,15 @@ function AddressesTab({ user, lang, updateAddresses }: any) {
     if (!error) {
       updateAddresses(addresses.map(a => a.id === id ? { ...a, ...form } : a))
       setEditing(null)
+    } else {
+      // Surface the supabase error — silent failure was the WEC-134 bug
+      // report. Most commonly RLS or zip-constraint; the raw message is
+      // still the most useful signal for a one-user app.
+      window.alert(
+        lang === 'el'
+          ? `Σφάλμα αποθήκευσης: ${error}`
+          : `Save failed: ${error}`,
+      )
     }
     setSaving(false)
   }
@@ -527,7 +638,11 @@ function AddressesTab({ user, lang, updateAddresses }: any) {
       <div className="addr-form-row">
         <div className="form-row">
           <label className="form-label">{lang === 'el' ? 'Ετικέτα' : 'Label'}</label>
-          <input className="form-input" placeholder={lang === 'el' ? 'π.χ. Σπίτι' : 'e.g. Home'}
+          {/* WEC-134: title-size input so the user feels they're naming
+              the address rather than filling a side field. */}
+          <input
+            className="form-input form-input-title"
+            placeholder={lang === 'el' ? 'π.χ. Σπίτι, Γραφείο, Γιαγιά' : 'e.g. Home, Office, Grandma'}
             value={lang === 'el' ? form.labelEl : form.labelEn}
             onChange={(e) => setForm({ ...form, [lang === 'el' ? 'labelEl' : 'labelEn']: e.target.value })}
           />
@@ -581,7 +696,7 @@ function AddressesTab({ user, lang, updateAddresses }: any) {
       ) : (
         <div className="addr-list">
           {addresses.map((addr) => (
-            <div key={addr.id} className="addr-card">
+            <div key={addr.id} className={`addr-card${editing === addr.id ? ' editing' : ''}`}>
               {editing === addr.id ? (
                 renderForm(false, () => handleSaveEdit(addr.id))
               ) : (
@@ -740,99 +855,218 @@ function GoalsTab({ user, lang, updateGoals }: any) {
         {saving ? '...' : saved ? (lang === 'el' ? '✓ Αποθηκεύτηκαν' : '✓ Saved') : (lang === 'el' ? 'Αποθήκευση' : 'Save')}
       </button>
 
-      {/* ── Intake History from past orders ── */}
+      {/* ── Goals history — daily intakes, aggregates, forecast (WEC-168) ── */}
       {goals.enabled && user.orders && user.orders.length > 0 && (
-        <IntakeHistory user={user} goals={goals} lang={lang} t={t} />
+        <GoalsHistory user={user} goals={goals} lang={lang} t={t} />
       )}
     </div>
   )
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════════
-   INTAKE HISTORY — macro tracking from past orders inside Goals tab
+   WEC-168 — GOALS HISTORY
+   Buckets child_orders by delivery_date (merging same-day orders), splits
+   past vs forecast (delivery date ≥ today), and exposes date-range filters
+   + pagination. Uses shared goalStatus/goalPct from src/lib/goals.ts so the
+   colouring matches cart / checkout / orders.
 ═══════════════════════════════════════════════════════════════════════════════ */
 
-/** Returns 'ok' | 'below' | 'above' | null based on value vs goal range */
-function goalStatus(key: string, value: number, goals: any): string | null {
-  if (!goals?.enabled) return null
-  // Map from order data keys to goal keys
-  const goalKeyMap: Record<string, string> = { cal: 'calories', protein: 'protein', carbs: 'carbs', fat: 'fat' }
-  const gKey = goalKeyMap[key] ?? key
-  const g = goals[gKey]
-  if (!g || typeof g !== 'object') return null
-  if (g.min && value < g.min) return 'below'
-  if (g.max && value > g.max) return 'above'
-  if (g.min || g.max) return 'ok'
-  return null
+const HISTORY_PAGE_SIZE = 50
+
+interface DayBucket {
+  date: string   // YYYY-MM-DD
+  macros: { cal: number; protein: number; carbs: number; fat: number }
+  orderIds: string[]
+  forecast: boolean
 }
 
-/** Returns progress percentage (0–120) relative to goal max */
-function goalPct(key: string, value: number, goals: any): number {
-  if (!goals?.enabled) return 0
-  const goalKeyMap: Record<string, string> = { cal: 'calories', protein: 'protein', carbs: 'carbs', fat: 'fat' }
-  const gKey = goalKeyMap[key] ?? key
-  const g = goals[gKey]
-  if (!g || typeof g !== 'object' || !g.max) return 0
-  return Math.min(120, Math.round((value / g.max) * 100))
+function bucketChildOrdersByDay(orders: any[], todayIso: string): DayBucket[] {
+  const byDate = new Map<string, DayBucket>()
+  for (const o of orders) {
+    for (const ch of o.childOrders ?? []) {
+      const date = ch.deliveryDate
+      if (!date) continue
+      const m = ch.macros ?? { cal: 0, protein: 0, carbs: 0, fat: 0 }
+      const b = byDate.get(date) ?? {
+        date,
+        macros: { cal: 0, protein: 0, carbs: 0, fat: 0 },
+        orderIds: [],
+        forecast: date >= todayIso,
+      }
+      b.macros.cal     += m.cal     ?? 0
+      b.macros.protein += m.protein ?? 0
+      b.macros.carbs   += m.carbs   ?? 0
+      b.macros.fat     += m.fat     ?? 0
+      if (!b.orderIds.includes(o.id)) b.orderIds.push(o.id)
+      byDate.set(date, b)
+    }
+  }
+  // Newest first — users expect recent days at the top.
+  return Array.from(byDate.values()).sort((a, b) => (a.date < b.date ? 1 : -1))
 }
 
-/* miniBarIcons — now uses <MacroIcon> from MacroDots.tsx */
-
-function IntakeHistory({ user, goals, lang, t }: { user: any; goals: any; lang: 'el' | 'en'; t: (k: string) => string }) {
+function GoalsHistory({ user, goals, lang, t }: { user: any; goals: any; lang: 'el' | 'en'; t: (k: string) => string }) {
   const orders = user.orders ?? []
 
-  return (
-    <div className="intake-history">
-      <h3 className="tab-subtitle" style={{ marginTop: 32 }}>{t('goalIntakeHistory')}</h3>
-      {orders.map((order: any) => {
-        const dateLbl = new Date(order.date + (order.date.includes('T') ? '' : 'T12:00:00'))
-          .toLocaleDateString(lang === 'el' ? 'el-GR' : 'en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
-        const isActive = order.status === 'active'
+  const [rangePreset, setRangePreset] = useState<RangePreset>('this_month')
+  const [customFrom, setCustomFrom] = useState('')
+  const [customTo, setCustomTo] = useState('')
+  const [page, setPage] = useState(1)
 
-        return (
-          <div key={order.id} className="intake-order-card">
-            <div className="intake-order-hdr">
-              <span>{order.id} — {dateLbl}</span>
-              <span className={`order-status-badge${isActive ? ' active' : ''}`}>
-                {isActive ? (lang === 'el' ? 'Ενεργή' : 'Active') : (lang === 'el' ? 'Παραδόθηκε' : 'Delivered')}
-              </span>
-            </div>
-            {order.childOrders?.map((child: any, ci: number) => {
-              const m = child.macros ?? { cal: 0, protein: 0, carbs: 0, fat: 0 }
-              const dayName = lang === 'el' ? child.dayLabel : child.dayLabelEn
-              const bars: Array<{ k: string; v: number; icon: JSX.Element }> = [
-                { k: 'cal', v: m.cal, icon: <MacroIcon type="cal" /> },
-                { k: 'protein', v: m.protein, icon: <MacroIcon type="pro" /> },
-                { k: 'carbs', v: m.carbs, icon: <MacroIcon type="carb" /> },
-                { k: 'fat', v: m.fat, icon: <MacroIcon type="fat" /> },
-              ]
+  // "Today" as a YYYY-MM-DD local string — cheap, and used both to split
+  // forecast vs past and as the filter-anchor below.
+  const todayIso = useMemo(() => {
+    const d = new Date()
+    const y = d.getFullYear()
+    const m = String(d.getMonth() + 1).padStart(2, '0')
+    const dd = String(d.getDate()).padStart(2, '0')
+    return `${y}-${m}-${dd}`
+  }, [])
+
+  const buckets = useMemo(() => bucketChildOrdersByDay(orders, todayIso), [orders, todayIso])
+
+  const filteredBuckets = useMemo(() => {
+    return buckets.filter((b) =>
+      // Anchor-at-noon so matchesRange's time bounds line up with local
+      // midnight-to-midnight windows for both presets and custom.
+      matchesRange(new Date(b.date + 'T12:00:00'), rangePreset, customFrom, customTo),
+    )
+  }, [buckets, rangePreset, customFrom, customTo])
+
+  // Aggregates — separated so the UI can show "past" vs "forecast" averages
+  // honestly (averaging a 0-delivered forecast into past data would look like
+  // a crash in intake).
+  const pastBuckets = filteredBuckets.filter((b) => !b.forecast)
+  const forecastBuckets = filteredBuckets.filter((b) => b.forecast)
+
+  const avg = (xs: number[]) => xs.length ? Math.round(xs.reduce((a, b) => a + b, 0) / xs.length) : 0
+  const pastAvg = {
+    cal:     avg(pastBuckets.map((b) => b.macros.cal)),
+    protein: avg(pastBuckets.map((b) => b.macros.protein)),
+    carbs:   avg(pastBuckets.map((b) => b.macros.carbs)),
+    fat:     avg(pastBuckets.map((b) => b.macros.fat)),
+  }
+
+  const pageCount = Math.max(1, Math.ceil(filteredBuckets.length / HISTORY_PAGE_SIZE))
+  const clampedPage = Math.min(page, pageCount)
+  const pageItems = filteredBuckets.slice(
+    (clampedPage - 1) * HISTORY_PAGE_SIZE,
+    clampedPage * HISTORY_PAGE_SIZE,
+  )
+
+  function setPreset(p: RangePreset) { setRangePreset(p); setPage(1) }
+  function setFrom(v: string) { setCustomFrom(v); setPage(1) }
+  function setTo(v: string) { setCustomTo(v); setPage(1) }
+
+  const summaryText = forecastBuckets.length > 0
+    ? (lang === 'el'
+        ? `${pastBuckets.length} ημέρες · ${forecastBuckets.length} πρόβλεψη`
+        : `${pastBuckets.length} days · ${forecastBuckets.length} forecast`)
+    : (pastBuckets.length === 1
+        ? (lang === 'el' ? '1 ημέρα' : '1 day')
+        : (lang === 'el' ? `${pastBuckets.length} ημέρες` : `${pastBuckets.length} days`))
+
+  const macroBars: Array<{ k: 'cal' | 'protein' | 'carbs' | 'fat'; icon: JSX.Element; short: { el: string; en: string } }> = [
+    { k: 'cal',     icon: <MacroIcon type="cal" />,  short: { el: 'Θερμ.', en: 'Cal'  } },
+    { k: 'protein', icon: <MacroIcon type="pro" />,  short: { el: 'Πρωτ.', en: 'P'    } },
+    { k: 'carbs',   icon: <MacroIcon type="carb" />, short: { el: 'Υδατ.', en: 'C'    } },
+    { k: 'fat',     icon: <MacroIcon type="fat" />,  short: { el: 'Λιπ.',  en: 'F'    } },
+  ]
+
+  return (
+    <div className="goals-history" style={{ marginTop: 32 }}>
+      <h3 className="tab-subtitle">{t('goalIntakeHistory')}</h3>
+
+      <DateRangeFilter
+        preset={rangePreset}
+        from={customFrom}
+        to={customTo}
+        onPresetChange={setPreset}
+        onFromChange={setFrom}
+        onToChange={setTo}
+        summary={summaryText}
+      />
+
+      {/* Aggregates — reuses the same macro card look as order detail so the
+          user sees familiar pastel blocks. Uses PAST-only data so a future
+          zero-intake forecast day doesn't skew the average. */}
+      {pastBuckets.length > 0 && (
+        <div className="goals-history-avg">
+          <div className="gha-title">
+            {lang === 'el'
+              ? `Μέσος όρος / ημέρα · ${pastBuckets.length} ${pastBuckets.length === 1 ? 'ημέρα' : 'ημέρες'}`
+              : `Average per day · ${pastBuckets.length} ${pastBuckets.length === 1 ? 'day' : 'days'}`}
+          </div>
+          <div className="order-macros-row">
+            {macroBars.map(({ k, icon }) => {
+              const val = pastAvg[k]
+              const s = goalStatus(k, val, goals)
+              const pct = goalPct(k, val, goals)
+              const label = lang === 'el'
+                ? { cal: 'Θερμίδες', protein: 'Πρωτεΐνη', carbs: 'Υδατάνθρακες', fat: 'Λιπαρά' }[k]
+                : { cal: 'Calories', protein: 'Protein',  carbs: 'Carbs',       fat: 'Fat'    }[k]
+              const unit = k === 'cal' ? '' : 'g'
+              const cls = k === 'cal' ? 'cal' : k === 'protein' ? 'protein' : k === 'carbs' ? 'carbs' : 'fat'
               return (
-                <div key={ci} className="intake-day-row">
-                  <div className="intake-day-name">{dayName}</div>
-                  <div className="intake-bars">
-                    {bars.map((b) => {
-                      const s = goalStatus(b.k, b.v, goals)
-                      const pct = goalPct(b.k, b.v, goals)
-                      return (
-                        <div key={b.k} className="intake-mini-bar">
-                          {b.icon}
-                          <div className="intake-mini-track">
-                            <div
-                              className={`intake-mini-fill ${s ?? 'none'}`}
-                              style={{ width: `${Math.min(100, pct)}%` }}
-                            />
-                          </div>
-                          <div className="intake-mini-val">{b.v}</div>
-                        </div>
-                      )
-                    })}
+                <div key={k} className={`order-macro-card ${cls}`} data-goal-status={s}>
+                  <div className={`order-macro-icon ${cls}`}>{icon}</div>
+                  <span className="order-macro-label">{label}</span>
+                  <span className="order-macro-val">{val}{unit && <small>{unit}</small>}</span>
+                  <div className="order-macro-bar">
+                    <div className="order-macro-bar-fill" style={{ width: `${Math.min(100, pct)}%` }} />
                   </div>
                 </div>
               )
             })}
           </div>
-        )
-      })}
+        </div>
+      )}
+
+      {/* Daily rows */}
+      {filteredBuckets.length === 0 ? (
+        <p className="tab-empty" style={{ marginTop: 12 }}>
+          {lang === 'el' ? 'Κανένα δεδομένο στο επιλεγμένο διάστημα.' : 'No data in the selected range.'}
+        </p>
+      ) : (
+        <div className="goals-history-list">
+          {pageItems.map((b) => {
+            const dateLabel = new Date(b.date + 'T12:00:00').toLocaleDateString(
+              lang === 'el' ? 'el-GR' : 'en-GB',
+              { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' },
+            )
+            return (
+              <div key={b.date} className={`gh-row${b.forecast ? ' forecast' : ''}`}>
+                <div className="gh-day">
+                  <span className="gh-day-date">{dateLabel}</span>
+                  {b.forecast && (
+                    <span className="gh-forecast-pill">
+                      {lang === 'el' ? 'Πρόβλεψη' : 'Forecast'}
+                    </span>
+                  )}
+                </div>
+                <div className="gh-bars">
+                  {macroBars.map((mb) => {
+                    const v = b.macros[mb.k]
+                    const s = goalStatus(mb.k, v, goals)
+                    const pct = goalPct(mb.k, v, goals)
+                    return (
+                      <div key={mb.k} className={`gh-bar gh-${s}`}>
+                        <span className="gh-bar-icon">{mb.icon}</span>
+                        <div className="gh-bar-track">
+                          <div className="gh-bar-fill" style={{ width: `${Math.min(100, pct)}%` }} />
+                        </div>
+                        <span className="gh-bar-val">{v}{mb.k === 'cal' ? '' : 'g'}</span>
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      )}
+
+      <Pagination page={clampedPage} pageCount={pageCount} onChange={setPage} />
     </div>
   )
 }
@@ -846,7 +1080,38 @@ function OrdersTab({ user, lang }: any) {
   const [expanded, setExpanded] = useState<string | null>(null)
   const [expandedDays, setExpandedDays] = useState<Record<string, boolean>>({})
 
+  // WEC-169: date filter + pagination. Filter runs on the order's created_at
+  // (stored as `order.date`). Pagination drops to 50/page and hides when
+  // the filtered set fits on one page.
+  const [rangePreset, setRangePreset] = useState<RangePreset>('this_month')
+  const [customFrom, setCustomFrom] = useState('')
+  const [customTo, setCustomTo] = useState('')
+  const [page, setPage] = useState(1)
+
   const toggleDay = (key: string) => setExpandedDays(prev => ({ ...prev, [key]: !prev[key] }))
+
+  const filtered = useMemo(() => {
+    return (orders as any[]).filter((o) =>
+      matchesRange(o.date, rangePreset, customFrom, customTo),
+    )
+  }, [orders, rangePreset, customFrom, customTo])
+
+  const pageCount = Math.max(1, Math.ceil(filtered.length / ORDERS_PAGE_SIZE))
+  const clampedPage = Math.min(page, pageCount)
+  const pageOrders = filtered.slice(
+    (clampedPage - 1) * ORDERS_PAGE_SIZE,
+    clampedPage * ORDERS_PAGE_SIZE,
+  )
+
+  // Any filter change → rewind to page 1 so the user doesn't land on a
+  // non-existent page after the result set shrinks.
+  function setPreset(p: RangePreset) { setRangePreset(p); setPage(1) }
+  function setFrom(v: string) { setCustomFrom(v); setPage(1) }
+  function setTo(v: string) { setCustomTo(v); setPage(1) }
+
+  const summary = filtered.length === 1
+    ? (lang === 'el' ? '1 παραγγελία' : '1 order')
+    : (lang === 'el' ? `${filtered.length} παραγγελίες` : `${filtered.length} orders`)
 
   return (
     <div className="tab-section">
@@ -854,8 +1119,21 @@ function OrdersTab({ user, lang }: any) {
       {orders.length === 0 ? (
         <p className="tab-empty">{lang === 'el' ? 'Δεν υπάρχουν παραγγελίες.' : 'No orders yet.'}</p>
       ) : (
+        <>
+          <DateRangeFilter
+            preset={rangePreset}
+            from={customFrom}
+            to={customTo}
+            onPresetChange={setPreset}
+            onFromChange={setFrom}
+            onToChange={setTo}
+            summary={summary}
+          />
+          {filtered.length === 0 ? (
+            <p className="tab-empty">{lang === 'el' ? 'Καμία παραγγελία στο επιλεγμένο διάστημα.' : 'No orders in the selected range.'}</p>
+          ) : (
         <div className="orders-list">
-          {orders.map((order: any) => {
+          {pageOrders.map((order: any) => {
             const isOpen = expanded === order.id
             const isActive = order.status === 'active'
             const totalDays = order.childOrders?.length ?? 0
@@ -870,7 +1148,10 @@ function OrdersTab({ user, lang }: any) {
                   <div className="order-card-left">
                     <span className="order-card-id">{order.id}</span>
                     <span className="order-card-date">
-                      {new Date(order.date + 'T12:00:00').toLocaleDateString(lang === 'el' ? 'el-GR' : 'en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
+                      {/* WEC-139: order.date is a full ISO timestamp (created_at).
+                          The mock shape was 'YYYY-MM-DD' and the old concat would
+                          corrupt timestamps into 'NaN' dates. Parse directly. */}
+                      {new Date(order.date + (order.date.includes('T') ? '' : 'T12:00:00')).toLocaleDateString(lang === 'el' ? 'el-GR' : 'en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
                     </span>
                   </div>
                   <div className="order-card-right">
@@ -923,31 +1204,47 @@ function OrdersTab({ user, lang }: any) {
 
                           {dayOpen && (
                             <div className="order-day-body">
-                              {/* Macro summary cards */}
-                              {child.macros && (
-                                <div className="order-macros-row">
-                                  <div className="order-macro-card cal">
-                                    <div className="order-macro-icon cal"><MacroIcon type="cal" /></div>
-                                    <span className="order-macro-label">{lang === 'el' ? 'Θερμίδες' : 'Calories'}</span>
-                                    <span className="order-macro-val">{child.macros.cal}</span>
+                              {/* Macro summary cards.
+                                  WEC-167: when goal tracking is on, each card gets a
+                                  thin progress bar anchored to the user's configured
+                                  max (falling back to min) with status colouring
+                                  shared with the cart/checkout surfaces. */}
+                              {child.macros && (() => {
+                                const withBars = showGoalProgress(user)
+                                const cells: Array<{
+                                  cls: string
+                                  key: 'cal' | 'protein' | 'carbs' | 'fat'
+                                  icon: 'cal' | 'pro' | 'carb' | 'fat'
+                                  label: string
+                                  val: number
+                                  unit?: string
+                                }> = [
+                                  { cls: 'cal',     key: 'cal',     icon: 'cal',  label: lang === 'el' ? 'Θερμίδες' : 'Calories',     val: child.macros.cal },
+                                  { cls: 'carbs',   key: 'carbs',   icon: 'carb', label: lang === 'el' ? 'Υδατάνθρακες' : 'Carbs',   val: child.macros.carbs,   unit: 'g' },
+                                  { cls: 'protein', key: 'protein', icon: 'pro',  label: lang === 'el' ? 'Πρωτεΐνη' : 'Protein',     val: child.macros.protein, unit: 'g' },
+                                  { cls: 'fat',     key: 'fat',     icon: 'fat',  label: lang === 'el' ? 'Λιπαρά' : 'Fat',           val: child.macros.fat,     unit: 'g' },
+                                ]
+                                return (
+                                  <div className={`order-macros-row${withBars ? '' : ' order-macros-row--numbers-only'}`}>
+                                    {cells.map((c) => {
+                                      const s = withBars ? goalStatus(c.key, c.val, user?.goals) : 'none'
+                                      const pct = withBars ? goalPct(c.key, c.val, user?.goals) : 0
+                                      return (
+                                        <div key={c.key} className={`order-macro-card ${c.cls}`} data-goal-status={s}>
+                                          <div className={`order-macro-icon ${c.cls}`}><MacroIcon type={c.icon} /></div>
+                                          <span className="order-macro-label">{c.label}</span>
+                                          <span className="order-macro-val">{c.val}{c.unit && <small>{c.unit}</small>}</span>
+                                          {withBars && (
+                                            <div className="order-macro-bar">
+                                              <div className="order-macro-bar-fill" style={{ width: `${Math.min(100, pct)}%` }} />
+                                            </div>
+                                          )}
+                                        </div>
+                                      )
+                                    })}
                                   </div>
-                                  <div className="order-macro-card carbs">
-                                    <div className="order-macro-icon carbs"><MacroIcon type="carb" /></div>
-                                    <span className="order-macro-label">{lang === 'el' ? 'Υδατάνθρακες' : 'Carbs'}</span>
-                                    <span className="order-macro-val">{child.macros.carbs}<small>g</small></span>
-                                  </div>
-                                  <div className="order-macro-card protein">
-                                    <div className="order-macro-icon protein"><MacroIcon type="pro" /></div>
-                                    <span className="order-macro-label">{lang === 'el' ? 'Πρωτεΐνη' : 'Protein'}</span>
-                                    <span className="order-macro-val">{child.macros.protein}<small>g</small></span>
-                                  </div>
-                                  <div className="order-macro-card fat">
-                                    <div className="order-macro-icon fat"><MacroIcon type="fat" /></div>
-                                    <span className="order-macro-label">{lang === 'el' ? 'Λιπαρά' : 'Fat'}</span>
-                                    <span className="order-macro-val">{child.macros.fat}<small>g</small></span>
-                                  </div>
-                                </div>
-                              )}
+                                )
+                              })()}
 
                               {/* Items */}
                               <div className="order-child-items">
@@ -959,10 +1256,9 @@ function OrdersTab({ user, lang }: any) {
                                   <div className="order-item-left">
                                     <span className="order-item-name">{lang === 'el' ? item.nameEl : item.nameEn}</span>
                                     {item.variantDetail && (
-                                      <span className="order-item-variant-detail">{item.variantDetail}</span>
-                                    )}
-                                    {(item.descEl || item.descEn) && (
-                                      <span className="order-item-desc">{lang === 'el' ? item.descEl : item.descEn}</span>
+                                      <span className="order-item-variant-detail">
+                                        {lang === 'el' ? item.variantDetail : (item.variant || item.variantDetail)}
+                                      </span>
                                     )}
                                     {item.comment && (
                                       <span className="order-item-comment">"{item.comment}"</span>
@@ -991,6 +1287,9 @@ function OrdersTab({ user, lang }: any) {
             )
           })}
         </div>
+          )}
+          <Pagination page={clampedPage} pageCount={pageCount} onChange={setPage} />
+        </>
       )}
     </div>
   )

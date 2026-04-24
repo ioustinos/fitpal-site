@@ -150,10 +150,22 @@ export async function signUp(email: string, password: string, name?: string): Pr
   data: { userId: string } | null
   error: string | null
 }> {
+  // Override the Supabase project's Site URL per-call so confirmation emails
+  // from the new ordering platform land back on the *new* site's origin
+  // (localhost:8888 / dev--fitpal-order.netlify.app / fitpal-order.netlify.app)
+  // instead of the legacy admin.fitpal.gr (which is the default Site URL and
+  // needs to stay there for the legacy admin project). The origin passed here
+  // must be present in the project's Additional Redirect URLs allowlist.
+  const emailRedirectTo =
+    typeof window !== 'undefined' ? window.location.origin : undefined
+
   const { data, error } = await supabase.auth.signUp({
     email,
     password,
-    options: { data: { name } },
+    options: {
+      data: { name },
+      emailRedirectTo,
+    },
   })
   if (error) return { data: null, error: error.message }
   if (!data.user) return { data: null, error: 'Signup failed — no user returned' }
@@ -339,6 +351,11 @@ export async function deleteAddress(addrId: string): Promise<{ error: string | n
 
 // ─── Preferences mutations ──────────────────────────────────────────────────
 
+// NOTE (WEC-141): Language persistence now flows through savePrefs (user saves
+// the full prefs form from Account → Preferences). The old narrow saveLangPref
+// helper that fired on every header toggle was removed — the header toggle is
+// session-only to avoid surprise cross-device changes.
+
 export async function savePrefs(
   userId: string,
   prefs: UserPrefs,
@@ -452,9 +469,13 @@ export async function saveGoals(
 /**
  * Fetch the full user profile bundle — everything needed after login.
  * Runs all queries in parallel for speed.
+ *
+ * Does NOT include `id`, `wallet`, `orders`, `isAdmin`, `adminRole` — those
+ * are supplied by the caller (buildFullUser in useAuthStore) which knows the
+ * user id and fetches wallet / orders / admin status in parallel with this.
  */
 export async function fetchFullUser(userId: string): Promise<{
-  data: Omit<FitpalUser, 'wallet' | 'orders'> | null
+  data: Omit<FitpalUser, 'id' | 'wallet' | 'orders' | 'isAdmin' | 'adminRole'> | null
   error: string | null
 }> {
   const [profileRes, addressRes, goalsRes, prefsRes] = await Promise.all([

@@ -18,18 +18,35 @@ export interface DateCutoff {
   hour: number
 }
 
+export type PaymentMethodId = 'cash' | 'card' | 'link' | 'transfer' | 'wallet'
+
+export interface ContactInfo {
+  supportEmail?: string
+  supportPhone?: string
+  instagramUrl?: string
+  facebookUrl?: string
+}
+
 export interface AppSettings {
   minOrder: number                                        // euros
   cutoffHour: number                                      // default cutoff hour on previous day
   cutoffWeekdayOverrides: Record<number, WeekdayCutoff>   // key = ISO weekday of delivery
   cutoffDateOverrides: Record<string, DateCutoff>         // key = YYYY-MM-DD of delivery
+  /** Payment methods the customer checkout should offer. Empty = fall back to all. */
+  paymentMethodsEnabled: PaymentMethodId[]
+  /** Contact info shown to customers (footer, emails). */
+  contact: ContactInfo
 }
+
+const ALL_METHODS: PaymentMethodId[] = ['cash', 'card', 'link', 'transfer', 'wallet']
 
 const DEFAULTS: AppSettings = {
   minOrder: 15,
   cutoffHour: 18,
   cutoffWeekdayOverrides: {},
   cutoffDateOverrides: {},
+  paymentMethodsEnabled: ALL_METHODS,
+  contact: {},
 }
 
 // ─── Query ──────────────────────────────────────────────────────────────────
@@ -65,12 +82,31 @@ export async function fetchSettings(): Promise<{ data: AppSettings; error: strin
     }
   }
 
+  // payment_methods_enabled — array of strings; validate each against the known set
+  const rawPayment = map.payment_methods_enabled
+  const paymentMethodsEnabled: PaymentMethodId[] = Array.isArray(rawPayment)
+    ? (rawPayment as unknown[]).filter((v): v is PaymentMethodId =>
+        typeof v === 'string' && (ALL_METHODS as string[]).includes(v),
+      )
+    : ALL_METHODS
+  const paymentMethodsFinal = paymentMethodsEnabled.length > 0 ? paymentMethodsEnabled : ALL_METHODS
+
+  // contact — object with known string fields
+  const rawContact = (map.contact as Record<string, unknown> | undefined) ?? {}
+  const contact: ContactInfo = {}
+  if (typeof rawContact.supportEmail === 'string') contact.supportEmail = rawContact.supportEmail
+  if (typeof rawContact.supportPhone === 'string') contact.supportPhone = rawContact.supportPhone
+  if (typeof rawContact.instagramUrl === 'string') contact.instagramUrl = rawContact.instagramUrl
+  if (typeof rawContact.facebookUrl === 'string') contact.facebookUrl = rawContact.facebookUrl
+
   return {
     data: {
       minOrder: typeof map.min_order === 'number' ? map.min_order / 100 : DEFAULTS.minOrder,
       cutoffHour: typeof map.cutoff_hour === 'number' ? map.cutoff_hour : DEFAULTS.cutoffHour,
       cutoffWeekdayOverrides,
       cutoffDateOverrides,
+      paymentMethodsEnabled: paymentMethodsFinal,
+      contact,
     },
     error: null,
   }

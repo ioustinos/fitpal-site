@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { useUIStore } from '../../store/useUIStore'
 import { useMenuStore } from '../../store/useMenuStore'
 import { getCutoffDate } from '../../lib/helpers'
+import { dayLabelFromJsDow } from '../../lib/datelabels'
 
 export function CutoffBar() {
   const lang = useUIStore((s) => s.lang)
@@ -44,9 +45,7 @@ export function CutoffBar() {
 
   // Format cutoff label — include day name so user knows *which* day at 18:00
   const cutoffHour = cutoff.getHours()
-  const dayNamesEl = ['Κυρ', 'Δευ', 'Τρί', 'Τετ', 'Πέμ', 'Παρ', 'Σάβ']
-  const dayNamesEn = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
-  const cutoffDayName = (lang === 'el' ? dayNamesEl : dayNamesEn)[cutoff.getDay()]
+  const cutoffDayName = dayLabelFromJsDow(cutoff.getDay(), lang, 'short')
   const cutoffLabel = lang === 'el'
     ? `Παραγγελία έως ${cutoffDayName} ${cutoffHour}:00`
     : `Order by ${cutoffDayName} ${cutoffHour}:00`

@@ -8,6 +8,7 @@ import {
 } from '../lib/api/auth'
 import { fetchWallet } from '../lib/api/wallet'
 import { fetchUserOrders, type OrderHistoryItem } from '../lib/api/orders'
+import { fetchAdminStatus, type AdminRole } from '../lib/api/admin'
 
 // ─── Domain types ─────────────────────────────────────────────────────────────
 
@@ -85,6 +86,10 @@ export interface FitpalUser {
   goals: UserGoals
   wallet: UserWallet
   orders?: OrderHistoryItem[]
+  /** True if the user has a row in public.admin_users (WEC-110). */
+  isAdmin: boolean
+  /** The admin role when isAdmin is true, otherwise null. */
+  adminRole: AdminRole | null
 }
 
 // ─── Store interface ───────────────────────────────────────────────────────────
@@ -115,11 +120,12 @@ interface AuthStore {
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
 async function buildFullUser(userId: string, email: string): Promise<FitpalUser | null> {
-  // Fetch profile + wallet + orders in parallel
-  const [userRes, walletRes, ordersRes] = await Promise.all([
+  // Fetch profile + wallet + orders + admin status in parallel
+  const [userRes, walletRes, ordersRes, adminRes] = await Promise.all([
     fetchFullUser(userId),
     fetchWallet(userId),
     fetchUserOrders(userId),
+    fetchAdminStatus(userId),
   ])
 
   if (!userRes.data) return null
@@ -135,6 +141,8 @@ async function buildFullUser(userId: string, email: string): Promise<FitpalUser 
     goals: userRes.data.goals,
     wallet: walletRes.data ?? { active: false, balance: 0 },
     orders: ordersRes.data ?? [],
+    isAdmin: adminRes.data.isAdmin,
+    adminRole: adminRes.data.role,
   }
 }
 

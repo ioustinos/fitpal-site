@@ -49,33 +49,41 @@ export const activeDays = (cart: Record<number, CartItem[]>): number[] =>
 import type { DeliveryZone, TimeSlot } from './api/zones'
 
 /**
- * Check if an area name matches any active delivery zone.
- * Pass `zones` from `useMenuStore.zones`.
+ * Postcode-only zone resolution — zone `name_el` / `name_en` are admin
+ * organizational labels and never validated against the customer's free-text
+ * "area" field. Use this everywhere zone membership matters (checkout
+ * validation, time-slot filtering, server-side submit validation).
  */
-export const zoneOk = (area: string, zones: DeliveryZone[]): boolean => {
-  const lower = area.toLowerCase()
-  if (lower.length < 2) return false
-  return zones.some(
-    (z) => lower.includes(z.nameEl.toLowerCase()) || lower.includes(z.nameEn.toLowerCase()),
-  )
-}
-
-/**
- * Check if a postcode matches any active zone.
- * Pass `zones` from `useMenuStore.zones`.
- */
-export const zoneByPostcode = (postcode: string, zones: DeliveryZone[]): DeliveryZone | undefined => {
-  const clean = postcode.trim().replace(/\s/g, '')
+export const resolveZone = (
+  zip: string | undefined,
+  zones: DeliveryZone[],
+): DeliveryZone | undefined => {
+  if (!zip) return undefined
+  const clean = zip.trim().replace(/\s/g, '')
+  if (!clean) return undefined
   return zones.find((z) => z.postcodes.includes(clean))
 }
+
+/** Kept as an alias for legacy callers. */
+export const zoneByPostcode = (postcode: string, zones: DeliveryZone[]): DeliveryZone | undefined =>
+  resolveZone(postcode, zones)
+
+/** Convenience boolean — postcode is in at least one active zone. */
+export const zipInZone = (zip: string | undefined, zones: DeliveryZone[]): boolean =>
+  !!resolveZone(zip, zones)
 
 // ─── Delivery validation ──────────────────────────────────────────────────────
 
 /** @deprecated — use settings.minOrder from useMenuStore instead */
 export const MIN_ORDER = 15
 
-export const delivOk = (area: string, amount: number, zones: DeliveryZone[], minOrder = MIN_ORDER): boolean =>
-  zoneOk(area, zones) && amount >= minOrder
+/** Postcode-based delivery availability + min-order check. */
+export const delivOk = (
+  zip: string | undefined,
+  amount: number,
+  zones: DeliveryZone[],
+  minOrder = MIN_ORDER,
+): boolean => zipInZone(zip, zones) && amount >= minOrder
 
 // ─── Time slots (loaded from Supabase via useMenuStore) ───────────────────────
 

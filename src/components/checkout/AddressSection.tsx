@@ -4,7 +4,7 @@ import { useAuthStore, type Address } from '../../store/useAuthStore'
 import { useUIStore } from '../../store/useUIStore'
 import { useMenuStore } from '../../store/useMenuStore'
 import { makeTr } from '../../lib/translations'
-import { zoneOk } from '../../lib/helpers'
+import { zipInZone } from '../../lib/helpers'
 import { useToast } from '../ui/Toast'
 
 interface AddressSectionProps {
@@ -98,18 +98,21 @@ export function AddressSection({ dayIndex }: AddressSectionProps) {
         doorbell: current.doorbell || '',
         notes: current.notes || '',
       })
-      if (current.area) {
-        setZoneStatus(zoneOk(current.area, zones) ? 'valid' : 'invalid')
+      if (current.zip) {
+        setZoneStatus(zipInZone(current.zip, zones) ? 'valid' : 'invalid')
+      } else {
+        setZoneStatus(null)
       }
     }
     prevStreetRef.current = current.street
   }, [current?.street, current?.area, current?.zip, current?.floor, current?.doorbell, current?.notes]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // When new-address form fields change AND are valid, auto-apply to delivery
+  // When new-address form fields change AND are valid, auto-apply to delivery.
+  // Zone validity is strictly postcode-based.
   const autoApplyForm = useCallback(() => {
     if (mode !== 'form') return
-    if (!form.street || !form.area) return
-    if (!zoneOk(form.area, zones)) return
+    if (!form.street || !form.area || !form.zip) return
+    if (!zipInZone(form.zip, zones)) return
 
     setDelivery(dayIndex, {
       street: form.street,
@@ -125,16 +128,17 @@ export function AddressSection({ dayIndex }: AddressSectionProps) {
     autoApplyForm()
   }, [autoApplyForm])
 
-  // Handle area input with inline validation
+  // Area is free text — no zone validation fires on it.
   const handleAreaChange = (value: string) => {
     setForm((f) => ({ ...f, area: value }))
-    if (value.trim() === '') {
-      setZoneStatus(null)
-    } else if (zoneOk(value, zones)) {
-      setZoneStatus('valid')
-    } else {
-      setZoneStatus('invalid')
-    }
+  }
+
+  // Zone match is postcode-only. Empty zip → no status yet; non-empty → valid or invalid.
+  const handleZipChange = (value: string) => {
+    setForm((f) => ({ ...f, zip: value }))
+    const clean = value.trim()
+    if (!clean) { setZoneStatus(null); return }
+    setZoneStatus(zipInZone(clean, zones) ? 'valid' : 'invalid')
   }
 
   // Select a saved address from picker
@@ -164,7 +168,7 @@ export function AddressSection({ dayIndex }: AddressSectionProps) {
     }
     setForm(snapshot)
     setEditOriginal(snapshot)
-    setZoneStatus(zoneOk(selectedAddr.area, zones) ? 'valid' : null)
+    setZoneStatus(selectedAddr.zip && zipInZone(selectedAddr.zip, zones) ? 'valid' : null)
     setMode('edit')
   }
 
@@ -276,7 +280,7 @@ export function AddressSection({ dayIndex }: AddressSectionProps) {
     form.doorbell !== editOriginal.doorbell ||
     form.notes !== editOriginal.notes
 
-  const formComplete = form.street && form.area && zoneStatus === 'valid'
+  const formComplete = form.street && form.area && form.zip && zoneStatus === 'valid'
 
   // ─── Selected mode: shows the current address with Edit / Change actions ─────
 
@@ -442,27 +446,27 @@ export function AddressSection({ dayIndex }: AddressSectionProps) {
         <div>
           <label className="form-label">{t('zipCode')}</label>
           <input
-            className="form-input"
-            value={form.zip}
-            onChange={(e) => setForm((f) => ({ ...f, zip: e.target.value }))}
-            placeholder="12345"
-          />
-        </div>
-        <div>
-          <label className="form-label">{t('area')}</label>
-          <input
             className={`form-input${zoneStatus === 'valid' ? ' zone-valid' : ''}${zoneStatus === 'invalid' ? ' zone-invalid' : ''}`}
-            value={form.area}
-            onChange={(e) => handleAreaChange(e.target.value)}
-            placeholder={lang === 'el' ? 'Περιοχή' : 'Area'}
+            value={form.zip}
+            onChange={(e) => handleZipChange(e.target.value)}
+            placeholder="12345"
           />
           {zoneStatus && (
             <div className={`zone-feedback ${zoneStatus === 'valid' ? 'zone-ok' : 'zone-err'}`}>
               {zoneStatus === 'valid'
                 ? lang === 'el' ? '✓ Διανομή διαθέσιμη στη ζώνη σου' : '✓ Delivery zone confirmed'
-                : lang === 'el' ? '✗ Εκτός ζώνης παράδοσης' : '✗ Outside delivery zone'}
+                : lang === 'el' ? '✗ Εκτός ζώνης παράδοσης για αυτό τον Τ.Κ.' : '✗ Outside delivery zone for this postcode'}
             </div>
           )}
+        </div>
+        <div>
+          <label className="form-label">{t('area')}</label>
+          <input
+            className="form-input"
+            value={form.area}
+            onChange={(e) => handleAreaChange(e.target.value)}
+            placeholder={lang === 'el' ? 'Περιοχή' : 'Area'}
+          />
         </div>
       </div>
 

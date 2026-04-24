@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { Modal } from '../ui/Modal'
 import { useUIStore } from '../../store/useUIStore'
 import { useAuthStore } from '../../store/useAuthStore'
@@ -9,6 +10,7 @@ export function AuthModal() {
   const openModal = useUIStore((s) => s.openModal)
   const closeModal = useUIStore((s) => s.closeModal)
   const { login, signup, authError, authTab, setAuthTab, setError } = useAuthStore()
+  const navigate = useNavigate()
   const t = makeTr(lang)
 
   const [email, setEmail] = useState('')
@@ -26,7 +28,13 @@ export function AuthModal() {
     setLoading(true)
     const ok = await login(email, password)
     setLoading(false)
-    if (ok) closeModal()
+    if (ok) {
+      closeModal()
+      // If the signed-in user is an admin, jump straight into the admin panel.
+      // Non-admins stay on whatever customer page they were on.
+      const user = useAuthStore.getState().user
+      if (user?.isAdmin) navigate('/admin')
+    }
   }
 
   async function handleSignup(e: React.FormEvent) {

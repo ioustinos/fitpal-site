@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { useUIStore } from '../../store/useUIStore'
 import { useAuthStore } from '../../store/useAuthStore'
 import { makeTr } from '../../lib/translations'
@@ -9,7 +10,19 @@ export function Header() {
   const openAuthModal = useUIStore((s) => s.openAuthModal)
   const openWalletModal = useUIStore((s) => s.openWalletModal)
   const goToAccount = useUIStore((s) => s.goToAccount)
+  const goToMenu = useUIStore((s) => s.goToMenu)
   const { user, logout } = useAuthStore()
+
+  // WEC-141: after sign out, always drop back to the menu. Sign-out can be
+  // triggered from any overlay page (checkout, wallet, account, subscription);
+  // without an explicit navigation the user would stay on an empty logged-out
+  // version of that page, which is confusing.
+  const handleSignOut = async () => {
+    setMenuOpen(false)
+    await logout()
+    goToMenu()
+  }
+  const navigate = useNavigate()
   const t = makeTr(lang)
 
   const [menuOpen, setMenuOpen] = useState(false)
@@ -35,6 +48,20 @@ export function Header() {
 
       {/* Right side */}
       <div className="lang-wrap">
+        {/* Admin link (only visible to admins) */}
+        {user?.isAdmin && (
+          <button
+            className="hdr-admin-link"
+            onClick={() => navigate('/admin')}
+            title="Admin panel"
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M12 2l8 4v6c0 5-3.5 9-8 10-4.5-1-8-5-8-10V6l8-4z"/>
+            </svg>
+            <span>Admin</span>
+          </button>
+        )}
+
         {/* Wallet badge (only when logged in) */}
         {user?.wallet?.active && (
           <button
@@ -140,7 +167,7 @@ export function Header() {
                   <div className="user-menu-divider" />
                   <button
                     className="user-menu-item danger"
-                    onClick={() => { setMenuOpen(false); logout() }}
+                    onClick={handleSignOut}
                   >
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                       <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/>

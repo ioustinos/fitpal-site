@@ -64,27 +64,28 @@ export async function fetchWallet(userId: string): Promise<{
   data: UserWallet | null
   error: string | null
 }> {
-  // 1. Wallet row
+  // 1. Wallet row — .maybeSingle() so "no wallet yet" isn't a 406 in the console
   const { data: walletRow, error: wErr } = await supabase
     .from('wallets')
     .select('*')
     .eq('user_id', userId)
-    .single()
+    .maybeSingle()
 
   if (wErr) {
-    // No wallet exists yet — return inactive wallet
-    if (wErr.code === 'PGRST116') {
-      return {
-        data: {
-          active: false,
-          balance: 0,
-          baseBalance: 0,
-          bonusBalance: 0,
-        },
-        error: null,
-      }
-    }
     return { data: null, error: wErr.message }
+  }
+
+  if (!walletRow) {
+    // No wallet exists yet — return inactive wallet
+    return {
+      data: {
+        active: false,
+        balance: 0,
+        baseBalance: 0,
+        bonusBalance: 0,
+      },
+      error: null,
+    }
   }
 
   const w = walletRow as DbWallet

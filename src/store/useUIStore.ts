@@ -35,6 +35,8 @@ interface UIStore {
   closeSubscription: () => void
   goToWalletPage: () => void
   closeWalletPage: () => void
+  /** Reset all overlay pages (checkout/account/wallet/sub) — lands on the menu. */
+  goToMenu: () => void
 }
 
 export const useUIStore = create<UIStore>((set) => ({
@@ -51,6 +53,10 @@ export const useUIStore = create<UIStore>((set) => ({
   isSubscriptionPage: false,
   isWalletPage: false,
 
+  // Session-only language toggle. Logged-in users manage a persistent default
+  // via Account → Preferences (see PrefsTab). That's the explicit control; the
+  // header toggle is just an in-session override — simpler mental model for
+  // users than "every time I toggle, we save everywhere".
   setLang: (lang) => set({ lang }),
   setActiveDay: (activeDay) => set({ activeDay, activeCat: null }),
   setActiveWeek: (activeWeek) => set({ activeWeek, activeDay: 0, activeCat: null }),
@@ -68,4 +74,14 @@ export const useUIStore = create<UIStore>((set) => ({
   closeSubscription: () => set({ isSubscriptionPage: false }),
   goToWalletPage: () => set({ isWalletPage: true, isCheckout: false, isAccountPage: false, isSubscriptionPage: false }),
   closeWalletPage: () => set({ isWalletPage: false }),
+  // Used by sign-out (WEC-141) — collapses every overlay page at once so the
+  // user always lands on the menu, regardless of where they were when they
+  // opened the profile dropdown.
+  goToMenu: () => set({
+    isCheckout: false,
+    isAccountPage: false,
+    isWalletPage: false,
+    isSubscriptionPage: false,
+    openModal: null,
+  }),
 }))

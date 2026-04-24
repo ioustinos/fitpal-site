@@ -2,12 +2,11 @@ import { useUIStore } from '../../store/useUIStore'
 import { useCartStore } from '../../store/useCartStore'
 import { useMenuStore } from '../../store/useMenuStore'
 import { dayAmt } from '../../lib/helpers'
+import { dayLabel } from '../../lib/datelabels'
 import { CartItemRow } from '../cart/CartItemRow'
+import { DayMacrosBlock } from './DayMacrosBlock'
 import type { WeekDay } from '../../data/menu'
 import type { DeliveryInfo } from '../../store/useCartStore'
-
-const DAY_LABELS_EL = ['Δευτέρα', 'Τρίτη', 'Τετάρτη', 'Πέμπτη', 'Παρασκευή']
-const DAY_LABELS_EN = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday']
 
 interface DayOrderGroupProps {
   dayIndex: number
@@ -34,7 +33,7 @@ export function DayOrderGroup({
 
   const amt = dayAmt(cart, dayIndex)
   const del: DeliveryInfo | undefined = delivery[dayIndex]
-  const label = lang === 'el' ? DAY_LABELS_EL[dayIndex] : DAY_LABELS_EN[dayIndex]
+  const label = dayLabel(day.date, lang, 'long')
   const dateStr = formatDate(day.date, lang)
   return (
     <div className="cart-day-block">
@@ -67,6 +66,11 @@ export function DayOrderGroup({
               <span className="summary-item-price">€{(item.price * item.qty).toFixed(2)}</span>
             </div>
           ))}
+
+      {/* WEC-141 / WEC-164 / WEC-165: per-day macro numbers (always) + goal
+          progress bars (gated on showGoalProgress — see src/lib/goals.ts).
+          Shared with checkout's OrderSummary. Cart view only here. */}
+      {editable && <DayMacrosBlock dayIndex={dayIndex} />}
 
       {/* Delivery info (order summary only) */}
       {showDelivery && del?.street && (

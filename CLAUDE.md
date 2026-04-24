@@ -149,7 +149,7 @@ Schema decisions tracked in Linear: WEC-82
 - `fmtTimeSlot(from, to)` helper derives display string from time fields
 - Voucher discounts tracked via `voucher_uses`, not on orders directly (supports double voucher stacking)
 
-## Database Status (Live — seeded 2026-04-16)
+## Database Status (Live — seeded 2026-04-16, admin layer added 2026-04-18)
 - All 27 tables created via 9 Supabase migrations (enums → user/prefs → menu/catalogue → orders → wallet/payments → vouchers → system → signup trigger → RLS policies)
 - RLS enabled on all tables; public read for menu/settings, user-own-data policies for the rest
 - Signup trigger: `handle_new_user()` auto-creates `profiles`, `user_goals`, `user_prefs` on `auth.users` INSERT
@@ -163,6 +163,51 @@ Schema decisions tracked in Linear: WEC-82
   - `payment_method`: cash, card, link, transfer, wallet
   - `payment_status`: pending, paid, failed, refunded
   - `order_status`: pending, confirmed, preparing, delivering, delivered, cancelled
+  - `admin_role`: owner, menu_order  *(WEC-110, new admin panel)*
+
+### Admin panel auth (WEC-110, applied 2026-04-18)
+- `public.admin_users` — `id`, `user_id` (→ auth.users), `role` (`admin_role`), `created_at`, `updated_at`. RLS: user can read own row; `owner` can read all; only `owner` can write.
+- **Distinct from** legacy `admin.admin_users` (GonnaOrder admin) — do not mix.
+- Helpers: `public.is_admin(uid uuid)` / `public.is_admin()` / `public.current_admin_role()` — all SECURITY DEFINER, grant to authenticated. Use these in other tables' RLS policies instead of inline subqueries.
+- Storage bucket `dish-images` (public read, admin-only write via the helpers).
+- **Owner seeding:** manual one-liner after `ioustinos.sarris@gmail.com` signs up on the site: `insert into public.admin_users (user_id, role) select id, 'owner' from auth.users where email='ioustinos.sarris@gmail.com';`
+
+### Admin panel V1 (WEC-109 + children, shipped 2026-04-18/19)
+- **Route tree:** `/admin/*` lazy-loaded from `src/admin/AdminApp.tsx`, wrapped in `<AdminGuard>`. Customer site unchanged.
+- **Sections:** Dashboard (`/admin`), Dishes (`/admin/dishes`), Menu builder (`/admin/menus`), Orders (`/admin/orders`), Settings (`/admin/settings`), Zones (`/admin/zones`).
+- **Auth integration:** `isAdmin` + `adminRole` now live on `useAuthStore.user`, populated by `buildFullUser` via `fetchAdminStatus()` (`src/lib/api/admin.ts`).
+- **Post-login redirect:** `AuthModal` navigates admins to `/admin` automatically; `Header` renders a small "Admin" pill for admins.
+- **API modules** under `src/lib/api/`: `admin.ts`, `adminDashboard.ts`, `adminDishes.ts`, `adminMenus.ts`, `adminOrders.ts`, `adminSettings.ts`, `adminZones.ts`.
+- **Admin writes use direct Supabase client + admin RLS** (not service-role Netlify Functions). See WEC-121 for the eventual migration path.
+
+### Admin RLS policies (WEC-113..119, applied 2026-04-18)
+- Migration `admin_rls_policies_and_zone_min_order` installs `admin_all_*` policies (FOR ALL) on: `dishes`, `dish_variants`, `categories`, `tags`, `dish_tags`, `weekly_menus`, `menu_day_dishes`, `delivery_zones`, `zone_time_slots`, `settings`, `allergies`, `orders`, `child_orders`, `order_items`, `wallets`, `wallet_transactions`, `wallet_plans`, `vouchers`, `voucher_uses`, `admin_change_log`.
+- Plus admin-read policies on `profiles` and `addresses` so the orders drawer can resolve customer info.
+
+### Schema additions for admin V1
+- **`weekly_menus.inactive_dates date[] default '{}'`** (migration `weekly_menu_inactive_dates`, WEC-114) — dates where kitchen is closed. Customer menu (`fetchActiveWeeksMeta`) filters these out.
+- **`delivery_zones.min_order_amount int null`** (migration `admin_rls_policies_and_zone_min_order`, WEC-119) — per-zone minimum-order override in cents; null = falls back to `settings.min_order`.
+
+### Settings keys (all jsonb, managed via `/admin/settings`)
+- `cutoff_hour` (int) — default cutoff hour on previous day.
+- `cutoff_weekday_overrides` ({deliveryDow: {dow, hour}}) — e.g. Mon → Sat 18:00.
+- `cutoff_date_overrides` ({deliveryDate: {cutoffDate, hour}}) — holiday overrides.
+- `min_order` (int, cents) — global minimum per day. Honoured on both customer and server (submit-order.ts reads it rather than hardcoded).
+- `time_slots` (string[]) — default delivery windows.
+- `payment_methods_enabled` (payment_method[]) — methods offered at checkout. `PaymentSection` filters its catalog by this list.
+- `contact` ({supportEmail, supportPhone, instagramUrl, facebookUrl}) — customer-facing contact.
+
+### Delivery zones — postcode-only (WEC-119 + stabilization 2026-04-20)
+Zone membership is determined **exclusively by postcode**. `delivery_zones.name_el` / `name_en` are admin-organizational labels, never matched against the customer's free-text "area" field.
+- `src/lib/helpers.ts` exports `resolveZone(zip, zones)` and `zipInZone(zip, zones)`. The previous `zoneOk(area, zones)` / `addressInZone(area, zip, zones)` area-fallback helpers are gone.
+- Customer checkout (`AddressSection`): area is plain text with no zone styling/feedback; zip input drives `zoneStatus` and renders the ✓/✗ feedback directly beneath it.
+- `TimeSlotPicker`: resolves zone from zip; slots outside that zone are rendered but disabled + visually greyed.
+- **Server-side mirror** (`netlify/functions/submit-order.ts`): same postcode-only match, explicit error messages when zip is missing / unknown.
+- **Validation errors surfacing**: submit-order returns `{ error, validationErrors: { day_N: [...] } }`. CheckoutPage flattens `validationErrors` into the existing red `.checkout-validation` block, prefixed with the day label. No more vague "Order validation failed" toasts.
+
+### First end-to-end order — 2026-04-20
+Real order placed by Ioustinos via the customer flow, visible in `/admin/orders`. Status-change + confirmation-screen UX audit tracked as WEC-123 (post-V1 polish).
+
 - Next step: replace mock data in `useAuthStore` + `menu.ts` with real Supabase queries
 
 ## Show Before Execute

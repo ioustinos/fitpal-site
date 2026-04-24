@@ -1,41 +1,62 @@
+import { useEffect, useState } from 'react'
 import { useUIStore } from '../../store/useUIStore'
 import { useCartStore } from '../../store/useCartStore'
 import { activeDays, dayAmt, fmt, subTotal } from '../../lib/helpers'
 import { useMenuStore } from '../../store/useMenuStore'
-
-const dayLabelsEl = ['Δευτέρα', 'Τρίτη', 'Τετάρτη', 'Πέμπτη', 'Παρασκευή']
-const dayLabelsEn = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday']
+import { dayLabel } from '../../lib/datelabels'
 
 function formatDate(iso: string, lang: 'el' | 'en') {
   const d = new Date(iso + 'T12:00:00')
   return d.toLocaleDateString(lang === 'el' ? 'el-GR' : 'en-GB', { day: 'numeric', month: 'short' })
 }
 
+/**
+ * Post-submit screen (WEC-135).
+ *
+ * UX contract:
+ *  - Hero the order number — it's the single piece of info the user might
+ *    need to quote back to support, so it's the visual focal point under
+ *    the tick.
+ *  - Email copy is soft — we say "will try to email" rather than promising
+ *    delivery, because email send is best-effort today.
+ *  - No PDF button — the old placeholder just logged to console. Removed
+ *    until a real PDF pipeline lands.
+ *  - Cart is cleared on mount so hitting Back to menu (or closing the tab)
+ *    doesn't leave stale items lingering in the sidebar. We snapshot
+ *    everything we need into local state FIRST, then clear, so the
+ *    summary still renders after cart is reset.
+ */
 export function ConfirmationScreen({ orderNumber }: { orderNumber?: string }) {
   const lang = useUIStore((s) => s.lang)
   const closeCheckout = useUIStore((s) => s.closeCheckout)
   const activeWeek = useUIStore((s) => s.activeWeek)
-
-  const cart = useCartStore((s) => s.cart)
-  const delivery = useCartStore((s) => s.delivery)
-  const payment = useCartStore((s) => s.payment)
-  const voucher = useCartStore((s) => s.voucher)
+  const weeks = useMenuStore((s) => s.weeks)
   const clearAll = useCartStore((s) => s.clearAll)
 
-  function handleDone() {
+  // Snapshot everything we need for the summary ONCE, on mount. After
+  // snapshotting we clear the cart so the sidebar doesn't show stale items.
+  const [snapshot] = useState(() => {
+    const { cart, delivery, payment, voucher } = useCartStore.getState()
+    const weekData = weeks[activeWeek] ?? weeks[0]
+    return {
+      cart,
+      delivery,
+      payment,
+      voucher,
+      weekData,
+      total: subTotal(cart, voucher),
+      activeDayIdxs: activeDays(cart),
+    }
+  })
+
+  useEffect(() => {
     clearAll()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  function handleDone() {
     closeCheckout()
   }
-
-  function handleDownloadPDF() {
-    // Placeholder for PDF download functionality
-    console.log('PDF download not yet implemented')
-  }
-
-  const activeDayIdxs = activeDays(cart)
-  const weeks = useMenuStore((s) => s.weeks)
-  const weekData = weeks[activeWeek] ?? weeks[0]
-  const total = subTotal(cart, voucher)
 
   return (
     <div className="confirmation-screen">
@@ -51,33 +72,36 @@ export function ConfirmationScreen({ orderNumber }: { orderNumber?: string }) {
       </h2>
 
       {orderNumber && (
-        <div className="conf-order-number" style={{ fontSize: 15, fontWeight: 800, color: 'var(--brand)', marginBottom: 8 }}>
-          {lang === 'el' ? 'Αριθμός παραγγελίας' : 'Order number'}: {orderNumber}
+        <div className="conf-order-hero">
+          <div className="conf-order-hero-label">
+            {lang === 'el' ? 'Αριθμός παραγγελίας' : 'Order number'}
+          </div>
+          <div className="conf-order-hero-number">{orderNumber}</div>
         </div>
       )}
 
       <p className="conf-sub">
         {lang === 'el'
-          ? 'Θα λάβεις email επιβεβαίωσης σύντομα.'
-          : "You'll receive a confirmation email shortly."}
+          ? 'Θα προσπαθήσουμε να σου στείλουμε email επιβεβαίωσης. Αν δεν το λάβεις, μη σε ανησυχήσει — η παραγγελία έχει καταχωρηθεί κανονικά.'
+          : "We'll try to email you a confirmation. If it doesn't arrive, don't worry — your order is already recorded."}
       </p>
 
       <div className="conf-summary">
-        {activeDayIdxs.map((dayIdx) => {
-          const dayLabel = lang === 'el' ? dayLabelsEl[dayIdx] : dayLabelsEn[dayIdx]
-          const dateISO = weekData?.days[dayIdx]?.date ?? ''
+        {snapshot.activeDayIdxs.map((dayIdx) => {
+          const dateISO = snapshot.weekData?.days[dayIdx]?.date ?? ''
+          const dayName = dateISO ? dayLabel(dateISO, lang, 'long') : ''
           const formattedDate = formatDate(dateISO, lang)
-          const delivInfo = delivery[dayIdx]
+          const delivInfo = snapshot.delivery[dayIdx]
           const timeSlot = delivInfo?.timeSlot || ''
           const street = delivInfo?.street || ''
           const area = delivInfo?.area || ''
-          const items = cart[dayIdx] || []
-          const dayTotal = dayAmt(cart, dayIdx)
+          const items = snapshot.cart[dayIdx] || []
+          const dayTotal = dayAmt(snapshot.cart, dayIdx)
 
           return (
             <div className="conf-day" key={dayIdx}>
               <div className="conf-day-name">
-                {dayLabel} {formattedDate}
+                {dayName} {formattedDate}
               </div>
 
               <div className="conf-day-meta">
@@ -115,24 +139,21 @@ export function ConfirmationScreen({ orderNumber }: { orderNumber?: string }) {
           )
         })}
 
-        {payment.notes && (
+        {snapshot.payment.notes && (
           <div className="conf-comment">
-            "{payment.notes}"
+            "{snapshot.payment.notes}"
           </div>
         )}
 
         <div className="conf-total">
           <span>{lang === 'el' ? 'Σύνολο' : 'Total'}</span>
-          <span>{fmt(total)}</span>
+          <span>{fmt(snapshot.total)}</span>
         </div>
       </div>
 
       <div className="conf-actions">
         <button className="btn-conf-done" onClick={handleDone}>
           {lang === 'el' ? 'Επιστροφή στο μενού' : 'Back to menu'}
-        </button>
-        <button className="btn-conf-pdf" onClick={handleDownloadPDF}>
-          📄 {lang === 'el' ? 'Κάνε download PDF' : 'Download PDF'}
         </button>
       </div>
     </div>

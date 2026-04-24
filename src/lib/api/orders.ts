@@ -69,6 +69,10 @@ export interface OrderHistoryItem {
 }
 
 export interface ChildOrderView {
+  /** Raw YYYY-MM-DD delivery date. Needed by the goals-history tab
+   *  (WEC-168) to bucket intake per day and classify future deliveries
+   *  as forecast. */
+  deliveryDate: string
   dayLabel: string
   dayLabelEn: string
   address: string
@@ -227,6 +231,7 @@ export async function fetchUserOrders(userId: string): Promise<{
       )
 
       return {
+        deliveryDate: ch.delivery_date,
         dayLabel: fmtDayLabel(ch.delivery_date, 'el'),
         dayLabelEn: fmtDayLabel(ch.delivery_date, 'en'),
         address: fmtAddress(ch),
@@ -296,7 +301,14 @@ export interface SubmitItemPayload {
  * The actual insertion + validation happens server-side.
  */
 export async function submitOrder(payload: SubmitOrderPayload): Promise<{
-  data: { orderNumber: string; orderId: string } | null
+  data: {
+    orderNumber: string
+    orderId: string
+    /** Viva-hosted checkout URL for card/link methods. Null for cash/transfer/wallet. */
+    paymentUrl?: string | null
+    /** True if we created the order row but the Viva call failed. Admin must regenerate. */
+    paymentSetupFailed?: boolean
+  } | null
   error: string | null
   validationErrors?: Record<string, string[]>
 }> {
@@ -324,7 +336,15 @@ export async function submitOrder(payload: SubmitOrderPayload): Promise<{
       }
     }
 
-    return { data: { orderNumber: json.orderNumber, orderId: json.orderId }, error: null }
+    return {
+      data: {
+        orderNumber: json.orderNumber,
+        orderId: json.orderId,
+        paymentUrl: json.paymentUrl ?? null,
+        paymentSetupFailed: json.paymentSetupFailed ?? false,
+      },
+      error: null,
+    }
   } catch (err) {
     return { data: null, error: err instanceof Error ? err.message : 'Network error' }
   }

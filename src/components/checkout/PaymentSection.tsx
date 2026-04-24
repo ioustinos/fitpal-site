@@ -1,6 +1,7 @@
 import { useCartStore } from '../../store/useCartStore'
 import { useUIStore } from '../../store/useUIStore'
 import { useAuthStore } from '../../store/useAuthStore'
+import { useMenuStore } from '../../store/useMenuStore'
 import { subTotal } from '../../lib/helpers'
 
 const PAYMENT_METHODS = [
@@ -18,16 +19,20 @@ export function PaymentSection() {
   const cart = useCartStore((s) => s.cart)
   const voucher = useCartStore((s) => s.voucher)
   const user = useAuthStore((s) => s.user)
+  const enabledMethods = useMenuStore((s) => s.settings.paymentMethodsEnabled)
   const walletBalance = user?.wallet?.balance ?? 0
   const walletActive = user?.wallet?.active
 
   const total = subTotal(cart, voucher)
   const walletSufficient = walletBalance >= total
 
+  // Filter hardcoded catalog by the admin-configured list
+  const visibleMethods = PAYMENT_METHODS.filter((m) => enabledMethods.includes(m.id))
+
   return (
     <div className="payment-section">
       <div className="payment-methods">
-        {PAYMENT_METHODS.map((m) => (
+        {visibleMethods.map((m) => (
           <button
             key={m.id}
             className={`payment-opt${payment.method === m.id ? ' active' : ''}${m.id === 'wallet' && walletActive && !walletSufficient ? ' insufficient' : ''}`}

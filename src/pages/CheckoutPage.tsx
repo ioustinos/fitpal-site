@@ -8,11 +8,42 @@ import { PaymentSection } from '../components/checkout/PaymentSection'
 import { ExtrasSection } from '../components/checkout/ExtrasSection'
 import { OrderSummary } from '../components/checkout/OrderSummary'
 import { ConfirmationScreen } from '../components/checkout/ConfirmationScreen'
+import { ContactSection, type ContactInfo } from '../components/checkout/ContactSection'
 import { makeTr } from '../lib/translations'
-import { activeDays, dayAmt, fmt, subTotal, zoneOk } from '../lib/helpers'
+import { activeDays, dayAmt, fmt, subTotal, zipInZone } from '../lib/helpers'
+import { dayLabel } from '../lib/datelabels'
+import { isValidPhone } from '../lib/phone'
+import { updateProfile } from '../lib/api/auth'
 import { useMenuStore } from '../store/useMenuStore'
 import { useToast } from '../components/ui/Toast'
 import { submitOrder } from '../lib/api/orders'
+
+const GUEST_CONTACT_KEY = 'fitpal_guest_contact'
+
+function readGuestContact(): ContactInfo {
+  if (typeof window === 'undefined') return { name: '', email: '', phone: '' }
+  try {
+    const raw = window.localStorage.getItem(GUEST_CONTACT_KEY)
+    if (!raw) return { name: '', email: '', phone: '' }
+    const parsed = JSON.parse(raw) as Partial<ContactInfo>
+    return {
+      name: parsed.name ?? '',
+      email: parsed.email ?? '',
+      phone: parsed.phone ?? '',
+    }
+  } catch {
+    return { name: '', email: '', phone: '' }
+  }
+}
+
+function writeGuestContact(info: ContactInfo) {
+  if (typeof window === 'undefined') return
+  try {
+    window.localStorage.setItem(GUEST_CONTACT_KEY, JSON.stringify(info))
+  } catch {
+    // Private mode / quota — non-critical
+  }
+}
 
 export function CheckoutPage() {
   const lang = useUIStore((s) => s.lang)
@@ -31,6 +62,17 @@ export function CheckoutPage() {
   const [confirmed, setConfirmed] = useState(false)
   const [orderNumber, setOrderNumber] = useState('')
   const [submitting, setSubmitting] = useState(false)
+  // Errors returned from the server-side submit (validationErrors object),
+  // flattened into strings and rendered in the red validation block below
+  // the Place Order button — same treatment as client-side issues.
+  const [serverIssues, setServerIssues] = useState<string[]>([])
+  // Contact info (WEC-130). Initialized from user profile (if logged in) or
+  // localStorage (guest prefill), filled in via the useEffect below.
+  const [contact, setContact] = useState<ContactInfo>({ name: '', email: '', phone: '' })
+  // Toggles red borders on the contact inputs only *after* the user attempts
+  // to submit — feels less aggressive than validating while they're typing.
+  const [contactAttempted, setContactAttempted] = useState(false)
+  const contactRef = useRef<HTMLDivElement>(null)
   const deliveryRef = useRef<HTMLDivElement>(null)
   const paymentRef = useRef<HTMLDivElement>(null)
   const extrasRef = useRef<HTMLDivElement>(null)
@@ -40,8 +82,11 @@ export function CheckoutPage() {
   const minOrder = useMenuStore((s) => s.settings.minOrder)
   const week = weeks[activeWeek] ?? weeks[0]
   const days = week?.days ?? []
-  const dayLabelsEl = ['Δευτέρα', 'Τρίτη', 'Τετάρτη', 'Πέμπτη', 'Παρασκευή']
-  const dayLabelsEn = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday']
+  // Resolve the long weekday label for day-index `i` via the real ISO date
+  // (WEC-137). Falls back to empty when a day is missing — should only happen
+  // mid-hydration before the menu finishes loading.
+  const dayLabelFor = (i: number) =>
+    days[i] ? dayLabel(days[i].date, lang, 'long') : ''
   const activeDayIdxs = useMemo(() => activeDays(cart), [cart])
 
   const total = subTotal(cart, voucher)
@@ -50,9 +95,34 @@ export function CheckoutPage() {
 
   const validationIssues: string[] = []
 
+  // Contact info (WEC-130) — server requires name + email, we also require a
+  // valid phone up-front so cash-on-delivery / support callbacks work.
+  const contactName = contact.name.trim()
+  const contactEmail = contact.email.trim()
+  const emailRe = /^.+@.+\..+$/
+  const contactNameOk = contactName.length > 0
+  const contactEmailOk = contactEmail.length > 0 && emailRe.test(contactEmail)
+  const contactPhoneOk = isValidPhone(contact.phone)
+
+  if (!contactNameOk) {
+    validationIssues.push(
+      lang === 'el' ? 'Λείπει το ονοματεπώνυμο' : 'Name is required'
+    )
+  }
+  if (!contactEmailOk) {
+    validationIssues.push(
+      lang === 'el' ? 'Λείπει ή είναι λάθος το email' : 'Email is missing or invalid'
+    )
+  }
+  if (!contactPhoneOk) {
+    validationIssues.push(
+      lang === 'el' ? 'Λείπει ή είναι λάθος ο αριθμός τηλεφώνου' : 'Phone is missing or invalid'
+    )
+  }
+
   activeDayIdxs.forEach((i) => {
     const del = delivery[i]
-    const label = lang === 'el' ? dayLabelsEl[i] : dayLabelsEn[i]
+    const label = dayLabelFor(i)
     const amt = dayAmt(cart, i)
 
     if (!del?.street || !del?.area) {
@@ -61,11 +131,17 @@ export function CheckoutPage() {
           ? `${label}: Δεν έχει επιλεγεί διεύθυνση`
           : `${label}: No address selected`
       )
-    } else if (!zoneOk(del.area, zones)) {
+    } else if (!del.zip?.trim()) {
       validationIssues.push(
         lang === 'el'
-          ? `${label}: Η περιοχή "${del.area}" είναι εκτός ζώνης`
-          : `${label}: Area "${del.area}" is outside delivery zone`
+          ? `${label}: Ο ταχυδρομικός κώδικας είναι απαραίτητος για τον έλεγχο ζώνης παράδοσης`
+          : `${label}: Postcode is required to determine delivery zone`
+      )
+    } else if (!zipInZone(del.zip, zones)) {
+      validationIssues.push(
+        lang === 'el'
+          ? `${label}: Ο Τ.Κ. ${del.zip} δεν ανήκει σε καμία ενεργή ζώνη παράδοσης`
+          : `${label}: Postcode ${del.zip} is not in any active delivery zone`
       )
     }
 
@@ -94,17 +170,42 @@ export function CheckoutPage() {
     )
   }
 
+  // Invoice validation (WEC-138). Keep in sync with ExtrasSection's check.
+  const invoiceVatDigits = (payment.invoiceVat ?? '').replace(/\D/g, '')
+  const invoiceOk = !payment.invoice
+    || (!!payment.invoiceName?.trim() && invoiceVatDigits.length >= 5)
+  if (payment.invoice && !payment.invoiceName?.trim()) {
+    validationIssues.push(
+      lang === 'el'
+        ? 'Τιμολόγιο: λείπει η επωνυμία ή το όνομα'
+        : 'Invoice: company or name is missing'
+    )
+  }
+  if (payment.invoice && invoiceVatDigits.length === 0) {
+    validationIssues.push(
+      lang === 'el' ? 'Τιμολόγιο: λείπει το ΑΦΜ' : 'Invoice: VAT number is missing'
+    )
+  } else if (payment.invoice && invoiceVatDigits.length > 0 && invoiceVatDigits.length < 5) {
+    validationIssues.push(
+      lang === 'el'
+        ? 'Τιμολόγιο: το ΑΦΜ πρέπει να έχει τουλάχιστον 5 ψηφία'
+        : 'Invoice: VAT must be at least 5 digits'
+    )
+  }
+
   const deliveryOk = activeDayIdxs.every((i) => {
     const del = delivery[i]
     const amt = dayAmt(cart, i)
-    return del?.street && del?.area && del?.timeSlot && zoneOk(del.area, zones) && amt >= minOrder
+    return del?.street && del?.area && del?.zip && del?.timeSlot && zipInZone(del.zip, zones) && amt >= minOrder
   })
 
   const paymentOk = !!payment.method
 
-  const extrasOk = deliveryOk && paymentOk
+  const contactOk = contactNameOk && contactEmailOk && contactPhoneOk
 
-  const allOk = deliveryOk && paymentOk
+  const extrasOk = deliveryOk && paymentOk && invoiceOk
+
+  const allOk = contactOk && deliveryOk && paymentOk && invoiceOk
 
   // ─── Prepopulate from user preferences on mount ──────────────────────────────
 
@@ -112,6 +213,35 @@ export function CheckoutPage() {
   useEffect(() => {
     window.scrollTo(0, 0)
   }, [])
+
+  // Contact prefill (WEC-130):
+  //  - Logged-in: pull from user profile (name / email / phone).
+  //  - Guest: pull from localStorage if we saved contact info from a previous
+  //    order. If the user logs in mid-checkout, we overwrite guest values
+  //    with their profile values (profile wins — it's the source of truth).
+  // We only prefill fields that the user hasn't typed into yet, so an
+  // in-progress edit isn't clobbered by an auth refresh.
+  const contactPrefilledForUser = useRef<string | 'guest' | null>(null)
+  useEffect(() => {
+    const key = user?.id ?? 'guest'
+    if (contactPrefilledForUser.current === key) return
+    contactPrefilledForUser.current = key
+
+    if (user) {
+      setContact((prev) => ({
+        name: prev.name || user.name || '',
+        email: prev.email || user.email || '',
+        phone: prev.phone || user.phone || '',
+      }))
+    } else {
+      const guest = readGuestContact()
+      setContact((prev) => ({
+        name: prev.name || guest.name,
+        email: prev.email || guest.email,
+        phone: prev.phone || guest.phone,
+      }))
+    }
+  }, [user])
 
   const prepopulatedFor = useRef<string | null>(null)
   useEffect(() => {
@@ -166,6 +296,12 @@ export function CheckoutPage() {
   }
 
   async function handlePlaceOrder() {
+    if (!contactOk) {
+      setContactAttempted(true)
+      toast(lang === 'el' ? 'Συμπλήρωσε τα στοιχεία επικοινωνίας' : 'Please complete contact info')
+      scrollToSection(contactRef)
+      return
+    }
     if (!deliveryOk) {
       toast(lang === 'el' ? 'Παρακαλώ συμπλήρωσε τα στοιχεία παράδοσης' : 'Please complete delivery details')
       scrollToSection(deliveryRef)
@@ -208,11 +344,11 @@ export function CheckoutPage() {
       }
     })
 
-    const { data, error } = await submitOrder({
+    const { data, error, validationErrors } = await submitOrder({
       userId: user?.id,
-      customerName: user?.name ?? '',
-      customerEmail: user?.email ?? '',
-      customerPhone: user?.phone,
+      customerName: contactName,
+      customerEmail: contactEmail,
+      customerPhone: contact.phone,  // E.164 from <PhoneInput>
       paymentMethod: payment.method as 'cash' | 'card' | 'link' | 'transfer' | 'wallet',
       cutlery: payment.cutlery ?? false,
       invoiceType: payment.invoice ? 'receipt' : undefined,
@@ -226,11 +362,77 @@ export function CheckoutPage() {
     setSubmitting(false)
 
     if (error) {
-      toast(error)
+      // Flatten server-side validationErrors into the red block. Keep a
+      // matching toast so the user notices scrolling back to the list.
+      if (validationErrors) {
+        const flat: string[] = []
+        for (const [key, msgs] of Object.entries(validationErrors)) {
+          // Prefix day-scoped errors with the day label for clarity
+          const m = /^day_(\d+)$/.exec(key)
+          const prefix = m ? `${dayLabelFor(+m[1])}: ` : ''
+          for (const msg of msgs) flat.push(prefix + msg)
+        }
+        setServerIssues(flat)
+        toast(lang === 'el' ? 'Η παραγγελία απορρίφθηκε — δες τα σφάλματα' : 'Order rejected — see errors below')
+      } else {
+        setServerIssues([error])
+        toast(error)
+      }
       return
     }
 
+    setServerIssues([])
+
+    // Persist contact info for future orders.
+    //  - Guest: write to localStorage so next order prefills.
+    //  - Logged-in with empty profile.phone: backfill profile.phone from this
+    //    order's phone (one-shot, quiet). We don't overwrite an existing
+    //    profile phone — that's a profile-page concern.
+    if (!user) {
+      writeGuestContact({
+        name: contactName,
+        email: contactEmail,
+        phone: contact.phone,
+      })
+    } else if (!user.phone && contact.phone) {
+      // Fire-and-forget — don't block the confirmation screen on it.
+      updateProfile(user.id, { phone: contact.phone }).then(({ error: profErr }) => {
+        if (profErr) {
+          // eslint-disable-next-line no-console
+          console.warn('[checkout] profile phone backfill failed:', profErr)
+          return
+        }
+        // Keep the in-memory user in sync so the profile page reflects it
+        // immediately without a refresh.
+        const current = useAuthStore.getState().user
+        if (current) {
+          useAuthStore.getState().setUser({ ...current, phone: contact.phone })
+        }
+      })
+    }
+
     setOrderNumber(data?.orderNumber ?? '')
+
+    // ─── Viva redirect (WEC-171) ────────────────────────────────────────
+    // For card/link methods, submit-order returns a Viva-hosted checkout
+    // URL. Redirect before showing our confirmation screen — the customer
+    // comes back via /order/:orderId/success once they've paid (WEC-172).
+    //
+    // If paymentSetupFailed, the order row exists but we couldn't reach
+    // Viva. Show confirmation with a soft warning; admin can regenerate
+    // the payment link later (WEC-176).
+    if (data?.paymentUrl) {
+      window.location.replace(data.paymentUrl)
+      return
+    }
+    if (data?.paymentSetupFailed) {
+      toast(
+        lang === 'el'
+          ? 'Η παραγγελία καταχωρήθηκε αλλά η πληρωμή δεν διαμορφώθηκε — θα επικοινωνήσουμε μαζί σου.'
+          : "Order saved, but we couldn't set up payment — we'll reach out shortly.",
+      )
+    }
+
     setConfirmed(true)
   }
 
@@ -238,20 +440,26 @@ export function CheckoutPage() {
 
   const sections = [
     {
+      id: 'sec-contact',
+      label: lang === 'el' ? '1.Επικοινωνία' : '1.Contact',
+      ok: contactOk,
+      ref: contactRef,
+    },
+    {
       id: 'sec-delivery',
-      label: lang === 'el' ? '1.Παράδοση' : '1.Delivery',
+      label: lang === 'el' ? '2.Παράδοση' : '2.Delivery',
       ok: deliveryOk,
       ref: deliveryRef,
     },
     {
       id: 'sec-payment',
-      label: lang === 'el' ? '2.Πληρωμή' : '2.Payment',
+      label: lang === 'el' ? '3.Πληρωμή' : '3.Payment',
       ok: paymentOk,
       ref: paymentRef,
     },
     {
       id: 'sec-extras',
-      label: lang === 'el' ? '3.Επιπλέον Επιλογές' : '3.Extras',
+      label: lang === 'el' ? '4.Επιπλέον Επιλογές' : '4.Extras',
       ok: extrasOk,
       ref: extrasRef,
     },
@@ -283,14 +491,26 @@ export function CheckoutPage() {
 
       <div className="checkout-layout">
         <div className="checkout-main">
-          {/* SECTION 1: Delivery */}
+          {/* SECTION 1: Contact info (WEC-130) */}
+          <div className="co-section" ref={contactRef} id="sec-contact">
+            <h2 className="co-section-title">
+              {lang === 'el' ? 'ΣΤΟΙΧΕΙΑ ΕΠΙΚΟΙΝΩΝΙΑΣ' : 'CONTACT INFO'}
+            </h2>
+            <ContactSection
+              value={contact}
+              onChange={(patch) => setContact((prev) => ({ ...prev, ...patch }))}
+              showErrors={contactAttempted}
+            />
+          </div>
+
+          {/* SECTION 2: Delivery */}
           <div className="co-section" ref={deliveryRef} id="sec-delivery">
             <h2 className="co-section-title">
               {lang === 'el' ? 'ΣΤΟΙΧΕΙΑ ΠΑΡΑΔΟΣΗΣ' : 'DELIVERY DETAILS'}
             </h2>
             {activeDayIdxs.map((i) => {
               const day = days[i]
-              const label = lang === 'el' ? dayLabelsEl[i] : dayLabelsEn[i]
+              const label = dayLabelFor(i)
               return (
                 <div key={day.date} className="day-deliv-block">
                   <div className="ddb-title">
@@ -327,7 +547,7 @@ export function CheckoutPage() {
             })}
           </div>
 
-          {/* SECTION 2: Payment */}
+          {/* SECTION 3: Payment */}
           <div className="co-section" ref={paymentRef} id="sec-payment">
             <h2 className="co-section-title">
               {lang === 'el' ? 'ΤΡΟΠΟΣ ΠΛΗΡΩΜΗΣ' : 'PAYMENT METHOD'}
@@ -335,12 +555,12 @@ export function CheckoutPage() {
             <PaymentSection />
           </div>
 
-          {/* SECTION 3: Extras */}
+          {/* SECTION 4: Extras */}
           <div className="co-section" ref={extrasRef} id="sec-extras">
             <h2 className="co-section-title">
               {lang === 'el' ? 'ΕΠΙΠΛΕΟΝ ΕΠΙΛΟΓΕΣ' : 'EXTRAS'}
             </h2>
-            <ExtrasSection />
+            <ExtrasSection attempted={contactAttempted} />
           </div>
 
           {/* Footer with action buttons */}
@@ -359,11 +579,21 @@ export function CheckoutPage() {
             </button>
           </div>
 
-          {/* Validation reasons */}
-          {validationIssues.length > 0 && (
+          {/* Validation reasons — client-side (pre-submit) AND server-side (post-submit) */}
+          {(validationIssues.length > 0 || serverIssues.length > 0) && (
             <div className="checkout-validation">
+              {serverIssues.length > 0 && (
+                <div className="validation-issue" style={{ fontWeight: 800, marginBottom: 4 }}>
+                  {lang === 'el' ? 'Ο διακομιστής απέρριψε την παραγγελία:' : 'Server rejected the order:'}
+                </div>
+              )}
+              {serverIssues.map((issue, idx) => (
+                <div key={`s-${idx}`} className="validation-issue">
+                  <span className="validation-dot">●</span> {issue}
+                </div>
+              ))}
               {validationIssues.map((issue, idx) => (
-                <div key={idx} className="validation-issue">
+                <div key={`c-${idx}`} className="validation-issue">
                   <span className="validation-dot">●</span> {issue}
                 </div>
               ))}

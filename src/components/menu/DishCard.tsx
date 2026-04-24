@@ -92,10 +92,10 @@ export function DishCard({ dish, dayIndex }: DishCardProps) {
           {dish.emoji}
         </div>
 
-        {/* Tags — absolute top-left */}
-        {dish.tags && dish.tags.length > 0 && (
+        {/* Overlay tags — absolute top-left (e.g. "Sale", "Hot") */}
+        {dish.tags && dish.tags.some((t) => isOverlayTag(t)) && (
           <div className="dish-tags">
-            {dish.tags.map((tag) => (
+            {dish.tags.filter((t) => isOverlayTag(t)).map((tag) => (
               <span key={tag} className={`tag tag-${tag}`}>
                 {tagLabel(tag, lang)}
               </span>
@@ -125,6 +125,17 @@ export function DishCard({ dish, dayIndex }: DishCardProps) {
       {/* Card body */}
       <div className="dish-body">
         <div className="dish-name">{name}</div>
+
+        {/* Non-overlay tags — appear below the name like little chips */}
+        {dish.tags && dish.tags.some((t) => !isOverlayTag(t)) && (
+          <div className="dish-inline-tags">
+            {dish.tags.filter((t) => !isOverlayTag(t)).map((tag) => (
+              <span key={tag} className={`tag tag-inline tag-${tag}`}>
+                {tagLabel(tag, lang)}
+              </span>
+            ))}
+          </div>
+        )}
 
         {/* Discount line in body */}
         {dish.discount && (
@@ -177,14 +188,35 @@ export function DishCard({ dish, dayIndex }: DishCardProps) {
   )
 }
 
-function tagLabel(tag: string, lang: 'el' | 'en') {
-  const map: Record<string, { el: string; en: string }> = {
-    hot:      { el: 'Δημοφιλές', en: 'Popular'  },
-    popular:  { el: 'Δημοφιλές', en: 'Popular'  },
-    veg:      { el: 'Veg',       en: 'Veg'      },
-    lc:       { el: 'Low Carb',  en: 'Low Carb' },
-    hp:       { el: 'High Pro',  en: 'High Pro' },
-    sale:     { el: 'Έκπτωση',  en: 'Sale'      },
-  }
-  return (map[tag]?.[lang]) ?? tag
+/**
+ * Tag metadata — keyed by tag slug.
+ *
+ * `overlay: true`  → renders absolute-positioned on the dish image (e.g. the
+ *                    attention-grabbing "Popular" / "Sale" pills).
+ * `overlay: false` → renders inline under the dish name as a chip (quieter
+ *                    classifiers like "Vegan" / "Low Carb" that the user
+ *                    scans while comparing dishes).
+ *
+ * WEC-133: this map is the local source of truth until the `tags.overlay`
+ * column lands in Supabase (migration drafted but waiting on Ioustinos's
+ * approval per the "Show Before Execute" rule). Once the column exists,
+ * replace these constants with server data via the admin Tags editor.
+ */
+const TAG_META: Record<string, { el: string; en: string; overlay: boolean }> = {
+  hot:      { el: 'Δημοφιλές', en: 'Popular',  overlay: true  },
+  popular:  { el: 'Δημοφιλές', en: 'Popular',  overlay: true  },
+  sale:     { el: 'Έκπτωση',  en: 'Sale',     overlay: true  },
+  veg:      { el: 'Veg',       en: 'Veg',      overlay: false },
+  lc:       { el: 'Low Carb',  en: 'Low Carb', overlay: false },
+  hp:       { el: 'High Pro',  en: 'High Pro', overlay: false },
+}
+
+export function tagLabel(tag: string, lang: 'el' | 'en') {
+  return TAG_META[tag]?.[lang] ?? tag
+}
+
+export function isOverlayTag(tag: string): boolean {
+  // Default to overlay for unknown tags — safer to draw attention than hide
+  // them below the fold when we don't know what they are.
+  return TAG_META[tag]?.overlay ?? true
 }

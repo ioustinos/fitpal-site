@@ -2,10 +2,22 @@ import { useUIStore } from '../../store/useUIStore'
 import { useCartStore } from '../../store/useCartStore'
 import { useMenuStore } from '../../store/useMenuStore'
 import { totalCount, isDayOrderable } from '../../lib/helpers'
+import { dayLabel } from '../../lib/datelabels'
 
-const DAY_LABELS_EL = ['Δευτ', 'Τρίτη', 'Τετ', 'Πέμπτη', 'Παρ']
-const DAY_LABELS_EN = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri']
-
+/**
+ * Weekly day navigation.
+ *
+ * Small horizontally-scrollable pill tabs (`.day-nav` / `.day-tab`) — the
+ * original compact layout the user prefers. Each tab shows the weekday
+ * short label and the date, with a green cart-count badge when the day has
+ * items and a dimmed state when the day is past cutoff.
+ *
+ * Prev/next-week toggles (`.week-toggle`) sit at the ends of the strip and
+ * kick a lazy fetch for the target week when clicked.
+ *
+ * The cutoff countdown is rendered separately below this strip by the
+ * parent (see MenuPage).
+ */
 export function DayNav() {
   const lang = useUIStore((s) => s.lang)
   const activeDay = useUIStore((s) => s.activeDay)
@@ -22,7 +34,6 @@ export function DayNav() {
 
   const week = weeksMeta[activeWeek] ?? weeksMeta[0]
   const days = week?.days ?? []
-  const labels = lang === 'el' ? DAY_LABELS_EL : DAY_LABELS_EN
 
   function goWeek(w: number) {
     const target = weeksMeta[w]
@@ -66,7 +77,7 @@ export function DayNav() {
             className={cls}
             onClick={() => setActiveDay(i)}
           >
-            <div className="dn">{labels[i]}</div>
+            <div className="dn">{dayLabel(day.date, lang, 'short')}</div>
             <div className="dd">{formatDate(day.date, lang)}</div>
             {count > 0 && <div className="day-badge">{count}</div>}
           </div>

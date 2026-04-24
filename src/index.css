@@ -50,13 +50,23 @@ img { display: block; }
 ══════════════════════════════════════════ */
 .layout {
   display: grid;
-  grid-template-columns: 1fr var(--sidebar-w);
+  /* minmax(0, 1fr) — not bare 1fr — so the main column can actually shrink
+     below its intrinsic min-content. Without the `minmax(0, …)` trick, a
+     grid track of `1fr` is really `minmax(auto, 1fr)`, and `auto` floors
+     the track at the child's min-content width. Any unbreakable child
+     (image, long word, absolutely-positioned ribbon) then pushes `.main`
+     wider than the viewport, and `.main { overflow-x: clip }` happily
+     clips the rest of the page on the right. WEC-142 #27. */
+  grid-template-columns: minmax(0, 1fr) var(--sidebar-w);
   min-height: calc(100vh - var(--hdr));
   max-width: 1460px;
   margin: 0 auto;
 }
 
-.main { padding: 28px 28px 40px; overflow-x: clip; }
+/* `min-width: 0` is the belt to the `minmax(0, …)` braces above — guarantees
+   the .main grid item participates in shrinking even if some ancestor or
+   future rule reintroduces an `auto` track floor. */
+.main { padding: 28px 28px 40px; overflow-x: clip; min-width: 0; }
 
 /* ══════════════════════════════════════════
    HEADER
@@ -107,6 +117,11 @@ header {
 .wallet-hdr-badge svg { width: 16px; height: 16px; color: #7DFFBE; }
 .wallet-hdr-amt { font-size: 12px; font-weight: 900; color: #7DFFBE; }
 
+/* Admin link in customer header — only rendered when user.isAdmin */
+.hdr-admin-link { display: flex; align-items: center; gap: 6px; background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.18); border-radius: 999px; padding: 5px 12px 5px 10px; color: var(--white); font-size: 12px; font-weight: 700; letter-spacing: 0.3px; cursor: pointer; transition: all 0.18s; }
+.hdr-admin-link:hover { background: rgba(255,255,255,0.15); border-color: rgba(255,255,255,0.3); }
+.hdr-admin-link svg { color: var(--white); }
+
 /* ══════════════════════════════════════════
    PAGE BANNER
 ══════════════════════════════════════════ */
@@ -154,6 +169,296 @@ header {
 .wt-label { font-size: 9px; font-weight: 700; color: var(--text-muted); }
 
 /* (cutoff-bar styles are below in the Day Nav section) */
+
+/* WEC-166 v2 day-card / day-row styles were reverted — we now use the
+   original `.day-nav` / `.day-tab` layout above (small horizontal pills +
+   cutoff stacked underneath). Removing the full-width-card ruleset keeps
+   the CSS honest. */
+
+/* Thin day-intake strip — sticks right under the category
+   nav so the customer always sees kcal/P/C/F for the active day's basket
+   while scrolling the menu grid. The fat bordered panel that sat above
+   the grid is gone; this strip replaces it.
+   Uses `-28px` horizontal bleed to match `.cat-nav`'s negative margin so
+   the full-bleed look continues cleanly below the tabs. */
+.menu-intake-strip {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 14px;
+  align-items: center;
+  padding: 6px 22px 8px;
+  margin: -28px -28px 20px;       /* absorbs cat-nav's bottom margin */
+  background: var(--cream-light);
+  border-bottom: 1px solid var(--border);
+  position: sticky;
+  top: calc(var(--hdr) + 44px);   /* cat-nav ≈ 44px rendered height */
+  z-index: 89;                     /* just under cat-nav's 90 */
+}
+.mis-cell {
+  display: grid;
+  grid-template-columns: 14px auto 1fr;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+}
+.mis-icon { display: inline-flex; width: 14px; height: 14px; color: var(--text-mid); }
+.mis-icon svg { width: 14px; height: 14px; }
+.mis-lbl {
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.3px;
+  color: var(--text-muted);
+  text-transform: uppercase;
+}
+.mis-val {
+  font-size: 12px;
+  font-weight: 900;
+  color: var(--text);
+  justify-self: end;
+  line-height: 1;
+}
+.mis-track {
+  grid-column: 1 / -1;
+  height: 2px;
+  background: var(--border);
+  border-radius: 2px;
+  overflow: hidden;
+  margin-top: 2px;
+}
+.mis-fill {
+  height: 100%;
+  border-radius: 2px;
+  background: var(--text-muted);
+  opacity: 0.35;
+  transition: width 0.3s ease;
+}
+.mis-ok    .mis-fill { background: var(--green); opacity: 1; }
+.mis-below .mis-fill { background: #E8A317;      opacity: 1; }
+.mis-above .mis-fill { background: #EF4444;      opacity: 1; }
+.mis-ok    .mis-icon { color: var(--green-dark); }
+.mis-below .mis-icon { color: #B07410; }
+.mis-above .mis-icon { color: #B91C1C; }
+@media (max-width: 640px) {
+  .menu-intake-strip {
+    gap: 8px;
+    padding: 5px 14px 7px;
+    margin: -28px -16px 16px;
+    top: calc(var(--hdr) + 40px);
+  }
+  .mis-lbl { font-size: 9px; }
+  .mis-val { font-size: 11px; }
+}
+
+/* ══════════════════════════════════════════
+   DATE RANGE FILTER (WEC-168 / WEC-169)
+   Used by OrdersTab and Goals history. Compact pill bar with optional
+   date inputs when "Custom" is selected.
+══════════════════════════════════════════ */
+.date-range-filter { margin-bottom: 16px; }
+.drf-pills { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.drf-pill {
+  background: var(--white);
+  border: 1.5px solid var(--border);
+  border-radius: 999px;
+  padding: 6px 14px;
+  font-size: 12px;
+  font-weight: 800;
+  color: var(--text-mid);
+  cursor: pointer;
+  transition: border-color 0.18s, background 0.18s, color 0.18s;
+  font-family: inherit;
+}
+.drf-pill:hover { border-color: var(--green); }
+.drf-pill.active {
+  background: var(--green-dark);
+  border-color: var(--green-dark);
+  color: var(--white);
+}
+.drf-summary {
+  margin-left: auto;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-muted);
+}
+.drf-custom {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 10px;
+}
+.drf-field { display: flex; flex-direction: column; gap: 4px; }
+.drf-field > span {
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.5px;
+  color: var(--text-muted);
+  text-transform: uppercase;
+}
+.drf-field > input {
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 6px 10px;
+  font-size: 13px;
+  font-family: inherit;
+  color: var(--text);
+  background: var(--white);
+}
+.drf-field > input:focus {
+  outline: none;
+  border-color: var(--green);
+}
+
+/* ══════════════════════════════════════════
+   PAGINATION (WEC-168 / WEC-169)
+══════════════════════════════════════════ */
+.pagination {
+  display: flex;
+  gap: 4px;
+  justify-content: center;
+  align-items: center;
+  margin-top: 16px;
+  flex-wrap: wrap;
+}
+.page-btn {
+  min-width: 32px;
+  height: 32px;
+  padding: 0 10px;
+  background: var(--white);
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+  font-weight: 800;
+  color: var(--text-mid);
+  cursor: pointer;
+  transition: border-color 0.18s, background 0.18s, color 0.18s;
+  font-family: inherit;
+}
+.page-btn:hover:not(:disabled):not(.active) { border-color: var(--green); }
+.page-btn.active {
+  background: var(--green-dark);
+  border-color: var(--green-dark);
+  color: var(--white);
+}
+.page-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+.page-ellipsis {
+  font-size: 12px;
+  color: var(--text-muted);
+  padding: 0 4px;
+}
+
+/* ══════════════════════════════════════════
+   GOALS HISTORY (WEC-168)
+   Daily-bucket rows under the Goals tab — one row per delivery day,
+   with a 4-macro bar strip and a "Forecast" pill for future dates.
+══════════════════════════════════════════ */
+.goals-history { margin-top: 32px; }
+.goals-history-avg { margin: 14px 0 18px; }
+.goals-history-avg .gha-title {
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 0.8px;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  margin: 0 0 8px;
+}
+/* Avg strip reuses .order-macros-row card look but without the dividing
+   border underneath — it's the header not a row inside a larger card. */
+.goals-history-avg .order-macros-row {
+  border-bottom: none;
+  padding: 0;
+  border-radius: var(--radius);
+}
+
+.goals-history-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 12px;
+}
+.gh-row {
+  display: grid;
+  grid-template-columns: minmax(140px, 160px) 1fr;
+  gap: 14px;
+  align-items: center;
+  padding: 10px 14px;
+  background: var(--white);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+}
+.gh-row.forecast {
+  background: var(--cream-light);
+  border-style: dashed;
+}
+.gh-day { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.gh-day-date {
+  font-size: 12px;
+  font-weight: 800;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.gh-forecast-pill {
+  align-self: flex-start;
+  font-size: 9px;
+  font-weight: 900;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  color: var(--green-dark);
+  background: var(--green-pale);
+  border-radius: 999px;
+  padding: 1px 8px;
+}
+.gh-bars {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10px;
+}
+.gh-bar {
+  display: grid;
+  grid-template-columns: 14px 1fr auto;
+  gap: 6px;
+  align-items: center;
+  min-width: 0;
+}
+.gh-bar-icon { display: inline-flex; width: 14px; height: 14px; color: var(--text-mid); }
+.gh-bar-icon svg { width: 14px; height: 14px; }
+.gh-bar-track {
+  height: 4px;
+  background: var(--border);
+  border-radius: 999px;
+  overflow: hidden;
+}
+.gh-bar-fill {
+  height: 100%;
+  border-radius: 999px;
+  background: var(--text-muted);
+  opacity: 0.35;
+  transition: width 0.3s ease;
+}
+.gh-bar-val {
+  font-size: 11px;
+  font-weight: 800;
+  color: var(--text);
+  min-width: 34px;
+  text-align: right;
+}
+.gh-ok    .gh-bar-fill { background: var(--green); opacity: 1; }
+.gh-below .gh-bar-fill { background: #E8A317;      opacity: 1; }
+.gh-above .gh-bar-fill { background: #EF4444;      opacity: 1; }
+.gh-ok    .gh-bar-icon { color: var(--green-dark); }
+.gh-below .gh-bar-icon { color: #B07410; }
+.gh-above .gh-bar-icon { color: #B91C1C; }
+
+@media (max-width: 640px) {
+  .gh-row { grid-template-columns: 1fr; gap: 8px; padding: 10px 12px; }
+  .gh-bars { gap: 6px; }
+  .gh-bar { grid-template-columns: 12px 1fr 30px; gap: 4px; }
+  .gh-bar-val { font-size: 10px; min-width: 30px; }
+}
 
 /* ══════════════════════════════════════════
    CATEGORY NAV — sticky underline tabs matching demo.html
@@ -211,7 +516,18 @@ header {
 .dish-card:hover .dish-img { transform: scale(1.06); }
 .dish-img-fallback { width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; font-size: 64px; background: linear-gradient(135deg, var(--green-dark), var(--green-mid)); }
 .dish-tags { position: absolute; top: 10px; left: 10px; display: flex; gap: 5px; flex-wrap: wrap; z-index: 1; }
+/* WEC-133 inline tags — rendered in card body, no backdrop-filter */
+.dish-inline-tags { display: flex; gap: 5px; flex-wrap: wrap; margin: 4px 0 6px; }
 .tag { padding: 3px 10px; border-radius: 999px; font-size: 10px; font-weight: 800; letter-spacing: 0.2px; backdrop-filter: blur(8px); }
+.tag-inline {
+  /* Inline variants use a soft tinted background instead of the bold
+     image-overlay look so they don't compete with the dish name. */
+  backdrop-filter: none;
+  font-size: 9.5px; padding: 2px 8px;
+}
+.tag-inline.tag-veg  { background: rgba(0,185,107,0.14); color: var(--green-dark); }
+.tag-inline.tag-lc   { background: rgba(184,134,11,0.14); color: #8A6508; }
+.tag-inline.tag-hp   { background: rgba(109,40,217,0.14); color: #5128A0; }
 .tag-hot     { background: rgba(255,107,53,0.9);   color: white; }
 .tag-popular { background: rgba(255,107,53,0.9);   color: white; }
 .tag-veg     { background: rgba(0,185,107,0.9);    color: white; }
@@ -282,38 +598,41 @@ header {
 .dm-close { position: absolute; top: 12px; right: 12px; z-index: 2; width: 32px; height: 32px; border-radius: 50%; background: rgba(0,0,0,0.4); border: none; color: white; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: all 0.18s; }
 .dm-close:hover { background: rgba(0,0,0,0.6); }
 .dm-close svg { width: 16px; height: 16px; stroke: white; stroke-width: 2.5; fill: none; }
-.dm-img-wrap { aspect-ratio: 3/2; overflow: hidden; background: var(--cream); }
+/* WEC-132: 16/9 image is tighter than 3/2, gives the body room above the fold */
+.dm-img-wrap { aspect-ratio: 16/9; overflow: hidden; background: var(--cream); }
 .dm-img { width: 100%; height: 100%; object-fit: cover; }
-.dm-img-fallback { width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; font-size: 64px; }
-.dm-body { padding: 24px; }
-.dm-name { font-size: 22px; font-weight: 900; color: var(--text); letter-spacing: -0.3px; margin-bottom: 7px; }
-.dm-desc { font-size: 13px; color: var(--text-muted); font-weight: 600; line-height: 1.5; margin-bottom: 22px; }
-/* Macros in dish modal — cream container with grid, matches demo.html */
-.dm-macros { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; background: var(--cream); border-radius: 8px; padding: 16px; margin-bottom: 24px; }
-.dm-macro { text-align: center; display: flex; flex-direction: column; align-items: center; gap: 3px; background: transparent; border-radius: 0; padding: 0; border: none; }
-.dm-macro-ico { width: 18px; height: 18px; opacity: 0.8; }
+.dm-img-fallback { width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; font-size: 56px; }
+/* Tighter body padding — we had 24px all around, 20px top/bottom reads the same */
+.dm-body { padding: 20px 22px; }
+.dm-name { font-size: 20px; font-weight: 900; color: var(--text); letter-spacing: -0.3px; margin-bottom: 4px; }
+.dm-desc { font-size: 12.5px; color: var(--text-muted); font-weight: 600; line-height: 1.45; margin-bottom: 14px; }
+/* Macros in dish modal — WEC-132: shrunk from 16px padding to 11px, tighter gap, smaller numbers */
+.dm-macros { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; background: var(--cream); border-radius: 8px; padding: 11px; margin-bottom: 16px; }
+.dm-macro { text-align: center; display: flex; flex-direction: column; align-items: center; gap: 2px; background: transparent; border-radius: 0; padding: 0; border: none; }
+.dm-macro-ico { width: 15px; height: 15px; opacity: 0.85; }
 .dm-macro-ico svg { width: 100%; height: 100%; }
 .dm-macro.cal  .dm-macro-ico { color: #D97706; }
 .dm-macro.prot .dm-macro-ico { color: #059669; }
 .dm-macro.carb .dm-macro-ico { color: #B8860B; }
 .dm-macro.fat  .dm-macro-ico { color: #C2703A; }
-.dm-macro-v { font-size: 20px; font-weight: 900; color: var(--green-dark); line-height: 1; }
-.dm-macro-l { font-size: 9px; font-weight: 800; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; }
-.dm-section-title { font-size: 13px; font-weight: 900; color: var(--text); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 10px; }
-.dm-variants { display: flex; flex-direction: column; gap: 8px; margin-bottom: 24px; max-height: 260px; overflow-y: auto; padding-right: 10px; margin-right: -10px; }
-/* variant-row — matches demo.html exactly */
-.variant-row { display: flex; align-items: center; gap: 12px; padding: 12px 14px; border: 2px solid var(--border); border-radius: var(--radius); cursor: pointer; transition: all 0.18s; background: var(--white); }
+.dm-macro-v { font-size: 16px; font-weight: 900; color: var(--green-dark); line-height: 1; }
+.dm-macro-l { font-size: 9px; font-weight: 800; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.4px; }
+.dm-section-title { font-size: 12px; font-weight: 900; color: var(--text); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 7px; }
+/* WEC-132: variant list no longer needs its own internal scroll — outer modal already scrolls */
+.dm-variants { display: flex; flex-direction: column; gap: 6px; margin-bottom: 14px; }
+/* variant-row — WEC-132 compact */
+.variant-row { display: flex; align-items: center; gap: 10px; padding: 8px 12px; border: 2px solid var(--border); border-radius: var(--radius); cursor: pointer; transition: all 0.18s; background: var(--white); }
 .variant-row:hover, .variant-row.sel { border-color: var(--green); background: var(--green-pale); }
-.vr-radio { width: 18px; height: 18px; border-radius: 50%; border: 2px solid var(--border); flex-shrink: 0; position: relative; transition: all 0.18s; }
+.vr-radio { width: 16px; height: 16px; border-radius: 50%; border: 2px solid var(--border); flex-shrink: 0; position: relative; transition: all 0.18s; }
 .variant-row.sel .vr-radio { border-color: var(--green); background: var(--green); }
-.variant-row.sel .vr-radio::after { content: ''; position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%); width: 6px; height: 6px; border-radius: 50%; background: white; }
+.variant-row.sel .vr-radio::after { content: ''; position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%); width: 5px; height: 5px; border-radius: 50%; background: white; }
 .vr-info { flex: 1; min-width: 0; }
-.vr-label { font-size: 13px; font-weight: 800; color: var(--text); line-height: 1.3; }
-.vr-macros { font-size: 11px; font-weight: 600; color: var(--text-muted); margin-top: 3px; }
-.vr-price { font-size: 17px; font-weight: 900; color: var(--green-dark); flex-shrink: 0; }
-.dm-comment-wrap { margin-bottom: 20px; }
-.dm-comment-lbl { font-size: 11px; font-weight: 800; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.4px; margin-bottom: 6px; }
-.dm-comment { width: 100%; padding: 10px 12px; border: 1.5px solid var(--border); border-radius: var(--radius-sm); font-size: 13px; font-family: inherit; color: var(--text); background: var(--white); resize: vertical; min-height: 38px; max-height: 100px; transition: border-color 0.18s; box-sizing: border-box; }
+.vr-label { font-size: 13px; font-weight: 800; color: var(--text); line-height: 1.25; }
+.vr-macros { font-size: 10.5px; font-weight: 600; color: var(--text-muted); margin-top: 2px; }
+.vr-price { font-size: 15px; font-weight: 900; color: var(--green-dark); flex-shrink: 0; }
+.dm-comment-wrap { margin-bottom: 14px; }
+.dm-comment-lbl { font-size: 11px; font-weight: 800; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.4px; margin-bottom: 5px; }
+.dm-comment { width: 100%; padding: 8px 10px; border: 1.5px solid var(--border); border-radius: var(--radius-sm); font-size: 13px; font-family: inherit; color: var(--text); background: var(--white); resize: vertical; min-height: 34px; max-height: 100px; transition: border-color 0.18s; box-sizing: border-box; }
 .dm-comment:focus { outline: none; border-color: var(--green); }
 .dm-comment::placeholder { color: var(--text-muted); font-style: italic; opacity: 0.6; }
 .dm-actions { display: flex; align-items: center; gap: 14px; }
@@ -354,7 +673,7 @@ header {
 .cart-empty-sub { font-size: 12px; color: var(--text-muted); font-weight: 600; line-height: 1.4; }
 
 .cart-day-group { border-bottom: 1px solid var(--border); padding-bottom: 4px; }
-.cart-day-hdr { display: flex; align-items: center; justify-content: space-between; padding: 10px 22px 6px; position: sticky; top: 0; background: var(--white); z-index: 1; }
+.cart-day-hdr { display: flex; align-items: center; justify-content: space-between; padding: 10px 22px 6px; background: var(--white); z-index: 1; }
 .cart-day-label { font-size: 10px; font-weight: 900; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; }
 .cart-day-total { font-size: 11px; font-weight: 800; color: var(--green-dark); }
 
@@ -565,27 +884,30 @@ header {
 /* ══════════════════════════════════════════
    WALLET PROMO CARD — matches demo.html exactly
 ══════════════════════════════════════════ */
+/* WEC-136: trimmed from 18/20 padding to 14/16 and tightened all
+   internal spacing — the promo used to dominate the banner row, now
+   it's a compact sidekick to the menu heading. */
 .wallet-promo {
   background: linear-gradient(135deg, #004739 0%, #006647 60%, #00B96B 100%);
   border-radius: var(--radius-lg);
-  padding: 18px 20px;
+  padding: 14px 16px;
   position: relative; overflow: hidden;
   display: flex; flex-direction: column; justify-content: center;
   cursor: pointer; transition: all 0.22s;
   border: 1.5px solid rgba(0,185,107,0.25);
 }
 .wallet-promo:hover { transform: translateY(-2px); box-shadow: 0 8px 28px rgba(0,185,107,0.3); border-color: rgba(0,185,107,0.5); }
-.wallet-promo::after { content: ''; position: absolute; right: -30px; top: -30px; width: 120px; height: 120px; background: rgba(255,255,255,0.06); border-radius: 50%; }
-.wallet-promo::before { content: ''; position: absolute; left: -20px; bottom: -20px; width: 80px; height: 80px; background: rgba(0,185,107,0.15); border-radius: 50%; }
-.wp-badge { display: inline-flex; align-items: center; gap: 5px; background: rgba(0,185,107,0.3); border: 1px solid rgba(0,185,107,0.5); border-radius: 999px; padding: 3px 10px; font-size: 9px; font-weight: 900; color: #7DFFBE; text-transform: uppercase; letter-spacing: 1px; width: fit-content; margin-bottom: 8px; position: relative; z-index: 1; }
-.wp-badge svg { width: 12px; height: 12px; }
-.wp-title { font-size: 17px; font-weight: 900; color: var(--white); letter-spacing: -0.3px; margin-bottom: 4px; position: relative; z-index: 1; line-height: 1.2; }
+.wallet-promo::after { content: ''; position: absolute; right: -30px; top: -30px; width: 100px; height: 100px; background: rgba(255,255,255,0.06); border-radius: 50%; }
+.wallet-promo::before { content: ''; position: absolute; left: -20px; bottom: -20px; width: 70px; height: 70px; background: rgba(0,185,107,0.15); border-radius: 50%; }
+.wp-badge { display: inline-flex; align-items: center; gap: 5px; background: rgba(0,185,107,0.3); border: 1px solid rgba(0,185,107,0.5); border-radius: 999px; padding: 2px 9px; font-size: 9px; font-weight: 900; color: #7DFFBE; text-transform: uppercase; letter-spacing: 1px; width: fit-content; margin-bottom: 6px; position: relative; z-index: 1; }
+.wp-badge svg { width: 11px; height: 11px; }
+.wp-title { font-size: 15px; font-weight: 900; color: var(--white); letter-spacing: -0.3px; margin-bottom: 2px; position: relative; z-index: 1; line-height: 1.2; }
 .wp-title span { color: #7DFFBE; }
-.wp-desc { font-size: 12px; color: rgba(255,255,255,0.6); font-weight: 600; line-height: 1.4; position: relative; z-index: 1; margin-bottom: 10px; }
+.wp-desc { font-size: 11.5px; color: rgba(255,255,255,0.6); font-weight: 600; line-height: 1.4; position: relative; z-index: 1; margin-bottom: 8px; }
 .wp-plans-mini { display: flex; gap: 5px; flex-wrap: nowrap; position: relative; z-index: 1; margin-bottom: 0; }
-.wp-plan-chip { background: rgba(255,255,255,0.12); border: 1px solid rgba(255,255,255,0.2); border-radius: 999px; padding: 4px 8px; font-size: 9.5px; font-weight: 800; color: rgba(255,255,255,0.85); white-space: nowrap; }
+.wp-plan-chip { background: rgba(255,255,255,0.12); border: 1px solid rgba(255,255,255,0.2); border-radius: 999px; padding: 3px 7px; font-size: 9.5px; font-weight: 800; color: rgba(255,255,255,0.85); white-space: nowrap; }
 .wp-plan-chip .wp-bonus { color: #7DFFBE; font-weight: 900; }
-.wp-cta { display: inline-flex; align-items: center; gap: 5px; background: var(--green); color: var(--white); border: none; border-radius: 999px; padding: 7px 16px; font-size: 11px; font-weight: 900; cursor: pointer; transition: all 0.18s; margin-top: 10px; width: fit-content; position: relative; z-index: 1; }
+.wp-cta { display: inline-flex; align-items: center; gap: 5px; background: var(--green); color: var(--white); border: none; border-radius: 999px; padding: 6px 14px; font-size: 11px; font-weight: 900; cursor: pointer; transition: all 0.18s; margin-top: 8px; width: fit-content; position: relative; z-index: 1; }
 .wp-cta:hover { background: #00a060; }
 
 /* ══════════════════════════════════════════
@@ -605,7 +927,10 @@ header {
 
 /* DayOrderGroup inside cart — matches demo.html .cart-day-block */
 .cart-day-block { margin-bottom: 4px; }
-.cart-day-hdr { display: flex; align-items: center; justify-content: space-between; padding: 10px 16px 6px; position: sticky; top: 0; background: var(--white); z-index: 1; border-bottom: 1px solid var(--border); }
+/* WEC-141: cart day header — NOT sticky. The earlier sticky-top pattern
+   made the first day header hover over the list while scrolling, masking
+   items beneath it. Day labels scroll with their items like normal. */
+.cart-day-hdr { display: flex; align-items: center; justify-content: space-between; padding: 10px 16px 6px; background: var(--white); z-index: 1; border-bottom: 1px solid var(--border); }
 .cart-day-name { font-size: 10px; font-weight: 900; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; }
 .cart-day-amt  { font-size: 11px; font-weight: 800; color: var(--green-dark); }
 .cart-day-min-pill { display: inline-flex; align-items: center; gap: 3px; background: #fef9c3; border: 1px solid #fde68a; border-radius: 20px; padding: 2px 8px; font-size: 11px; font-weight: 800; color: var(--green-dark); }
@@ -616,25 +941,69 @@ header {
 .cart-day-header { display: flex; align-items: center; gap: 6px; padding: 0 16px 8px; }
 .cart-day-date { font-size: 11px; color: var(--text-muted); font-weight: 600; }
 
-/* Cart items — matches demo.html .cart-item structure */
-.cart-item { display: flex; align-items: center; gap: 10px; padding: 9px 16px; border-bottom: 1px solid var(--border); }
+/* Cart items — matches demo.html .cart-item structure (WEC-131: flex-start for multi-line titles) */
+.cart-item { display: flex; align-items: flex-start; gap: 10px; padding: 10px 16px; border-bottom: 1px solid var(--border); }
 .cart-item:last-child { border-bottom: none; }
 /* Thumbnail */
-.ci-thumb { width: 44px; height: 44px; border-radius: 10px; overflow: hidden; flex-shrink: 0; background: var(--cream); }
+.ci-thumb { width: 44px; height: 44px; border-radius: 10px; overflow: hidden; flex-shrink: 0; background: var(--cream); margin-top: 2px; }
 .ci-thumb img { width: 100%; height: 100%; object-fit: cover; }
 .ci-thumb-emoji { width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; font-size: 22px; background: linear-gradient(135deg, var(--green-dark), var(--green-mid)); }
-/* Item info */
+/* Item info — WEC-131: 2-line clamp, no ellipsis cutoff for full Greek titles */
 .ci-info { flex: 1; min-width: 0; }
-.ci-name { font-size: 12px; font-weight: 800; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.ci-var { font-size: 10px; font-weight: 600; color: var(--text-muted); margin-top: 1px; }
+.ci-name {
+  font-size: 12px;
+  font-weight: 800;
+  color: var(--text);
+  line-height: 1.3;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  word-break: break-word;
+}
+.ci-var { font-size: 10px; font-weight: 600; color: var(--text-muted); margin-top: 2px; line-height: 1.3; }
 .ci-comment { font-size: 11px; font-style: italic; color: var(--text-muted); margin-top: 2px; line-height: 1.3; }
 /* Right side */
-.ci-right { display: flex; flex-direction: column; align-items: flex-end; gap: 5px; }
+.ci-right { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; flex-shrink: 0; }
 .ci-price-was { font-size: 11px; font-weight: 700; color: var(--text-muted); text-decoration: line-through; }
 .ci-price { font-size: 13px; font-weight: 900; color: var(--green-dark); }
-/* Qty controls */
-.qty-ctrl { display: flex; align-items: center; gap: 6px; }
+/* Qty controls — cart-scoped compact round buttons (WEC-131) */
+.qty-ctrl { display: flex; align-items: center; gap: 4px; }
 .qty-n { font-size: 13px; font-weight: 900; min-width: 18px; text-align: center; color: var(--text); }
+.cart-item .qty-ctrl .qty-btn {
+  width: 26px;
+  height: 26px;
+  min-width: 26px;
+  border: 1.5px solid var(--border);
+  border-radius: 50%;
+  background: var(--white);
+  font-size: 14px;
+  font-weight: 900;
+  padding: 0;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  color: var(--text);
+  transition: all 0.15s;
+}
+.cart-item .qty-ctrl .qty-btn:hover:not(:disabled) {
+  border-color: var(--green);
+  color: var(--green-dark);
+  background: var(--green-pale);
+}
+.cart-item .qty-ctrl .qty-n { font-size: 12px; min-width: 16px; }
+
+/* Tap-target guarantee on mobile — keep ≥32px per WEC-131 AC */
+@media (max-width: 600px) {
+  .cart-item .qty-ctrl .qty-btn {
+    width: 32px;
+    height: 32px;
+    min-width: 32px;
+    font-size: 16px;
+  }
+}
 
 /* Cart scroll area */
 .cart-scroll { flex: 1; overflow-y: auto; }
@@ -697,6 +1066,28 @@ header {
 .co-section:last-child { margin-bottom: 0; }
 .co-section-title { font-size: 15px; font-weight: 900; color: var(--green-dark); text-transform: uppercase; letter-spacing: 0.6px; margin-bottom: 16px; }
 
+/* Contact info grid (WEC-130) — 3 inputs per row desktop, stacked on mobile */
+.co-contact-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; }
+.co-contact-field { display: flex; flex-direction: column; gap: 6px; }
+.co-contact-label { font-size: 11px; font-weight: 800; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.3px; display: flex; align-items: center; gap: 3px; }
+.co-required { color: #DC2626; font-weight: 900; }
+.form-input.is-invalid { border-color: #DC2626; }
+.form-input.is-invalid:focus { border-color: #DC2626; }
+
+/* react-phone-number-input theming — match our .form-input look  */
+.co-phone-input { display: flex; align-items: center; gap: 6px; width: 100%; padding: 4px 10px 4px 8px; border: 1.5px solid var(--border); border-radius: var(--radius-sm); background: var(--white); transition: border-color 0.18s; height: 38px; box-sizing: border-box; }
+.co-phone-input:focus-within { border-color: var(--green); }
+.co-phone-input.is-invalid { border-color: #DC2626; }
+.co-phone-input .PhoneInputCountry { margin-right: 4px; }
+.co-phone-input .PhoneInputInput { flex: 1; border: none; outline: none; background: transparent; font-size: 13px; color: var(--text); font-family: inherit; min-width: 0; padding: 0; }
+.co-phone-input .PhoneInputInput::placeholder { color: #9CA3AF; }
+.co-phone-input .PhoneInputCountrySelect { color: var(--text); }
+.co-phone-input .PhoneInputCountryIcon { width: 22px; height: 16px; box-shadow: none; }
+
+/* Inline form hints — used by account ProfileTab phone error (WEC-130) */
+.form-hint { font-size: 12px; color: var(--text-muted); margin-top: 4px; }
+.form-hint-error { color: #DC2626; font-weight: 700; }
+
 /* Day delivery block (matches demo .day-deliv-block) */
 .day-deliv-block { border-radius: var(--radius); padding: 18px; margin-bottom: 14px; background: var(--white); border: 1.5px solid var(--border); box-shadow: 0 1px 4px rgba(0,0,0,0.04); }
 .day-deliv-block:last-child { margin-bottom: 0; }
@@ -711,8 +1102,16 @@ header {
 
 /* Time slot grid (matches demo .time-grid / .tslot) */
 .time-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; }
+/* WEC-138 empty state — gentle dashed box so the user knows the section
+   rendered but there's no content yet (vs. thinking the page broke). */
+.time-grid-empty {
+  padding: 14px 16px; border: 1.5px dashed var(--border); border-radius: var(--radius-sm);
+  font-size: 12.5px; font-weight: 600; color: var(--text-muted); background: var(--cream); line-height: 1.4;
+}
 .tslot { padding: 9px 4px; border: 2px solid var(--border); border-radius: var(--radius-sm); text-align: center; font-size: 11px; font-weight: 800; cursor: pointer; transition: all 0.18s; background: var(--white); color: var(--text); font-family: inherit; }
 .tslot:hover, .tslot.sel { border-color: var(--green); background: var(--green-pale); color: var(--green-dark); }
+.tslot.unavailable { color: var(--text-muted); background: #f4f5f7; border-color: #e2e5ea; cursor: not-allowed; opacity: 0.6; text-decoration: line-through; }
+.tslot.unavailable:hover { border-color: #e2e5ea; background: #f4f5f7; color: var(--text-muted); }
 
 /* Checkout footer */
 .checkout-footer { padding: 16px 0; display: flex; gap: 10px; align-items: center; justify-content: space-between; margin-top: 8px; }
@@ -812,6 +1211,9 @@ header {
 .form-label { font-size: 11px; font-weight: 800; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; }
 .form-input { width: 100%; padding: 9px 12px; border: 1.5px solid var(--border); border-radius: var(--radius-sm); font-size: 13px; background: var(--white); color: var(--text); transition: border-color 0.18s; }
 .form-input:focus { outline: none; border-color: var(--green); }
+/* WEC-134: title-sized input for the address label */
+.form-input-title { font-size: 18px; font-weight: 800; padding: 12px 14px; color: var(--green-dark); }
+.form-input-title::placeholder { font-weight: 600; color: var(--text-muted); opacity: 0.55; }
 .notes-ta { resize: vertical; min-height: 64px; }
 
 /* ══════════════════════════════════════════
@@ -864,8 +1266,24 @@ header {
 ══════════════════════════════════════════ */
 .confirmation-screen { text-align: center; padding: 48px 24px; max-width: 560px; margin: 0 auto; }
 .conf-icon { width: 80px; height: 80px; border-radius: 50%; background: var(--green-pale); border: 3px solid var(--green-light); display: flex; align-items: center; justify-content: center; margin: 0 auto 20px; color: var(--green); }
-.conf-title { font-size: 22px; font-weight: 900; color: var(--green-dark); letter-spacing: -0.5px; margin-bottom: 8px; }
-.conf-sub { font-size: 13px; color: var(--text-muted); font-weight: 600; line-height: 1.6; margin-bottom: 24px; }
+.conf-title { font-size: 22px; font-weight: 900; color: var(--green-dark); letter-spacing: -0.5px; margin-bottom: 14px; }
+/* Hero order number (WEC-135) — this is the single piece of info support
+   will ask for, so we give it pride of place under the success tick. */
+.conf-order-hero {
+  display: inline-flex; flex-direction: column; align-items: center; gap: 2px;
+  padding: 10px 24px; margin: 0 auto 16px;
+  background: var(--green-pale); border: 1px solid var(--green-light);
+  border-radius: var(--radius-lg);
+}
+.conf-order-hero-label {
+  font-size: 10px; font-weight: 800; letter-spacing: 1px;
+  text-transform: uppercase; color: var(--green-dark); opacity: 0.8;
+}
+.conf-order-hero-number {
+  font-size: 22px; font-weight: 900; color: var(--green-dark);
+  letter-spacing: 0.5px; font-variant-numeric: tabular-nums;
+}
+.conf-sub { font-size: 13px; color: var(--text-muted); font-weight: 600; line-height: 1.6; margin-bottom: 24px; max-width: 440px; margin-left: auto; margin-right: auto; }
 /* Confirmation order summary */
 .conf-summary { text-align: left; background: var(--white); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 20px; margin-bottom: 24px; }
 .conf-day { padding: 12px 0; border-bottom: 1px solid var(--border); }
@@ -996,6 +1414,12 @@ header {
 
 /* ── Addresses (WEC-79) ── */
 .addr-card { border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 16px; }
+/* WEC-141: when editing, the card hosts a full form — override the top-of-file
+   .addr-card flex rule so rows stack full width instead of getting center-aligned. */
+.addr-card.editing { display: block; cursor: default; }
+.addr-card.editing:hover { border-color: var(--border); background: var(--white); }
+.addr-card.editing .addr-form { width: 100%; }
+.addr-card.editing .form-input { width: 100%; box-sizing: border-box; }
 .addr-card-layout { display: grid; grid-template-columns: 1fr auto; gap: 16px; align-items: start; }
 .addr-card-left { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
 .addr-label-tag { font-size: 15px; font-weight: 900; color: var(--green-dark); }
@@ -1065,29 +1489,29 @@ header {
 .intake-mini-fill.none  { background: var(--text-muted); opacity: 0.3; }
 .intake-mini-val { font-size: 9px; font-weight: 700; color: var(--text-muted); min-width: 26px; }
 
-/* ── Checkout Macro Summary ── */
-.co-macro-section {
-  padding: 10px 16px 4px; border-top: 1px solid var(--border); margin-top: 8px;
+/* ── Cart Goal Bars (WEC-141) — 4 macro cells in one row with a mini bar each ── */
+.cart-goal-bars {
+  display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px;
+  padding: 8px 16px 10px;
+  border-top: 1px dashed var(--border);
+  background: color-mix(in srgb, var(--cream-light) 55%, var(--white));
 }
-.co-macro-title {
-  font-size: 11px; font-weight: 900; color: var(--green-dark); margin-bottom: 6px;
-}
-.co-macro-day-label {
-  font-size: 10px; font-weight: 700; color: var(--text-muted); margin: 6px 0 3px;
-}
-.co-macro-summary {
-  display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px;
-  padding: 4px 0 6px;
-}
-.co-macro-pill {
-  display: flex; flex-direction: column; align-items: center; gap: 2px;
-  padding: 6px 4px; border-radius: var(--radius-sm); font-size: 10px; font-weight: 700;
-}
-.co-macro-pill svg { width: 14px; height: 14px; }
-.co-macro-pill.ok    { background: rgba(0,185,107,0.08); color: var(--green); }
-.co-macro-pill.below { background: rgba(232,163,23,0.08); color: #B8860B; }
-.co-macro-pill.above { background: rgba(239,68,68,0.08); color: #EF4444; }
-.co-macro-pill.none  { background: var(--cream-light); color: var(--text-muted); }
+.cgb-cell { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.cgb-top { display: flex; align-items: center; justify-content: space-between; gap: 4px; }
+.cgb-icon { display: inline-flex; width: 12px; height: 12px; color: var(--text-mid); }
+.cgb-icon svg { width: 12px; height: 12px; }
+.cgb-val { font-size: 10px; font-weight: 800; color: var(--text); line-height: 1; }
+.cgb-track { height: 3px; background: var(--border); border-radius: 2px; overflow: hidden; }
+.cgb-fill  { height: 100%; border-radius: 2px; background: var(--text-muted); opacity: 0.35; transition: width 0.3s ease; }
+.cgb-ok    .cgb-fill { background: var(--green);   opacity: 1; }
+.cgb-below .cgb-fill { background: #E8A317;        opacity: 1; }
+.cgb-above .cgb-fill { background: #EF4444;        opacity: 1; }
+.cgb-ok    .cgb-icon { color: var(--green-dark); }
+.cgb-below .cgb-icon { color: #B07410; }
+.cgb-above .cgb-icon { color: #B91C1C; }
+
+/* WEC-165: .co-macro-* ruleset removed — checkout now uses the same shared
+   `.cart-goal-bars` / `.cgb-*` CSS as the cart sidebar via DayMacrosBlock. */
 
 /* ── Preferences (WEC-81) ── */
 .prefs-section-card { border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 18px; }
@@ -1145,6 +1569,14 @@ header {
 .order-macro-label { font-size: 10px; font-weight: 800; color: var(--text-muted); letter-spacing: 0.3px; }
 .order-macro-val { font-size: 18px; font-weight: 900; color: var(--green-dark); line-height: 1; }
 .order-macro-val small { font-size: 12px; font-weight: 700; color: var(--text-muted); }
+/* WEC-167: goal-progress bar inside each macro card. The card keeps its
+   existing pastel background; the bar sits at the bottom, full width, and
+   its fill colour is driven by the shared goalStatus helper. */
+.order-macro-bar { width: 100%; height: 4px; background: rgba(0,0,0,0.08); border-radius: 999px; overflow: hidden; margin-top: 6px; }
+.order-macro-bar-fill { height: 100%; border-radius: 999px; background: var(--green); transition: width 200ms ease; }
+.order-macro-card[data-goal-status="below"] .order-macro-bar-fill { background: #E8A317; }
+.order-macro-card[data-goal-status="above"] .order-macro-bar-fill { background: #EF4444; }
+.order-macro-card[data-goal-status="ok"]    .order-macro-bar-fill { background: var(--green); }
 .order-item-row { display: grid; grid-template-columns: auto 1fr auto; padding: 14px 18px; border-bottom: 1px solid var(--border); align-items: start; gap: 12px; min-height: 56px; }
 .order-item-row:last-child { border-bottom: none; }
 .order-item-qty-badge { font-size: 12px; font-weight: 900; color: var(--green-dark); background: var(--green-light); border-radius: 6px; padding: 2px 7px; min-width: 28px; text-align: center; margin-top: 1px; flex-shrink: 0; }
@@ -1398,7 +1830,13 @@ header {
    MOBILE
 ══════════════════════════════════════════ */
 @media (max-width: 900px) {
-  .layout { grid-template-columns: 1fr; }
+  /* Same minmax(0, …) trick as desktop — bare `1fr` would let .main grow
+     past the viewport based on its min-content size (dish images, long
+     words), which is the exact bug WEC-142 #27 tracked at 500px: every
+     child of .main appeared "clipped" because .main itself was wider
+     than the phone screen, not because anything inside it had a fixed
+     width. */
+  .layout { grid-template-columns: minmax(0, 1fr); }
   .sidebar { display: none; }
   .banner-row { grid-template-columns: 1fr; }
   .payment-methods { grid-template-columns: 1fr; }
@@ -1422,12 +1860,17 @@ header {
   .cat-section-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .dish-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .page-wrap { padding: 0 12px 80px; }
+  /* .cat-nav uses -28px horizontal margins at desktop to bleed into .main's
+     28px padding. At mobile .main padding shrinks to 16px, so match it — else
+     the category strip pokes 12px past the card grid on each side. */
+  .cat-nav { margin-left: -16px; margin-right: -16px; padding-left: 14px; }
   .time-grid { grid-template-columns: repeat(3, 1fr); }
   .goals-grid { grid-template-columns: 1fr; }
   .form-row.two-col { grid-template-columns: 1fr; }
   .checkout-page { padding: 16px 12px 80px; }
   .co-sections-nav { flex-wrap: wrap; gap: 4px; }
   .co-pill { padding: 6px 12px; font-size: 10px; }
+  .co-contact-grid { grid-template-columns: 1fr; gap: 10px; }
   .conf-actions { flex-direction: column; }
   .wlp-plans-grid { grid-template-columns: 1fr; }
   .wlp-plan-card.popular { order: -1; }
@@ -1468,4 +1911,43 @@ header {
   .macro-dots { gap: 3px; margin-top: 2px; }
   .macro-dot { width: 5px; height: 5px; }
   .btn-add { padding: 11px; font-size: 13px; }
+}
+
+/* ══════════════════════════════════════════
+   WEC-140 — MOBILE POLISH
+   Addresses the longstanding "card right edge clipped on mobile" bug from
+   the backlog + a couple of related small fixes found during audit:
+   - Belt-and-braces min-width:0 on grids so flex/grid children can shrink
+     past their intrinsic min content size (was pushing the right column off
+     screen on tight phones in landscape-split-view / Android).
+   - Tighter gutters on 2-col breakpoint so cards don't get starved of width.
+   - Day-nav gains a bit of right padding so the last pill isn't flush
+     against the edge and easier to scroll-snap to.
+   - Checkout sections get bottom spacing on mobile so the sticky confirm
+     button doesn't sit on top of the last field.
+   - Cart FAB hugs the bottom but with safe-area-inset on iOS so it doesn't
+     disappear behind the home indicator.
+   ══════════════════════════════════════════ */
+@media (max-width: 900px) {
+  /* Grids — let children shrink; prevents horizontal overflow when a card
+     contains long unbreakable strings (e.g. dish names without spaces). */
+  .cat-section-grid, .dish-grid { min-width: 0; }
+  .cat-section-grid > *, .dish-grid > * { min-width: 0; }
+  /* Day-nav: extra right padding so last tab is scrollable into center */
+  .day-nav { padding: 8px 12px 4px 2px; scroll-padding: 0 12px; }
+  /* Safe-area bottom for FAB on iOS */
+  .fab { bottom: calc(24px + env(safe-area-inset-bottom, 0px)); }
+}
+@media (max-width: 600px) {
+  /* Tighter gap on 2-col grid — was 18px, leaves <150px of card width
+     on an iPhone SE. */
+  .cat-section-grid, .dish-grid { gap: 10px; }
+  /* Prevent any stray horizontal scroll at body level — common symptom of
+     a too-wide child slipping out of .main's overflow:clip. */
+  body { overflow-x: hidden; }
+  /* Checkout sections pushed down from sticky top nav, breathing room
+     above the submit pill. */
+  .checkout-page { padding-bottom: 120px; }
+  /* Section headings closer to their content on small screens. */
+  .co-section { margin-bottom: 16px; }
 }

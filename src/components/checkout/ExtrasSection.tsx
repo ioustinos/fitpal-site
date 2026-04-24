@@ -3,11 +3,34 @@ import { useUIStore } from '../../store/useUIStore'
 import { Toggle } from '../ui/Toggle'
 import { makeTr } from '../../lib/translations'
 
-export function ExtrasSection() {
+interface ExtrasSectionProps {
+  /** When true, show red error hints on invoice fields that fail validation. */
+  attempted?: boolean
+}
+
+/**
+ * Cutlery, invoice, and order-notes toggles.
+ *
+ * WEC-138: invoice validation — when the invoice toggle is on, we require
+ * the company/name and a VAT that looks plausible (digits-only, ≥ 5 chars).
+ * The red-border styling appears after the user has tapped the submit
+ * button, mirroring ContactSection's attempted-then-validate pattern so
+ * the form doesn't yell at them while they're still typing.
+ */
+export function ExtrasSection({ attempted = false }: ExtrasSectionProps) {
   const lang = useUIStore((s) => s.lang)
   const payment = useCartStore((s) => s.payment)
   const setPayment = useCartStore((s) => s.setPayment)
   const t = makeTr(lang)
+
+  // Validation rules (see isInvoiceValid below for the matching check in
+  // CheckoutPage — keep them in sync).
+  const vatDigitsOnly = (payment.invoiceVat ?? '').replace(/\D/g, '')
+  const nameMissing = payment.invoice && !(payment.invoiceName ?? '').trim()
+  const vatMissing = payment.invoice && vatDigitsOnly.length === 0
+  const vatTooShort = payment.invoice && vatDigitsOnly.length > 0 && vatDigitsOnly.length < 5
+  const showNameErr = attempted && nameMissing
+  const showVatErr = attempted && (vatMissing || vatTooShort)
 
   return (
     <div className="extras-section">
@@ -42,18 +65,31 @@ export function ExtrasSection() {
           <div className="form-row">
             <label className="form-label">{lang === 'el' ? 'Επωνυμία / Όνομα' : 'Company / Name'}</label>
             <input
-              className="form-input"
+              className={`form-input${showNameErr ? ' is-invalid' : ''}`}
               value={payment.invoiceName ?? ''}
               onChange={(e) => setPayment({ ...payment, invoiceName: e.target.value })}
             />
+            {showNameErr && (
+              <div className="form-hint form-hint-error">
+                {lang === 'el' ? 'Συμπλήρωσε την επωνυμία ή το όνομα' : 'Enter a company or name'}
+              </div>
+            )}
           </div>
           <div className="form-row">
             <label className="form-label">{lang === 'el' ? 'ΑΦΜ' : 'VAT Number'}</label>
             <input
-              className="form-input"
+              className={`form-input${showVatErr ? ' is-invalid' : ''}`}
               value={payment.invoiceVat ?? ''}
+              inputMode="numeric"
               onChange={(e) => setPayment({ ...payment, invoiceVat: e.target.value })}
             />
+            {showVatErr && (
+              <div className="form-hint form-hint-error">
+                {vatMissing
+                  ? (lang === 'el' ? 'Το ΑΦΜ είναι υποχρεωτικό' : 'VAT number is required')
+                  : (lang === 'el' ? 'Το ΑΦΜ πρέπει να έχει τουλάχιστον 5 ψηφία' : 'VAT must be at least 5 digits')}
+              </div>
+            )}
           </div>
         </div>
       )}

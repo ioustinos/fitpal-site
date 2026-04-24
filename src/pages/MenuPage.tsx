@@ -6,6 +6,7 @@ import { useMenuStore } from '../store/useMenuStore'
 import { DayNav } from '../components/menu/DayNav'
 import { CategoryFilter } from '../components/menu/CategoryFilter'
 import { CutoffBar } from '../components/menu/CutoffBar'
+import { DayIntakePanel } from '../components/menu/DayIntakePanel'
 import { MenuSection } from '../components/menu/MenuSection'
 import { CartSidebar } from '../components/cart/CartSidebar'
 import { WALLET_PLANS } from '../data/menu'
@@ -29,6 +30,7 @@ export function MenuPage() {
   const activeWeek = useUIStore((s) => s.activeWeek)
   const openWalletModal = useUIStore((s) => s.openWalletModal)
   const goToWalletPage = useUIStore((s) => s.goToWalletPage)
+  const goToCheckout = useUIStore((s) => s.goToCheckout)
   const cart = useCartStore((s) => s.cart)
   const user = useAuthStore((s) => s.user)
   const t = makeTr(lang)
@@ -178,7 +180,11 @@ export function MenuPage() {
             </div>
           </div>
 
-          {/* Day navigation */}
+          {/* Day navigation — compact horizontally-scrollable day strip with
+              the cutoff countdown stacked just underneath. Reverted from the
+              WEC-166 v2 full-width-card + inline-cutoff experiment: the big
+              cards stole visual focus from the food, and the inline cutoff
+              was more visually broken than the simple stack. */}
           <div className="day-section">
             <div className="day-section-hdr">
               <div className="section-label">{t('daylabel')}</div>
@@ -188,8 +194,13 @@ export function MenuPage() {
             <CutoffBar />
           </div>
 
-          {/* Category filter — hidden while active week's dishes are still loading */}
+          {/* Category filter + thin intake strip share one sticky group.
+              WEC-166 v2: the fat intake panel was getting scrolled past as
+              the user browsed, so we swapped it for a 1-line strip that
+              sticks just under the category pills at the top of the menu
+              grid — visible at all times, low-attention. */}
           {!activeWeekLoading && <CategoryFilter dishes={allDishes} />}
+          {!activeWeekLoading && <DayIntakePanel />}
 
           {/* Menu grid (or loader while active week lazy-loads) */}
           {activeWeekLoading ? (
@@ -203,9 +214,16 @@ export function MenuPage() {
         <CartSidebar />
       </div>
 
-      {/* Mobile cart FAB — hidden on desktop via CSS, taps open checkout */}
+      {/* Mobile cart FAB — hidden on desktop via CSS, taps open checkout.
+          WEC-136: wired the onClick that was missing — the button did
+          nothing on tap, which is the exact kind of dead affordance that
+          erodes trust on mobile. */}
       {cartCount > 0 && (
-        <button className="fab">
+        <button
+          className="fab"
+          onClick={goToCheckout}
+          aria-label={lang === 'el' ? 'Πλοηγήσου στο checkout' : 'Go to checkout'}
+        >
           <div className="fab-dot" />
           🛒 <span>{cartCount}</span> · <span>€{Object.values(cart).reduce((s, items) => s + items.reduce((ss, i) => ss + i.price * i.qty, 0), 0).toFixed(2)}</span>
         </button>

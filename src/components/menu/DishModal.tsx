@@ -17,6 +17,7 @@ export function DishModal() {
   const selectedDayIndex = useUIStore((s) => s.selectedDayIndex)
   const closeModal = useUIStore((s) => s.closeModal)
   const addItem = useCartStore((s) => s.addItem)
+  const cart = useCartStore((s) => s.cart)
   const user = useAuthStore((s) => s.user)
   const weeksMeta = useMenuStore((s) => s.weeksMeta)
   const settings = useMenuStore((s) => s.settings)
@@ -56,6 +57,19 @@ export function DishModal() {
     ? weeksMeta[activeWeek]?.days[selectedDayIndex]?.date
     : undefined
   const unavailable = dayDate ? !isDayOrderable(dayDate, settings) : false
+
+  // WEC-132 dynamic CTA: if this dish+variant combo is already in the cart
+  // for the selected day, show the current qty so the user knows they're
+  // adding ON TOP of an existing entry (addItem stacks on the matching
+  // dishId+variantId in useCartStore).
+  const existingInCart = (() => {
+    if (selectedDayIndex == null) return 0
+    const items = cart[selectedDayIndex] ?? []
+    const row = items.find(
+      (i) => i.dishId === dish.id && i.variantId === variant.id,
+    )
+    return row?.qty ?? 0
+  })()
 
   function handleAdd() {
     if (unavailable) return
@@ -198,7 +212,15 @@ export function DishModal() {
           >
             {unavailable
               ? (lang === 'el' ? 'Οι παραγγελίες έχουν κλείσει' : 'Orders closed')
-              : `${t('addToCart')} • €${(finalPrice * qty).toFixed(2)}`}
+              : existingInCart > 0
+                // WEC-141: when the dish is already in the cart for this day,
+                // framing matters — the user is knowingly adding *another one
+                // with a different setup* (different variant / comment). The
+                // price still trails behind a bullet so it's scannable.
+                ? (lang === 'el'
+                    ? `Προσθήκη με διαφορετική επιλογή • €${(finalPrice * qty).toFixed(2)}`
+                    : `Add another with a different setup • €${(finalPrice * qty).toFixed(2)}`)
+                : `${t('addToCart')} • €${(finalPrice * qty).toFixed(2)}`}
           </button>
         </div>
       </div>
