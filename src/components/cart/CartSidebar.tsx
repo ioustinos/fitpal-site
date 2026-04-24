@@ -1,6 +1,5 @@
 import { useCartStore } from '../../store/useCartStore'
 import { useUIStore } from '../../store/useUIStore'
-import { useAuthStore } from '../../store/useAuthStore'
 import { DayOrderGroup } from '../shared/DayOrderGroup'
 import { VoucherInput } from './VoucherInput'
 import { makeTr } from '../../lib/translations'
@@ -11,10 +10,8 @@ export function CartSidebar() {
   const lang = useUIStore((s) => s.lang)
   const activeWeek = useUIStore((s) => s.activeWeek)
   const goToCheckout = useUIStore((s) => s.goToCheckout)
-  const openAuthModal = useUIStore((s) => s.openAuthModal)
   const cart = useCartStore((s) => s.cart)
   const voucher = useCartStore((s) => s.voucher)
-  const user = useAuthStore((s) => s.user)
   const t = makeTr(lang)
 
   const weeks = useMenuStore((s) => s.weeks)

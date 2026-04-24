@@ -3,7 +3,7 @@ import PhoneInput from 'react-phone-number-input'
 import flags from 'react-phone-number-input/flags'
 import 'react-phone-number-input/style.css'
 import { useUIStore } from '../store/useUIStore'
-import { useAuthStore, type Address, type MacroRange } from '../store/useAuthStore'
+import { useAuthStore, type Address } from '../store/useAuthStore'
 import { makeTr } from '../lib/translations'
 import { formatSlots } from '../lib/helpers'
 import { useMenuStore } from '../store/useMenuStore'
@@ -24,7 +24,7 @@ type AccountTab = 'orders' | 'wallet' | 'addresses' | 'goals' | 'prefs' | 'profi
 
 /* ─── SVG icon helpers ──────────────────────────────────────────────────────── */
 
-const icons: Record<AccountTab | 'logout', JSX.Element> = {
+const icons: Record<AccountTab | 'logout', React.ReactElement> = {
   orders: (
     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
       <rect x="3" y="3" width="18" height="18" rx="2"/><path d="M8 7h8M8 12h8M8 17h5"/>
@@ -633,7 +633,7 @@ function AddressesTab({ user, lang, updateAddresses }: any) {
     setSaving(false)
   }
 
-  const renderForm = (isNew: boolean, onSave: () => void) => (
+  const renderForm = (_isNew: boolean, onSave: () => void) => (
     <div className="addr-form">
       <div className="addr-form-row">
         <div className="form-row">
@@ -857,7 +857,7 @@ function GoalsTab({ user, lang, updateGoals }: any) {
 
       {/* ── Goals history — daily intakes, aggregates, forecast (WEC-168) ── */}
       {goals.enabled && user.orders && user.orders.length > 0 && (
-        <GoalsHistory user={user} goals={goals} lang={lang} t={t} />
+        <GoalsHistory user={user} goals={goals} lang={lang} t={t as (k: string) => string} />
       )}
     </div>
   )
@@ -890,7 +890,7 @@ function bucketChildOrdersByDay(orders: any[], todayIso: string): DayBucket[] {
       const b = byDate.get(date) ?? {
         date,
         macros: { cal: 0, protein: 0, carbs: 0, fat: 0 },
-        orderIds: [],
+        orderIds: [] as string[],
         forecast: date >= todayIso,
       }
       b.macros.cal     += m.cal     ?? 0
@@ -966,7 +966,7 @@ function GoalsHistory({ user, goals, lang, t }: { user: any; goals: any; lang: '
         ? (lang === 'el' ? '1 ημέρα' : '1 day')
         : (lang === 'el' ? `${pastBuckets.length} ημέρες` : `${pastBuckets.length} days`))
 
-  const macroBars: Array<{ k: 'cal' | 'protein' | 'carbs' | 'fat'; icon: JSX.Element; short: { el: string; en: string } }> = [
+  const macroBars: Array<{ k: 'cal' | 'protein' | 'carbs' | 'fat'; icon: React.ReactElement; short: { el: string; en: string } }> = [
     { k: 'cal',     icon: <MacroIcon type="cal" />,  short: { el: 'Θερμ.', en: 'Cal'  } },
     { k: 'protein', icon: <MacroIcon type="pro" />,  short: { el: 'Πρωτ.', en: 'P'    } },
     { k: 'carbs',   icon: <MacroIcon type="carb" />, short: { el: 'Υδατ.', en: 'C'    } },

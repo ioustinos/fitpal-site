@@ -333,14 +333,16 @@ export async function fetchActiveMenu(): Promise<{
   if (dtErr) return { data: null, error: dtErr.message }
 
   const tagIds = [...new Set((rawDishTags ?? []).map((dt: { dish_id: string; tag_id: string }) => dt.tag_id))]
-  let tagsMap: Record<string, DbTag> = {}
+  // Fetch tag detail rows so any tags-table query errors are surfaced,
+  // even though `tagsMap` isn't read downstream (commented out for now).
+  // The cast to DbTag[] preserves typing in case the map is re-enabled.
   if (tagIds.length > 0) {
     const { data: rawTags } = await supabase
       .from('tags')
       .select('id, label_el, label_en, bg_color, font_color')
       .in('id', tagIds)
     if (rawTags) {
-      tagsMap = Object.fromEntries((rawTags as DbTag[]).map((t) => [t.id, t]))
+      void (rawTags as DbTag[])
     }
   }
 

@@ -1,6 +1,5 @@
 import { useUIStore } from '../../store/useUIStore'
 import { useCartStore } from '../../store/useCartStore'
-import { useAuthStore } from '../../store/useAuthStore'
 import { useMenuStore } from '../../store/useMenuStore'
 import { effPrice, isDayOrderable } from '../../lib/helpers'
 import { MacroDotsRow } from '../ui/MacroDots'
@@ -18,7 +17,6 @@ export function DishCard({ dish, dayIndex }: DishCardProps) {
   const openDishModal = useUIStore((s) => s.openDishModal)
   const cart = useCartStore((s) => s.cart)
   const addItem = useCartStore((s) => s.addItem)
-  const user = useAuthStore((s) => s.user)
   const weeksMeta = useMenuStore((s) => s.weeksMeta)
   const settings = useMenuStore((s) => s.settings)
   const t = makeTr(lang)

@@ -9,8 +9,7 @@ import { ExtrasSection } from '../components/checkout/ExtrasSection'
 import { OrderSummary } from '../components/checkout/OrderSummary'
 import { ConfirmationScreen } from '../components/checkout/ConfirmationScreen'
 import { ContactSection, type ContactInfo } from '../components/checkout/ContactSection'
-import { makeTr } from '../lib/translations'
-import { activeDays, dayAmt, fmt, subTotal, zipInZone } from '../lib/helpers'
+import { activeDays, dayAmt, zipInZone } from '../lib/helpers'
 import { dayLabel } from '../lib/datelabels'
 import { isValidPhone } from '../lib/phone'
 import { updateProfile } from '../lib/api/auth'
@@ -56,7 +55,6 @@ export function CheckoutPage() {
   const setDelivery = useCartStore((s) => s.setDelivery)
   const setPayment = useCartStore((s) => s.setPayment)
   const user = useAuthStore((s) => s.user)
-  const t = makeTr(lang)
   const toast = useToast((s) => s.show)
 
   const [confirmed, setConfirmed] = useState(false)
@@ -88,8 +86,6 @@ export function CheckoutPage() {
   const dayLabelFor = (i: number) =>
     days[i] ? dayLabel(days[i].date, lang, 'long') : ''
   const activeDayIdxs = useMemo(() => activeDays(cart), [cart])
-
-  const total = subTotal(cart, voucher)
 
   // ─── Per-day + overall validation ─────────────────────────────────────────────
 
@@ -291,7 +287,7 @@ export function CheckoutPage() {
 
   // ─── Navigation ──────────────────────────────────────────────────────────────
 
-  function scrollToSection(ref: React.RefObject<HTMLDivElement>) {
+  function scrollToSection(ref: React.RefObject<HTMLDivElement | null>) {
     ref.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
   }
 

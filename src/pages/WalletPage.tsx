@@ -110,7 +110,6 @@ export function WalletPage() {
 
   const wallet = user?.wallet
   const steps = lang === 'el' ? STEPS_EL : STEPS_EN
-  const maxBonus = Math.max(...WALLET_PLANS.map((p) => p.bonusPct))
   const isEl = lang === 'el'
 
   /* Calculator state */
@@ -155,19 +154,10 @@ export function WalletPage() {
   const meals = isEl ? MEALS_EL : MEALS_EN
   const faqs = isEl ? FAQS_EL : FAQS_EN
 
-  function handleSelectPlan(planId: string) {
-    if (!user) { openAuthModal(); return }
-    const plan = WALLET_PLANS.find((p) => p.id === planId)
-    if (!plan) return
-    updateWallet({
-      active: true,
-      planId: plan.id,
-      planEl: plan.nameEl,
-      planEn: plan.nameEn,
-      balance: (wallet?.balance ?? 0) + plan.credits,
-      autoRenew: true,
-    })
-  }
+  // handleSelectPlan() lived here and was referenced by the plan-selection
+  // grid ~line 280, which is currently commented out. Removing the function
+  // until we re-enable the block; the pattern is trivial to recreate from
+  // updateWallet + WALLET_PLANS when needed.
 
   function handleStartSubscription() {
     if (!user) { openAuthModal(); return }

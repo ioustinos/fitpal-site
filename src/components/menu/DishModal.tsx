@@ -3,7 +3,6 @@ import { Modal } from '../ui/Modal'
 import { MacroBoxes } from '../ui/MacroDots'
 import { useUIStore } from '../../store/useUIStore'
 import { useCartStore } from '../../store/useCartStore'
-import { useAuthStore } from '../../store/useAuthStore'
 import { useMenuStore } from '../../store/useMenuStore'
 import { useToast } from '../ui/Toast'
 import { effPrice, isDayOrderable } from '../../lib/helpers'
@@ -18,7 +17,6 @@ export function DishModal() {
   const closeModal = useUIStore((s) => s.closeModal)
   const addItem = useCartStore((s) => s.addItem)
   const cart = useCartStore((s) => s.cart)
-  const user = useAuthStore((s) => s.user)
   const weeksMeta = useMenuStore((s) => s.weeksMeta)
   const settings = useMenuStore((s) => s.settings)
   const toast = useToast((s) => s.show)

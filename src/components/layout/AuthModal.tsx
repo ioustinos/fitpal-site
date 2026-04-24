@@ -3,7 +3,6 @@ import { useNavigate } from 'react-router-dom'
 import { Modal } from '../ui/Modal'
 import { useUIStore } from '../../store/useUIStore'
 import { useAuthStore } from '../../store/useAuthStore'
-import { makeTr } from '../../lib/translations'
 
 export function AuthModal() {
   const lang = useUIStore((s) => s.lang)
@@ -11,7 +10,6 @@ export function AuthModal() {
   const closeModal = useUIStore((s) => s.closeModal)
   const { login, signup, authError, authTab, setAuthTab, setError } = useAuthStore()
   const navigate = useNavigate()
-  const t = makeTr(lang)
 
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')

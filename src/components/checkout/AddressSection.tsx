@@ -27,7 +27,7 @@ const ADDR_ICONS: Record<string, string> = {
   Gym: '🏋️', Γυμναστήριο: '🏋️',
 }
 
-function addrIcon(addr: Address, lang: 'el' | 'en'): string {
+function addrIcon(addr: Address, _lang: 'el' | 'en'): string {
   return ADDR_ICONS[addr.labelEn] || ADDR_ICONS[addr.labelEl] || '📍'
 }
 

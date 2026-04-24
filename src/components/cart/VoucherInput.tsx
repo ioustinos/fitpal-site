@@ -3,7 +3,7 @@ import { useCartStore } from '../../store/useCartStore'
 import { useUIStore } from '../../store/useUIStore'
 import { useAuthStore } from '../../store/useAuthStore'
 import { makeTr } from '../../lib/translations'
-import { subTotal, activeDays, dayAmt } from '../../lib/helpers'
+import { activeDays, dayAmt } from '../../lib/helpers'
 
 export function VoucherInput() {
   const lang = useUIStore((s) => s.lang)
