@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "vite",
     "dev:netlify": "CHOKIDAR_USEPOLLING=1 netlify dev",
-    "build": "tsc -b && vite build",
+    "build": "vite build",
+    "typecheck": "tsc -b --noEmit",
     "lint": "eslint .",
     "preview": "vite preview"
   },
