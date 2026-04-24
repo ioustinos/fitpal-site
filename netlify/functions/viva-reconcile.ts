@@ -55,8 +55,10 @@ async function listVivaTransactions(orderCode: string): Promise<string[]> {
 }
 
 export default async () => {
+  const startMs = Date.now()
   const supabase = serviceClient()
   let checked = 0, paid = 0, failedN = 0, stillPending = 0, cancelledTimeout = 0, errors = 0
+  const errorNotes: string[] = []
 
   // ── 1. Find stale pending orders via SQL function ──────────────────
   const { data: rows, error: fnErr } = await supabase.rpc('viva_stale_pending_orders', {
@@ -88,6 +90,8 @@ export default async () => {
       else stillPending++
     } catch (err) {
       errors++
+      const msg = err instanceof Error ? err.message : String(err)
+      errorNotes.push(`${row.viva_order_code}: ${msg}`)
       console.error('[viva-reconcile] error for orderCode=%s:', row.viva_order_code, err)
     }
   }
@@ -113,7 +117,27 @@ export default async () => {
     console.warn('[viva-reconcile] RESCUED %d pending orders — webhook may be unhealthy', paid)
   }
   console.info('[viva-reconcile]', summary)
-  return Response.json(summary)
+
+  // Record this run so the admin dashboard can surface "last reconcile: Xm ago".
+  // Also serves as the canary — `paid > 0` means the webhook missed something.
+  const durationMs = Date.now() - startMs
+  try {
+    await supabase.from('reconcile_runs').insert({
+      provider: 'viva',
+      checked,
+      paid,
+      failed: failedN,
+      still_pending: stillPending,
+      cancelled_timeout: cancelledTimeout,
+      errors,
+      duration_ms: durationMs,
+      notes: errorNotes.length ? errorNotes.slice(0, 10).join(' | ') : null,
+    })
+  } catch (err) {
+    console.error('[viva-reconcile] failed to log run:', err)
+  }
+
+  return Response.json({ ...summary, durationMs })
 }
 
 // Netlify scheduled function config — runs every 5 min.

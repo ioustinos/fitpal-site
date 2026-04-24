@@ -10,6 +10,21 @@ export interface DashboardStats {
   nextPublishedMenuRange: { from: string; to: string } | null
 }
 
+/** WEC-174b — last run of the viva-reconcile scheduled function. */
+export interface ReconcileSummary {
+  runAt: string
+  ageSeconds: number
+  checked: number
+  /** >0 = webhook missed something; treat as canary. */
+  paidRescued: number
+  failed: number
+  stillPending: number
+  cancelledTimeout: number
+  errors: number
+  durationMs: number | null
+  notes: string | null
+}
+
 function todayIso(): string {
   return new Date().toISOString().slice(0, 10)
 }
@@ -70,6 +85,51 @@ export async function fetchDashboardStats(): Promise<{ data: DashboardStats | nu
       activeDishesCount: dishesCntRes.count ?? 0,
       nextPublishedMenuName: upcoming?.name ?? (upcoming ? `${upcoming.from_date} — ${upcoming.to_date}` : null),
       nextPublishedMenuRange: upcoming ? { from: upcoming.from_date, to: upcoming.to_date } : null,
+    },
+    error: null,
+  }
+}
+
+/**
+ * WEC-174b — fetch the most recent viva-reconcile run for the /admin dashboard
+ * health card. Silently returns null if the table is empty or RLS denies.
+ */
+export async function fetchLatestReconcileRun(): Promise<{ data: ReconcileSummary | null; error: string | null }> {
+  const { data, error } = await supabase
+    .from('reconcile_runs')
+    .select('run_at, checked, paid, failed, still_pending, cancelled_timeout, errors, duration_ms, notes')
+    .eq('provider', 'viva')
+    .order('run_at', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+
+  if (error) return { data: null, error: error.message }
+  if (!data) return { data: null, error: null }
+
+  const row = data as {
+    run_at: string
+    checked: number
+    paid: number
+    failed: number
+    still_pending: number
+    cancelled_timeout: number
+    errors: number
+    duration_ms: number | null
+    notes: string | null
+  }
+
+  return {
+    data: {
+      runAt: row.run_at,
+      ageSeconds: Math.max(0, Math.floor((Date.now() - new Date(row.run_at).getTime()) / 1000)),
+      checked: row.checked,
+      paidRescued: row.paid,
+      failed: row.failed,
+      stillPending: row.still_pending,
+      cancelledTimeout: row.cancelled_timeout,
+      errors: row.errors,
+      durationMs: row.duration_ms,
+      notes: row.notes,
     },
     error: null,
   }

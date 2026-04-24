@@ -1,21 +1,27 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuthStore } from '../../store/useAuthStore'
-import { fetchDashboardStats, type DashboardStats } from '../../lib/api/adminDashboard'
+import { fetchDashboardStats, fetchLatestReconcileRun, type DashboardStats, type ReconcileSummary } from '../../lib/api/adminDashboard'
 
 export function Dashboard() {
   const user = useAuthStore((s) => s.user)
   const navigate = useNavigate()
   const [stats, setStats] = useState<DashboardStats | null>(null)
+  const [reconcile, setReconcile] = useState<ReconcileSummary | null>(null)
   const [loading, setLoading] = useState(true)
   const [err, setErr] = useState<string | null>(null)
 
   useEffect(() => {
     (async () => {
       setLoading(true)
-      const { data, error } = await fetchDashboardStats()
-      if (error) setErr(error)
-      if (data) setStats(data)
+      const [statsRes, reconcileRes] = await Promise.all([
+        fetchDashboardStats(),
+        fetchLatestReconcileRun(),
+      ])
+      if (statsRes.error) setErr(statsRes.error)
+      if (statsRes.data) setStats(statsRes.data)
+      // reconcile is best-effort — silence errors, just leave null
+      if (reconcileRes.data) setReconcile(reconcileRes.data)
       setLoading(false)
     })()
   }, [])
@@ -96,10 +102,65 @@ export function Dashboard() {
               <button className="admin-inline-link" onClick={() => navigate('/admin/menus')}>Open menu builder →</button>
             </div>
           )}
+
+          <ReconcileHealthRow reconcile={reconcile} />
         </>
       )}
     </div>
   )
+}
+
+/** WEC-174b — tiny ops-health row showing when viva-reconcile last ran. */
+function ReconcileHealthRow({ reconcile }: { reconcile: ReconcileSummary | null }) {
+  if (!reconcile) {
+    return (
+      <div className="admin-text-muted" style={{ marginTop: 20, fontSize: 12 }}>
+        Viva reconcile: no runs recorded yet
+      </div>
+    )
+  }
+
+  const ageLabel = formatAge(reconcile.ageSeconds)
+  const stale = reconcile.ageSeconds > 15 * 60 // >15 min = missed 3 runs
+  const canary = reconcile.paidRescued > 0    // reconcile rescued orders → webhook unhealthy
+  const tone = canary ? '#ef4444' : stale ? '#f59e0b' : '#6b7280'
+
+  return (
+    <div
+      style={{
+        marginTop: 20,
+        padding: '8px 12px',
+        border: '1px solid var(--a-border, #e5e7eb)',
+        borderRadius: 6,
+        fontSize: 12,
+        color: tone,
+        display: 'flex',
+        gap: 16,
+        flexWrap: 'wrap',
+        alignItems: 'center',
+      }}
+      title={reconcile.notes ?? 'viva-reconcile scheduled function'}
+    >
+      <span><strong>Viva reconcile</strong>: {ageLabel} ago</span>
+      <span>· checked <strong>{reconcile.checked}</strong></span>
+      {canary && (
+        <span>· ⚠ rescued <strong>{reconcile.paidRescued}</strong> (webhook may be down)</span>
+      )}
+      {reconcile.errors > 0 && (
+        <span>· {reconcile.errors} error{reconcile.errors === 1 ? '' : 's'}</span>
+      )}
+      {stale && !canary && <span>· (stale — no run in 15+ min)</span>}
+    </div>
+  )
+}
+
+function formatAge(seconds: number): string {
+  if (seconds < 60) return `${seconds}s`
+  const mins = Math.floor(seconds / 60)
+  if (mins < 60) return `${mins}m`
+  const hours = Math.floor(mins / 60)
+  if (hours < 24) return `${hours}h`
+  return `${Math.floor(hours / 24)}d`
 }
 
 function StatCard({
