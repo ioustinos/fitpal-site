@@ -1,9 +1,11 @@
 // DEV-ONLY debug endpoint. Returns raw Viva responses for OAuth and
 // create-order so we can pinpoint failures quickly. Never enabled in prod.
+// Also probes the Supabase service-role client.
 //
 // Hit: https://dev--fitpal-order.netlify.app/api/viva-debug
 // (No auth — safe because prod returns 404 and the dev sandbox isn't sensitive.)
 
+import { createClient } from '@supabase/supabase-js'
 import { getVivaCreds } from '../lib/viva/env'
 
 function isProd(): boolean {
@@ -25,6 +27,38 @@ export default async (_request: Request) => {
   }
 
   const steps: Step[] = []
+
+  // ── Step 0: Supabase service-role client probe ─────────────────────────
+  const supabaseUrl = process.env.VITE_SUPABASE_URL ?? ''
+  const supabaseSvcKey = process.env.SUPABASE_SERVICE_ROLE_KEY ?? ''
+  if (!supabaseSvcKey) {
+    steps.push({
+      step: 'supabaseServiceClient',
+      ok: false,
+      error: 'SUPABASE_SERVICE_ROLE_KEY env var is not set',
+    })
+  } else {
+    try {
+      const svc = createClient(supabaseUrl, supabaseSvcKey, {
+        auth: { persistSession: false, autoRefreshToken: false },
+      })
+      const { count, error } = await svc.from('orders').select('id', { count: 'exact', head: true })
+      if (error) throw error
+      steps.push({
+        step: 'supabaseServiceClient',
+        ok: true,
+        url: supabaseUrl,
+        keyLen: supabaseSvcKey.length,
+        ordersCount: count,
+      })
+    } catch (err) {
+      steps.push({
+        step: 'supabaseServiceClient',
+        ok: false,
+        error: String(err),
+      })
+    }
+  }
 
   let creds
   try {
