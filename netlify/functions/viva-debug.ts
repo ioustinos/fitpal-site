@@ -1,4 +1,4 @@
-// DEV-ONLY debug endpoint. Returns raw Viva responses for OAuth and
+// DEV-ONLY debug endpoint (rev 2). Returns raw Viva responses for OAuth and
 // create-order so we can pinpoint failures quickly. Never enabled in prod.
 // Also probes the Supabase service-role client.
 //
