@@ -46,7 +46,7 @@ export function getVivaCreds(): VivaCredentials {
   const suffix = env === 'prod' ? 'PROD' : 'DEV'
   return {
     env,
-    accountsHost: env === 'prod' ? 'accounts.vivapayments.com' : 'accounts.demo.vivapayments.com',
+    accountsHost: env === 'prod' ? 'accounts.vivapayments.com' : 'demo-accounts.vivapayments.com',
     apiHost:      env === 'prod' ? 'api.vivapayments.com'      : 'demo-api.vivapayments.com',
     checkoutHost: env === 'prod' ? 'www.vivapayments.com'      : 'demo.vivapayments.com',
     sourceCode:   req(`VIVA_SOURCE_CODE_${suffix}`),
