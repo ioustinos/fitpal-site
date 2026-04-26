@@ -410,14 +410,18 @@ export function CheckoutPage() {
     setOrderNumber(data?.orderNumber ?? '')
 
     // ─── Viva redirect (WEC-171) ────────────────────────────────────────
-    // For card/link methods, submit-order returns a Viva-hosted checkout
-    // URL. Redirect before showing our confirmation screen — the customer
-    // comes back via /order/:orderId/success once they've paid (WEC-172).
+    // For `card` only — customer pays in-session, redirect to Viva's hosted
+    // checkout. They come back via /order/pending/success once paid (WEC-172).
+    //
+    // For `link`, submit-order also returns a paymentUrl (admin reads it from
+    // the order drawer to send to the customer out-of-band) but we must NOT
+    // redirect the customer themselves — they should land on the confirmation
+    // screen with a "we'll send you a payment link shortly" message.
     //
     // If paymentSetupFailed, the order row exists but we couldn't reach
     // Viva. Show confirmation with a soft warning; admin can regenerate
     // the payment link later (WEC-176).
-    if (data?.paymentUrl) {
+    if (data?.paymentUrl && payment.method === 'card') {
       window.location.replace(data.paymentUrl)
       return
     }
