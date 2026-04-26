@@ -3,10 +3,10 @@
 //
 // Behavior:
 //   - Validates refund amount fits in (order.total - orders.refund_amount).
-//   - POST /api/transactions/{id}?Amount=...&SourceCode=... with Basic auth
-//     (MerchantId:ApiKey). Confirmed by Viva support: this endpoint does
-//     NOT accept OAuth bearer tokens even for Smart Checkout accounts.
-//     The /checkout/v2/ path is not used for refunds.
+//   - DELETE https://{checkoutHost}/api/transactions/{id}/?amount=&sourceCode=
+//     with Basic auth (MerchantId:ApiKey). Per Viva's "Issue a refund" doc,
+//     the endpoint lives on the *checkout host* (demo.vivapayments.com /
+//     www.vivapayments.com), NOT the API host, and uses DELETE not POST.
 //   - On success, increments orders.refund_amount; flips payment_status
 //     to 'refunded' if cumulative >= total. Writes admin_change_log.
 //
@@ -76,29 +76,34 @@ export async function refundVivaTransaction(args: RefundArgs): Promise<RefundRes
     throw new Error(`Refund €${(refundCents / 100).toFixed(2)} exceeds remaining €${(remaining / 100).toFixed(2)}`)
   }
 
-  // Call Viva refund via the legacy /api/transactions/{id} endpoint.
-  // Authentication: Basic auth with MerchantId:ApiKey (NOT OAuth bearer).
-  // Per Viva support, Smart Checkout OAuth cannot be used for refunds.
+  // Call Viva refund via DELETE /api/transactions/{id}/ on the CHECKOUT host
+  // (demo.vivapayments.com / www.vivapayments.com), with Basic auth using
+  // MerchantId:ApiKey. NOT the API host, NOT OAuth — confirmed by Viva docs.
   const creds = getVivaCreds()
   const basic = Buffer.from(`${creds.merchantId}:${creds.apiKey}`).toString('base64')
+  // Trailing slash on the path is important per Viva's documented format.
   const url = new URL(
-    `https://${creds.apiHost}/api/transactions/${encodeURIComponent(link.transaction_id as string)}`,
+    `https://${creds.checkoutHost}/api/transactions/${encodeURIComponent(link.transaction_id as string)}/`,
   )
-  url.searchParams.set('Amount', String(refundCents))
-  url.searchParams.set('SourceCode', creds.sourceCode)
+  url.searchParams.set('amount', String(refundCents))
+  url.searchParams.set('sourceCode', creds.sourceCode)
 
   const res = await fetch(url.toString(), {
-    method: 'POST',
-    headers: {
-      Authorization: `Basic ${basic}`,
-      'Content-Type': 'application/json',
-      'Content-Length': '0',
-    },
+    method: 'DELETE',
+    headers: { Authorization: `Basic ${basic}` },
   })
 
+  const responseText = await res.text().catch(() => '')
   if (!res.ok) {
-    const body = await res.text().catch(() => '')
-    throw new Error(`Viva refund failed: ${res.status} ${body}`)
+    throw new Error(`Viva refund failed: ${res.status} ${responseText}`)
+  }
+  // Viva returns 200 with { Success: true, StatusId: 'F', ... } on success
+  // and { Success: false, StatusId: 'E', ErrorCode: ..., ErrorText: ... } on
+  // application-level failure. Treat StatusId !== 'F' as error.
+  let parsed: { StatusId?: string; ErrorCode?: number; ErrorText?: string; Success?: boolean } = {}
+  try { parsed = JSON.parse(responseText) } catch { /* leave empty */ }
+  if (parsed.StatusId && parsed.StatusId !== 'F') {
+    throw new Error(`Viva refund declined: ${parsed.ErrorCode ?? '?'} ${parsed.ErrorText ?? 'unknown'}`)
   }
 
   const newTotalRefunded = currentRefund + refundCents
