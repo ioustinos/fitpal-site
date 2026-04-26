@@ -72,9 +72,14 @@ export async function createVivaOrder(args: CreateOrderArgs): Promise<CreateOrde
   }
 
   // Create the Viva checkout order.
+  // paymentTimeOut: 1800s (30min) for card flow — customer is in a redirect
+  // session and shouldn't dawdle. 64800s (18h) for link flow — admin is
+  // sending the URL out-of-band and the customer may take their time.
+  // 18h is Viva's documented per-source maximum for link mode; sending
+  // a higher value risks silent fallback to the 30min default.
   const token = await getVivaAccessToken()
   const creds = getVivaCreds()
-  const paymentTimeOut = args.mode === 'link' ? 86400 : 1800
+  const paymentTimeOut = args.mode === 'link' ? 64800 : 1800
 
   const body = {
     amount: args.amountCents,
