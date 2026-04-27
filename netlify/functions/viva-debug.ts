@@ -21,10 +21,13 @@ interface Step {
   [key: string]: unknown
 }
 
-export default async (_request: Request) => {
+export default async (request: Request) => {
   if (isProd()) {
     return Response.json({ error: 'Not found' }, { status: 404 })
   }
+
+  const url = new URL(request.url)
+  const probeOrderCode = url.searchParams.get('orderCode')
 
   const steps: Step[] = []
 
@@ -168,6 +171,26 @@ export default async (_request: Request) => {
     })
   } catch (err) {
     steps.push({ step: 'CreateOrder', ok: false, url: orderUrl, error: String(err) })
+  }
+
+  // ── Step 3 (optional): probe the listing endpoint for a real orderCode ─
+  if (probeOrderCode && token) {
+    const probeUrl = `https://${creds.apiHost}/checkout/v2/orders/${encodeURIComponent(probeOrderCode)}`
+    try {
+      const res = await fetch(probeUrl, { headers: { Authorization: `Bearer ${token}` } })
+      const text = await res.text()
+      let parsed: unknown
+      try { parsed = JSON.parse(text) } catch { parsed = text }
+      steps.push({
+        step: 'ListTransactionsForOrderCode',
+        ok: res.ok,
+        status: res.status,
+        url: probeUrl,
+        response: typeof parsed === 'string' ? parsed.slice(0, 1500) : parsed,
+      })
+    } catch (err) {
+      steps.push({ step: 'ListTransactionsForOrderCode', ok: false, error: String(err) })
+    }
   }
 
   return Response.json({ steps })
