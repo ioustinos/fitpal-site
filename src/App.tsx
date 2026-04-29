@@ -13,6 +13,7 @@ import { OrderReturn } from './pages/OrderReturn'
 import { DishModal } from './components/menu/DishModal'
 import { AuthModal } from './components/layout/AuthModal'
 import { WalletModal } from './components/wallet/WalletModal'
+import { ImpersonationBanner } from './components/admin/ImpersonationBanner'
 
 // Admin is lazy-loaded so the customer bundle stays lean — /admin/* code
 // won't be fetched until a user actually visits the admin panel.
@@ -91,21 +92,27 @@ export default function App() {
   }, [])
 
   return (
-    <Routes>
-      <Route
-        path="/admin/*"
-        element={
-          <Suspense fallback={<AdminBootFallback />}>
-            <AdminApp />
-          </Suspense>
-        }
-      />
-      {/* WEC-172 — Viva return landing pages. These sit outside the zustand
-          customer shell because they need URL + query-param access. */}
-      <Route path="/order/pending/success" element={<OrderReturn mode="success" />} />
-      <Route path="/order/pending/failure" element={<OrderReturn mode="failure" />} />
-      <Route path="*" element={<CustomerApp />} />
-    </Routes>
+    <>
+      {/* Impersonation banner mounts globally — visible across customer pages,
+          admin pages, return URLs, etc. The banner pushes content via the
+          `is-impersonating` body class. */}
+      <ImpersonationBanner />
+      <Routes>
+        <Route
+          path="/admin/*"
+          element={
+            <Suspense fallback={<AdminBootFallback />}>
+              <AdminApp />
+            </Suspense>
+          }
+        />
+        {/* WEC-172 — Viva return landing pages. These sit outside the zustand
+            customer shell because they need URL + query-param access. */}
+        <Route path="/order/pending/success" element={<OrderReturn mode="success" />} />
+        <Route path="/order/pending/failure" element={<OrderReturn mode="failure" />} />
+        <Route path="*" element={<CustomerApp />} />
+      </Routes>
+    </>
   )
 }
 

@@ -276,6 +276,12 @@ export interface SubmitOrderPayload {
   notes?: string
   voucherCode?: string
   days: SubmitDayPayload[]
+  /**
+   * Admin impersonation: when set, the order is filed under this customer's
+   * user_id, with the admin's id stored in `admin_order_id`. Server-side
+   * verifies the caller is admin via JWT before honouring this field.
+   */
+  impersonateUserId?: string
 }
 
 export interface SubmitDayPayload {

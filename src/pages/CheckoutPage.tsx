@@ -16,6 +16,7 @@ import { updateProfile } from '../lib/api/auth'
 import { useMenuStore } from '../store/useMenuStore'
 import { useToast } from '../components/ui/Toast'
 import { submitOrder } from '../lib/api/orders'
+import { useImpersonationStore } from '../store/useImpersonationStore'
 
 const GUEST_CONTACT_KEY = 'fitpal_guest_contact'
 
@@ -340,8 +341,13 @@ export function CheckoutPage() {
       }
     })
 
+    // If admin is impersonating, file the order under the impersonated
+    // customer. The admin's JWT travels in the Authorization header (set by
+    // submitOrder); the server verifies admin status before honouring this.
+    const impersonating = useImpersonationStore.getState().active
+
     const { data, error, validationErrors } = await submitOrder({
-      userId: user?.id,
+      userId: impersonating?.userId ?? user?.id,
       customerName: contactName,
       customerEmail: contactEmail,
       customerPhone: contact.phone,  // E.164 from <PhoneInput>
@@ -353,6 +359,7 @@ export function CheckoutPage() {
       notes: payment.notes,
       voucherCode: voucher.applied ? voucher.code : undefined,
       days: dayPayloads,
+      impersonateUserId: impersonating?.userId,
     })
 
     setSubmitting(false)
@@ -431,6 +438,13 @@ export function CheckoutPage() {
           ? 'Η παραγγελία καταχωρήθηκε αλλά η πληρωμή δεν διαμορφώθηκε — θα επικοινωνήσουμε μαζί σου.'
           : "Order saved, but we couldn't set up payment — we'll reach out shortly.",
       )
+    }
+
+    // If we placed this order via impersonation, exit impersonation now —
+    // the admin will land on the confirmation screen and any next click
+    // takes them back to /admin (or to their own account if they linger).
+    if (impersonating) {
+      useImpersonationStore.getState().stop()
     }
 
     setConfirmed(true)

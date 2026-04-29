@@ -22,6 +22,8 @@ interface OrderPayload {
   notes?: string
   voucherCode?: string
   days: DayPayload[]
+  /** Admin impersonation — verified server-side. Order filed under this customer's id. */
+  impersonateUserId?: string
 }
 
 interface DayPayload {
@@ -227,6 +229,45 @@ export default async (request: Request) => {
     if (token && !userId) {
       const { data: { user } } = await supabase.auth.getUser()
       userId = user?.id ?? null
+    }
+
+    // ─── Impersonation — verify caller is admin, switch to service-role ─
+    //
+    // When `impersonateUserId` is present, the admin places the order on
+    // behalf of a customer. We verify admin status via the JWT-bound client
+    // (so an attacker forging the field is rejected), then switch to a
+    // service-role client for the rest of the function. The order's user_id
+    // is overridden to the impersonated customer; the admin's id is stored
+    // in `admin_order_id` so the audit trail is intact.
+    let adminUserId: string | null = null
+    let isImpersonating = false
+    if (body.impersonateUserId) {
+      if (!token || !userId) {
+        return Response.json({ error: 'Impersonation requires authentication' }, { status: 401 })
+      }
+      // Verify caller is an admin. Uses the JWT-bound client → RLS enforced.
+      const { data: isAdminResult, error: adminCheckErr } = await supabase.rpc('is_admin')
+      if (adminCheckErr || !isAdminResult) {
+        return Response.json({ error: 'Not authorised to impersonate' }, { status: 403 })
+      }
+      // Verify the target customer exists.
+      if (!SUPABASE_SERVICE_KEY) {
+        return Response.json({ error: 'Server not configured for impersonation' }, { status: 500 })
+      }
+      const svc = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY)
+      const { data: targetProfile, error: targetErr } = await svc
+        .from('profiles')
+        .select('id')
+        .eq('id', body.impersonateUserId)
+        .maybeSingle()
+      if (targetErr || !targetProfile) {
+        return Response.json({ error: 'Customer not found for impersonation' }, { status: 404 })
+      }
+      // Switch to service-role client for the rest of the function.
+      supabase = svc
+      adminUserId = userId
+      userId = body.impersonateUserId
+      isImpersonating = true
     }
 
     // ─── Phase 2: Fetch all reference data in parallel ──────────────────
@@ -479,6 +520,13 @@ export default async (request: Request) => {
 
     const orderNumber = generateOrderNumber()
 
+    // When an admin places an order on behalf of a customer, surface that
+    // in the audit trail so support can tell apart self-service vs curator
+    // orders downstream (admin dashboard, exports, refund decisions).
+    const adminNotesValue = isImpersonating
+      ? `Placed by admin ${adminUserId} on behalf of customer ${userId} at ${new Date().toISOString()}`
+      : null
+
     const { data: orderRow, error: oErr } = await supabase
       .from('orders')
       .insert({
@@ -498,6 +546,8 @@ export default async (request: Request) => {
         invoice_name: body.invoiceName ?? null,
         invoice_vat: body.invoiceVat ?? null,
         notes: body.notes ?? null,
+        admin_order_id: adminUserId,
+        admin_notes: adminNotesValue,
       })
       .select('id')
       .single()

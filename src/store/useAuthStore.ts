@@ -59,6 +59,13 @@ export interface UserWallet {
   monthlyAmount?: number
   creditAmount?: number
   transactions?: WalletTransaction[]
+  /**
+   * When true, only an admin (via impersonation) can spend this wallet —
+   * customer-side checkout hides the wallet payment option. Used for the
+   * curator-managed subscription tier where Fitpal staff orders on the
+   * customer's behalf.
+   */
+  adminManaged?: boolean
 }
 
 export interface UserPrefs {

@@ -2,6 +2,7 @@ import { useCartStore } from '../../store/useCartStore'
 import { useUIStore } from '../../store/useUIStore'
 import { useAuthStore } from '../../store/useAuthStore'
 import { useMenuStore } from '../../store/useMenuStore'
+import { useImpersonationStore } from '../../store/useImpersonationStore'
 import { subTotal } from '../../lib/helpers'
 
 const PAYMENT_METHODS = [
@@ -20,14 +21,33 @@ export function PaymentSection() {
   const voucher = useCartStore((s) => s.voucher)
   const user = useAuthStore((s) => s.user)
   const enabledMethods = useMenuStore((s) => s.settings.paymentMethodsEnabled)
-  const walletBalance = user?.wallet?.balance ?? 0
-  const walletActive = user?.wallet?.active
+  // During admin impersonation, swap the wallet figures to the impersonated
+  // customer's balance — that's the wallet that'll actually be debited
+  // server-side. Without this, admin sees their own wallet (or zero) and
+  // the wallet option looks unavailable.
+  const impersonating = useImpersonationStore((s) => s.active)
+  const walletBalance = impersonating
+    ? impersonating.walletBalance / 100  // store has cents; UI uses euros
+    : user?.wallet?.balance ?? 0
+  const walletActive = impersonating
+    ? impersonating.walletBalance > 0
+    : user?.wallet?.active
 
   const total = subTotal(cart, voucher)
   const walletSufficient = walletBalance >= total
 
-  // Filter hardcoded catalog by the admin-configured list
-  const visibleMethods = PAYMENT_METHODS.filter((m) => enabledMethods.includes(m.id))
+  // Filter hardcoded catalog by the admin-configured list.
+  // For non-admin users on a customer with admin_managed wallet: the wallet
+  // option is hidden entirely (only the impersonating admin can spend it).
+  // For admin impersonation: wallet stays visible regardless of admin_managed.
+  const visibleMethods = PAYMENT_METHODS.filter((m) => {
+    if (!enabledMethods.includes(m.id)) return false
+    if (m.id === 'wallet') {
+      // Hide for self-service customers with admin-managed wallet.
+      if (!impersonating && user?.wallet?.adminManaged) return false
+    }
+    return true
+  })
 
   return (
     <div className="payment-section">

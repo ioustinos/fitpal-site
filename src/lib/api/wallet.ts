@@ -13,6 +13,7 @@ interface DbWallet {
   auto_renew: boolean
   next_renewal: string | null
   active: boolean
+  admin_managed: boolean      // when true, only admins can spend via impersonation
 }
 
 interface DbWalletPlan {
@@ -148,6 +149,7 @@ export async function fetchWallet(userId: string): Promise<{
       monthlyAmount,
       creditAmount,
       transactions,
+      adminManaged: w.admin_managed ?? false,
     },
     error: null,
   }

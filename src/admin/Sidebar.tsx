@@ -13,11 +13,13 @@ const items: NavItem[] = [
   { path: '/admin/menus',    label: 'Menu builder',icon: 'menus',                 wec: 'WEC-114' },
   { path: '/admin/dishes',   label: 'Dishes',      icon: 'dishes',                wec: 'WEC-113' },
   { path: '/admin/orders',   label: 'Orders',      icon: 'orders',                wec: 'WEC-115' },
+  { path: '/admin/users',    label: 'Users',       icon: 'users' },
+  { path: '/admin/vouchers', label: 'Vouchers',    icon: 'vouchers' },
   { path: '/admin/settings', label: 'Settings',    icon: 'settings',              wec: 'WEC-118' },
   { path: '/admin/zones',    label: 'Delivery zones', icon: 'zones',              wec: 'WEC-119' },
 ]
 
-type IconName = 'dashboard' | 'menus' | 'dishes' | 'orders' | 'settings' | 'zones'
+type IconName = 'dashboard' | 'menus' | 'dishes' | 'orders' | 'settings' | 'zones' | 'users' | 'vouchers'
 
 function Icon({ name }: { name: IconName }) {
   const p = {
@@ -70,6 +72,22 @@ function Icon({ name }: { name: IconName }) {
         <svg {...p}>
           <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z" />
           <circle cx="12" cy="10" r="3" />
+        </svg>
+      )
+    case 'users':
+      return (
+        <svg {...p}>
+          <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+          <circle cx="9" cy="7" r="4" />
+          <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
+          <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+        </svg>
+      )
+    case 'vouchers':
+      return (
+        <svg {...p}>
+          <path d="M20 12V8H4v4a2 2 0 0 0 0 4v4h16v-4a2 2 0 0 0 0-4z" />
+          <line x1="13" y1="5" x2="13" y2="19" strokeDasharray="2 2" />
         </svg>
       )
   }

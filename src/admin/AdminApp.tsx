@@ -7,6 +7,8 @@ import { Dishes } from './pages/Dishes'
 import { Orders } from './pages/Orders'
 import { Settings } from './pages/Settings'
 import { Zones } from './pages/Zones'
+import { Vouchers } from './pages/Vouchers'
+import { Users } from './pages/Users'
 import './admin.css'
 
 /**
@@ -22,6 +24,8 @@ export default function AdminApp() {
           <Route path="menus" element={<Menus />} />
           <Route path="dishes" element={<Dishes />} />
           <Route path="orders" element={<Orders />} />
+          <Route path="users" element={<Users />} />
+          <Route path="vouchers" element={<Vouchers />} />
           <Route path="settings" element={<Settings />} />
           <Route path="zones" element={<Zones />} />
         </Route>
