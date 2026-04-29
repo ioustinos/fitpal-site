@@ -9,11 +9,16 @@
  * API key comes from `VITE_GOOGLE_MAPS_API_KEY`. If unset the loader resolves
  * with `null` so callers can degrade to a plain text input — better than
  * crashing the page on a missing key.
+ *
+ * Uses `importLibrary` under the hood (the pattern Google now recommends —
+ * the legacy `places.Autocomplete` has been unavailable to new customers
+ * since 2025-03-01, replaced by `places.PlaceAutocompleteElement`).
  */
 
 const KEY = import.meta.env.VITE_GOOGLE_MAPS_API_KEY as string | undefined
 
-type GoogleMapsNs = typeof window extends { google: { maps: infer M } } ? M : never
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type GoogleMapsNs = any
 
 let promise: Promise<GoogleMapsNs | null> | null = null
 
@@ -51,9 +56,12 @@ export function loadGoogleMaps(): Promise<GoogleMapsNs | null> {
     }
 
     const s = document.createElement('script')
+    // `loading=async` is required for the new `importLibrary` API used by
+    // PlaceAutocompleteElement. We don't list `places` in the libraries
+    // param — modern usage prefers per-feature `importLibrary('places')`.
     s.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(
       KEY,
-    )}&libraries=places&loading=async&callback=${cbName}`
+    )}&v=weekly&loading=async&callback=${cbName}`
     s.async = true
     s.defer = true
     s.onerror = () => reject(new Error('Failed to load Google Maps script'))
@@ -79,21 +87,29 @@ export interface ParsedPlace {
   zip: string         // postal_code
   lat: number | null
   lng: number | null
-  formatted: string   // full formatted_address from Google
+  formatted: string   // full formatted address from Google
 }
 
 /**
- * Convert a `google.maps.places.PlaceResult` into our local shape.
- * Tolerates missing components (e.g. unaddressed POIs) — fields default to ''.
+ * Convert a `google.maps.places.Place` (new API) into our local shape.
+ * Handles both the new `addressComponents` shape (array of `AddressComponent`
+ * objects with `longText`/`shortText`/`types`) and the legacy
+ * `address_components` shape (`long_name`/`short_name`/`types`) — useful if
+ * we end up running both side-by-side during the migration.
  */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function parsePlace(place: any): ParsedPlace {
-  const components: Array<{ long_name: string; short_name: string; types: string[] }> =
-    place?.address_components ?? []
+  // New API: place.addressComponents is an array of { longText, shortText, types }
+  // Old API: place.address_components is an array of { long_name, short_name, types }
+  const components: Array<{
+    longText?: string; shortText?: string;
+    long_name?: string; short_name?: string;
+    types: string[]
+  }> = place?.addressComponents ?? place?.address_components ?? []
 
   const get = (type: string): string => {
     const c = components.find((x) => x.types.includes(type))
-    return c?.long_name ?? ''
+    return c?.longText ?? c?.long_name ?? ''
   }
 
   const route = get('route')
@@ -109,12 +125,18 @@ export function parsePlace(place: any): ParsedPlace {
     get('administrative_area_level_3') ||
     ''
 
+  // Lat/lng — new API exposes `place.location` with .lat() / .lng() methods,
+  // old API used `place.geometry.location`.
+  const loc = place?.location ?? place?.geometry?.location ?? null
+  const lat = typeof loc?.lat === 'function' ? loc.lat() : (typeof loc?.lat === 'number' ? loc.lat : null)
+  const lng = typeof loc?.lng === 'function' ? loc.lng() : (typeof loc?.lng === 'number' ? loc.lng : null)
+
   return {
     street,
     area,
     zip: get('postal_code'),
-    lat: place?.geometry?.location?.lat?.() ?? null,
-    lng: place?.geometry?.location?.lng?.() ?? null,
-    formatted: place?.formatted_address ?? '',
+    lat: lat ?? null,
+    lng: lng ?? null,
+    formatted: place?.formattedAddress ?? place?.formatted_address ?? '',
   }
 }

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef } from 'react'
 import { loadGoogleMaps, parsePlace, type ParsedPlace } from '../../lib/googleMaps'
 
 interface Props {
@@ -19,17 +19,19 @@ interface Props {
 /**
  * Address-line input wired to Google Places Autocomplete.
  *
- * Behaviour:
- *   - Loads the Maps JS once via the singleton in `lib/googleMaps`.
- *   - Restricts results to Greece by default (the only delivery zone today).
- *   - On selection, parses the place and fires `onSelect` with structured
- *     fields the caller can spread into form state.
- *   - If `VITE_GOOGLE_MAPS_API_KEY` is unset (or load fails), silently
- *     degrades to a regular text input — onChange still fires, the user
- *     just types the address manually.
+ * Uses the new `PlaceAutocompleteElement` (the legacy `places.Autocomplete`
+ * was deprecated 2025-03-01 and is not available to new customers).
  *
- * The component intentionally only wires the STREET field. Locality + zip
- * are populated via `onSelect` so the rest of the form auto-fills.
+ * `PlaceAutocompleteElement` is a custom HTML element that renders its own
+ * input + suggestions list. We mount it into a wrapper div, listen for the
+ * `gmp-select` event, and bridge that to `onSelect` / `onChange` for React
+ * parity. We also relay typing via the inner input's `input` event so the
+ * controlled `value` state outside still tracks what the user typed.
+ *
+ * If `VITE_GOOGLE_MAPS_API_KEY` is unset, the SDK fails to load, OR the
+ * Places API (New) isn't enabled on the project — the component silently
+ * degrades to a plain `<input>`. The fallback input is rendered always and
+ * hidden only when the autocomplete element successfully mounts.
  */
 export function PlacesAutocomplete({
   value,
@@ -41,58 +43,127 @@ export function PlacesAutocomplete({
   disabled,
   ariaInvalid,
 }: Props) {
-  const inputRef = useRef<HTMLInputElement>(null)
+  const containerRef = useRef<HTMLDivElement>(null)
+  const fallbackInputRef = useRef<HTMLInputElement>(null)
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const autoRef = useRef<any>(null)
-  const [ready, setReady] = useState(false)
+  const elementRef = useRef<any>(null)
+  // Latest callbacks via refs so the mount effect can stay value-independent.
+  const onChangeRef = useRef(onChange)
+  const onSelectRef = useRef(onSelect)
+  const valueRef = useRef(value)
+  onChangeRef.current = onChange
+  onSelectRef.current = onSelect
+  valueRef.current = value
 
+  // Mount the PlaceAutocompleteElement once. Country can change but in
+  // practice it's a constant per call site; mount-once is fine.
   useEffect(() => {
-    let cancelled = false
     if (disabled) return
-    loadGoogleMaps().then((ns) => {
-      if (cancelled || !ns || !inputRef.current) return
-      // Use the legacy Autocomplete (still supported through 2027). The new
-      // PlaceAutocompleteElement is a custom element and clashes with React's
-      // controlled-input pattern.
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const ac = new (ns as any).places.Autocomplete(inputRef.current, {
-        fields: ['address_components', 'geometry', 'formatted_address'],
-        types: ['address'],
-        componentRestrictions: { country },
-      })
-      ac.addListener('place_changed', () => {
-        const place = ac.getPlace()
-        const parsed = parsePlace(place)
-        // Reflect the formatted address back into the input — Google's
-        // dropdown sets the input's text directly via the DOM, but we want
-        // React state to track it too.
-        if (parsed.street) onChange(parsed.street)
-        onSelect(parsed)
-      })
-      autoRef.current = ac
-      setReady(true)
+    let cancelled = false
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let element: any = null
+
+    loadGoogleMaps().then(async (ns) => {
+      if (cancelled || !ns || !containerRef.current) return
+      try {
+        // The new API ships via importLibrary. This pulls in the Places
+        // library on demand (lazy after the base SDK is loaded).
+        const placesLib = await ns.importLibrary('places')
+
+        const PlaceAutocompleteElement = placesLib.PlaceAutocompleteElement
+        if (!PlaceAutocompleteElement) {
+          // Library didn't expose the element — bail to fallback.
+          // Most likely cause: Places API (New) not enabled on the project.
+          console.warn('[PlacesAutocomplete] PlaceAutocompleteElement unavailable — falling back to plain input')
+          return
+        }
+
+        element = new PlaceAutocompleteElement({
+          // The new-API equivalent of legacy componentRestrictions.country.
+          includedRegionCodes: Array.isArray(country) ? country : [country],
+        })
+
+        // Seed initial value from outside state.
+        if (valueRef.current) element.value = valueRef.current
+
+        // Place selection: the new API gives us a placePrediction; calling
+        // .toPlace() returns a Place we can fetchFields on.
+        element.addEventListener('gmp-select', async (ev: { placePrediction?: { toPlace?: () => unknown } }) => {
+          try {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const prediction = ev?.placePrediction as any
+            if (!prediction?.toPlace) return
+            const place = prediction.toPlace()
+            await place.fetchFields({
+              fields: ['displayName', 'formattedAddress', 'addressComponents', 'location'],
+            })
+            const parsed = parsePlace(place)
+            // Mirror the picked street back into outside state so downstream
+            // form code (validation, auto-apply) sees it.
+            if (parsed.street) onChangeRef.current(parsed.street)
+            onSelectRef.current(parsed)
+          } catch (err) {
+            console.warn('[PlacesAutocomplete] fetchFields failed:', err)
+          }
+        })
+
+        // Live typing — relay so external form state stays in sync.
+        element.addEventListener('input', () => {
+          onChangeRef.current(element.value ?? '')
+        })
+
+        containerRef.current.appendChild(element)
+        elementRef.current = element
+
+        // Hide the fallback once the real element is mounted.
+        if (fallbackInputRef.current) {
+          fallbackInputRef.current.style.display = 'none'
+        }
+      } catch (err) {
+        console.warn('[PlacesAutocomplete] failed to mount:', err)
+      }
     })
+
     return () => {
       cancelled = true
-      // No clean teardown method on the legacy Autocomplete; it'll be
-      // garbage-collected when the input unmounts.
-      autoRef.current = null
+      if (element && containerRef.current?.contains(element)) {
+        containerRef.current.removeChild(element)
+      }
+      elementRef.current = null
+      if (fallbackInputRef.current) {
+        fallbackInputRef.current.style.display = ''
+      }
     }
-  }, [country, disabled, onChange, onSelect])
+  }, [country, disabled])
+
+  // Sync external value changes into the element (kept separate from the
+  // mount effect so re-mounting doesn't happen on every keystroke).
+  useEffect(() => {
+    const el = elementRef.current
+    if (el && el.value !== value) {
+      el.value = value ?? ''
+    }
+  }, [value])
 
   return (
-    <input
-      ref={inputRef}
-      className={className}
-      type="text"
-      autoComplete="off"
-      spellCheck={false}
-      value={value}
-      onChange={(e) => onChange(e.target.value)}
-      placeholder={placeholder}
-      disabled={disabled}
-      aria-invalid={ariaInvalid || undefined}
-      data-gmaps-ready={ready || undefined}
-    />
+    <div ref={containerRef} className={className} style={{ position: 'relative' }}>
+      {/* Fallback plain input — visible until the autocomplete element mounts
+          successfully. Crucial for: (a) graceful degradation when the API
+          key is unset, (b) when Places API (New) isn't enabled on the
+          project, (c) when offline. */}
+      <input
+        ref={fallbackInputRef}
+        className={className}
+        type="text"
+        autoComplete="off"
+        spellCheck={false}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={placeholder}
+        disabled={disabled}
+        aria-invalid={ariaInvalid || undefined}
+        style={{ width: '100%', boxSizing: 'border-box' }}
+      />
+    </div>
   )
 }
