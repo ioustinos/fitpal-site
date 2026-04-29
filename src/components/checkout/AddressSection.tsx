@@ -6,6 +6,8 @@ import { useMenuStore } from '../../store/useMenuStore'
 import { makeTr } from '../../lib/translations'
 import { zipInZone } from '../../lib/helpers'
 import { useToast } from '../ui/Toast'
+import { PlacesAutocomplete } from '../ui/PlacesAutocomplete'
+import { googleMapsAvailable, type ParsedPlace } from '../../lib/googleMaps'
 
 interface AddressSectionProps {
   dayIndex: number
@@ -141,6 +143,22 @@ export function AddressSection({ dayIndex }: AddressSectionProps) {
     setZoneStatus(zipInZone(clean, zones) ? 'valid' : 'invalid')
   }
 
+  // When the user picks a result from Google Places autocomplete, fill in
+  // street/area/zip in one go and re-run zone validation against the new zip.
+  const handlePlaceSelect = (place: ParsedPlace) => {
+    setForm((f) => ({
+      ...f,
+      // The autocomplete field is wired to street, so it's already set, but
+      // we still update from `parsed.street` to normalise format.
+      street: place.street || f.street,
+      area: place.area || f.area,
+      zip: place.zip || f.zip,
+    }))
+    if (place.zip) {
+      setZoneStatus(zipInZone(place.zip, zones) ? 'valid' : 'invalid')
+    }
+  }
+
   // Select a saved address from picker
   function handleSelectAddress(addr: Address) {
     setDelivery(dayIndex, {
@@ -239,12 +257,15 @@ export function AddressSection({ dayIndex }: AddressSectionProps) {
     toast(lang === 'el' ? 'Διεύθυνση αντιγράφηκε σε όλες τις ημέρες' : 'Address copied to all days')
   }
 
-  // Save new address to profile
-  function handleSaveAddress() {
-    if (!addrName.trim()) return
-    const newId = 'a' + Date.now()
-    const newAddr: Address = {
-      id: newId,
+  // Save new address to profile.
+  // Persists to Supabase so we get a real UUID — previously we generated a
+  // local `'a' + Date.now()` id and pushed to local state only, which then
+  // crashed Account → Edit Address with `invalid input syntax for type
+  // uuid: "a1777..."` because the edit handler issues a Supabase UPDATE on
+  // that fake id.
+  async function handleSaveAddress() {
+    if (!addrName.trim() || !user) return
+    const draft: Omit<Address, 'id'> = {
       labelEl: addrName.trim(),
       labelEn: addrName.trim(),
       street: form.street,
@@ -254,8 +275,18 @@ export function AddressSection({ dayIndex }: AddressSectionProps) {
       doorbell: form.doorbell,
       notes: form.notes,
     }
-    updateAddresses([...savedAddresses, newAddr])
-    // Select the newly saved address
+    const { insertAddress } = await import('../../lib/api/auth')
+    const { data, error } = await insertAddress(user.id, draft)
+    if (error || !data) {
+      toast(
+        lang === 'el'
+          ? `Σφάλμα αποθήκευσης: ${error ?? 'άγνωστο'}`
+          : `Save failed: ${error ?? 'unknown'}`,
+      )
+      return
+    }
+    updateAddresses([...savedAddresses, data])
+    // Select the newly saved address (Supabase-issued UUID)
     setDelivery(dayIndex, {
       street: form.street,
       area: form.area,
@@ -263,7 +294,7 @@ export function AddressSection({ dayIndex }: AddressSectionProps) {
       floor: form.floor || '',
       doorbell: form.doorbell || '',
       notes: form.notes || '',
-      addrId: newId,
+      addrId: data.id,
     })
     setSavingName(false)
     setAddrName('')
@@ -434,12 +465,23 @@ export function AddressSection({ dayIndex }: AddressSectionProps) {
     <>
       <div className="form-row">
         <label className="form-label">{t('street')}</label>
-        <input
-          className="form-input"
-          value={form.street}
-          onChange={(e) => setForm((f) => ({ ...f, street: e.target.value }))}
-          placeholder={lang === 'el' ? 'π.χ. Ερμού 12' : 'e.g. 12 Main Street'}
-        />
+        {googleMapsAvailable() ? (
+          <PlacesAutocomplete
+            className="form-input"
+            value={form.street}
+            onChange={(v) => setForm((f) => ({ ...f, street: v }))}
+            onSelect={handlePlaceSelect}
+            placeholder={lang === 'el' ? 'π.χ. Ερμού 12' : 'e.g. 12 Main Street'}
+            country="gr"
+          />
+        ) : (
+          <input
+            className="form-input"
+            value={form.street}
+            onChange={(e) => setForm((f) => ({ ...f, street: e.target.value }))}
+            placeholder={lang === 'el' ? 'π.χ. Ερμού 12' : 'e.g. 12 Main Street'}
+          />
+        )}
       </div>
 
       <div className="form-row two-col">

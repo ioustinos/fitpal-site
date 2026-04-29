@@ -1180,9 +1180,12 @@ header {
 .btn-save-addr-profile { background: none; border: 1.5px dashed var(--green-light); border-radius: var(--radius-sm); padding: 9px 14px; font-size: 12px; font-weight: 700; color: var(--green-dark); cursor: pointer; transition: all 0.18s; width: 100%; text-align: center; }
 .btn-save-addr-profile:hover { background: var(--green-pale); border-color: var(--green); }
 .addr-save-prompt { display: flex; flex-direction: column; gap: 6px; background: var(--cream); padding: 12px; border-radius: var(--radius-sm); }
-.addr-save-row { display: flex; gap: 8px; align-items: center; }
-.addr-save-row .form-input { flex: 1; }
-.btn-cancel-save { background: none; border: none; font-size: 16px; color: var(--text-muted); cursor: pointer; padding: 4px; line-height: 1; }
+.addr-save-row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.addr-save-row .form-input { flex: 1 1 220px; min-width: 0; }
+/* Override the global `.btn-save-addr { width: 100% }` rule below — inside
+   the row the button must hug its content so the input keeps its width. */
+.addr-save-row .btn-save-addr { width: auto; flex: 0 0 auto; white-space: nowrap; }
+.btn-cancel-save { background: none; border: none; font-size: 16px; color: var(--text-muted); cursor: pointer; padding: 4px; line-height: 1; flex: 0 0 auto; }
 .addr-form { display: flex; flex-direction: column; gap: 10px; }
 .addr-form-back { margin-bottom: 4px; }
 .addr-form-back-link { background: none; border: none; font-size: 12px; font-weight: 700; color: var(--text-muted); cursor: pointer; padding: 0; transition: color 0.18s; }

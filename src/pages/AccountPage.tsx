@@ -15,6 +15,8 @@ import { showGoalProgress, goalStatus, goalPct } from '../lib/goals'
 import { matchesRange, type RangePreset } from '../lib/dateRange'
 import { DateRangeFilter } from '../components/shared/DateRangeFilter'
 import { Pagination } from '../components/shared/Pagination'
+import { PlacesAutocomplete } from '../components/ui/PlacesAutocomplete'
+import { googleMapsAvailable } from '../lib/googleMaps'
 
 /** WEC-169: orders list shows 50 per page; the pagination bar hides itself
  *  when the filtered list fits on one page. */
@@ -588,6 +590,14 @@ function AddressesTab({ user, lang, updateAddresses }: any) {
       : 'Are you sure you want to delete this address?'
     if (!window.confirm(msg)) return
     setSaving(true)
+    // Legacy local-only addresses (`'a' + Date.now()` ids from the old
+    // checkout flow) aren't in Supabase — just drop them from local state.
+    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)
+    if (!isUuid) {
+      updateAddresses(addresses.filter(a => a.id !== id))
+      setSaving(false)
+      return
+    }
     const { deleteAddress } = await import('../lib/api/auth')
     const { error } = await deleteAddress(id)
     if (!error) {
@@ -603,7 +613,28 @@ function AddressesTab({ user, lang, updateAddresses }: any) {
 
   const handleSaveEdit = async (id: string) => {
     setSaving(true)
-    const { updateAddress } = await import('../lib/api/auth')
+    const { updateAddress, insertAddress } = await import('../lib/api/auth')
+    // Self-heal legacy addresses that were created via the old checkout
+    // "Save to my addresses" flow with a local `'a' + Date.now()` id —
+    // those never made it to Supabase, so an UPDATE crashes with
+    // `invalid input syntax for type uuid`. If the id isn't a real UUID,
+    // INSERT a fresh row and swap the local entry.
+    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)
+    if (!isUuid) {
+      const { data, error } = await insertAddress(user.id, form)
+      if (!error && data) {
+        updateAddresses(addresses.map(a => a.id === id ? data : a))
+        setEditing(null)
+      } else {
+        window.alert(
+          lang === 'el'
+            ? `Σφάλμα αποθήκευσης: ${error}`
+            : `Save failed: ${error}`,
+        )
+      }
+      setSaving(false)
+      return
+    }
     const { error } = await updateAddress(id, form)
     if (!error) {
       updateAddresses(addresses.map(a => a.id === id ? { ...a, ...form } : a))
@@ -650,8 +681,24 @@ function AddressesTab({ user, lang, updateAddresses }: any) {
       </div>
       <div className="form-row">
         <label className="form-label">{lang === 'el' ? 'Οδός & Αριθμός' : 'Street & Number'}</label>
-        <input className="form-input" placeholder={lang === 'el' ? 'π.χ. Λεωφ. Κηφισίας 45' : 'e.g. 45 Kifisias Ave'}
-          value={form.street} onChange={(e) => setForm({ ...form, street: e.target.value })} />
+        {googleMapsAvailable() ? (
+          <PlacesAutocomplete
+            className="form-input"
+            value={form.street}
+            onChange={(v) => setForm({ ...form, street: v })}
+            onSelect={(p) => setForm({
+              ...form,
+              street: p.street || form.street,
+              area: p.area || form.area,
+              zip: p.zip || form.zip,
+            })}
+            placeholder={lang === 'el' ? 'π.χ. Λεωφ. Κηφισίας 45' : 'e.g. 45 Kifisias Ave'}
+            country="gr"
+          />
+        ) : (
+          <input className="form-input" placeholder={lang === 'el' ? 'π.χ. Λεωφ. Κηφισίας 45' : 'e.g. 45 Kifisias Ave'}
+            value={form.street} onChange={(e) => setForm({ ...form, street: e.target.value })} />
+        )}
       </div>
       <div className="addr-form-2col">
         <div className="form-row">
