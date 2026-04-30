@@ -18,6 +18,10 @@ interface VoucherResult {
   type: 'pct' | 'fixed' | 'credit'
   value: number        // percentage, fixed €, or credit €
   discount: number     // calculated discount in euros
+  /** Minimum order amount in EUROS — null if no minimum. The client stores
+   *  this so it can re-validate locally when the cart shrinks (the server
+   *  also re-validates on submit). */
+  minOrder: number | null
   error?: string
 }
 
@@ -148,6 +152,7 @@ export default async (request: Request) => {
       type: type === 'credit' ? 'fixed' : type, // frontend treats credit as fixed
       value: type === 'pct' ? value : value / 100, // return euros for fixed/credit, pct as-is
       discount: +discount.toFixed(2),
+      minOrder: voucher.min_order != null ? voucher.min_order / 100 : null, // euros, or null
       voucherId: voucher.id, // needed for submit-order to record usage
     } satisfies VoucherResult & { voucherId: string })
   } catch (err) {

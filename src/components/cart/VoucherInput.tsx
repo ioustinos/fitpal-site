@@ -3,7 +3,7 @@ import { useCartStore } from '../../store/useCartStore'
 import { useUIStore } from '../../store/useUIStore'
 import { useAuthStore } from '../../store/useAuthStore'
 import { makeTr } from '../../lib/translations'
-import { activeDays, dayAmt } from '../../lib/helpers'
+import { activeDays, dayAmt, voucherInactive } from '../../lib/helpers'
 
 export function VoucherInput() {
   const lang = useUIStore((s) => s.lang)
@@ -32,15 +32,29 @@ export function VoucherInput() {
   }
 
   if (voucher.applied && voucher.code) {
+    // Gate by min_order — when cart shrinks below the voucher's minimum,
+    // we keep the chip visible (so the user knows they applied it) but
+    // mark it inactive and explain why. Discount is NOT applied to the
+    // total in this state — see helpers.ts subTotal().
+    const inactive = voucherInactive(cart, voucher)
     return (
-      <div className="voucher-applied">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-          <polyline points="20 6 9 17 4 12"/>
-        </svg>
-        <span>{voucher.code}</span>
-        {voucher.type === 'pct' && <span className="voucher-val">-{voucher.value}%</span>}
-        {voucher.type === 'fixed' && <span className="voucher-val">-€{voucher.value?.toFixed(2)}</span>}
-        <button className="voucher-remove" onClick={removeVoucher}>✕</button>
+      <div>
+        <div className={`voucher-applied${inactive ? ' inactive' : ''}`}>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <polyline points="20 6 9 17 4 12"/>
+          </svg>
+          <span>{voucher.code}</span>
+          {voucher.type === 'pct' && <span className="voucher-val">-{voucher.value}%</span>}
+          {voucher.type === 'fixed' && <span className="voucher-val">-€{voucher.value?.toFixed(2)}</span>}
+          <button className="voucher-remove" onClick={removeVoucher}>✕</button>
+        </div>
+        {inactive && voucher.minOrder != null && (
+          <div className="voucher-inactive-warn">
+            {lang === 'el'
+              ? `Το κουπόνι ισχύει για παραγγελίες ≥ €${voucher.minOrder.toFixed(2)}. Πρόσθεσε ${(voucher.minOrder - rawTotal).toFixed(2)}€ ακόμα για να εφαρμοστεί.`
+              : `Voucher requires orders ≥ €${voucher.minOrder.toFixed(2)}. Add €${(voucher.minOrder - rawTotal).toFixed(2)} more to apply.`}
+          </div>
+        )}
       </div>
     )
   }

@@ -44,6 +44,12 @@ export interface VoucherState {
   applied: boolean
   type: 'pct' | 'fixed' | ''
   value?: number          // percentage or fixed €
+  /** Minimum order amount in euros required for this voucher to apply.
+   *  Persisted so we can re-check locally when the cart shrinks — without
+   *  this, removing items from a cart that started above the min would
+   *  silently keep applying a discount that no longer qualifies. The
+   *  server also re-validates at submit time. */
+  minOrder?: number
 }
 
 // ─── Store interface ───────────────────────────────────────────────────────────
@@ -172,6 +178,7 @@ export const useCartStore = create<CartStore>((set) => ({
           applied: true,
           type: json.type as 'pct' | 'fixed',
           value: json.value,
+          minOrder: json.minOrder ?? undefined,
         },
         voucherLoading: false,
       })
