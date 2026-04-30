@@ -69,15 +69,17 @@ export function Users() {
     refresh({ page: 0, search: searchInput })
   }
 
-  function handleImpersonate(d: AdminUserDetail) {
-    startImpersonation({
-      userId: d.userId,
-      email: d.email,
-      name: d.name,
-      addresses: d.addresses,
-      walletBalance: d.walletBalance,
-      walletAdminManaged: d.walletAdminManaged,
-    })
+  async function handleImpersonate(d: AdminUserDetail) {
+    // Approach A — session swap. The store stashes the admin's session,
+    // calls /api/admin-impersonate-start to mint a magic-link token for
+    // the customer, then verifyOtp swaps the active Supabase session.
+    // From there the customer site renders with the customer's data
+    // because auth.uid() is the customer.
+    const { ok, error } = await startImpersonation(d.userId)
+    if (!ok) {
+      setErr(error ?? 'Failed to start impersonation')
+      return
+    }
     // Land on the customer menu so admin can build the order.
     navigate('/')
   }
@@ -379,7 +381,7 @@ function Stat({ label, value }: { label: string; value: string }) {
       padding: 12, background: 'var(--a-bg)', border: '1px solid var(--a-border)',
       borderRadius: 8,
     }}>
-      <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', color: 'var(--a-text-muted)' }}>
+      <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--a-text-muted)' }}>
         {label}
       </div>
       <div style={{ fontSize: 18, fontWeight: 700, marginTop: 4 }}>{value}</div>

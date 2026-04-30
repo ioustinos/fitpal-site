@@ -21,30 +21,26 @@ export function PaymentSection() {
   const voucher = useCartStore((s) => s.voucher)
   const user = useAuthStore((s) => s.user)
   const enabledMethods = useMenuStore((s) => s.settings.paymentMethodsEnabled)
-  // During admin impersonation, swap the wallet figures to the impersonated
-  // customer's balance — that's the wallet that'll actually be debited
-  // server-side. Without this, admin sees their own wallet (or zero) and
-  // the wallet option looks unavailable.
-  const impersonating = useImpersonationStore((s) => s.active)
-  const walletBalance = impersonating
-    ? impersonating.walletBalance / 100  // store has cents; UI uses euros
-    : user?.wallet?.balance ?? 0
-  const walletActive = impersonating
-    ? impersonating.walletBalance > 0
-    : user?.wallet?.active
+  // With session-swap impersonation, `user` already IS the impersonated
+  // customer (their JWT is active, their profile/wallet were re-loaded by
+  // App.tsx's onAuthStateChange handler). So we just read user.wallet
+  // directly — no special-case swap.
+  const isImpersonating = useImpersonationStore((s) => s.active)
+  const walletBalance = user?.wallet?.balance ?? 0
+  const walletActive = user?.wallet?.active
 
   const total = subTotal(cart, voucher)
   const walletSufficient = walletBalance >= total
 
   // Filter hardcoded catalog by the admin-configured list.
-  // For non-admin users on a customer with admin_managed wallet: the wallet
-  // option is hidden entirely (only the impersonating admin can spend it).
-  // For admin impersonation: wallet stays visible regardless of admin_managed.
+  // For self-service customers whose wallet is admin-managed: the wallet
+  // option is hidden (only the curating admin can spend it via impersonation).
+  // For admin impersonation: wallet stays visible regardless of admin_managed
+  // because the admin IS the legitimate spender of that wallet.
   const visibleMethods = PAYMENT_METHODS.filter((m) => {
     if (!enabledMethods.includes(m.id)) return false
     if (m.id === 'wallet') {
-      // Hide for self-service customers with admin-managed wallet.
-      if (!impersonating && user?.wallet?.adminManaged) return false
+      if (!isImpersonating && user?.wallet?.adminManaged) return false
     }
     return true
   })

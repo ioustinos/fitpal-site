@@ -4,14 +4,16 @@ import { useImpersonationStore } from '../../store/useImpersonationStore'
 
 /**
  * Persistent banner shown at the top of every page while an admin is
- * impersonating a customer. Click "Exit" to drop impersonation and return
- * to /admin/users.
+ * impersonating a customer. Click "Exit" to restore the admin's session
+ * and return to /admin/users.
  *
  * The banner pushes the page content down by 36px via the body class
  * `is-impersonating` (set in this component, removed on unmount/exit).
  */
 export function ImpersonationBanner() {
   const active = useImpersonationStore((s) => s.active)
+  const target = useImpersonationStore((s) => s.target)
+  const loading = useImpersonationStore((s) => s.loading)
   const stop = useImpersonationStore((s) => s.stop)
   const navigate = useNavigate()
 
@@ -24,10 +26,18 @@ export function ImpersonationBanner() {
     return () => { document.body.classList.remove('is-impersonating') }
   }, [active])
 
-  if (!active) return null
+  if (!active || !target) return null
 
-  function handleExit() {
-    stop()
+  async function handleExit() {
+    const { ok, error } = await stop()
+    if (!ok) {
+      // setSession failed — admin tokens probably expired. The store has
+      // already cleared state so the banner is gone; surface the message
+      // so the admin knows to sign in again.
+      window.alert(`Could not restore admin session: ${error ?? 'unknown error'}\n\nPlease sign in as admin again.`)
+      navigate('/admin')
+      return
+    }
     navigate('/admin/users')
   }
 
@@ -38,12 +48,11 @@ export function ImpersonationBanner() {
         <path d="M4 21v-1a4 4 0 0 1 4-4h8a4 4 0 0 1 4 4v1" />
       </svg>
       <span>
-        Impersonating <strong>{active.name || active.email}</strong>
-        {active.walletAdminManaged && (
-          <span style={{ marginLeft: 8, opacity: 0.85, fontSize: 11 }}>· managed wallet</span>
-        )}
+        Impersonating <strong>{target.name || target.email}</strong>
       </span>
-      <button onClick={handleExit}>Exit impersonation</button>
+      <button onClick={handleExit} disabled={loading}>
+        {loading ? 'Exiting…' : 'Exit impersonation'}
+      </button>
     </div>
   )
 }

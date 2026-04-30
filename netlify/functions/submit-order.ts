@@ -22,8 +22,6 @@ interface OrderPayload {
   notes?: string
   voucherCode?: string
   days: DayPayload[]
-  /** Admin impersonation — verified server-side. Order filed under this customer's id. */
-  impersonateUserId?: string
 }
 
 interface DayPayload {
@@ -231,43 +229,42 @@ export default async (request: Request) => {
       userId = user?.id ?? null
     }
 
-    // ─── Impersonation — verify caller is admin, switch to service-role ─
+    // ─── Impersonation — admin attribution via X-Impersonator-Token ─────
     //
-    // When `impersonateUserId` is present, the admin places the order on
-    // behalf of a customer. We verify admin status via the JWT-bound client
-    // (so an attacker forging the field is rejected), then switch to a
-    // service-role client for the rest of the function. The order's user_id
-    // is overridden to the impersonated customer; the admin's id is stored
-    // in `admin_order_id` so the audit trail is intact.
+    // Session-swap impersonation (Approach A): the admin's session was
+    // swapped to the customer's on impersonate-start, so the Authorization
+    // header above is the customer's token — `userId` is correctly the
+    // customer. To keep the audit trail (who actually placed this order),
+    // the client also sends X-Impersonator-Token containing the admin's
+    // stashed access_token. We verify it's a valid admin JWT and capture
+    // their user_id for `admin_order_id`.
+    //
+    // Forging this header is harmless: only an admin's real JWT will pass
+    // the is_admin() RPC, and even if forged the worst case is no admin
+    // attribution on a regular customer order — which is the same as a
+    // self-service order.
     let adminUserId: string | null = null
     let isImpersonating = false
-    if (body.impersonateUserId) {
-      if (!token || !userId) {
-        return Response.json({ error: 'Impersonation requires authentication' }, { status: 401 })
+    const impersonatorToken = request.headers.get('X-Impersonator-Token')
+    if (impersonatorToken) {
+      const adminClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+        global: { headers: { Authorization: `Bearer ${impersonatorToken}` } },
+      })
+      const { data: { user: adminUser } } = await adminClient.auth.getUser()
+      if (adminUser) {
+        const { data: isAdminResult } = await adminClient.rpc('is_admin')
+        if (isAdminResult) {
+          adminUserId = adminUser.id
+          isImpersonating = true
+          // Use service-role for the rest so we can write admin_order_id
+          // freely and avoid any RLS edge cases on cross-user audit columns.
+          if (SUPABASE_SERVICE_KEY) {
+            supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY)
+          }
+        }
       }
-      // Verify caller is an admin. Uses the JWT-bound client → RLS enforced.
-      const { data: isAdminResult, error: adminCheckErr } = await supabase.rpc('is_admin')
-      if (adminCheckErr || !isAdminResult) {
-        return Response.json({ error: 'Not authorised to impersonate' }, { status: 403 })
-      }
-      // Verify the target customer exists.
-      if (!SUPABASE_SERVICE_KEY) {
-        return Response.json({ error: 'Server not configured for impersonation' }, { status: 500 })
-      }
-      const svc = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY)
-      const { data: targetProfile, error: targetErr } = await svc
-        .from('profiles')
-        .select('id')
-        .eq('id', body.impersonateUserId)
-        .maybeSingle()
-      if (targetErr || !targetProfile) {
-        return Response.json({ error: 'Customer not found for impersonation' }, { status: 404 })
-      }
-      // Switch to service-role client for the rest of the function.
-      supabase = svc
-      adminUserId = userId
-      userId = body.impersonateUserId
-      isImpersonating = true
+      // If the header was present but didn't validate, we silently ignore
+      // it and proceed as a normal customer submission. No leak risk.
     }
 
     // ─── Phase 2: Fetch all reference data in parallel ──────────────────

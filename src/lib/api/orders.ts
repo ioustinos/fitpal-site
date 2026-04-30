@@ -276,12 +276,6 @@ export interface SubmitOrderPayload {
   notes?: string
   voucherCode?: string
   days: SubmitDayPayload[]
-  /**
-   * Admin impersonation: when set, the order is filed under this customer's
-   * user_id, with the admin's id stored in `admin_order_id`. Server-side
-   * verifies the caller is admin via JWT before honouring this field.
-   */
-  impersonateUserId?: string
 }
 
 export interface SubmitDayPayload {
@@ -319,16 +313,28 @@ export async function submitOrder(payload: SubmitOrderPayload): Promise<{
   validationErrors?: Record<string, string[]>
 }> {
   try {
-    // Get auth token if logged in
+    // Get auth token if logged in. During admin impersonation the active
+    // session IS the customer's (we session-swapped on impersonate-start),
+    // so this is the customer's token — submit-order will file the order
+    // under them via auth.uid(). The admin's stashed token rides along in
+    // X-Impersonator-Token so we keep the audit trail in admin_order_id.
     const { data: session } = await supabase.auth.getSession()
     const token = session?.session?.access_token
 
+    // Lazy import to avoid pulling the impersonation store into non-cart code.
+    const { useImpersonationStore } = await import('../../store/useImpersonationStore')
+    const impersonation = useImpersonationStore.getState()
+    const adminToken = impersonation.active ? impersonation.adminSession?.accessToken : null
+
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+    }
+    if (token) headers.Authorization = `Bearer ${token}`
+    if (adminToken) headers['X-Impersonator-Token'] = adminToken
+
     const res = await fetch('/api/submit-order', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      },
+      headers,
       body: JSON.stringify(payload),
     })
 

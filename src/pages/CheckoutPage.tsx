@@ -341,13 +341,15 @@ export function CheckoutPage() {
       }
     })
 
-    // If admin is impersonating, file the order under the impersonated
-    // customer. The admin's JWT travels in the Authorization header (set by
-    // submitOrder); the server verifies admin status before honouring this.
-    const impersonating = useImpersonationStore.getState().active
+    // With session-swap impersonation, `user` already IS the customer
+    // when the admin is impersonating — so we just pass user.id as we
+    // would for any self-service submit. The admin attribution piggybacks
+    // on submitOrder's X-Impersonator-Token header, which it picks up
+    // from the impersonation store automatically.
+    const isImpersonating = useImpersonationStore.getState().active
 
     const { data, error, validationErrors } = await submitOrder({
-      userId: impersonating?.userId ?? user?.id,
+      userId: user?.id,
       customerName: contactName,
       customerEmail: contactEmail,
       customerPhone: contact.phone,  // E.164 from <PhoneInput>
@@ -359,7 +361,6 @@ export function CheckoutPage() {
       notes: payment.notes,
       voucherCode: voucher.applied ? voucher.code : undefined,
       days: dayPayloads,
-      impersonateUserId: impersonating?.userId,
     })
 
     setSubmitting(false)
@@ -441,10 +442,12 @@ export function CheckoutPage() {
     }
 
     // If we placed this order via impersonation, exit impersonation now —
-    // the admin will land on the confirmation screen and any next click
-    // takes them back to /admin (or to their own account if they linger).
-    if (impersonating) {
-      useImpersonationStore.getState().stop()
+    // restores the admin's session so their next click takes them back to
+    // their own admin context. The store handles setSession + cleanup.
+    if (isImpersonating) {
+      // Fire and forget — the confirmation screen still renders for the
+      // customer-side eyes the admin is showing the result to.
+      void useImpersonationStore.getState().stop()
     }
 
     setConfirmed(true)
