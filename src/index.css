@@ -1955,64 +1955,73 @@ header {
   .co-section { margin-bottom: 16px; }
 }
 
-/* ── Google Places autocomplete (PlaceAutocompleteElement) styling ─────────
-   The new element ships with its own Material UI styling. We override via
-   the documented CSS custom properties + a few direct rules so it looks
-   like the rest of the .form-input fields rather than a beefy MUI input. */
-gmp-place-autocomplete {
-  display: block;
+
+/* ── Google Places autocomplete — programmatic version ─────────────────────
+   The input itself is a regular .form-input (className passed through), so
+   it inherits everything from the existing form styling. Only the dropdown
+   and item rows need bespoke CSS. Designed to feel native to the rest of
+   the customer flow — same colours, same spacing, same border radius. */
+.places-ac-wrap {
+  position: relative;
   width: 100%;
-  /* Host-level type sizing — also propagates into the inner input. */
-  font-family: inherit;
+}
+.places-ac-list {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  background: var(--white);
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius-sm);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.08);
+  list-style: none;
+  margin: 0;
+  padding: 4px;
+  max-height: 280px;
+  overflow-y: auto;
+  z-index: 50;
+}
+.places-ac-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
   font-size: 13px;
-
-  /* CSS custom properties recognised by gmp-place-autocomplete (Material 3). */
-  --gmp-mat-color-surface: var(--white);
-  --gmp-mat-color-surface-container-lowest: var(--white);
-  --gmp-mat-color-surface-variant: var(--white);
-  --gmp-mat-color-on-surface: var(--text);
-  --gmp-mat-color-on-surface-variant: var(--text-muted);
-  --gmp-mat-color-outline: var(--border);
-  --gmp-mat-color-primary: var(--green);
-  --gmp-mat-font-family: inherit;
-  --gmp-mat-font-size: 13px;
-  --gmp-mat-font-letter-spacing: 0;
-  --gmp-mat-corner-radius: var(--radius-sm);
+  color: var(--text);
+  user-select: none;
 }
-
-/* The inner input is in shadow DOM. The host element accepts ::part(input)
-   for the visible field. Padding/border tweaks here so the whole control
-   looks like a .form-input.
-
-   Important: the bigger-than-expected default height and font come from
-   the inner input's line-height — clamping `min-height` and `padding` on
-   the host gets us close to .form-input geometry. */
-gmp-place-autocomplete::part(input),
-gmp-place-autocomplete input {
-  font-size: 13px !important;
-  padding: 9px 12px !important;
-  border: 1.5px solid var(--border) !important;
-  border-radius: var(--radius-sm) !important;
-  background: var(--white) !important;
-  color: var(--text) !important;
-  height: auto !important;
-  line-height: 1.4 !important;
-  font-family: inherit !important;
-  box-shadow: none !important;
-  width: 100% !important;
-  box-sizing: border-box !important;
+.places-ac-item.active,
+.places-ac-item:hover {
+  background: var(--cream);
 }
-gmp-place-autocomplete::part(input):focus,
-gmp-place-autocomplete input:focus {
-  outline: none !important;
-  border-color: var(--green) !important;
+.places-ac-pin {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  color: var(--text-muted);
 }
-
-/* The suggestion dropdown — keep it on-brand. */
-gmp-place-autocomplete::part(prediction-item) {
-  font-size: 13px !important;
-  padding: 8px 12px !important;
+.places-ac-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  flex: 1;
 }
-gmp-place-autocomplete::part(prediction-item-selected) {
-  background: var(--cream) !important;
+.places-ac-main {
+  font-weight: 700;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.places-ac-secondary {
+  font-size: 11px;
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-top: 1px;
 }
