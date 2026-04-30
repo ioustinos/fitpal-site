@@ -145,8 +145,12 @@ export function PlacesAutocomplete({
     }
   }, [value])
 
+  // The container is unstyled (no className) — the autocomplete element styles
+  // itself via gmp-place-autocomplete CSS rules in index.css. The fallback
+  // input below DOES get the className so it visually matches form-input
+  // styling when no autocomplete is available.
   return (
-    <div ref={containerRef} className={className} style={{ position: 'relative' }}>
+    <div ref={containerRef} style={{ position: 'relative', width: '100%' }}>
       {/* Fallback plain input — visible until the autocomplete element mounts
           successfully. Crucial for: (a) graceful degradation when the API
           key is unset, (b) when Places API (New) isn't enabled on the

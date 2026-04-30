@@ -1954,3 +1954,65 @@ header {
   /* Section headings closer to their content on small screens. */
   .co-section { margin-bottom: 16px; }
 }
+
+/* ── Google Places autocomplete (PlaceAutocompleteElement) styling ─────────
+   The new element ships with its own Material UI styling. We override via
+   the documented CSS custom properties + a few direct rules so it looks
+   like the rest of the .form-input fields rather than a beefy MUI input. */
+gmp-place-autocomplete {
+  display: block;
+  width: 100%;
+  /* Host-level type sizing — also propagates into the inner input. */
+  font-family: inherit;
+  font-size: 13px;
+
+  /* CSS custom properties recognised by gmp-place-autocomplete (Material 3). */
+  --gmp-mat-color-surface: var(--white);
+  --gmp-mat-color-surface-container-lowest: var(--white);
+  --gmp-mat-color-surface-variant: var(--white);
+  --gmp-mat-color-on-surface: var(--text);
+  --gmp-mat-color-on-surface-variant: var(--text-muted);
+  --gmp-mat-color-outline: var(--border);
+  --gmp-mat-color-primary: var(--green);
+  --gmp-mat-font-family: inherit;
+  --gmp-mat-font-size: 13px;
+  --gmp-mat-font-letter-spacing: 0;
+  --gmp-mat-corner-radius: var(--radius-sm);
+}
+
+/* The inner input is in shadow DOM. The host element accepts ::part(input)
+   for the visible field. Padding/border tweaks here so the whole control
+   looks like a .form-input.
+
+   Important: the bigger-than-expected default height and font come from
+   the inner input's line-height — clamping `min-height` and `padding` on
+   the host gets us close to .form-input geometry. */
+gmp-place-autocomplete::part(input),
+gmp-place-autocomplete input {
+  font-size: 13px !important;
+  padding: 9px 12px !important;
+  border: 1.5px solid var(--border) !important;
+  border-radius: var(--radius-sm) !important;
+  background: var(--white) !important;
+  color: var(--text) !important;
+  height: auto !important;
+  line-height: 1.4 !important;
+  font-family: inherit !important;
+  box-shadow: none !important;
+  width: 100% !important;
+  box-sizing: border-box !important;
+}
+gmp-place-autocomplete::part(input):focus,
+gmp-place-autocomplete input:focus {
+  outline: none !important;
+  border-color: var(--green) !important;
+}
+
+/* The suggestion dropdown — keep it on-brand. */
+gmp-place-autocomplete::part(prediction-item) {
+  font-size: 13px !important;
+  padding: 8px 12px !important;
+}
+gmp-place-autocomplete::part(prediction-item-selected) {
+  background: var(--cream) !important;
+}
