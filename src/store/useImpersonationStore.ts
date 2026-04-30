@@ -74,8 +74,17 @@ export const useImpersonationStore = create<ImpersonationState>()(
       error: null,
 
       start: async (targetUserId: string) => {
+        // Self-heal stale partial state — if `active` is truthy but the
+        // shape is broken (no target or no adminSession), the browser is
+        // sitting on persisted data from an older store schema. Clear it
+        // and proceed instead of refusing the user. Belt to the version
+        // migration's braces.
+        const cur = get()
+        if (cur.active && (!cur.target || !cur.adminSession)) {
+          set({ active: false, target: null, adminSession: null, loading: false, error: null })
+        }
         if (get().active) {
-          // Defensive: refuse to nest impersonation. Admin must exit first.
+          // Refuse to nest impersonation. Admin must exit first.
           return { ok: false, error: 'Already impersonating — exit first' }
         }
         set({ loading: true, error: null })
@@ -173,6 +182,21 @@ export const useImpersonationStore = create<ImpersonationState>()(
     }),
     {
       name: 'fitpal-impersonation',
+      // Bump on every breaking shape change so old persisted state is
+      // discarded on load. Earlier versions stored `active` as an object;
+      // current shape uses boolean + target + adminSession.
+      version: 2,
+      // Discard any persisted state from a different version. Cleaner
+      // than trying to migrate forward from a half-baked older shape.
+      migrate: () => ({
+        active: false,
+        target: null,
+        adminSession: null,
+        loading: false,
+        error: null,
+        start: async () => ({ ok: false, error: 'rehydrating' }),
+        stop: async () => ({ ok: true }),
+      }),
       // Only persist what we need — don't persist `loading` or `error`.
       partialize: (state) => ({
         active: state.active,

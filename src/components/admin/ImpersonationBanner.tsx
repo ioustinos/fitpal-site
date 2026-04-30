@@ -17,16 +17,21 @@ export function ImpersonationBanner() {
   const stop = useImpersonationStore((s) => s.stop)
   const navigate = useNavigate()
 
+  // Only flip the body class when we'd actually render the banner. Without
+  // the `target` guard we can end up with the page padded down 36px while
+  // the banner is invisible — the symptom of stale persisted state.
+  const shouldShow = active && !!target
+
   useEffect(() => {
-    if (active) {
+    if (shouldShow) {
       document.body.classList.add('is-impersonating')
     } else {
       document.body.classList.remove('is-impersonating')
     }
     return () => { document.body.classList.remove('is-impersonating') }
-  }, [active])
+  }, [shouldShow])
 
-  if (!active || !target) return null
+  if (!shouldShow || !target) return null
 
   async function handleExit() {
     const { ok, error } = await stop()
