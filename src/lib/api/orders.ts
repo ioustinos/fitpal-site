@@ -315,22 +315,24 @@ export async function submitOrder(payload: SubmitOrderPayload): Promise<{
   try {
     // Get auth token if logged in. During admin impersonation the active
     // session IS the customer's (we session-swapped on impersonate-start),
-    // so this is the customer's token — submit-order will file the order
-    // under them via auth.uid(). The admin's stashed token rides along in
-    // X-Impersonator-Token so we keep the audit trail in admin_order_id.
+    // so this is the customer's token — submit-order files the order
+    // under them via auth.uid(). For audit (admin_order_id), we send the
+    // admin's user_id (captured at impersonate-start) in X-Impersonator-Admin-Id.
+    // The server validates that id corresponds to a real admin before
+    // trusting it.
     const { data: session } = await supabase.auth.getSession()
     const token = session?.session?.access_token
 
     // Lazy import to avoid pulling the impersonation store into non-cart code.
     const { useImpersonationStore } = await import('../../store/useImpersonationStore')
     const impersonation = useImpersonationStore.getState()
-    const adminToken = impersonation.active ? impersonation.adminSession?.accessToken : null
+    const adminUserId = impersonation.active ? impersonation.adminUserId : null
 
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
     }
     if (token) headers.Authorization = `Bearer ${token}`
-    if (adminToken) headers['X-Impersonator-Token'] = adminToken
+    if (adminUserId) headers['X-Impersonator-Admin-Id'] = adminUserId
 
     const res = await fetch('/api/submit-order', {
       method: 'POST',

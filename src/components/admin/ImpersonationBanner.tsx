@@ -34,16 +34,12 @@ export function ImpersonationBanner() {
   if (!shouldShow || !target) return null
 
   async function handleExit() {
-    const { ok, error } = await stop()
-    if (!ok) {
-      // setSession failed — admin tokens probably expired. The store has
-      // already cleared state so the banner is gone; surface the message
-      // so the admin knows to sign in again.
-      window.alert(`Could not restore admin session: ${error ?? 'unknown error'}\n\nPlease sign in as admin again.`)
-      navigate('/admin')
-      return
-    }
-    navigate('/admin/users')
+    // stop() signs the customer out via supabase.auth.signOut(). The admin
+    // lands on the customer site as a guest, then navigates to /admin to
+    // sign back in. This is the deliberate convention — no session
+    // restoration, no stale-token edge cases.
+    await stop()
+    navigate('/admin')
   }
 
   return (
@@ -54,9 +50,12 @@ export function ImpersonationBanner() {
       </svg>
       <span>
         Impersonating <strong>{target.name || target.email}</strong>
+        <span style={{ opacity: 0.85, fontSize: 11, marginLeft: 8 }}>
+          (you'll be asked to sign in again on exit)
+        </span>
       </span>
       <button onClick={handleExit} disabled={loading}>
-        {loading ? 'Exiting…' : 'Exit impersonation'}
+        {loading ? 'Exiting…' : 'Exit & sign back in'}
       </button>
     </div>
   )

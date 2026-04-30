@@ -60,22 +60,37 @@ export default function App() {
       async (event, session) => {
         if (event === 'SIGNED_OUT' || !session) {
           useAuthStore.getState().setUser(null)
-          // Belt-and-braces: any sign-out — whether admin clicked our
-          // Sign Out button, the session expired, or another tab signed
-          // out — should drop impersonation state. The Sign Out button
-          // handler also clears it (in useAuthStore.logout) but external
-          // sign-outs route here without going through that handler.
+          // Any sign-out — whether triggered by exit-impersonation, the
+          // user's Sign Out button, an expired session, or another tab —
+          // drops impersonation state. This is the canonical cleanup.
           try {
             const { useImpersonationStore } = await import('./store/useImpersonationStore')
             const imp = useImpersonationStore.getState()
             if (imp.active) {
               useImpersonationStore.setState({
-                active: false, target: null, adminSession: null,
+                active: false, target: null, adminUserId: null,
                 loading: false, error: null,
               })
             }
           } catch { /* non-fatal */ }
         } else if (event === 'SIGNED_IN' && session.user) {
+          // Self-heal mismatch: if the impersonation banner says we're
+          // impersonating user X but the session that just signed in
+          // isn't X, the impersonation state is stale (e.g. tab refresh
+          // landed on a stale customer session, or admin signed in fresh
+          // while a banner was lingering). Drop impersonation state so
+          // the banner doesn't lie.
+          try {
+            const { useImpersonationStore } = await import('./store/useImpersonationStore')
+            const imp = useImpersonationStore.getState()
+            if (imp.active && imp.target && imp.target.userId !== session.user.id) {
+              useImpersonationStore.setState({
+                active: false, target: null, adminUserId: null,
+                loading: false, error: null,
+              })
+            }
+          } catch { /* non-fatal */ }
+
           // Only refresh if we don't already have this user loaded
           // (login() already loaded the user, this handles external sign-ins)
           const current = useAuthStore.getState().user

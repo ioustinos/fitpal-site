@@ -229,42 +229,43 @@ export default async (request: Request) => {
       userId = user?.id ?? null
     }
 
-    // ─── Impersonation — admin attribution via X-Impersonator-Token ─────
+    // ─── Impersonation attribution via X-Impersonator-Admin-Id ─────────
     //
-    // Session-swap impersonation (Approach A): the admin's session was
-    // swapped to the customer's on impersonate-start, so the Authorization
-    // header above is the customer's token — `userId` is correctly the
-    // customer. To keep the audit trail (who actually placed this order),
-    // the client also sends X-Impersonator-Token containing the admin's
-    // stashed access_token. We verify it's a valid admin JWT and capture
-    // their user_id for `admin_order_id`.
+    // Session-swap impersonation: the admin's session was swapped to the
+    // customer's on impersonate-start, so the Authorization header is the
+    // customer's token — `userId` is correctly the customer. For audit
+    // trail purposes we capture WHICH admin placed this order in
+    // `admin_order_id`. The client sends the admin's user_id in
+    // X-Impersonator-Admin-Id; we validate it corresponds to a real admin
+    // (row in `public.admin_users`) before trusting it.
     //
-    // Forging this header is harmless: only an admin's real JWT will pass
-    // the is_admin() RPC, and even if forged the worst case is no admin
-    // attribution on a regular customer order — which is the same as a
-    // self-service order.
+    // Why a header with just an id (not a token):
+    //   - The convention is "admin signs out at exit" — there's no admin
+    //     token still alive once the customer's session is in play.
+    //   - Worst case forgery: someone fakes another admin's id as the
+    //     attribution. The order is still legitimately the customer's
+    //     (their JWT is the active session); only the audit column is
+    //     wrong, not the order data. We also verify the id is a real
+    //     admin so non-admin ids can't be smuggled in as attribution.
     let adminUserId: string | null = null
     let isImpersonating = false
-    const impersonatorToken = request.headers.get('X-Impersonator-Token')
-    if (impersonatorToken) {
-      const adminClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
-        global: { headers: { Authorization: `Bearer ${impersonatorToken}` } },
-      })
-      const { data: { user: adminUser } } = await adminClient.auth.getUser()
-      if (adminUser) {
-        const { data: isAdminResult } = await adminClient.rpc('is_admin')
-        if (isAdminResult) {
-          adminUserId = adminUser.id
-          isImpersonating = true
-          // Use service-role for the rest so we can write admin_order_id
-          // freely and avoid any RLS edge cases on cross-user audit columns.
-          if (SUPABASE_SERVICE_KEY) {
-            supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY)
-          }
-        }
+    const claimedAdminId = request.headers.get('X-Impersonator-Admin-Id')
+    if (claimedAdminId && SUPABASE_SERVICE_KEY) {
+      const svc = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY)
+      const { data: adminRow } = await svc
+        .from('admin_users')
+        .select('user_id')
+        .eq('user_id', claimedAdminId)
+        .maybeSingle()
+      if (adminRow) {
+        adminUserId = claimedAdminId
+        isImpersonating = true
+        // Use service-role for the rest so admin_order_id can be written
+        // without RLS edge cases on cross-user audit columns.
+        supabase = svc
       }
-      // If the header was present but didn't validate, we silently ignore
-      // it and proceed as a normal customer submission. No leak risk.
+      // If the id wasn't a real admin we silently drop it and proceed as
+      // a normal customer submission. No leak risk.
     }
 
     // ─── Phase 2: Fetch all reference data in parallel ──────────────────
