@@ -166,27 +166,20 @@ export const useCartStore = create<CartStore>((set) => ({
         body: JSON.stringify({ code: code.toUpperCase(), cartTotal, userId }),
       })
       const json = await res.json()
-      // [TEMP DEBUG] confirm the server is returning minOrder.
-      // eslint-disable-next-line no-console
-      console.log('[validate-voucher response]', json)
 
       if (!json.valid) {
         set({ voucherLoading: false })
         return { ok: false, error: json.error ?? 'Invalid voucher code' }
       }
 
-      const voucherToStore = {
-        code: json.code,
-        applied: true,
-        type: json.type as 'pct' | 'fixed',
-        value: json.value,
-        minOrder: json.minOrder ?? undefined,
-      }
-      // eslint-disable-next-line no-console
-      console.log('[applyVoucher] storing voucher state:', voucherToStore)
-
       set({
-        voucher: voucherToStore,
+        voucher: {
+          code: json.code,
+          applied: true,
+          type: json.type as 'pct' | 'fixed',
+          value: json.value,
+          minOrder: json.minOrder ?? undefined,
+        },
         voucherLoading: false,
       })
       return { ok: true }

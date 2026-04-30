@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useCartStore } from '../../store/useCartStore'
 import { useUIStore } from '../../store/useUIStore'
 import { useAuthStore } from '../../store/useAuthStore'
@@ -49,6 +49,23 @@ export function OrderSummary() {
     setVoucherError('')
   }
 
+  // When the cart shrinks below the voucher's min_order after the voucher
+  // was already applied, drop it and surface the same error message the
+  // server returns at apply-time. Mirrors the logic in VoucherInput.tsx
+  // (cart sidebar). The two surfaces will be unified into a single shared
+  // component as a follow-up — see the cart-component-duplication ticket.
+  useEffect(() => {
+    if (!voucher.applied || voucher.minOrder == null) return
+    if (rawTotal < voucher.minOrder) {
+      removeVoucher()
+      setVoucherError(
+        lang === 'el'
+          ? `Απαιτείται ελάχιστη παραγγελία €${voucher.minOrder.toFixed(2)} για αυτό το κουπόνι`
+          : `Minimum order €${voucher.minOrder.toFixed(2)} required for this voucher`,
+      )
+    }
+  }, [rawTotal, voucher.applied, voucher.minOrder, removeVoucher, lang])
+
   if (!dayIdxs.length) {
     return (
       <div className="co-summary-card">
@@ -78,7 +95,7 @@ export function OrderSummary() {
           const day = week?.days[i]
           const amt = dayAmt(cart, i)
           const low = amt < minOrder
-          const dayLabel = day?.date ? dayLabelFor(day.date, lang, 'upper') : ''
+          const dayLabel = day?.date ? dayLabelFor(day.date, lang, 'long') : ''
 
           return (
             <div key={day?.date ?? i} className="cart-day-block">

@@ -34,45 +34,22 @@ export function VoucherInput() {
   // When the cart shrinks below the voucher's min_order after the voucher
   // was already applied, drop it and surface the same error message the
   // server returns at apply-time. The user can re-apply once the cart
-  // gets back above the minimum. This matches the regular validation path
-  // — no new UI, just the existing voucher-error message.
+  // gets back above the minimum.
+  //
+  // NOTE: this same effect is duplicated in OrderSummary.tsx (checkout)
+  // because the two surfaces have separate voucher widgets — see the
+  // ticket to merge them into a shared component.
   useEffect(() => {
-    // [TEMP DEBUG] tracing this whole chain to figure out why the auto-
-    // remove on cart-shrink isn't firing in localhost. Remove once verified.
-    // eslint-disable-next-line no-console
-    console.log('[voucher useEffect]', {
-      applied: voucher.applied,
-      code: voucher.code,
-      minOrder: voucher.minOrder,
-      rawTotal,
-      cartKeys: Object.keys(cart),
-    })
-    if (!voucher.applied) {
-      // eslint-disable-next-line no-console
-      console.log('[voucher useEffect] bail: not applied')
-      return
-    }
-    if (voucher.minOrder == null) {
-      // eslint-disable-next-line no-console
-      console.log('[voucher useEffect] bail: minOrder is null/undefined →',
-        'voucher state was set without a minOrder. Either validate-voucher',
-        'didn\'t return one, or this voucher state predates the deploy.')
-      return
-    }
+    if (!voucher.applied || voucher.minOrder == null) return
     if (rawTotal < voucher.minOrder) {
-      // eslint-disable-next-line no-console
-      console.log('[voucher useEffect] FIRING: rawTotal', rawTotal, '<', voucher.minOrder, '— removing voucher')
       removeVoucher()
       setError(
         lang === 'el'
           ? `Απαιτείται ελάχιστη παραγγελία €${voucher.minOrder.toFixed(2)} για αυτό το κουπόνι`
           : `Minimum order €${voucher.minOrder.toFixed(2)} required for this voucher`,
       )
-    } else {
-      // eslint-disable-next-line no-console
-      console.log('[voucher useEffect] OK: rawTotal', rawTotal, '>=', voucher.minOrder)
     }
-  }, [rawTotal, voucher.applied, voucher.minOrder, voucher.code, cart, removeVoucher, lang])
+  }, [rawTotal, voucher.applied, voucher.minOrder, removeVoucher, lang])
 
   if (voucher.applied && voucher.code) {
     return (
