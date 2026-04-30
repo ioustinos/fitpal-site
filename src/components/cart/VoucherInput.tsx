@@ -37,16 +37,42 @@ export function VoucherInput() {
   // gets back above the minimum. This matches the regular validation path
   // — no new UI, just the existing voucher-error message.
   useEffect(() => {
-    if (!voucher.applied || voucher.minOrder == null) return
+    // [TEMP DEBUG] tracing this whole chain to figure out why the auto-
+    // remove on cart-shrink isn't firing in localhost. Remove once verified.
+    // eslint-disable-next-line no-console
+    console.log('[voucher useEffect]', {
+      applied: voucher.applied,
+      code: voucher.code,
+      minOrder: voucher.minOrder,
+      rawTotal,
+      cartKeys: Object.keys(cart),
+    })
+    if (!voucher.applied) {
+      // eslint-disable-next-line no-console
+      console.log('[voucher useEffect] bail: not applied')
+      return
+    }
+    if (voucher.minOrder == null) {
+      // eslint-disable-next-line no-console
+      console.log('[voucher useEffect] bail: minOrder is null/undefined →',
+        'voucher state was set without a minOrder. Either validate-voucher',
+        'didn\'t return one, or this voucher state predates the deploy.')
+      return
+    }
     if (rawTotal < voucher.minOrder) {
+      // eslint-disable-next-line no-console
+      console.log('[voucher useEffect] FIRING: rawTotal', rawTotal, '<', voucher.minOrder, '— removing voucher')
       removeVoucher()
       setError(
         lang === 'el'
           ? `Απαιτείται ελάχιστη παραγγελία €${voucher.minOrder.toFixed(2)} για αυτό το κουπόνι`
           : `Minimum order €${voucher.minOrder.toFixed(2)} required for this voucher`,
       )
+    } else {
+      // eslint-disable-next-line no-console
+      console.log('[voucher useEffect] OK: rawTotal', rawTotal, '>=', voucher.minOrder)
     }
-  }, [rawTotal, voucher.applied, voucher.minOrder, removeVoucher, lang])
+  }, [rawTotal, voucher.applied, voucher.minOrder, voucher.code, cart, removeVoucher, lang])
 
   if (voucher.applied && voucher.code) {
     return (
