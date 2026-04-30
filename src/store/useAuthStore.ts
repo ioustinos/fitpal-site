@@ -207,6 +207,39 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
   },
 
   logout: async () => {
+    // If we're mid-impersonation, the active Supabase session is the
+    // customer's — the admin's tokens are stashed in localStorage by the
+    // impersonation store. Naively calling signOut() here would drop the
+    // customer session but leave the admin token stash orphaned (and
+    // potentially re-usable on a future tab refresh). Clear it first so
+    // logout is decisive.
+    //
+    // Lazy import to avoid a circular dep with the impersonation store
+    // (which imports supabase, which is referenced from useAuthStore).
+    try {
+      const { useImpersonationStore } = await import('./useImpersonationStore')
+      const imp = useImpersonationStore.getState()
+      if (imp.active) {
+        // Drop ALL impersonation state — including the stashed admin
+        // tokens. We don't try to "restore admin then sign out admin"
+        // because the user explicitly clicked Sign Out, meaning "I'm done
+        // here, no session at all".
+        useImpersonationStore.setState({
+          active: false,
+          target: null,
+          adminSession: null,
+          loading: false,
+          error: null,
+        })
+      }
+    } catch (err) {
+      // Don't block logout on an impersonation cleanup failure — log and
+      // continue. Worst case: orphan tokens for one session, cleared on
+      // next login or migration bump.
+      // eslint-disable-next-line no-console
+      console.warn('[logout] failed to clear impersonation state:', err)
+    }
+
     await signOut()
     set({ user: null })
   },

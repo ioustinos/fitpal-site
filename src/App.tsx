@@ -60,6 +60,21 @@ export default function App() {
       async (event, session) => {
         if (event === 'SIGNED_OUT' || !session) {
           useAuthStore.getState().setUser(null)
+          // Belt-and-braces: any sign-out — whether admin clicked our
+          // Sign Out button, the session expired, or another tab signed
+          // out — should drop impersonation state. The Sign Out button
+          // handler also clears it (in useAuthStore.logout) but external
+          // sign-outs route here without going through that handler.
+          try {
+            const { useImpersonationStore } = await import('./store/useImpersonationStore')
+            const imp = useImpersonationStore.getState()
+            if (imp.active) {
+              useImpersonationStore.setState({
+                active: false, target: null, adminSession: null,
+                loading: false, error: null,
+              })
+            }
+          } catch { /* non-fatal */ }
         } else if (event === 'SIGNED_IN' && session.user) {
           // Only refresh if we don't already have this user loaded
           // (login() already loaded the user, this handles external sign-ins)
