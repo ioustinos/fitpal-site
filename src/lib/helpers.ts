@@ -16,45 +16,16 @@ export const effPrice = (price: number, discountPct?: number): number =>
 export const dayAmt = (cart: Record<number, CartItem[]>, dayIndex: number): number =>
   (cart[dayIndex] ?? []).reduce((s, i) => s + i.price * i.qty, 0)
 
-/** Raw cart total before any voucher discount. */
-export const rawSubTotal = (cart: Record<number, CartItem[]>): number =>
-  Object.values(cart).reduce(
-    (s, items) => s + items.reduce((ss, i) => ss + i.price * i.qty, 0),
-    0,
-  )
-
-/**
- * True when a voucher is "applied" client-side but its min_order isn't met
- * by the current raw cart. In this state the voucher chip stays visible
- * (so the user can see what they applied) but the discount is NOT applied
- * to the displayed total.
- *
- * Without this gate, removing an item after applying a voucher would keep
- * showing a discounted total — and the server would then reject the order
- * at submit time with a `Minimum order not met` error, which is a confusing
- * mid-checkout surprise. Gating in subTotal keeps the displayed total
- * honest as the cart changes.
- */
-export const voucherInactive = (
-  cart: Record<number, CartItem[]>,
-  voucher?: VoucherState,
-): boolean => {
-  if (!voucher?.applied || !voucher.value) return false
-  if (voucher.minOrder == null) return false
-  return rawSubTotal(cart) < voucher.minOrder
-}
-
-/** Grand total across all days, with voucher applied (when valid). */
+/** Grand total across all days, with voucher applied */
 export const subTotal = (
   cart: Record<number, CartItem[]>,
   voucher?: VoucherState,
 ): number => {
-  const raw = rawSubTotal(cart)
+  const raw = Object.values(cart).reduce(
+    (s, items) => s + items.reduce((ss, i) => ss + i.price * i.qty, 0),
+    0,
+  )
   if (!voucher?.applied || !voucher.value) return raw
-  // Min-order gate — without this, removing items can keep a discount
-  // applied that no longer qualifies. Server-side submit-order also
-  // re-validates so this gate is purely a UI honesty fix.
-  if (voucher.minOrder != null && raw < voucher.minOrder) return raw
   if (voucher.type === 'pct')   return Math.max(0, +(raw * (1 - voucher.value / 100)).toFixed(2))
   if (voucher.type === 'fixed') return Math.max(0, +(raw - voucher.value).toFixed(2))
   return raw

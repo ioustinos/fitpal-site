@@ -2025,23 +2025,3 @@ header {
   text-overflow: ellipsis;
   margin-top: 1px;
 }
-
-/* Voucher chip — inactive state when cart is below voucher's min_order. */
-.voucher-applied.inactive {
-  opacity: 0.55;
-  background: var(--cream);
-  border-color: var(--border);
-}
-.voucher-applied.inactive svg { color: var(--text-muted); }
-.voucher-applied.inactive .voucher-val { color: var(--text-muted); text-decoration: line-through; }
-.voucher-inactive-warn {
-  margin-top: 6px;
-  padding: 6px 10px;
-  font-size: 11px;
-  font-weight: 600;
-  color: #b45309;
-  background: #fef3c7;
-  border: 1px solid #fde68a;
-  border-radius: var(--radius-sm);
-  line-height: 1.4;
-}
