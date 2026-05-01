@@ -73,13 +73,29 @@ export async function createZone(input: { nameEl: string; nameEn: string }): Pro
   }
 }
 
+/**
+ * Normalize a postcode entry for storage: strip ALL whitespace + trim.
+ * Greek postcodes are commonly typed as "116 36" by humans, but the lookup
+ * pipeline (resolveZone client-side, submit-order server-side) compares
+ * against a no-whitespace canonical form. If admin enters "116 36" raw,
+ * the entry is silently un-findable. Normalizing on save closes the gap.
+ *
+ * Also drops empty entries so admins can paste a comma-separated list with
+ * trailing commas without polluting the array.
+ */
+function normalizePostcodes(input: string[]): string[] {
+  return input
+    .map((p) => (p ?? '').replace(/\s/g, ''))
+    .filter((p) => p.length > 0)
+}
+
 export async function saveZone(z: AdminZone): Promise<{ error: string | null }> {
   const { error } = await supabase
     .from('delivery_zones')
     .update({
       name_el: z.nameEl,
       name_en: z.nameEn || null,
-      postcodes: z.postcodes,
+      postcodes: normalizePostcodes(z.postcodes),
       active: z.active,
       min_order_amount: z.minOrderAmount,
     })
