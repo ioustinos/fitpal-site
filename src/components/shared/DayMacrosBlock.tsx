@@ -5,46 +5,64 @@ import { showGoalProgress, goalStatus, goalPct, type MacroKey } from '../../lib/
 import { MacroIcon } from '../ui/MacroDots'
 
 /**
- * Per-day macro summary (+ goal progress bars when goals are enabled).
+ * Per-day macro summary for the live cart day.
  *
- * Shared by the cart sidebar (WEC-164) and the checkout order summary
- * (WEC-165) so the two surfaces never drift apart. Goal classification logic
- * lives in `src/lib/goals.ts` (WEC-163) — this component is purely the
- * "live cart day" flavour; the Account → Orders surface (WEC-167) uses the
- * same helpers against stored order macros.
+ * Shared between:
+ *   - The cart sidebar (CartSidebar.tsx) — under each day's items.
+ *   - The checkout order summary (OrderSummary.tsx, indirectly via the cart
+ *     refactor in DayOrderGroup) — same layout, same data, same colours so
+ *     the customer sees identical breakdown across surfaces.
+ *
+ * Visual design (redesigned 2026-04-30 — was a slim cgb-cell strip; now the
+ * polished `order-macro-card` look used elsewhere in the app):
+ *
+ *   - 4-cell horizontal grid: Calories / Protein / Carbs / Fat.
+ *   - Each cell gets a soft pastel background + matching border based on
+ *     macro type (cal/protein/carbs/fat). Same palette as the order
+ *     detail / goals-history surfaces, so the customer never sees two
+ *     "macro card" looks side-by-side.
+ *   - Big number, label, MacroIcon, optional progress bar.
+ *   - Progress bar appears only when `showGoalProgress(user)` is true,
+ *     anchored to the user's configured goal max/min, status-coloured
+ *     (green/yellow/red).
  *
  * Behaviour matrix:
- *
- *   showGoalProgress(user) = true  → kcal + P/C/F numbers + coloured status +
- *                                    progress bars (anchored against the
- *                                    user's current goal max/min).
- *   showGoalProgress(user) = false → numbers only, neutral styling, no bars.
- *   day has no cart items          → renders nothing (returns null).
- *
- * The numbers come from `cart[dayIndex]` — each item's variant macros × qty,
- * summed across the day. Same for both surfaces.
- *
- * Layout: 4-column grid. Each cell stacks an icon+value on top, optionally a
- * 3px progress bar underneath. CSS lives in `.cart-goal-bars` +
- * `.cart-goal-bars--numbers-only` + `.cgb-*` (class names kept for backwards
- * compat with the WEC-141 stylesheet).
+ *   day has no cart items   → returns null (caller doesn't render it)
+ *   goals enabled           → numbers + status colour + progress bar
+ *   goals disabled / guest  → numbers only, neutral pill, no bar
  */
+
+interface CellSpec {
+  key: MacroKey
+  cls: 'cal' | 'protein' | 'carbs' | 'fat'
+  iconKey: 'cal' | 'pro' | 'carb' | 'fat'
+  unit: string
+}
+
+const CELLS: CellSpec[] = [
+  { key: 'cal',     cls: 'cal',     iconKey: 'cal',  unit: '' },
+  { key: 'protein', cls: 'protein', iconKey: 'pro',  unit: 'g' },
+  { key: 'carbs',   cls: 'carbs',   iconKey: 'carb', unit: 'g' },
+  { key: 'fat',     cls: 'fat',     iconKey: 'fat',  unit: 'g' },
+]
+
+const LABEL: Record<MacroKey, { el: string; en: string }> = {
+  cal:     { el: 'Θερμίδες',     en: 'Calories' },
+  protein: { el: 'Πρωτεΐνη',     en: 'Protein' },
+  carbs:   { el: 'Υδατάνθρακες', en: 'Carbs' },
+  fat:     { el: 'Λιπαρά',       en: 'Fat' },
+}
 
 function sumDay(items: CartItem[]) {
   return items.reduce(
     (a, i) => ({
-      cal: a.cal + (i.macros?.cal ?? 0) * i.qty,
-      protein: a.protein + (i.macros?.pro ?? 0) * i.qty,
-      carbs: a.carbs + (i.macros?.carb ?? 0) * i.qty,
-      fat: a.fat + (i.macros?.fat ?? 0) * i.qty,
+      cal:     a.cal     + (i.macros?.cal  ?? 0) * i.qty,
+      protein: a.protein + (i.macros?.pro  ?? 0) * i.qty,
+      carbs:   a.carbs   + (i.macros?.carb ?? 0) * i.qty,
+      fat:     a.fat     + (i.macros?.fat  ?? 0) * i.qty,
     }),
     { cal: 0, protein: 0, carbs: 0, fat: 0 },
   )
-}
-
-// MacroIcon uses 'cal' | 'pro' | 'carb' | 'fat' — map our keys to its.
-const ICON_KEY: Record<MacroKey, 'cal' | 'pro' | 'carb' | 'fat'> = {
-  cal: 'cal', protein: 'pro', carbs: 'carb', fat: 'fat',
 }
 
 export function DayMacrosBlock({ dayIndex }: { dayIndex: number }) {
@@ -56,36 +74,37 @@ export function DayMacrosBlock({ dayIndex }: { dayIndex: number }) {
   if (items.length === 0) return null
 
   const showBars = showGoalProgress(user)
-
   const m = sumDay(items)
-  const bars: Array<{ k: MacroKey; v: number }> = [
-    { k: 'cal',     v: m.cal },
-    { k: 'protein', v: m.protein },
-    { k: 'carbs',   v: m.carbs },
-    { k: 'fat',     v: m.fat },
-  ]
 
   return (
     <div
-      className={`cart-goal-bars${showBars ? '' : ' cart-goal-bars--numbers-only'}`}
+      className={`order-macros-row${showBars ? '' : ' order-macros-row--numbers-only'}`}
       aria-label={
         showBars
           ? (lang === 'el' ? 'Πρόοδος στόχων' : 'Goal progress')
           : (lang === 'el' ? 'Διατροφικά στοιχεία' : 'Nutrition')
       }
     >
-      {bars.map((b) => {
-        const s = showBars ? goalStatus(b.k, b.v, user?.goals) : 'none'
-        const pct = showBars ? goalPct(b.k, b.v, user?.goals) : 0
+      {CELLS.map((c) => {
+        const value = m[c.key]
+        const s = showBars ? goalStatus(c.key, value, user?.goals) : 'none'
+        const pct = showBars ? goalPct(c.key, value, user?.goals) : 0
+        const label = lang === 'el' ? LABEL[c.key].el : LABEL[c.key].en
         return (
-          <div key={b.k} className={`cgb-cell cgb-${s}`}>
-            <div className="cgb-top">
-              <span className="cgb-icon"><MacroIcon type={ICON_KEY[b.k]} /></span>
-              <span className="cgb-val">{Math.round(b.v)}</span>
+          <div key={c.key} className={`order-macro-card ${c.cls}`} data-goal-status={s}>
+            <div className={`order-macro-icon ${c.cls}`}>
+              <MacroIcon type={c.iconKey} />
             </div>
+            <span className="order-macro-label">{label}</span>
+            <span className="order-macro-val">
+              {Math.round(value)}{c.unit && <small>{c.unit}</small>}
+            </span>
             {showBars && (
-              <div className="cgb-track">
-                <div className="cgb-fill" style={{ width: `${Math.min(100, pct)}%` }} />
+              <div className="order-macro-bar">
+                <div
+                  className="order-macro-bar-fill"
+                  style={{ width: `${Math.min(100, pct)}%` }}
+                />
               </div>
             )}
           </div>

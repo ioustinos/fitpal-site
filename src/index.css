@@ -2067,3 +2067,46 @@ header {
 .impersonation-banner svg { width: 16px; height: 16px; flex-shrink: 0; }
 
 body.is-impersonating { padding-top: 36px; }
+
+/* DayMacrosBlock context tweaks (post-2026-04-30 redesign).
+   The same .order-macros-row used in account orders is now also rendered
+   inside the cart sidebar and checkout summary via DayMacrosBlock. The
+   cart context is narrower, so we tighten padding + cell sizing there. */
+.cart-day-block .order-macros-row,
+.cart-scroll .order-macros-row {
+  padding: 8px 10px;
+  gap: 6px;
+  border-bottom: none;
+  border-top: 1px dashed var(--border);
+}
+.cart-day-block .order-macro-card,
+.cart-scroll .order-macro-card {
+  padding: 7px 6px;
+  gap: 2px;
+}
+.cart-day-block .order-macro-label,
+.cart-scroll .order-macro-label {
+  font-size: 9px;
+  letter-spacing: 0.3px;
+}
+.cart-day-block .order-macro-val,
+.cart-scroll .order-macro-val {
+  font-size: 13px;
+}
+.cart-day-block .order-macro-icon,
+.cart-scroll .order-macro-icon {
+  width: 18px; height: 18px;
+}
+.cart-day-block .order-macro-bar,
+.cart-scroll .order-macro-bar {
+  height: 3px;
+  margin-top: 4px;
+}
+
+/* Numbers-only variant — when goal tracking is disabled. The progress bar
+   and status colouring are absent; we still keep the macro-coloured
+   background pill so the breakdown remains visually rich without implying
+   "you're on/off track". */
+.order-macros-row--numbers-only .order-macro-card[data-goal-status="none"] {
+  /* no override needed — coloured background already comes from .cal/.protein/etc */
+}

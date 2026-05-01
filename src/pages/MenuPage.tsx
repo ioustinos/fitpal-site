@@ -6,7 +6,6 @@ import { useMenuStore } from '../store/useMenuStore'
 import { DayNav } from '../components/menu/DayNav'
 import { CategoryFilter } from '../components/menu/CategoryFilter'
 import { CutoffBar } from '../components/menu/CutoffBar'
-import { DayIntakePanel } from '../components/menu/DayIntakePanel'
 import { MenuSection } from '../components/menu/MenuSection'
 import { CartSidebar } from '../components/cart/CartSidebar'
 import { WALLET_PLANS } from '../data/menu'
@@ -200,7 +199,10 @@ export function MenuPage() {
               sticks just under the category pills at the top of the menu
               grid — visible at all times, low-attention. */}
           {!activeWeekLoading && <CategoryFilter dishes={allDishes} />}
-          {!activeWeekLoading && <DayIntakePanel />}
+          {/* DayIntakePanel removed 2026-04-30 — goal tracking lives only
+              in the cart sidebar + checkout summary now. The menu page
+              stays focused on browsing; macros surface when the customer
+              starts building an order. */}
 
           {/* Menu grid (or loader while active week lazy-loads) */}
           {activeWeekLoading ? (
