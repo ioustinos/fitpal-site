@@ -415,14 +415,20 @@ export default async (request: Request) => {
 
       // 3c. Delivery zone — postcode only. Zone names are admin-organisational
       // labels, never matched against the customer's free-text area field.
-      const zip = day.addressZip?.trim()
+      //
+      // Normalize the same way the client does (helpers.ts resolveZone):
+      // strip ALL whitespace, not just trim. Greek postcodes are commonly
+      // entered as "116 36" but stored as "11636" in `delivery_zones.postcodes`.
+      // Without matching normalisation, the client says "✓ delivery available"
+      // but submit-order rejects with "Postcode is not in any active zone".
+      const zip = day.addressZip?.replace(/\s/g, '')
       let matchedZone: any = null
       if (!zip) {
         addError(errors, k, 'Postcode is required to determine delivery zone')
       } else {
         matchedZone = zones.find((z: any) => Array.isArray(z.postcodes) && z.postcodes.includes(zip)) ?? null
         if (!matchedZone) {
-          addError(errors, k, `Postcode ${zip} is not in any active delivery zone. Ask an admin to assign it to a zone under /admin/zones.`)
+          addError(errors, k, `Postcode ${day.addressZip} is not in any active delivery zone. Ask an admin to assign it to a zone under /admin/zones.`)
         }
       }
 
@@ -578,7 +584,9 @@ export default async (request: Request) => {
           time_to: fmtTime(day.timeTo),
           address_street: day.addressStreet,
           address_area: day.addressArea,
-          address_zip: day.addressZip ?? null,
+          // Normalize to no-whitespace so it matches delivery_zones.postcodes
+          // and any future analytics that filter by zip.
+          address_zip: day.addressZip?.replace(/\s/g, '') ?? null,
           address_floor: day.addressFloor ?? null,
         })
         .select('id')
