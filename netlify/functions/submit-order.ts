@@ -731,6 +731,78 @@ export default async (request: Request) => {
     // Fire-and-forget Klaviyo event so the Order Placed email flow can
     // pick up. No-op if KLAVIYO_API_KEY isn't set. We never block order
     // submission on email infrastructure — see netlify/lib/klaviyo.ts.
+    //
+    // Payload is rich enough that the email template doesn't need to make
+    // any DB lookups. It iterates `event.days` and `day.items` and the
+    // template variables substitute display name, variant label, prices,
+    // macros, daily totals, etc.
+    const klaviyoDays = body.days.map((d) => {
+      const enrichedItems = d.items.map((it) => {
+        const variant = variantMap.get(it.variantId) as
+          | { price: number; calories: number | null; protein: number | null; carbs: number | null; fat: number | null; label_el: string | null; label_en: string | null }
+          | undefined
+        const dish = dishMap.get(it.dishId) as { name_el: string | null; name_en: string | null } | undefined
+        const unitPriceCents = variant?.price ?? 0
+        const lineTotalCents = unitPriceCents * it.quantity
+        const cal     = (variant?.calories ?? 0) * it.quantity
+        const protein = (variant?.protein  ?? 0) * it.quantity
+        const carbs   = (variant?.carbs    ?? 0) * it.quantity
+        const fat     = (variant?.fat      ?? 0) * it.quantity
+        return {
+          dishId: it.dishId,
+          variantId: it.variantId,
+          nameEl: dish?.name_el ?? '',
+          nameEn: dish?.name_en ?? '',
+          variantLabelEl: variant?.label_el ?? null,
+          variantLabelEn: variant?.label_en ?? null,
+          quantity: it.quantity,
+          unitPrice: unitPriceCents / 100,
+          lineTotal: lineTotalCents / 100,
+          // Per-line macros (per-unit × qty). Templates can also derive
+          // unit values from `unitMacros` if they need to display them.
+          calories: cal,
+          protein,
+          carbs,
+          fat,
+          unitMacros: {
+            calories: variant?.calories ?? 0,
+            protein: variant?.protein ?? 0,
+            carbs: variant?.carbs ?? 0,
+            fat: variant?.fat ?? 0,
+          },
+          comment: it.comment ?? null,
+        }
+      })
+
+      // Daily roll-ups so the template can show day-level totals without
+      // re-summing in Django syntax (which is awkward).
+      const daySubtotalCents = enrichedItems.reduce((s, i) => s + Math.round(i.lineTotal * 100), 0)
+      const dayCalories = enrichedItems.reduce((s, i) => s + i.calories, 0)
+      const dayProtein  = enrichedItems.reduce((s, i) => s + i.protein, 0)
+      const dayCarbs    = enrichedItems.reduce((s, i) => s + i.carbs, 0)
+      const dayFat      = enrichedItems.reduce((s, i) => s + i.fat, 0)
+      const dayItemCount = enrichedItems.reduce((s, i) => s + i.quantity, 0)
+
+      return {
+        deliveryDate: d.deliveryDate,
+        timeFrom: d.timeFrom,
+        timeTo: d.timeTo,
+        addressStreet: d.addressStreet,
+        addressArea: d.addressArea,
+        addressZip: d.addressZip ?? null,
+        items: enrichedItems,
+        // Daily roll-ups for the template
+        subtotal: daySubtotalCents / 100,
+        itemCount: dayItemCount,
+        macros: {
+          calories: dayCalories,
+          protein: dayProtein,
+          carbs: dayCarbs,
+          fat: dayFat,
+        },
+      }
+    })
+
     trackAsync('Order Placed', {
       email: body.customerEmail,
       firstName: body.customerName?.split(' ')[0],
@@ -749,21 +821,15 @@ export default async (request: Request) => {
       adminUserId: adminUserId ?? null,
       dayCount: body.days.length,
       itemCount: body.days.reduce((s, d) => s + d.items.reduce((ss, it) => ss + it.quantity, 0), 0),
+      // Order-wide macro totals (sum across all days).
+      totalMacros: klaviyoDays.reduce((acc, d) => ({
+        calories: acc.calories + d.macros.calories,
+        protein:  acc.protein  + d.macros.protein,
+        carbs:    acc.carbs    + d.macros.carbs,
+        fat:      acc.fat      + d.macros.fat,
+      }), { calories: 0, protein: 0, carbs: 0, fat: 0 }),
       // Day-by-day breakdown the email template can iterate over.
-      days: body.days.map((d) => ({
-        deliveryDate: d.deliveryDate,
-        timeFrom: d.timeFrom,
-        timeTo: d.timeTo,
-        addressStreet: d.addressStreet,
-        addressArea: d.addressArea,
-        addressZip: d.addressZip ?? null,
-        items: d.items.map((it) => ({
-          dishId: it.dishId,
-          variantId: it.variantId,
-          quantity: it.quantity,
-          comment: it.comment ?? null,
-        })),
-      })),
+      days: klaviyoDays,
     })
 
     return Response.json({
