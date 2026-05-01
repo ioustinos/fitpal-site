@@ -51,19 +51,25 @@ export function MenuPage() {
   const day = week?.days[activeDay]
   const dishIds = day?.dishIds ?? []
 
-  // Resolve dish IDs → full Dish objects
+  // Resolve dish IDs → full Dish objects (active day only — for the menu grid)
   const allDishes = dishIds.map((id) => dishMap[id]).filter(Boolean)
 
   // WEC-180: prune any persisted cart items that reference dishes no
-  // longer in the live menu. Runs once after the menu loads. Without
-  // this, a cart hydrated from localStorage could carry stale items the
-  // customer can't actually order.
+  // longer in the live menu. Runs after the menu loads.
+  //
+  // CRITICAL: we reconcile against `dishMap` (the GLOBAL lookup of every
+  // dish across every loaded week/day), NOT against `allDishes` which is
+  // only the current day's dishes. Earlier version of this hook used
+  // allDishes — so switching from Monday to Tuesday made every Monday
+  // cart item "look unavailable" and got dropped. Wiped real customer
+  // carts. Fixed 2026-05-01.
+  const dishMapSize = Object.keys(dishMap).length
   useEffect(() => {
-    if (allDishes.length === 0) return
-    const ids = new Set(allDishes.map((d) => d.id))
+    if (dishMapSize === 0) return
+    const ids = new Set(Object.keys(dishMap))
     reconcileCartAgainstMenu(ids)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [allDishes.length])
+  }, [dishMapSize])
 
   // Active week's dish content still loading?
   const activeWeekId = weeksMeta[activeWeek]?.id

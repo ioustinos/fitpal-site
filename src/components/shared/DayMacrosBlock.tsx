@@ -5,31 +5,24 @@ import { showGoalProgress, goalStatus, goalPct, type MacroKey } from '../../lib/
 import { MacroIcon } from '../ui/MacroDots'
 
 /**
- * Per-day macro summary for the live cart day.
+ * Per-day macro summary for the live cart day. Compact horizontal layout.
  *
- * Shared between:
- *   - The cart sidebar (CartSidebar.tsx) — under each day's items.
- *   - The checkout order summary (OrderSummary.tsx, indirectly via the cart
- *     refactor in DayOrderGroup) — same layout, same data, same colours so
- *     the customer sees identical breakdown across surfaces.
+ * Used inside DayOrderGroup, which is shared between:
+ *   - The cart sidebar (CartSidebar) — narrow column.
+ *   - The checkout order summary (OrderSummary).
  *
- * Visual design (redesigned 2026-04-30 — was a slim cgb-cell strip; now the
- * polished `order-macro-card` look used elsewhere in the app):
+ * Layout: ONE horizontal row with four pill-style cells (cal / pro / carb / fat).
+ * Each cell: macro icon + value side-by-side (NOT stacked). When goal tracking
+ * is on, a thin progress bar appears underneath, status-coloured.
  *
- *   - 4-cell horizontal grid: Calories / Protein / Carbs / Fat.
- *   - Each cell gets a soft pastel background + matching border based on
- *     macro type (cal/protein/carbs/fat). Same palette as the order
- *     detail / goals-history surfaces, so the customer never sees two
- *     "macro card" looks side-by-side.
- *   - Big number, label, MacroIcon, optional progress bar.
- *   - Progress bar appears only when `showGoalProgress(user)` is true,
- *     anchored to the user's configured goal max/min, status-coloured
- *     (green/yellow/red).
+ * Designed to be ~24px tall in the cart context — earlier version used the big
+ * `.order-macro-card` style from the orders panel, which was way too tall in
+ * the cart sidebar (basically 80px per day). Fixed 2026-05-01.
  *
- * Behaviour matrix:
- *   day has no cart items   → returns null (caller doesn't render it)
- *   goals enabled           → numbers + status colour + progress bar
- *   goals disabled / guest  → numbers only, neutral pill, no bar
+ * Behaviour:
+ *   day has no cart items → returns null.
+ *   goals enabled         → numbers + status colour + progress bar.
+ *   goals disabled / guest → numbers only, neutral colour, no bar.
  */
 
 interface CellSpec {
@@ -45,13 +38,6 @@ const CELLS: CellSpec[] = [
   { key: 'carbs',   cls: 'carbs',   iconKey: 'carb', unit: 'g' },
   { key: 'fat',     cls: 'fat',     iconKey: 'fat',  unit: 'g' },
 ]
-
-const LABEL: Record<MacroKey, { el: string; en: string }> = {
-  cal:     { el: 'Θερμίδες',     en: 'Calories' },
-  protein: { el: 'Πρωτεΐνη',     en: 'Protein' },
-  carbs:   { el: 'Υδατάνθρακες', en: 'Carbs' },
-  fat:     { el: 'Λιπαρά',       en: 'Fat' },
-}
 
 function sumDay(items: CartItem[]) {
   return items.reduce(
@@ -78,7 +64,7 @@ export function DayMacrosBlock({ dayIndex }: { dayIndex: number }) {
 
   return (
     <div
-      className={`order-macros-row${showBars ? '' : ' order-macros-row--numbers-only'}`}
+      className={`dmb-row${showBars ? ' dmb-row--with-bars' : ''}`}
       aria-label={
         showBars
           ? (lang === 'el' ? 'Πρόοδος στόχων' : 'Goal progress')
@@ -89,20 +75,20 @@ export function DayMacrosBlock({ dayIndex }: { dayIndex: number }) {
         const value = m[c.key]
         const s = showBars ? goalStatus(c.key, value, user?.goals) : 'none'
         const pct = showBars ? goalPct(c.key, value, user?.goals) : 0
-        const label = lang === 'el' ? LABEL[c.key].el : LABEL[c.key].en
         return (
-          <div key={c.key} className={`order-macro-card ${c.cls}`} data-goal-status={s}>
-            <div className={`order-macro-icon ${c.cls}`}>
-              <MacroIcon type={c.iconKey} />
-            </div>
-            <span className="order-macro-label">{label}</span>
-            <span className="order-macro-val">
-              {Math.round(value)}{c.unit && <small>{c.unit}</small>}
+          <div key={c.key} className={`dmb-cell dmb-${c.cls} dmb-status-${s}`}>
+            <span className="dmb-inline">
+              <span className={`dmb-icon dmb-icon-${c.cls}`}>
+                <MacroIcon type={c.iconKey} />
+              </span>
+              <span className="dmb-val">
+                {Math.round(value)}{c.unit && <small>{c.unit}</small>}
+              </span>
             </span>
             {showBars && (
-              <div className="order-macro-bar">
+              <div className="dmb-track">
                 <div
-                  className="order-macro-bar-fill"
+                  className="dmb-fill"
                   style={{ width: `${Math.min(100, pct)}%` }}
                 />
               </div>

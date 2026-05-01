@@ -2068,45 +2068,87 @@ header {
 
 body.is-impersonating { padding-top: 36px; }
 
-/* DayMacrosBlock context tweaks (post-2026-04-30 redesign).
-   The same .order-macros-row used in account orders is now also rendered
-   inside the cart sidebar and checkout summary via DayMacrosBlock. The
-   cart context is narrower, so we tighten padding + cell sizing there. */
-.cart-day-block .order-macros-row,
-.cart-scroll .order-macros-row {
-  padding: 8px 10px;
+/* ── DayMacrosBlock — compact horizontal layout (2026-05-01 fix) ──────────
+   Earlier version reused the big `.order-macro-card` style from the
+   account-orders panel — meant for a wide row, but in the cart sidebar
+   it ballooned to ~80px tall per day. This is the proper compact version
+   used inside DayOrderGroup (cart sidebar + checkout summary).
+   Each cell is one short pill: icon + value side-by-side, optional 3px
+   progress bar underneath. Total height ~24px per day with bars off,
+   ~32px with bars on. */
+.dmb-row {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
   gap: 6px;
-  border-bottom: none;
+  padding: 6px 14px 8px;
   border-top: 1px dashed var(--border);
 }
-.cart-day-block .order-macro-card,
-.cart-scroll .order-macro-card {
-  padding: 7px 6px;
-  gap: 2px;
+.dmb-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+  padding: 4px 8px;
+  border-radius: 999px;
+  background: var(--cream);
 }
-.cart-day-block .order-macro-label,
-.cart-scroll .order-macro-label {
+/* Macro-coloured cell backgrounds — soft pastels, same family as the
+   .order-macro-card palette but lower-saturation since the cells are
+   tiny and full saturation gets noisy. */
+.dmb-cal     { background: #FFF3E6; }
+.dmb-protein { background: #E6FFE6; }
+.dmb-carbs   { background: #FFF9E6; }
+.dmb-fat     { background: #FFF0E0; }
+
+.dmb-inline {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  justify-content: center;
+}
+.dmb-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+}
+.dmb-icon svg { width: 14px; height: 14px; }
+.dmb-icon-cal     { color: #C2410C; }   /* burnt orange */
+.dmb-icon-protein { color: #2F855A; }   /* green */
+.dmb-icon-carbs   { color: #B45309; }   /* amber */
+.dmb-icon-fat     { color: #9A3412; }   /* darker peach */
+
+.dmb-val {
+  font-size: 11px;
+  font-weight: 800;
+  color: var(--text);
+  line-height: 1;
+  white-space: nowrap;
+}
+.dmb-val small {
   font-size: 9px;
-  letter-spacing: 0.3px;
-}
-.cart-day-block .order-macro-val,
-.cart-scroll .order-macro-val {
-  font-size: 13px;
-}
-.cart-day-block .order-macro-icon,
-.cart-scroll .order-macro-icon {
-  width: 18px; height: 18px;
-}
-.cart-day-block .order-macro-bar,
-.cart-scroll .order-macro-bar {
-  height: 3px;
-  margin-top: 4px;
+  font-weight: 700;
+  color: var(--text-muted);
+  margin-left: 1px;
 }
 
-/* Numbers-only variant — when goal tracking is disabled. The progress bar
-   and status colouring are absent; we still keep the macro-coloured
-   background pill so the breakdown remains visually rich without implying
-   "you're on/off track". */
-.order-macros-row--numbers-only .order-macro-card[data-goal-status="none"] {
-  /* no override needed — coloured background already comes from .cal/.protein/etc */
+/* Progress bar — only renders when goals are enabled (.dmb-row--with-bars
+   on the row + cell has a status class). */
+.dmb-track {
+  height: 3px;
+  background: rgba(0, 0, 0, 0.08);
+  border-radius: 999px;
+  overflow: hidden;
 }
+.dmb-fill {
+  height: 100%;
+  border-radius: 999px;
+  background: var(--text-muted);
+  opacity: 0.4;
+  transition: width 200ms ease;
+}
+.dmb-status-ok    .dmb-fill { background: var(--green);  opacity: 1; }
+.dmb-status-below .dmb-fill { background: #E8A317;       opacity: 1; }
+.dmb-status-above .dmb-fill { background: #EF4444;       opacity: 1; }
