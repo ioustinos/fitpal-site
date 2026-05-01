@@ -1,6 +1,6 @@
 import { useEffect } from 'react'
 import { useUIStore } from '../store/useUIStore'
-import { useCartStore } from '../store/useCartStore'
+import { useCartStore, reconcileCartAgainstMenu } from '../store/useCartStore'
 import { useAuthStore } from '../store/useAuthStore'
 import { useMenuStore } from '../store/useMenuStore'
 import { DayNav } from '../components/menu/DayNav'
@@ -53,6 +53,17 @@ export function MenuPage() {
 
   // Resolve dish IDs → full Dish objects
   const allDishes = dishIds.map((id) => dishMap[id]).filter(Boolean)
+
+  // WEC-180: prune any persisted cart items that reference dishes no
+  // longer in the live menu. Runs once after the menu loads. Without
+  // this, a cart hydrated from localStorage could carry stale items the
+  // customer can't actually order.
+  useEffect(() => {
+    if (allDishes.length === 0) return
+    const ids = new Set(allDishes.map((d) => d.id))
+    reconcileCartAgainstMenu(ids)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [allDishes.length])
 
   // Active week's dish content still loading?
   const activeWeekId = weeksMeta[activeWeek]?.id

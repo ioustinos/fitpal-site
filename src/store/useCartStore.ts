@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import { persist } from 'zustand/middleware'
 import type { Macros } from '../data/menu'
 
 // ─── Domain types ─────────────────────────────────────────────────────────────
@@ -84,8 +85,36 @@ const defaultVoucher: VoucherState = { code: '', applied: false, type: '' }
 export const emptyDelivery = (): DeliveryInfo => ({ street: '', area: '' })
 
 // ─── Store ────────────────────────────────────────────────────────────────────
+//
+// Persistence (WEC-180):
+//
+// The cart, per-day delivery info, and payment options survive page refresh,
+// browser restart, and same-origin redirects (e.g. Viva return URL after a
+// card payment). Without this, a customer who pays via Viva loses their cart
+// the moment they're redirected to /order/pending/success — and refreshing
+// the menu page mid-build wipes their progress.
+//
+// What we persist:
+//   - cart        — items per day. Validated against the active menu on
+//                   hydrate; dishes no longer in the menu (week rolled over,
+//                   admin disabled them, etc.) are dropped silently.
+//   - delivery    — addresses + time slots per day. Customers expect this.
+//   - payment     — method + cutlery/invoice flags. Re-confirmed at checkout.
+//
+// What we do NOT persist:
+//   - voucher     — re-validate every time. A voucher applied yesterday may
+//                   be expired, max-uses-reached, or ineligible for today's
+//                   cart total. Customer re-applies if needed.
+//   - voucherLoading — transient UI state.
+//
+// Schema versioning: bump `version` on any breaking change to the persisted
+// shape. The migrate() callback returns a clean blank state for old versions
+// (we don't try to upgrade — easier to ask the customer to re-add a few
+// items than to maintain migrations for cart shape forever).
 
-export const useCartStore = create<CartStore>((set) => ({
+export const useCartStore = create<CartStore>()(
+  persist(
+    (set) => ({
   cart: {},
   delivery: {},
   payment: defaultPayment,
@@ -190,4 +219,51 @@ export const useCartStore = create<CartStore>((set) => ({
   },
 
   removeVoucher: () => set({ voucher: defaultVoucher }),
-}))
+    }),
+    {
+      name: 'fitpal-cart',
+      version: 1,
+      // Persist cart + delivery + payment. Everything else is either
+      // transient UI state or must re-validate on demand.
+      partialize: (state) => ({
+        cart: state.cart,
+        delivery: state.delivery,
+        payment: state.payment,
+      }),
+      // Discard old/incompatible persisted shapes — easier than migrating
+      // a cart's worth of arbitrary item shape changes.
+      migrate: () => ({
+        cart: {},
+        delivery: {},
+        payment: defaultPayment,
+      }),
+    },
+  ),
+)
+
+/**
+ * Reconcile a hydrated cart against the live menu (WEC-180).
+ *
+ * Called from MenuPage once the active week's menu has loaded. Drops any
+ * cart items whose `dishId` no longer appears in the available menu —
+ * silently, no toast, because surprise "your cart was modified" alerts
+ * are worse than just a smaller cart. Customer notices and re-adds.
+ *
+ * Also drops days that end up empty after pruning, so the cart sidebar
+ * doesn't render orphan day headers.
+ */
+export function reconcileCartAgainstMenu(availableDishIds: Set<string>) {
+  const state = useCartStore.getState()
+  const next: Record<number, CartItem[]> = {}
+  let droppedAny = false
+  for (const [dayKey, items] of Object.entries(state.cart)) {
+    const dayIdx = Number(dayKey)
+    if (!Array.isArray(items)) continue
+    const kept = items.filter((it) => availableDishIds.has(it.dishId))
+    if (kept.length !== items.length) droppedAny = true
+    if (kept.length > 0) next[dayIdx] = kept
+  }
+  if (droppedAny) {
+    useCartStore.setState({ cart: next })
+  }
+}
