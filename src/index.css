@@ -89,7 +89,7 @@ header {
 .logo-group { display: flex; align-items: baseline; gap: 8px; }
 .logo-text { font-size: 20px; font-weight: 900; letter-spacing: -0.5px; color: var(--white); line-height: 1; }
 .logo-text span { color: var(--green); }
-.logo-sub { font-size: 9px; font-weight: 600; letter-spacing: 2px; color: rgba(255,255,255,0.35); text-transform: uppercase; }
+.logo-sub { font-size: 9px; font-weight: 600; letter-spacing: 2px; color: rgba(255,255,255,0.35); /* uppercase removed — WEC-187 */ }
 .lang-wrap { display: flex; align-items: center; gap: 12px; position: relative; }
 .lang-toggle { display: flex; background: rgba(255,255,255,0.1); border-radius: 999px; padding: 3px; border: 1px solid rgba(255,255,255,0.15); }
 .lang-btn { padding: 5px 16px; border: none; background: transparent; border-radius: 999px; cursor: pointer; font-size: 12px; font-weight: 800; color: rgba(255,255,255,0.55); letter-spacing: 0.5px; transition: all 0.2s; }
@@ -143,7 +143,7 @@ header {
 ══════════════════════════════════════════ */
 .day-section { margin-bottom: 20px; }
 .day-section-hdr { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
-.section-label { font-size: 11px; font-weight: 800; color: var(--text-muted); text-transform: uppercase; letter-spacing: 1px; }
+.section-label { font-size: 11px; font-weight: 800; color: var(--text-muted); /* uppercase removed — WEC-187 */ letter-spacing: 1px; }
 .week-label { font-size: 11px; font-weight: 700; color: var(--text-muted); }
 .day-nav { display: flex; gap: 6px; overflow-x: auto; padding: 8px 2px 4px; align-items: stretch; }
 .day-nav::-webkit-scrollbar { display: none; }
@@ -208,8 +208,7 @@ header {
   font-weight: 800;
   letter-spacing: 0.3px;
   color: var(--text-muted);
-  text-transform: uppercase;
-}
+  }
 .mis-val {
   font-size: 12px;
   font-weight: 900;
@@ -292,8 +291,7 @@ header {
   font-weight: 800;
   letter-spacing: 0.5px;
   color: var(--text-muted);
-  text-transform: uppercase;
-}
+  }
 .drf-field > input {
   border: 1.5px solid var(--border);
   border-radius: var(--radius-sm);
@@ -361,8 +359,7 @@ header {
   font-weight: 900;
   letter-spacing: 0.8px;
   color: var(--text-muted);
-  text-transform: uppercase;
-  margin: 0 0 8px;
+    margin: 0 0 8px;
 }
 /* Avg strip reuses .order-macros-row card look but without the dividing
    border underneath — it's the header not a row inside a larger card. */
@@ -406,8 +403,7 @@ header {
   font-size: 9px;
   font-weight: 900;
   letter-spacing: 0.5px;
-  text-transform: uppercase;
-  color: var(--green-dark);
+    color: var(--green-dark);
   background: var(--green-pale);
   border-radius: 999px;
   padding: 1px 8px;
@@ -574,7 +570,7 @@ header {
 .macro.carb .macro-ico { color: #B8860B; }
 .macro.fat  .macro-ico { color: #C2703A; }
 .macro-v { font-size: 9px; font-weight: 800; color: var(--green-dark); line-height: 1.15; }
-.macro-l { font-size: 8px; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.3px; margin-top: 1px; }
+.macro-l { font-size: 8px; font-weight: 700; color: var(--text-muted); /* uppercase removed — WEC-187 */ letter-spacing: 0.3px; margin-top: 1px; }
 .macro-dots { display: flex; gap: 3px; margin-top: 2px; overflow: hidden; }
 .macro-dot { width: 5px; height: 5px; border-radius: 50%; background: var(--cream-dark); transition: background 0.2s; }
 .macro-dot.filled { background: var(--green); }
@@ -616,8 +612,8 @@ header {
 .dm-macro.carb .dm-macro-ico { color: #B8860B; }
 .dm-macro.fat  .dm-macro-ico { color: #C2703A; }
 .dm-macro-v { font-size: 16px; font-weight: 900; color: var(--green-dark); line-height: 1; }
-.dm-macro-l { font-size: 9px; font-weight: 800; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.4px; }
-.dm-section-title { font-size: 12px; font-weight: 900; color: var(--text); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 7px; }
+.dm-macro-l { font-size: 9px; font-weight: 800; color: var(--text-muted); /* uppercase removed — WEC-187 */ letter-spacing: 0.4px; }
+.dm-section-title { font-size: 12px; font-weight: 900; color: var(--text); /* uppercase removed — WEC-187 */ letter-spacing: 0.5px; margin-bottom: 7px; }
 /* WEC-132: variant list no longer needs its own internal scroll — outer modal already scrolls */
 .dm-variants { display: flex; flex-direction: column; gap: 6px; margin-bottom: 14px; }
 /* variant-row — WEC-132 compact */
@@ -631,7 +627,7 @@ header {
 .vr-macros { font-size: 10.5px; font-weight: 600; color: var(--text-muted); margin-top: 2px; }
 .vr-price { font-size: 15px; font-weight: 900; color: var(--green-dark); flex-shrink: 0; }
 .dm-comment-wrap { margin-bottom: 14px; }
-.dm-comment-lbl { font-size: 11px; font-weight: 800; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.4px; margin-bottom: 5px; }
+.dm-comment-lbl { font-size: 11px; font-weight: 800; color: var(--text-muted); /* uppercase removed — WEC-187 */ letter-spacing: 0.4px; margin-bottom: 5px; }
 .dm-comment { width: 100%; padding: 8px 10px; border: 1.5px solid var(--border); border-radius: var(--radius-sm); font-size: 13px; font-family: inherit; color: var(--text); background: var(--white); resize: vertical; min-height: 34px; max-height: 100px; transition: border-color 0.18s; box-sizing: border-box; }
 .dm-comment:focus { outline: none; border-color: var(--green); }
 .dm-comment::placeholder { color: var(--text-muted); font-style: italic; opacity: 0.6; }
@@ -674,7 +670,7 @@ header {
 
 .cart-day-group { border-bottom: 1px solid var(--border); padding-bottom: 4px; }
 .cart-day-hdr { display: flex; align-items: center; justify-content: space-between; padding: 10px 22px 6px; background: var(--white); z-index: 1; }
-.cart-day-label { font-size: 10px; font-weight: 900; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; }
+.cart-day-label { font-size: 10px; font-weight: 900; color: var(--text-muted); /* uppercase removed — WEC-187 */ letter-spacing: 0.5px; }
 .cart-day-total { font-size: 11px; font-weight: 800; color: var(--green-dark); }
 
 .cart-item { display: flex; align-items: flex-start; gap: 10px; padding: 10px 22px; }
@@ -692,7 +688,7 @@ header {
 
 .voucher-wrap { padding: 12px 22px 0; }
 .voucher-row { display: flex; gap: 6px; }
-.voucher-input { flex: 1; padding: 9px 12px; border: 1.5px solid var(--border); border-radius: var(--radius-sm); font-size: 12px; font-weight: 700; color: var(--text); background: var(--white); transition: border-color 0.18s; text-transform: uppercase; }
+.voucher-input { flex: 1; padding: 9px 12px; border: 1.5px solid var(--border); border-radius: var(--radius-sm); font-size: 12px; font-weight: 700; color: var(--text); background: var(--white); transition: border-color 0.18s; /* uppercase removed — WEC-187 */ }
 .voucher-input:focus { outline: none; border-color: var(--green); }
 .voucher-input.ok { border-color: var(--green); background: var(--green-pale); }
 .voucher-btn { padding: 9px 14px; background: var(--green-dark); color: var(--white); border: none; border-radius: var(--radius-sm); font-size: 11px; font-weight: 900; cursor: pointer; transition: all 0.18s; white-space: nowrap; }
@@ -713,7 +709,7 @@ header {
    CHECKOUT — SHARED FORM ELEMENTS
 ══════════════════════════════════════════ */
 .fwrap { display: flex; flex-direction: column; gap: 4px; }
-.flabel { font-size: 11px; font-weight: 800; color: var(--text-mid); text-transform: uppercase; letter-spacing: 0.4px; margin-bottom: 6px; display: block; }
+.flabel { font-size: 11px; font-weight: 800; color: var(--text-mid); /* uppercase removed — WEC-187 */ letter-spacing: 0.4px; margin-bottom: 6px; display: block; }
 .finput { width: 100%; padding: 9px 12px; border: 1.5px solid var(--border); border-radius: var(--radius-sm); font-size: 13px; font-weight: 600; color: var(--text); background: var(--white); transition: all 0.2s; outline: none; font-family: inherit; }
 .finput:focus { border-color: var(--green); box-shadow: 0 0 0 3px rgba(0,185,107,0.12); }
 .finput.err { border-color: #EF4444; }
@@ -787,7 +783,7 @@ header {
 /* day-section (week label row + day nav) */
 .day-section { margin-bottom: 20px; }
 .day-section-hdr { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
-.section-label { font-size: 11px; font-weight: 800; color: var(--text-muted); text-transform: uppercase; letter-spacing: 1px; }
+.section-label { font-size: 11px; font-weight: 800; color: var(--text-muted); /* uppercase removed — WEC-187 */ letter-spacing: 1px; }
 .week-label { font-size: 11px; font-weight: 700; color: var(--text-muted); }
 
 /* ══════════════════════════════════════════
@@ -852,7 +848,7 @@ header {
 ══════════════════════════════════════════ */
 .dm-header { padding: 20px 22px 0; }
 .dm-tags { display: flex; gap: 4px; margin-bottom: 8px; flex-wrap: wrap; }
-.dm-section-label { font-size: 11px; font-weight: 900; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 10px; }
+.dm-section-label { font-size: 11px; font-weight: 900; color: var(--text-muted); /* uppercase removed — WEC-187 */ letter-spacing: 0.5px; margin-bottom: 10px; }
 .dm-variants { margin: 0 22px 16px; }
 .dm-variant-list { display: flex; flex-direction: column; gap: 8px; }
 .dm-variant-btn { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border: 2px solid var(--border); border-radius: var(--radius-sm); cursor: pointer; transition: all 0.18s; background: var(--white); text-align: left; width: 100%; }
@@ -899,7 +895,7 @@ header {
 .wallet-promo:hover { transform: translateY(-2px); box-shadow: 0 8px 28px rgba(0,185,107,0.3); border-color: rgba(0,185,107,0.5); }
 .wallet-promo::after { content: ''; position: absolute; right: -30px; top: -30px; width: 100px; height: 100px; background: rgba(255,255,255,0.06); border-radius: 50%; }
 .wallet-promo::before { content: ''; position: absolute; left: -20px; bottom: -20px; width: 70px; height: 70px; background: rgba(0,185,107,0.15); border-radius: 50%; }
-.wp-badge { display: inline-flex; align-items: center; gap: 5px; background: rgba(0,185,107,0.3); border: 1px solid rgba(0,185,107,0.5); border-radius: 999px; padding: 2px 9px; font-size: 9px; font-weight: 900; color: #7DFFBE; text-transform: uppercase; letter-spacing: 1px; width: fit-content; margin-bottom: 6px; position: relative; z-index: 1; }
+.wp-badge { display: inline-flex; align-items: center; gap: 5px; background: rgba(0,185,107,0.3); border: 1px solid rgba(0,185,107,0.5); border-radius: 999px; padding: 2px 9px; font-size: 9px; font-weight: 900; color: #7DFFBE; /* uppercase removed — WEC-187 */ letter-spacing: 1px; width: fit-content; margin-bottom: 6px; position: relative; z-index: 1; }
 .wp-badge svg { width: 11px; height: 11px; }
 .wp-title { font-size: 15px; font-weight: 900; color: var(--white); letter-spacing: -0.3px; margin-bottom: 2px; position: relative; z-index: 1; line-height: 1.2; }
 .wp-title span { color: #7DFFBE; }
@@ -931,7 +927,7 @@ header {
    made the first day header hover over the list while scrolling, masking
    items beneath it. Day labels scroll with their items like normal. */
 .cart-day-hdr { display: flex; align-items: center; justify-content: space-between; padding: 10px 16px 6px; background: var(--white); z-index: 1; border-bottom: 1px solid var(--border); }
-.cart-day-name { font-size: 10px; font-weight: 900; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; }
+.cart-day-name { font-size: 10px; font-weight: 900; color: var(--text-muted); /* uppercase removed — WEC-187 */ letter-spacing: 0.5px; }
 .cart-day-amt  { font-size: 11px; font-weight: 800; color: var(--green-dark); }
 .cart-day-min-pill { display: inline-flex; align-items: center; gap: 3px; background: #fef9c3; border: 1px solid #fde68a; border-radius: 20px; padding: 2px 8px; font-size: 11px; font-weight: 800; color: var(--green-dark); }
 .cart-day-min-label { color: #c0392b; font-weight: 700; }
@@ -987,6 +983,13 @@ header {
   cursor: pointer;
   color: var(--text);
   transition: all 0.15s;
+  /* WEC-195: position+z-index forces a stacking context so the button wins
+     hit-testing against rogue body-level overlays (e.g. empty <div>s injected
+     by Chrome extensions like VPNs / search add-ons that intermittently
+     register hits at unrelated viewport coordinates). Without this, ~half
+     the +/- button was unclickable on machines with such extensions. */
+  position: relative;
+  z-index: 1;
 }
 .cart-item .qty-ctrl .qty-btn:hover:not(:disabled) {
   border-color: var(--green);
@@ -1027,7 +1030,7 @@ header {
    VOUCHER
 ══════════════════════════════════════════ */
 .voucher-row { display: flex; gap: 6px; }
-.voucher-input { flex: 1; padding: 8px 12px; border: 1.5px solid var(--border); border-radius: var(--radius-sm); font-size: 12px; font-weight: 700; background: var(--white); color: var(--text); transition: border-color 0.18s; text-transform: uppercase; }
+.voucher-input { flex: 1; padding: 8px 12px; border: 1.5px solid var(--border); border-radius: var(--radius-sm); font-size: 12px; font-weight: 700; background: var(--white); color: var(--text); transition: border-color 0.18s; /* uppercase removed — WEC-187 */ }
 .voucher-input:focus { outline: none; border-color: var(--green); }
 .voucher-btn { padding: 8px 14px; background: var(--green-dark); color: var(--white); border: none; border-radius: var(--radius-sm); font-size: 12px; font-weight: 800; cursor: pointer; transition: all 0.18s; white-space: nowrap; }
 .voucher-btn:disabled { opacity: 0.4; cursor: not-allowed; }
@@ -1064,12 +1067,12 @@ header {
 /* Sections */
 .co-section { background: var(--white); border-radius: var(--radius-lg); border: 1.5px solid var(--border); padding: 22px 24px; margin-bottom: 20px; box-shadow: 0 1px 6px rgba(0,0,0,0.04); scroll-margin-top: calc(var(--hdr) + 20px); }
 .co-section:last-child { margin-bottom: 0; }
-.co-section-title { font-size: 15px; font-weight: 900; color: var(--green-dark); text-transform: uppercase; letter-spacing: 0.6px; margin-bottom: 16px; }
+.co-section-title { font-size: 15px; font-weight: 900; color: var(--green-dark); /* uppercase removed — WEC-187 */ letter-spacing: 0.6px; margin-bottom: 16px; }
 
 /* Contact info grid (WEC-130) — 3 inputs per row desktop, stacked on mobile */
 .co-contact-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; }
 .co-contact-field { display: flex; flex-direction: column; gap: 6px; }
-.co-contact-label { font-size: 11px; font-weight: 800; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.3px; display: flex; align-items: center; gap: 3px; }
+.co-contact-label { font-size: 11px; font-weight: 800; color: var(--text-muted); /* uppercase removed — WEC-187 */ letter-spacing: 0.3px; display: flex; align-items: center; gap: 3px; }
 .co-required { color: #DC2626; font-weight: 900; }
 .form-input.is-invalid { border-color: #DC2626; }
 .form-input.is-invalid:focus { border-color: #DC2626; }
@@ -1097,7 +1100,7 @@ header {
 /* Zones within day block (time slots, address) */
 .ddb-zone { background: var(--cream-light); border-radius: var(--radius-sm); padding: 12px 14px; margin-bottom: 12px; }
 .ddb-zone:last-of-type { margin-bottom: 0; }
-.ddb-section-hdr { display: flex; align-items: center; gap: 6px; font-size: 11px; font-weight: 800; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.4px; margin-bottom: 8px; }
+.ddb-section-hdr { display: flex; align-items: center; gap: 6px; font-size: 11px; font-weight: 800; color: var(--text-muted); /* uppercase removed — WEC-187 */ letter-spacing: 0.4px; margin-bottom: 8px; }
 .ddb-section-ico { width: 14px; height: 14px; opacity: 0.6; display: flex; align-items: center; }
 
 /* Time slot grid (matches demo .time-grid / .tslot) */
@@ -1211,7 +1214,7 @@ header {
 ══════════════════════════════════════════ */
 .form-row { display: flex; flex-direction: column; gap: 5px; }
 .form-row.two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-.form-label { font-size: 11px; font-weight: 800; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; }
+.form-label { font-size: 11px; font-weight: 800; color: var(--text-muted); /* uppercase removed — WEC-187 */ letter-spacing: 0.5px; }
 .form-input { width: 100%; padding: 9px 12px; border: 1.5px solid var(--border); border-radius: var(--radius-sm); font-size: 13px; background: var(--white); color: var(--text); transition: border-color 0.18s; }
 .form-input:focus { outline: none; border-color: var(--green); }
 /* WEC-134: title-sized input for the address label */
@@ -1280,7 +1283,7 @@ header {
 }
 .conf-order-hero-label {
   font-size: 10px; font-weight: 800; letter-spacing: 1px;
-  text-transform: uppercase; color: var(--green-dark); opacity: 0.8;
+  /* uppercase removed — WEC-187 */ color: var(--green-dark); opacity: 0.8;
 }
 .conf-order-hero-number {
   font-size: 22px; font-weight: 900; color: var(--green-dark);
@@ -1363,7 +1366,7 @@ header {
 .order-acc-body { padding: 0 16px 14px; border-top: 1px solid var(--border); }
 .child-order { padding: 12px 0; border-bottom: 1px solid var(--border); }
 .child-order:last-child { border-bottom: none; }
-.child-order-day { font-size: 12px; font-weight: 800; color: var(--green-dark); text-transform: uppercase; margin-bottom: 8px; }
+.child-order-day { font-size: 12px; font-weight: 800; color: var(--green-dark); /* uppercase removed — WEC-187 */ margin-bottom: 8px; }
 .child-order-items { display: flex; flex-direction: column; gap: 4px; }
 .child-order-item { display: flex; align-items: center; gap: 8px; font-size: 12px; }
 .coi-name { font-weight: 700; color: var(--text); flex: 1; }
@@ -1374,7 +1377,7 @@ header {
 /* Account wallet tab */
 .acct-wallet-card { position: relative; background: linear-gradient(135deg, #004739 0%, #006647 60%, #00B96B 100%); border-radius: var(--radius-lg); padding: 22px; color: #fff; overflow: hidden; }
 .acct-wallet-card::after { content: ''; position: absolute; right: -30px; top: -30px; width: 140px; height: 140px; background: rgba(255,255,255,0.06); border-radius: 50%; }
-.aw-label { font-size: 11px; font-weight: 700; color: rgba(255,255,255,0.5); text-transform: uppercase; letter-spacing: 0.5px; }
+.aw-label { font-size: 11px; font-weight: 700; color: rgba(255,255,255,0.5); /* uppercase removed — WEC-187 */ letter-spacing: 0.5px; }
 .aw-balance { font-size: 36px; font-weight: 900; color: #7DFFBE; margin: 4px 0; }
 .aw-detail { font-size: 12px; font-weight: 600; color: rgba(255,255,255,0.6); }
 .aw-plan-badge { display: inline-flex; align-items: center; gap: 5px; background: rgba(0,185,107,0.3); border: 1px solid rgba(0,185,107,0.5); border-radius: 999px; padding: 4px 12px; margin-top: 10px; font-size: 11px; font-weight: 800; color: #7DFFBE; }
@@ -1391,7 +1394,7 @@ header {
 .aw-empty-desc { font-size: 13px; color: var(--text-muted); margin-bottom: 20px; max-width: 340px; margin-left: auto; margin-right: auto; }
 /* Transaction history */
 .aw-history { margin-top: 20px; }
-.aw-history-title { font-size: 13px; font-weight: 900; color: var(--green-dark); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 12px; }
+.aw-history-title { font-size: 13px; font-weight: 900; color: var(--green-dark); /* uppercase removed — WEC-187 */ letter-spacing: 0.5px; margin-bottom: 12px; }
 .aw-tx { display: flex; align-items: center; gap: 12px; padding: 12px 0; border-bottom: 1px solid var(--border); }
 .aw-tx:last-child { border-bottom: none; }
 .aw-tx-icon { width: 36px; height: 36px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 16px; flex-shrink: 0; }
@@ -1437,10 +1440,10 @@ header {
 .addr-form { display: flex; flex-direction: column; gap: 10px; }
 .addr-form-2col { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 .addr-form-actions { display: flex; gap: 10px; margin-top: 4px; }
-.btn-add-addr { width: 100%; padding: 14px; background: var(--green-pale); border: 2px dashed var(--green-light); border-radius: var(--radius-sm); font-size: 14px; font-weight: 800; color: var(--green-dark); cursor: pointer; transition: all 0.18s; text-transform: uppercase; letter-spacing: 0.5px; }
+.btn-add-addr { width: 100%; padding: 14px; background: var(--green-pale); border: 2px dashed var(--green-light); border-radius: var(--radius-sm); font-size: 14px; font-weight: 800; color: var(--green-dark); cursor: pointer; transition: all 0.18s; /* uppercase removed — WEC-187 */ letter-spacing: 0.5px; }
 .btn-add-addr:hover { background: var(--green-light); border-color: var(--green); }
 .new-addr-card { background: var(--green-pale); border-color: var(--green-light); }
-.addr-new-title { font-size: 14px; font-weight: 900; color: var(--green-dark); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 12px; }
+.addr-new-title { font-size: 14px; font-weight: 900; color: var(--green-dark); /* uppercase removed — WEC-187 */ letter-spacing: 0.5px; margin-bottom: 12px; }
 
 /* ── Goals (WEC-80) ── */
 .goals-enable-row { display: flex; align-items: center; gap: 14px; background: var(--green-pale); border-radius: var(--radius-sm); padding: 14px 18px; }
@@ -1460,7 +1463,7 @@ header {
 .goal-card-unit { font-size: 11px; font-weight: 600; color: var(--text-muted); margin-left: auto; }
 .goal-card-inputs { display: flex; gap: 10px; }
 .goal-input-group { flex: 1; }
-.goal-input-label { display: block; font-size: 10px; font-weight: 800; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px; }
+.goal-input-label { display: block; font-size: 10px; font-weight: 800; color: var(--text-muted); /* uppercase removed — WEC-187 */ letter-spacing: 0.5px; margin-bottom: 4px; }
 .goal-input { text-align: center; font-weight: 800; }
 .tab-subtitle { font-size: 16px; font-weight: 900; color: var(--green-dark); margin-bottom: 12px; }
 
@@ -1542,7 +1545,7 @@ header {
 .order-card-id { font-size: 15px; font-weight: 900; color: var(--green-dark); }
 .order-card-date { font-size: 12px; font-weight: 600; color: var(--text-muted); }
 .order-card-right { display: flex; align-items: center; gap: 12px; }
-.order-status-badge { padding: 3px 12px; background: var(--green-pale); border-radius: 999px; font-size: 11px; font-weight: 800; color: var(--green-dark); text-transform: uppercase; }
+.order-status-badge { padding: 3px 12px; background: var(--green-pale); border-radius: 999px; font-size: 11px; font-weight: 800; color: var(--green-dark); /* uppercase removed — WEC-187 */ }
 .order-status-badge.active { background: #FEF3C7; color: #D97706; }
 .order-card-total { font-size: 16px; font-weight: 900; color: var(--text); }
 .order-card-body { padding: 0 16px 16px; }
@@ -1605,7 +1608,7 @@ header {
 .wm-header { display: flex; align-items: center; justify-content: space-between; padding: 20px 22px 0; }
 .wm-title { font-size: 18px; font-weight: 900; color: var(--green-dark); letter-spacing: -0.3px; }
 .wm-balance-card { margin: 16px 22px; background: linear-gradient(135deg, var(--green-dark), var(--green-mid)); border-radius: var(--radius); padding: 18px 20px; text-align: center; }
-.wm-balance-label { font-size: 11px; font-weight: 700; color: rgba(255,255,255,0.55); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px; }
+.wm-balance-label { font-size: 11px; font-weight: 700; color: rgba(255,255,255,0.55); /* uppercase removed — WEC-187 */ letter-spacing: 0.5px; margin-bottom: 6px; }
 .wm-balance-amt { font-size: 32px; font-weight: 900; color: var(--white); letter-spacing: -1px; line-height: 1; }
 .wm-discount-badge { display: inline-block; margin-top: 10px; padding: 4px 14px; background: rgba(0,185,107,0.3); border: 1px solid rgba(0,185,107,0.5); border-radius: 999px; font-size: 12px; font-weight: 800; color: #7DFFBE; }
 .wm-tabs { display: flex; border-bottom: 1.5px solid var(--border); margin: 0 22px 16px; }
@@ -1650,7 +1653,7 @@ header {
 .wlp-hero { background: linear-gradient(135deg, var(--green-dark) 0%, #006644 60%, #00a060 100%); border-radius: var(--radius-lg); padding: 52px 40px; text-align: center; margin-bottom: 40px; position: relative; overflow: hidden; }
 .wlp-hero::before { content: ''; position: absolute; right: -60px; top: -60px; width: 240px; height: 240px; background: rgba(255,255,255,0.05); border-radius: 50%; }
 .wlp-hero::after { content: ''; position: absolute; left: -40px; bottom: -40px; width: 160px; height: 160px; background: rgba(0,185,107,0.15); border-radius: 50%; }
-.wlp-hero-badge { display: inline-flex; align-items: center; gap: 6px; background: rgba(0,185,107,0.3); border: 1px solid rgba(0,185,107,0.5); border-radius: 999px; padding: 5px 14px; font-size: 10px; font-weight: 900; color: #7DFFBE; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 20px; position: relative; z-index: 1; }
+.wlp-hero-badge { display: inline-flex; align-items: center; gap: 6px; background: rgba(0,185,107,0.3); border: 1px solid rgba(0,185,107,0.5); border-radius: 999px; padding: 5px 14px; font-size: 10px; font-weight: 900; color: #7DFFBE; /* uppercase removed — WEC-187 */ letter-spacing: 1px; margin-bottom: 20px; position: relative; z-index: 1; }
 .wlp-hero-title { font-size: 44px; font-weight: 900; color: var(--white); line-height: 1.1; letter-spacing: -1.5px; margin-bottom: 18px; position: relative; z-index: 1; }
 .wlp-hero-title span { color: #7DFFBE; }
 .wlp-hero-desc { font-size: 15px; color: rgba(255,255,255,0.7); font-weight: 600; line-height: 1.6; max-width: 520px; margin: 0 auto; position: relative; z-index: 1; }
@@ -1675,8 +1678,8 @@ header {
 .wlp-plan-card.popular { border-color: #E8450A; border-width: 2.5px; box-shadow: 0 8px 32px rgba(232,69,10,0.12); }
 .wlp-plan-card.current { border-color: var(--green); background: var(--green-pale); }
 
-.wlp-popular-badge { background: #E8450A; color: var(--white); font-size: 9px; font-weight: 900; letter-spacing: 0.8px; text-transform: uppercase; padding: 4px 12px; border-radius: 999px; text-align: center; margin-bottom: 18px; width: fit-content; margin-left: auto; margin-right: auto; }
-.wlp-plan-name { font-size: 13px; font-weight: 900; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px; text-align: center; }
+.wlp-popular-badge { background: #E8450A; color: var(--white); font-size: 9px; font-weight: 900; letter-spacing: 0.8px; /* uppercase removed — WEC-187 */ padding: 4px 12px; border-radius: 999px; text-align: center; margin-bottom: 18px; width: fit-content; margin-left: auto; margin-right: auto; }
+.wlp-plan-name { font-size: 13px; font-weight: 900; color: var(--text-muted); /* uppercase removed — WEC-187 */ letter-spacing: 0.5px; margin-bottom: 8px; text-align: center; }
 .wlp-plan-price { font-size: 40px; font-weight: 900; color: var(--text); letter-spacing: -1.5px; text-align: center; margin-bottom: 4px; line-height: 1; }
 .wlp-plan-period { font-size: 16px; font-weight: 700; color: var(--text-muted); }
 .wlp-plan-credits-row { display: flex; align-items: center; justify-content: center; gap: 6px; font-size: 14px; font-weight: 800; margin-bottom: 20px; }
@@ -1744,7 +1747,7 @@ header {
 
 /* Estimated spending */
 .sub-calc-estimate { background: var(--cream); border-radius: var(--radius); padding: 16px; text-align: center; margin-top: 20px; border: 1.5px solid var(--cream-dark); }
-.sub-calc-estimate-label { font-size: 11px; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; }
+.sub-calc-estimate-label { font-size: 11px; font-weight: 700; color: var(--text-muted); /* uppercase removed — WEC-187 */ letter-spacing: 0.5px; }
 .sub-calc-estimate-amt { font-size: 32px; font-weight: 900; color: var(--green-dark); margin: 4px 0; }
 .sub-calc-estimate-amt small { font-size: 14px; font-weight: 700; color: var(--text-muted); }
 .sub-calc-estimate-note { font-size: 11px; font-weight: 600; color: var(--text-muted); }
@@ -1752,11 +1755,11 @@ header {
 /* Results panel (dark green) */
 .sub-calc-right { background: linear-gradient(135deg, #004739, #006647); border-radius: var(--radius-lg); padding: 28px 24px; color: var(--white); position: relative; overflow: hidden; display: flex; flex-direction: column; }
 .sub-calc-right::after { content: ''; position: absolute; right: -30px; top: -30px; width: 120px; height: 120px; background: rgba(0,185,107,0.1); border-radius: 50%; }
-.sub-calc-result-title { font-size: 12px; font-weight: 700; color: rgba(255,255,255,0.5); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 16px; position: relative; z-index: 1; }
+.sub-calc-result-title { font-size: 12px; font-weight: 700; color: rgba(255,255,255,0.5); /* uppercase removed — WEC-187 */ letter-spacing: 0.5px; margin-bottom: 16px; position: relative; z-index: 1; }
 /* Plan hero: cost → credits layout */
 .sub-calc-plan-hero { display: flex; align-items: center; justify-content: center; gap: 12px; margin-bottom: 8px; position: relative; z-index: 1; }
 .sub-calc-plan-cost, .sub-calc-plan-credits-total { display: flex; flex-direction: column; align-items: center; }
-.sub-calc-cost-label, .sub-calc-credits-label { font-size: 10px; font-weight: 700; color: rgba(255,255,255,0.5); text-transform: uppercase; letter-spacing: 0.5px; }
+.sub-calc-cost-label, .sub-calc-credits-label { font-size: 10px; font-weight: 700; color: rgba(255,255,255,0.5); /* uppercase removed — WEC-187 */ letter-spacing: 0.5px; }
 .sub-calc-cost-val { font-size: 28px; font-weight: 900; color: var(--white); line-height: 1.1; }
 .sub-calc-credits-val { font-size: 28px; font-weight: 900; color: #7DFFBE; line-height: 1.1; }
 .sub-calc-cost-per { font-size: 11px; font-weight: 600; color: rgba(255,255,255,0.5); }
@@ -2025,3 +2028,42 @@ header {
   text-overflow: ellipsis;
   margin-top: 1px;
 }
+
+/* ══════════════════════════════════════════
+   IMPERSONATION BANNER (WEC-188)
+   Moved here from src/admin/admin.css so it applies on the customer site too.
+   admin.css only loads when /admin/* routes mount, but this banner is
+   rendered globally from App.tsx — without these rules, the SVG icon
+   inflated to viewport width and made the banner ~1450px tall.
+══════════════════════════════════════════ */
+.impersonation-banner {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 9999;
+  background: linear-gradient(90deg, #f59e0b, #d97706);
+  color: #fff;
+  padding: 8px 16px;
+  font-size: 13px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+}
+.impersonation-banner button {
+  background: rgba(255, 255, 255, 0.2);
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  color: #fff;
+  padding: 4px 10px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.impersonation-banner button:hover { background: rgba(255, 255, 255, 0.3); }
+.impersonation-banner svg { width: 16px; height: 16px; flex-shrink: 0; }
+
+body.is-impersonating { padding-top: 36px; }

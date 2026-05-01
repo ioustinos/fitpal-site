@@ -9,6 +9,24 @@
   targetPort = 5173
   publish = "dist"
 
-# NOTE: /api/* rewrite lives in public/_redirects (not here) because
-# Netlify evaluates _redirects BEFORE netlify.toml at runtime, and the
-# /* SPA fallback in _redirects was swallowing /api/* requests otherwise.
+# /api/* → functions. Declared here AND in public/_redirects.
+#
+# History: we originally kept this rule only in public/_redirects so the
+# resolved order would be (a) /api/* first, then (b) the SPA fallback /*.
+# That works on production builds (Netlify reads _redirects from the
+# publish dir).
+#
+# But `netlify dev` doesn't always pick up public/_redirects — Vite
+# proxies the request before Netlify's redirect engine runs, so /api/*
+# silently falls through to the SPA fallback and the function never
+# fires. Symptom on the client: `fetch('/api/...')` returns the index.html
+# shell, then `res.json()` throws "Unexpected end of JSON input".
+#
+# Declaring the same rule here guarantees it's applied in `netlify dev`
+# too. Production behaviour is unchanged because netlify.toml redirects
+# and _redirects merge cleanly (same target = no conflict).
+[[redirects]]
+  from = "/api/*"
+  to = "/.netlify/functions/:splat"
+  status = 200
+  force = true

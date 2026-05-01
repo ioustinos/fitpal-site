@@ -5,8 +5,7 @@ import { useAuthStore } from '../../store/useAuthStore'
 import { makeTr } from '../../lib/translations'
 import { activeDays, dayAmt, subTotal, fmt } from '../../lib/helpers'
 import { useMenuStore } from '../../store/useMenuStore'
-import { dayLabel as dayLabelFor } from '../../lib/datelabels'
-import { DayMacrosBlock } from '../shared/DayMacrosBlock'
+import { DayOrderGroup } from '../shared/DayOrderGroup'
 
 export function OrderSummary() {
   const lang = useUIStore((s) => s.lang)
@@ -17,8 +16,6 @@ export function OrderSummary() {
   const applyVoucher = useCartStore((s) => s.applyVoucher)
   const removeVoucher = useCartStore((s) => s.removeVoucher)
   const voucherLoading = useCartStore((s) => s.voucherLoading)
-  const updateItem = useCartStore((s) => s.updateItem)
-  const removeItem = useCartStore((s) => s.removeItem)
   const user = useAuthStore((s) => s.user)
   const t = makeTr(lang)
 
@@ -26,7 +23,6 @@ export function OrderSummary() {
   const [voucherError, setVoucherError] = useState('')
 
   const weeks = useMenuStore((s) => s.weeks)
-  const minOrder = useMenuStore((s) => s.settings.minOrder)
   const week = weeks[activeWeek] ?? weeks[0]
   const dayIdxs = activeDays(cart)
   const total = subTotal(cart, voucher)
@@ -88,90 +84,20 @@ export function OrderSummary() {
         <div className="sidebar-sub">{t('cartSub')}</div>
       </div>
 
-      {/* Scrollable items */}
+      {/* Scrollable items — WEC-189: shared DayOrderGroup with editable=true,
+          identical to the cart sidebar. Eliminates the inline cart-item +
+          qty-ctrl markup that previously duplicated CartItemRow. */}
       <div className="cart-scroll">
         {dayIdxs.map((i) => {
-          const items = cart[i] ?? []
           const day = week?.days[i]
-          const amt = dayAmt(cart, i)
-          const low = amt < minOrder
-          const dayLabel = day?.date ? dayLabelFor(day.date, lang, 'long') : ''
-
+          if (!day) return null
           return (
-            <div key={day?.date ?? i} className="cart-day-block">
-              <div className="cart-day-hdr">
-                <span className="cart-day-name">{dayLabel}</span>
-                <span className={`cart-day-amt ${low ? 'low' : 'ok'}`}>
-                  {fmt(amt)}{low ? ` / min €${minOrder}` : ''}
-                </span>
-              </div>
-
-              {items.map((item, j) => {
-                const name = lang === 'el' ? item.nameEl : item.nameEn
-                const variant = lang === 'el' ? item.variantLabelEl : item.variantLabelEn
-                return (
-                  <div key={j} className="cart-item">
-                    {/* Thumbnail */}
-                    <div className="ci-thumb">
-                      {item.img ? (
-                        <>
-                          <img
-                            src={item.img}
-                            alt={name}
-                            style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                            onError={(e) => {
-                              e.currentTarget.style.display = 'none'
-                              const next = e.currentTarget.nextSibling as HTMLElement
-                              if (next) next.style.display = 'flex'
-                            }}
-                          />
-                          <div className="ci-thumb-emoji" style={{ display: 'none' }}>
-                            {item.emoji ?? '🍽️'}
-                          </div>
-                        </>
-                      ) : (
-                        <div className="ci-thumb-emoji">{item.emoji ?? '🍽️'}</div>
-                      )}
-                    </div>
-
-                    {/* Info */}
-                    <div className="ci-info">
-                      <div className="ci-name">{name}</div>
-                      {variant && <div className="ci-var">{variant}</div>}
-                      {item.comment && <div className="ci-comment">"{item.comment}"</div>}
-                    </div>
-
-                    {/* Price + qty */}
-                    <div className="ci-right">
-                      {item.originalPrice && item.originalPrice > item.price && (
-                        <div className="ci-price-was">{fmt(item.originalPrice * item.qty)}</div>
-                      )}
-                      <div className="ci-price">{fmt(item.price * item.qty)}</div>
-                      <div className="qty-ctrl">
-                        <button
-                          className="qty-btn"
-                          onClick={() =>
-                            item.qty <= 1
-                              ? removeItem(i, j)
-                              : updateItem(i, j, { qty: item.qty - 1 })
-                          }
-                        >−</button>
-                        <span className="qty-n">{item.qty}</span>
-                        <button
-                          className="qty-btn"
-                          onClick={() => updateItem(i, j, { qty: item.qty + 1 })}
-                        >+</button>
-                      </div>
-                    </div>
-                  </div>
-                )
-              })}
-
-              {/* WEC-165: inline per-day macro block — same component + same
-                  visual language as the cart sidebar. Handles both
-                  "goals on → bars" and "goals off / guest → numbers only". */}
-              <DayMacrosBlock dayIndex={i} />
-            </div>
+            <DayOrderGroup
+              key={day.date}
+              dayIndex={i}
+              day={day}
+              editable
+            />
           )
         })}
       </div>

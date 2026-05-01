@@ -76,45 +76,80 @@ export default async (request: Request) => {
     })
 
     // ── Look up target user ────────────────────────────────────────────
-    const { data: target, error: targetErr } = await svc.auth.admin.getUserById(body.targetUserId)
-    if (targetErr || !target?.user) {
-      return Response.json({ error: 'Target user not found' }, { status: 404 })
+    // We read from `profiles` (which mirrors auth.users.email via the
+    // signup trigger). This avoids the Supabase JS admin.getUserById call
+    // which has been flaky against manually-seeded auth.users rows.
+    const { data: profileRow, error: profileLookupErr } = await svc
+      .from('profiles')
+      .select('id, email, name')
+      .eq('id', body.targetUserId)
+      .maybeSingle()
+    if (profileLookupErr || !profileRow) {
+      console.error('[admin-impersonate-start] target lookup failed', {
+        targetUserId: body.targetUserId,
+        err: profileLookupErr?.message,
+      })
+      return Response.json({
+        error: 'Target user not found',
+        detail: profileLookupErr?.message ?? 'no profiles row',
+        targetUserId: body.targetUserId,
+      }, { status: 404 })
     }
-    const targetEmail = target.user.email
+    const targetEmail = (profileRow as { email: string | null }).email
     if (!targetEmail) {
       return Response.json({ error: 'Target user has no email' }, { status: 400 })
     }
 
     // ── Generate magic link (no email sent) ────────────────────────────
-    // We pass redirectTo back to our own success path; not actually used by
-    // verifyOtp but Supabase requires it on some accounts.
-    const { data: linkData, error: linkErr } = await svc.auth.admin.generateLink({
+    // Some Supabase configurations reject generateLink without an explicit
+    // redirectTo. We use the request's origin (or a sensible default) so
+    // the verifyOtp flow doesn't bounce. The redirect itself is never
+    // followed — verifyOtp consumes the token directly.
+    const requestOrigin = request.headers.get('origin') ?? request.headers.get('referer') ?? 'http://localhost:8888'
+    const linkResponse = await svc.auth.admin.generateLink({
       type: 'magiclink',
       email: targetEmail,
+      options: {
+        redirectTo: requestOrigin,
+      },
     })
-    if (linkErr || !linkData?.properties?.hashed_token) {
+    // Detailed logging — without this you can't tell at a glance whether
+    // the SDK errored, returned no properties, or returned a property
+    // shape we don't expect.
+    console.log('[admin-impersonate-start] generateLink response:', JSON.stringify({
+      hasError: !!linkResponse.error,
+      errorMessage: linkResponse.error?.message,
+      errorStatus: (linkResponse.error as { status?: number } | null)?.status,
+      hasData: !!linkResponse.data,
+      hasProperties: !!linkResponse.data?.properties,
+      propertyKeys: linkResponse.data?.properties ? Object.keys(linkResponse.data.properties) : null,
+    }))
+    const linkErr = linkResponse.error
+    const linkData = linkResponse.data
+    // Try both possible property names — older Supabase versions use
+    // `hashed_token`, newer ones may use `token_hash`. Pick whichever exists.
+    const hashedToken =
+      linkData?.properties?.hashed_token ??
+      (linkData?.properties as { token_hash?: string } | undefined)?.token_hash ??
+      null
+    if (linkErr || !hashedToken) {
       return Response.json({
         error: 'Failed to generate impersonation token',
-        detail: linkErr?.message ?? 'no hashed_token in response',
+        detail: linkErr?.message ?? 'no hashed_token / token_hash in response',
+        status: (linkErr as { status?: number } | null)?.status ?? null,
+        propertyKeys: linkData?.properties ? Object.keys(linkData.properties) : null,
       }, { status: 500 })
     }
 
-    // Pull profile name for the banner display.
-    const { data: profile } = await svc
-      .from('profiles')
-      .select('name')
-      .eq('id', body.targetUserId)
-      .maybeSingle()
-
     return Response.json({
-      hashedToken: linkData.properties.hashed_token,
+      hashedToken,
       target: {
         userId: body.targetUserId,
         email: targetEmail,
-        name: (profile as { name: string | null } | null)?.name ?? targetEmail,
+        name: (profileRow as { name: string | null }).name ?? targetEmail,
       },
       // Echo admin id back so the client can stash it for the
-      // X-Impersonator-Token attribution header on order submission.
+      // X-Impersonator-Admin-Id attribution header on order submission.
       adminUserId: caller.id,
     }, {
       headers: { 'Access-Control-Allow-Origin': '*' },

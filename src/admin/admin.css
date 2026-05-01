@@ -89,8 +89,7 @@
   border-radius: 999px;
   font-size: 11px;
   font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
+    letter-spacing: 0.5px;
 }
 .admin-user-email { color: var(--a-text-muted); font-size: 13px; }
 
@@ -185,8 +184,7 @@
   font-size: 11px;
   font-weight: 700;
   letter-spacing: 0.8px;
-  text-transform: uppercase;
-  color: var(--a-text-soft);
+    color: var(--a-text-soft);
   margin-bottom: 6px;
 }
 .admin-stub-title {
@@ -301,8 +299,7 @@
   text-align: left;
   font-size: 11px;
   font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
+    letter-spacing: 0.5px;
   color: var(--a-text-muted);
   border-bottom: 1px solid var(--a-border);
 }
@@ -611,8 +608,7 @@
   font-family: inherit;
   font-weight: 700;
   letter-spacing: 0.3px;
-  text-transform: uppercase;
-  white-space: nowrap;
+    white-space: nowrap;
   line-height: 1.2;
 }
 .admin-day-toggle:hover { background: #fee2e2; }
@@ -658,8 +654,7 @@
 .admin-day-cat-header {
   font-size: 10px;
   font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
+    letter-spacing: 0.5px;
   color: var(--a-text-soft);
   padding: 0 2px 3px;
   margin-bottom: 1px;
@@ -760,7 +755,7 @@
   font-family: inherit;
 }
 .admin-stat-card:hover { border-color: #c5cfd9; transform: translateY(-1px); box-shadow: 0 4px 10px rgba(15, 23, 42, 0.05); }
-.admin-stat-title { font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; color: var(--a-text-muted); margin-bottom: 10px; }
+.admin-stat-title { font-size: 12px; font-weight: 600; /* uppercase removed — WEC-187 */ letter-spacing: 0.5px; color: var(--a-text-muted); margin-bottom: 10px; }
 .admin-stat-value { font-size: 34px; font-weight: 800; line-height: 1.1; color: var(--a-text); }
 .admin-stat-value.small { font-size: 17px; font-weight: 700; }
 .admin-stat-hint { font-size: 12px; color: var(--a-text-muted); margin-top: 6px; }
@@ -774,7 +769,7 @@
   padding: 16px 20px;
   margin-bottom: 18px;
 }
-.admin-quick-head { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: var(--a-text-muted); margin-bottom: 10px; }
+.admin-quick-head { font-size: 12px; font-weight: 700; /* uppercase removed — WEC-187 */ letter-spacing: 0.5px; color: var(--a-text-muted); margin-bottom: 10px; }
 .admin-quick-buttons { display: flex; gap: 8px; flex-wrap: wrap; }
 
 .admin-info-banner {
@@ -947,8 +942,7 @@
   border-radius: 999px;
   font-size: 11px;
   font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
+    letter-spacing: 0.5px;
   margin-right: 4px;
 }
 
@@ -1144,8 +1138,7 @@
   font-size: 11px;
   font-weight: 700;
   letter-spacing: 0.8px;
-  text-transform: uppercase;
-  color: #9ca3af;
+    color: #9ca3af;
   margin-bottom: 10px;
 }
 .admin-403-card h1 {
@@ -1205,8 +1198,7 @@
 .admin-form-row label {
   font-size: 11px;
   font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
+    letter-spacing: 0.5px;
   color: var(--a-text-muted);
 }
 .admin-form-row small {
@@ -1247,35 +1239,5 @@
   border-radius: 10px;
 }
 
-/* ── Impersonation banner ────────────────────────────────────────────────── */
-.impersonation-banner {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  z-index: 9999;
-  background: linear-gradient(90deg, #f59e0b, #d97706);
-  color: #fff;
-  padding: 8px 16px;
-  font-size: 13px;
-  font-weight: 600;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 12px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
-}
-.impersonation-banner button {
-  background: rgba(255, 255, 255, 0.2);
-  border: 1px solid rgba(255, 255, 255, 0.4);
-  color: #fff;
-  padding: 4px 10px;
-  border-radius: 4px;
-  font-size: 12px;
-  font-weight: 600;
-  cursor: pointer;
-}
-.impersonation-banner button:hover { background: rgba(255, 255, 255, 0.3); }
-.impersonation-banner svg { width: 16px; height: 16px; flex-shrink: 0; }
-
-body.is-impersonating { padding-top: 36px; }
+/* Impersonation banner styles moved to src/index.css (WEC-188).
+ * They need to be available on the customer site, where admin.css doesn't load. */

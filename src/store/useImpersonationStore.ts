@@ -95,7 +95,15 @@ export const useImpersonationStore = create<ImpersonationState>()(
           }
 
           // 2. Mint a magic-link hash for the target via the admin function.
-          const res = await fetch('/api/admin-impersonate-start', {
+          //
+          // We hit the direct `/.netlify/functions/...` path rather than the
+          // `/api/...` rewrite. Reason: in `netlify dev --offline`, Vite's
+          // SPA fallback intercepts `/api/*` before Netlify's redirect rules
+          // get a chance, so `/api/admin-impersonate-start` returns the
+          // index.html shell. The direct path bypasses Vite's middleware
+          // and goes straight to the function. Production unaffected (the
+          // rewrite still works there).
+          const res = await fetch('/.netlify/functions/admin-impersonate-start', {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
@@ -105,8 +113,19 @@ export const useImpersonationStore = create<ImpersonationState>()(
           })
           const json = await res.json()
           if (!res.ok || !json?.hashedToken || !json?.target) {
-            set({ loading: false, error: json?.error ?? 'Failed to start impersonation' })
-            return { ok: false, error: json?.error ?? 'Failed to start impersonation' }
+            // Compose a useful error: top-level error + any detail the
+            // server included. Without this, the UI says "Failed to start
+            // impersonation" with no clue why.
+            const composed = [
+              json?.error,
+              json?.detail,
+              json?.status ? `(status ${json.status})` : null,
+            ].filter(Boolean).join(' — ')
+            const message = composed || 'Failed to start impersonation'
+            // eslint-disable-next-line no-console
+            console.warn('[impersonation.start] server returned:', json)
+            set({ loading: false, error: message })
+            return { ok: false, error: message }
           }
 
           // 3. Verify the magic-link hash → swaps active Supabase session
