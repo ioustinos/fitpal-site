@@ -33,14 +33,20 @@ export function PaymentSection() {
   const walletSufficient = walletBalance >= total
 
   // Filter hardcoded catalog by the admin-configured list.
-  // For self-service customers whose wallet is admin-managed: the wallet
-  // option is hidden (only the curating admin can spend it via impersonation).
-  // For admin impersonation: wallet stays visible regardless of admin_managed
-  // because the admin IS the legitimate spender of that wallet.
+  //
+  // Wallet visibility rules:
+  //   * If wallet is admin-managed and we're NOT impersonating: hide
+  //     (only the curating admin can spend, via impersonation flow).
+  //   * If user has no wallet OR balance is 0: hide entirely (WEC-194).
+  //     The previous behaviour rendered a disabled "Insufficient" chip
+  //     which was confusing — better to just not offer it at all.
+  //     Exception: during impersonation, keep showing wallet so the admin
+  //     can see "this customer has €0" rather than wondering where it went.
   const visibleMethods = PAYMENT_METHODS.filter((m) => {
     if (!enabledMethods.includes(m.id)) return false
     if (m.id === 'wallet') {
       if (!isImpersonating && user?.wallet?.adminManaged) return false
+      if (!isImpersonating && (!walletActive || walletBalance <= 0)) return false
     }
     return true
   })

@@ -68,6 +68,33 @@ export default async (request: Request) => {
       userId = user?.id ?? null
     }
 
+    // ── Voucher lookup + reject path ────────────────────────────────────
+    //
+    // WEC-148: don't leak which specific reason a voucher is unavailable.
+    // The previous behaviour exposed distinct strings for "doesn't exist",
+    // "expired", "max uses reached", "already used by this user", "not
+    // your voucher" — letting an attacker enumerate valid codes by error
+    // diff. Now every "invalid for this caller" reason returns the same
+    // generic message + the same shape, modulo the `min_order` case which
+    // is the one bit of information the legit user genuinely needs to act
+    // on (it's not a yes/no — it's "you'd be eligible if your cart hits
+    // the threshold"; same logic as a "free shipping above €X" badge).
+    //
+    // Exception: the min-order case is allowed because:
+    //   (a) it doesn't confirm voucher existence beyond what cart total
+    //       reveals (an attacker could still try `cartTotal: 9999` to
+    //       bypass), and
+    //   (b) ux value to legit users is high.
+    //
+    // Server-side logging keeps the actual reason for ops debugging.
+    const REJECT_GENERIC = 'This voucher is invalid or unavailable.'
+
+    function reject(reason: string) {
+      // eslint-disable-next-line no-console
+      console.log(`[validate-voucher] rejected ${code} for user=${userId ?? 'guest'}: ${reason}`)
+      return Response.json({ valid: false, code, error: REJECT_GENERIC })
+    }
+
     // Fetch voucher
     const { data: voucher, error: vErr } = await supabase
       .from('vouchers')
@@ -75,48 +102,26 @@ export default async (request: Request) => {
       .eq('code', code)
       .single()
 
-    if (vErr || !voucher) {
-      return Response.json({
-        valid: false,
-        code,
-        error: 'Invalid voucher code',
-      })
-    }
+    if (vErr || !voucher) return reject('not found')
+    if (!voucher.active) return reject('inactive')
+    if (voucher.expires_at && new Date(voucher.expires_at) < new Date()) return reject('expired')
+    if (voucher.max_uses != null && voucher.uses_count >= voucher.max_uses) return reject('max_uses reached')
 
-    // Check active
-    if (!voucher.active) {
-      return Response.json({ valid: false, code, error: 'This voucher is no longer active' })
-    }
-
-    // Check expiry
-    if (voucher.expires_at && new Date(voucher.expires_at) < new Date()) {
-      return Response.json({ valid: false, code, error: 'This voucher has expired' })
-    }
-
-    // Check global usage limit
-    if (voucher.max_uses != null && voucher.uses_count >= voucher.max_uses) {
-      return Response.json({ valid: false, code, error: 'This voucher has reached its usage limit' })
-    }
-
-    // Check per-user limit
+    // Per-user limit
     if (userId && voucher.per_user_limit != null) {
       const { count } = await supabase
         .from('voucher_uses')
         .select('id', { count: 'exact', head: true })
         .eq('voucher_id', voucher.id)
         .eq('user_id', userId)
-
-      if ((count ?? 0) >= voucher.per_user_limit) {
-        return Response.json({ valid: false, code, error: 'You have already used this voucher' })
-      }
+      if ((count ?? 0) >= voucher.per_user_limit) return reject('per-user limit reached')
     }
 
-    // Check if voucher is user-specific and doesn't match
-    if (voucher.user_id && userId && voucher.user_id !== userId) {
-      return Response.json({ valid: false, code, error: 'This voucher is not available for your account' })
-    }
+    // User-specific voucher with no match (or guest trying to use one)
+    if (voucher.user_id && voucher.user_id !== userId) return reject('user mismatch')
 
-    // Check minimum order
+    // Check minimum order — the ONE case where we DO leak the reason,
+    // because it's actionable for the customer ("add €X more").
     const cartTotalCents = Math.round((body.cartTotal ?? 0) * 100)
     if (voucher.min_order != null && cartTotalCents < voucher.min_order) {
       const minEuros = (voucher.min_order / 100).toFixed(2)
@@ -127,10 +132,8 @@ export default async (request: Request) => {
       })
     }
 
-    // Check credit voucher remaining balance
-    if (voucher.type === 'credit' && (voucher.remaining ?? 0) <= 0) {
-      return Response.json({ valid: false, code, error: 'This credit voucher has been fully used' })
-    }
+    // Credit voucher with zero remaining → generic.
+    if (voucher.type === 'credit' && (voucher.remaining ?? 0) <= 0) return reject('credit exhausted')
 
     // Calculate discount
     let discount = 0
