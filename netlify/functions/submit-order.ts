@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js'
 import { createVivaOrder } from '../lib/viva/createOrder'
+import { trackAsync } from '../lib/klaviyo'
 
 // ─── Env ────────────────────────────────────────────────────────────────────
 
@@ -718,6 +719,44 @@ export default async (request: Request) => {
     }
 
     // ─── Success ────────────────────────────────────────────────────────
+
+    // Fire-and-forget Klaviyo event so the Order Placed email flow can
+    // pick up. No-op if KLAVIYO_API_KEY isn't set. We never block order
+    // submission on email infrastructure — see netlify/lib/klaviyo.ts.
+    trackAsync('Order Placed', {
+      email: body.customerEmail,
+      firstName: body.customerName?.split(' ')[0],
+      lastName: body.customerName?.split(' ').slice(1).join(' '),
+      phone: body.customerPhone,
+      externalId: userId ?? undefined,
+    }, {
+      orderId,
+      orderNumber,
+      total: orderTotal / 100,
+      subtotal: orderSubtotal / 100,
+      discountAmount: discountAmount / 100,
+      paymentMethod: body.paymentMethod,
+      paymentStatus: paidStatus,
+      placedByAdmin: isImpersonating,
+      adminUserId: adminUserId ?? null,
+      dayCount: body.days.length,
+      itemCount: body.days.reduce((s, d) => s + d.items.reduce((ss, it) => ss + it.quantity, 0), 0),
+      // Day-by-day breakdown the email template can iterate over.
+      days: body.days.map((d) => ({
+        deliveryDate: d.deliveryDate,
+        timeFrom: d.timeFrom,
+        timeTo: d.timeTo,
+        addressStreet: d.addressStreet,
+        addressArea: d.addressArea,
+        addressZip: d.addressZip ?? null,
+        items: d.items.map((it) => ({
+          dishId: it.dishId,
+          variantId: it.variantId,
+          quantity: it.quantity,
+          comment: it.comment ?? null,
+        })),
+      })),
+    })
 
     return Response.json({
       orderNumber,

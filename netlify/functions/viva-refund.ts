@@ -8,6 +8,7 @@
 
 import { createClient } from '@supabase/supabase-js'
 import { refundVivaTransaction } from '../lib/viva/refund'
+import { trackAsync } from '../lib/klaviyo'
 
 const SUPABASE_URL = process.env.VITE_SUPABASE_URL ?? ''
 const SUPABASE_ANON_KEY = process.env.VITE_SUPABASE_ANON_KEY ?? ''
@@ -65,6 +66,44 @@ export default async (request: Request) => {
       reason: body.reason,
       adminUserId: who.userId,
     })
+
+    // Fire Klaviyo "Order Refunded" event so the customer-facing refund
+    // email flow can pick up. Best-effort; never blocks the refund response.
+    // We re-fetch order details for the email payload.
+    try {
+      const supa = createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
+      const { data: order } = await supa
+        .from('orders')
+        .select('order_number, customer_name, customer_email, customer_phone, total, refund_amount, user_id, payment_status')
+        .eq('id', body.orderId)
+        .maybeSingle()
+      if (order && (order as { customer_email?: string }).customer_email) {
+        const o = order as {
+          order_number: string; customer_name: string; customer_email: string;
+          customer_phone: string | null; total: number; refund_amount: number;
+          user_id: string | null; payment_status: string;
+        }
+        trackAsync('Order Refunded', {
+          email: o.customer_email,
+          firstName: o.customer_name?.split(' ')[0],
+          lastName: o.customer_name?.split(' ').slice(1).join(' '),
+          phone: o.customer_phone ?? undefined,
+          externalId: o.user_id ?? undefined,
+        }, {
+          orderId: body.orderId,
+          orderNumber: o.order_number,
+          refundAmountCents: body.amountCents ?? o.total,
+          refundAmount: ((body.amountCents ?? o.total) / 100),
+          orderTotal: o.total / 100,
+          cumulativeRefundAmount: o.refund_amount / 100,
+          isFullRefund: o.payment_status === 'refunded',
+          reason: body.reason,
+        })
+      }
+    } catch (klaviyoErr) {
+      console.warn('[viva-refund] klaviyo dispatch failed (non-fatal):', klaviyoErr)
+    }
+
     return Response.json(result)
   } catch (err) {
     const msg = err instanceof Error ? err.message : 'Unknown error'
