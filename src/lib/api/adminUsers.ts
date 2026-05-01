@@ -296,3 +296,66 @@ export async function setWalletAdminManaged(
     .eq('user_id', userId)
   return { error: error?.message ?? null }
 }
+
+/**
+ * Grant a wallet credit (refund / gift / adjustment) to a customer.
+ *
+ * Hits /api/admin-grant-wallet-credit which (a) verifies admin via JWT,
+ * (b) calls the atomic public.wallet_admin_credit RPC, (c) writes audit
+ * log. Creates the wallet row if the customer doesn't have one.
+ *
+ * Amounts are passed in cents (we don't trust the client to do the
+ * conversion). Server caps at €500 — for larger one-offs do via SQL.
+ */
+export type WalletGrantType = 'refund' | 'gift' | 'adjustment'
+
+export interface GrantWalletCreditResult {
+  data: {
+    transactionId: string | null
+    newBalanceCents: number | null
+    newBaseBalanceCents: number | null
+    newBonusBalanceCents: number | null
+  } | null
+  error: string | null
+}
+
+export async function grantWalletCredit(args: {
+  targetUserId: string
+  amountCents: number
+  type: WalletGrantType
+  descriptionEl: string
+  descriptionEn: string
+}): Promise<GrantWalletCreditResult> {
+  try {
+    const { data: session } = await supabase.auth.getSession()
+    const token = session?.session?.access_token
+    if (!token) return { data: null, error: 'Not signed in' }
+
+    // Hit the direct function path (the /api/* rewrite has known dev-mode
+    // hiccups; see WEC-188 / netlify.toml notes). Production unaffected.
+    const res = await fetch('/.netlify/functions/admin-grant-wallet-credit', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify(args),
+    })
+    const json = await res.json()
+    if (!res.ok) {
+      const message = [json?.error, json?.detail].filter(Boolean).join(' — ')
+      return { data: null, error: message || `Grant failed (${res.status})` }
+    }
+    return {
+      data: {
+        transactionId: json.transactionId ?? null,
+        newBalanceCents: json.newBalanceCents ?? null,
+        newBaseBalanceCents: json.newBaseBalanceCents ?? null,
+        newBonusBalanceCents: json.newBonusBalanceCents ?? null,
+      },
+      error: null,
+    }
+  } catch (err) {
+    return { data: null, error: err instanceof Error ? err.message : 'Network error' }
+  }
+}

@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react'
 import {
   fetchAdminUsers, fetchAdminUserDetail, saveAdminUserNotes, setWalletAdminManaged,
-  type AdminUserRow, type AdminUserDetail,
+  grantWalletCredit,
+  type AdminUserRow, type AdminUserDetail, type WalletGrantType,
 } from '../../lib/api/adminUsers'
 import { useImpersonationStore } from '../../store/useImpersonationStore'
 import { useNavigate } from 'react-router-dom'
@@ -195,6 +196,7 @@ function UserDetail({
   const [savingNotes, setSavingNotes] = useState(false)
   const [savingFlag, setSavingFlag] = useState(false)
   const [err, setErr] = useState<string | null>(null)
+  const [showGrantModal, setShowGrantModal] = useState(false)
 
   useEffect(() => {
     setDietician(detail.dietician ?? '')
@@ -292,14 +294,15 @@ function UserDetail({
         </button>
       </div>
 
-      {/* Wallet management */}
-      {detail.walletDetail && (
-        <>
-          <h3 className="admin-page-sub" style={{ marginTop: 24, marginBottom: 8 }}>Wallet</h3>
-          <div style={{
-            padding: 14, background: 'var(--a-bg)', border: '1px solid var(--a-border)',
-            borderRadius: 8,
-          }}>
+      {/* Wallet management. Always shown — even if the user has no wallet
+          row yet, admin can still grant credit (which creates the wallet). */}
+      <h3 className="admin-page-sub" style={{ marginTop: 24, marginBottom: 8 }}>Wallet</h3>
+      <div style={{
+        padding: 14, background: 'var(--a-bg)', border: '1px solid var(--a-border)',
+        borderRadius: 8,
+      }}>
+        {detail.walletDetail ? (
+          <>
             <div>Balance: <strong>€{(detail.walletDetail.balance / 100).toFixed(2)}</strong>
               <span className="admin-text-muted"> (base €{(detail.walletDetail.baseBalance / 100).toFixed(2)} + bonus €{(detail.walletDetail.bonusBalance / 100).toFixed(2)})</span>
             </div>
@@ -322,8 +325,32 @@ function UserDetail({
                 When on, only admins (via impersonation) can spend this wallet.
               </span>
             </div>
+          </>
+        ) : (
+          <div className="admin-text-muted" style={{ marginBottom: 8 }}>
+            No wallet yet. Granting credit will create one.
           </div>
-        </>
+        )}
+        <div style={{ marginTop: 14, paddingTop: 12, borderTop: detail.walletDetail ? '1px solid var(--a-border)' : 'none' }}>
+          <button
+            className="admin-btn-primary"
+            onClick={() => setShowGrantModal(true)}
+          >
+            + Grant credit
+          </button>
+          <span className="admin-text-muted" style={{ marginLeft: 10, fontSize: 12 }}>
+            Refund, gift, or balance adjustment. Capped at €500 per grant.
+          </span>
+        </div>
+      </div>
+
+      {showGrantModal && (
+        <GrantCreditModal
+          userId={detail.userId}
+          userName={detail.name || detail.email}
+          onClose={() => setShowGrantModal(false)}
+          onGranted={() => { setShowGrantModal(false); onWalletAdminManagedChange() }}
+        />
       )}
 
       {/* Recent orders */}
@@ -385,6 +412,171 @@ function Stat({ label, value }: { label: string; value: string }) {
         {label}
       </div>
       <div style={{ fontSize: 18, fontWeight: 700, marginTop: 4 }}>{value}</div>
+    </div>
+  )
+}
+
+/* ─── Grant credit modal ───────────────────────────────────────────────── */
+
+const GRANT_TYPE_DEFAULTS: Record<WalletGrantType, { el: string; en: string }> = {
+  refund:     { el: 'Επιστροφή χρημάτων',  en: 'Refund' },
+  gift:       { el: 'Δώρο Fitpal',          en: 'Fitpal gift' },
+  adjustment: { el: 'Προσαρμογή υπολοίπου', en: 'Balance adjustment' },
+}
+
+function GrantCreditModal({
+  userId, userName, onClose, onGranted,
+}: {
+  userId: string
+  userName: string
+  onClose: () => void
+  onGranted: () => void
+}) {
+  const [amountStr, setAmountStr] = useState('')
+  const [type, setType] = useState<WalletGrantType>('gift')
+  const [descriptionEl, setDescriptionEl] = useState(GRANT_TYPE_DEFAULTS.gift.el)
+  const [descriptionEn, setDescriptionEn] = useState(GRANT_TYPE_DEFAULTS.gift.en)
+  const [submitting, setSubmitting] = useState(false)
+  const [err, setErr] = useState<string | null>(null)
+
+  // Track whether the user has manually edited the description fields. If
+  // not, switching the type updates them to the default; if they have, we
+  // leave their text alone (don't clobber a custom message).
+  const [descriptionTouched, setDescriptionTouched] = useState(false)
+
+  function handleTypeChange(next: WalletGrantType) {
+    setType(next)
+    if (!descriptionTouched) {
+      setDescriptionEl(GRANT_TYPE_DEFAULTS[next].el)
+      setDescriptionEn(GRANT_TYPE_DEFAULTS[next].en)
+    }
+  }
+
+  async function handleSubmit() {
+    setErr(null)
+    const amountEuros = Number(amountStr)
+    if (!Number.isFinite(amountEuros) || amountEuros <= 0) {
+      setErr('Amount must be a positive number')
+      return
+    }
+    if (amountEuros > 500) {
+      setErr('Amount exceeds €500 cap')
+      return
+    }
+    if (!descriptionEl.trim() || !descriptionEn.trim()) {
+      setErr('Both description fields are required')
+      return
+    }
+    setSubmitting(true)
+    const { error } = await grantWalletCredit({
+      targetUserId: userId,
+      amountCents: Math.round(amountEuros * 100),
+      type,
+      descriptionEl: descriptionEl.trim(),
+      descriptionEn: descriptionEn.trim(),
+    })
+    setSubmitting(false)
+    if (error) {
+      setErr(error)
+      return
+    }
+    onGranted()
+  }
+
+  return (
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-label="Grant wallet credit"
+      style={{
+        position: 'fixed', inset: 0, zIndex: 1000,
+        background: 'rgba(0, 0, 0, 0.4)',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        padding: 20,
+      }}
+      onClick={(e) => { if (e.target === e.currentTarget) onClose() }}
+    >
+      <div style={{
+        background: 'var(--a-surface)',
+        border: '1px solid var(--a-border)',
+        borderRadius: 12,
+        padding: 22,
+        width: 'min(540px, 100%)',
+        maxHeight: '90vh',
+        overflow: 'auto',
+        boxShadow: '0 20px 60px rgba(0,0,0,0.25)',
+      }}>
+        <h2 className="admin-page-title" style={{ marginTop: 0, marginBottom: 4 }}>
+          Grant wallet credit
+        </h2>
+        <p className="admin-text-muted" style={{ marginTop: 0, marginBottom: 18 }}>
+          To <strong>{userName}</strong>. The amount will be added as bonus credit and visible in their wallet history.
+        </p>
+
+        {err && <div className="admin-error-banner">{err}</div>}
+
+        <div className="admin-form-grid" style={{ marginTop: 4 }}>
+          <div className="admin-form-row">
+            <label>Amount (€)</label>
+            <input
+              className="admin-input"
+              type="number"
+              step="0.01"
+              min="0"
+              max="500"
+              value={amountStr}
+              onChange={(e) => setAmountStr(e.target.value)}
+              placeholder="e.g. 10.00"
+              autoFocus
+            />
+            <small className="admin-text-muted">Max €500 per grant.</small>
+          </div>
+
+          <div className="admin-form-row">
+            <label>Type</label>
+            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+              {(['refund', 'gift', 'adjustment'] as WalletGrantType[]).map((t) => (
+                <button
+                  key={t}
+                  type="button"
+                  className={type === t ? 'admin-btn-primary' : 'admin-btn-ghost'}
+                  onClick={() => handleTypeChange(t)}
+                  style={{ textTransform: 'capitalize', flex: '1 1 0' }}
+                >
+                  {t}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="admin-form-row" style={{ gridColumn: '1 / -1' }}>
+            <label>Description (Greek) — visible to customer</label>
+            <input
+              className="admin-input"
+              value={descriptionEl}
+              onChange={(e) => { setDescriptionEl(e.target.value); setDescriptionTouched(true) }}
+            />
+          </div>
+
+          <div className="admin-form-row" style={{ gridColumn: '1 / -1' }}>
+            <label>Description (English) — visible to customer</label>
+            <input
+              className="admin-input"
+              value={descriptionEn}
+              onChange={(e) => { setDescriptionEn(e.target.value); setDescriptionTouched(true) }}
+            />
+          </div>
+        </div>
+
+        <div className="admin-form-actions">
+          <button className="admin-btn-primary" onClick={handleSubmit} disabled={submitting}>
+            {submitting ? 'Granting…' : 'Grant credit'}
+          </button>
+          <button className="admin-btn-secondary" onClick={onClose} disabled={submitting}>
+            Cancel
+          </button>
+        </div>
+      </div>
     </div>
   )
 }
