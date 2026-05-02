@@ -17,8 +17,11 @@ function formatDate(iso: string, lang: 'el' | 'en') {
  *  - Hero the order number — it's the single piece of info the user might
  *    need to quote back to support, so it's the visual focal point under
  *    the tick.
- *  - Email copy is soft — we say "will try to email" rather than promising
- *    delivery, because email send is best-effort today.
+ *  - Email copy is confident-but-grounded now that Klaviyo is wired up
+ *    (WEC-190). We say the email is on its way, but flag the spam folder
+ *    because deliverability isn't guaranteed for first-time recipients
+ *    until the sending domain has warmed up. Not promising "you'll get it"
+ *    keeps us honest if a customer's mail provider quarantines us.
  *  - No PDF button — the old placeholder just logged to console. Removed
  *    until a real PDF pipeline lands.
  *  - Cart is cleared on mount so hitting Back to menu (or closing the tab)
@@ -82,8 +85,8 @@ export function ConfirmationScreen({ orderNumber }: { orderNumber?: string }) {
 
       <p className="conf-sub">
         {lang === 'el'
-          ? 'Θα προσπαθήσουμε να σου στείλουμε email επιβεβαίωσης. Αν δεν το λάβεις, μη σε ανησυχήσει — η παραγγελία έχει καταχωρηθεί κανονικά.'
-          : "We'll try to email you a confirmation. If it doesn't arrive, don't worry — your order is already recorded."}
+          ? 'Θα λάβεις σύντομα email επιβεβαίωσης. Αν δεν εμφανιστεί στα εισερχόμενα, έλεγξε και τον φάκελο ανεπιθύμητης αλληλογραφίας.'
+          : "You'll receive a confirmation email shortly. If it doesn't show up in your inbox, check your spam folder too."}
       </p>
 
       <div className="conf-summary">

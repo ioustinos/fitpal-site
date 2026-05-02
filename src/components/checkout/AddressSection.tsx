@@ -200,8 +200,10 @@ export function AddressSection({ dayIndex }: AddressSectionProps) {
     setMode('selected')
   }
 
-  // Save edited address changes
-  function handleSaveEdit() {
+  // Save edited address changes — persist to Supabase, then mirror to local
+  // store. The previous version only mutated Zustand state, so a refresh
+  // wiped the edit and Account → Addresses showed stale data (WEC-134.2).
+  async function handleSaveEdit() {
     if (!selectedAddr) return
     const updatedAddr: Address = {
       ...selectedAddr,
@@ -212,12 +214,34 @@ export function AddressSection({ dayIndex }: AddressSectionProps) {
       doorbell: form.doorbell,
       notes: form.notes,
     }
-    // Update in saved addresses
+
+    // Persist first — if the DB update fails, surface the error and bail
+    // before mutating local state so the form stays in edit mode for retry.
+    const { updateAddress } = await import('../../lib/api/auth')
+    const { error } = await updateAddress(selectedAddr.id, {
+      labelEl: updatedAddr.labelEl,
+      labelEn: updatedAddr.labelEn,
+      street: updatedAddr.street,
+      area: updatedAddr.area,
+      zip: updatedAddr.zip,
+      floor: updatedAddr.floor,
+      doorbell: updatedAddr.doorbell,
+      notes: updatedAddr.notes,
+    })
+    if (error) {
+      toast(
+        lang === 'el'
+          ? `Σφάλμα αποθήκευσης: ${error}`
+          : `Save failed: ${error}`,
+      )
+      return
+    }
+
+    // Mirror to local store + selected delivery for this day.
     const newAddresses = savedAddresses.map((a) =>
       a.id === selectedAddr.id ? updatedAddr : a
     )
     updateAddresses(newAddresses)
-    // Update delivery
     setDelivery(dayIndex, {
       street: form.street,
       area: form.area,

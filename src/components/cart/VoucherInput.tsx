@@ -1,55 +1,17 @@
-import { useEffect, useState } from 'react'
-import { useCartStore } from '../../store/useCartStore'
 import { useUIStore } from '../../store/useUIStore'
-import { useAuthStore } from '../../store/useAuthStore'
 import { makeTr } from '../../lib/translations'
-import { activeDays, dayAmt } from '../../lib/helpers'
+import { useVoucherWidget } from './useVoucherWidget'
 
+/**
+ * Cart sidebar voucher widget — compact pill when applied, single-row
+ * input otherwise. Logic comes from `useVoucherWidget`; this file owns
+ * only the layout. The checkout summary's voucher block uses the same
+ * hook with a different layout (subtotal + savings rows).
+ */
 export function VoucherInput() {
   const lang = useUIStore((s) => s.lang)
-  const voucher = useCartStore((s) => s.voucher)
-  const applyVoucher = useCartStore((s) => s.applyVoucher)
-  const removeVoucher = useCartStore((s) => s.removeVoucher)
-  const voucherLoading = useCartStore((s) => s.voucherLoading)
-  const cart = useCartStore((s) => s.cart)
-  const user = useAuthStore((s) => s.user)
   const t = makeTr(lang)
-
-  const [code, setCode] = useState('')
-  const [error, setError] = useState('')
-
-  // Calculate raw cart total for voucher validation
-  const rawTotal = activeDays(cart).reduce((sum, i) => sum + dayAmt(cart, i), 0)
-
-  async function handleApply() {
-    const result = await applyVoucher(code.trim().toUpperCase(), rawTotal, user?.id)
-    if (!result.ok) {
-      setError(result.error ?? (lang === 'el' ? 'Μη έγκυρο κουπόνι' : 'Invalid voucher code'))
-    } else {
-      setCode('')
-      setError('')
-    }
-  }
-
-  // When the cart shrinks below the voucher's min_order after the voucher
-  // was already applied, drop it and surface the same error message the
-  // server returns at apply-time. The user can re-apply once the cart
-  // gets back above the minimum.
-  //
-  // NOTE: this same effect is duplicated in OrderSummary.tsx (checkout)
-  // because the two surfaces have separate voucher widgets — see the
-  // ticket to merge them into a shared component.
-  useEffect(() => {
-    if (!voucher.applied || voucher.minOrder == null) return
-    if (rawTotal < voucher.minOrder) {
-      removeVoucher()
-      setError(
-        lang === 'el'
-          ? `Απαιτείται ελάχιστη παραγγελία €${voucher.minOrder.toFixed(2)} για αυτό το κουπόνι`
-          : `Minimum order €${voucher.minOrder.toFixed(2)} required for this voucher`,
-      )
-    }
-  }, [rawTotal, voucher.applied, voucher.minOrder, removeVoucher, lang])
+  const { voucher, code, setCode, error, setError, apply, remove, loading } = useVoucherWidget()
 
   if (voucher.applied && voucher.code) {
     return (
@@ -60,24 +22,30 @@ export function VoucherInput() {
         <span>{voucher.code}</span>
         {voucher.type === 'pct' && <span className="voucher-val">-{voucher.value}%</span>}
         {voucher.type === 'fixed' && <span className="voucher-val">-€{voucher.value?.toFixed(2)}</span>}
-        <button className="voucher-remove" onClick={removeVoucher}>✕</button>
+        <button className="voucher-remove" onClick={remove}>✕</button>
       </div>
     )
   }
 
+  // Error renders OUTSIDE `.voucher-row` so it doesn't get pulled into the
+  // flex row alongside the input + button (which would squash the input
+  // and grow the row vertically). Mirrors the OrderSummary layout where
+  // the error sits as a separate block below the row.
   return (
-    <div className="voucher-row">
-      <input
-        className="voucher-input"
-        placeholder={t('voucherPlaceholder')}
-        value={code}
-        onChange={(e) => { setCode(e.target.value); setError('') }}
-        onKeyDown={(e) => e.key === 'Enter' && handleApply()}
-      />
-      <button className="voucher-btn" onClick={handleApply} disabled={!code.trim() || voucherLoading}>
-        {voucherLoading ? '...' : t('apply')}
-      </button>
+    <>
+      <div className="voucher-row">
+        <input
+          className="voucher-input"
+          placeholder={t('voucherPlaceholder')}
+          value={code}
+          onChange={(e) => { setCode(e.target.value); setError('') }}
+          onKeyDown={(e) => e.key === 'Enter' && apply()}
+        />
+        <button className="voucher-btn" onClick={apply} disabled={!code.trim() || loading}>
+          {loading ? '...' : t('apply')}
+        </button>
+      </div>
       {error && <div className="voucher-error">{error}</div>}
-    </div>
+    </>
   )
 }

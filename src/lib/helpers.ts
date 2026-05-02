@@ -72,19 +72,6 @@ export const zoneByPostcode = (postcode: string, zones: DeliveryZone[]): Deliver
 export const zipInZone = (zip: string | undefined, zones: DeliveryZone[]): boolean =>
   !!resolveZone(zip, zones)
 
-// ─── Delivery validation ──────────────────────────────────────────────────────
-
-/** @deprecated — use settings.minOrder from useMenuStore instead */
-export const MIN_ORDER = 15
-
-/** Postcode-based delivery availability + min-order check. */
-export const delivOk = (
-  zip: string | undefined,
-  amount: number,
-  zones: DeliveryZone[],
-  minOrder = MIN_ORDER,
-): boolean => zipInZone(zip, zones) && amount >= minOrder
-
 // ─── Time slots (loaded from Supabase via useMenuStore) ───────────────────────
 
 /** Build display strings from DB time slots. Returns unique sorted strings like "9:00–11:00". */
@@ -94,9 +81,6 @@ export const formatSlots = (slots: TimeSlot[]): string[] => {
 }
 
 // ─── Cutoff ───────────────────────────────────────────────────────────────────
-
-/** @deprecated — use settings.cutoffHour from useMenuStore instead */
-export const CUTOFF_HOUR = 18
 
 import type { AppSettings } from './api/settings'
 

@@ -3,7 +3,7 @@ import { useUIStore } from '../../store/useUIStore'
 import { DayOrderGroup } from '../shared/DayOrderGroup'
 import { VoucherInput } from './VoucherInput'
 import { makeTr } from '../../lib/translations'
-import { subTotal, activeDays } from '../../lib/helpers'
+import { subTotal, activeDays, dayAmt, fmt } from '../../lib/helpers'
 import { useMenuStore } from '../../store/useMenuStore'
 
 export function CartSidebar() {
@@ -19,6 +19,10 @@ export function CartSidebar() {
   const week = weeks[activeWeek] ?? weeks[0]
   const total = subTotal(cart, voucher)
   const days = activeDays(cart)
+  // rawTotal is the cart total BEFORE the voucher discount — needed to render
+  // the subtotal row and the absolute discount amount when a voucher is
+  // applied. Matches OrderSummary.tsx so both surfaces show the same numbers.
+  const rawTotal = days.reduce((sum, i) => sum + dayAmt(cart, i), 0)
   const hasItems = days.length > 0
   const canCheckout = days.every((d) => {
     const amt = (cart[d] ?? []).reduce((s, i) => s + i.price * i.qty, 0)
@@ -61,16 +65,28 @@ export function CartSidebar() {
             <div className="cart-ftr">
               <VoucherInput />
 
-              {/* Voucher discount line */}
-              {voucher.applied && voucher.value != null && (
-                <div className="cart-total-row" style={{ marginBottom: 6 }}>
-                  <span className="cart-total-lbl" style={{ color: 'var(--green-dark)', fontSize: 13 }}>
-                    {t('discount')}
-                  </span>
-                  <span style={{ fontWeight: 900, color: 'var(--green)', fontSize: 14 }}>
-                    {voucher.type === 'pct' ? `-${voucher.value}%` : `-€${voucher.value.toFixed(2)}`}
-                  </span>
-                </div>
+              {/* Subtotal + absolute-amount discount when voucher is applied.
+                  Mirrors OrderSummary.tsx so customers see the same breakdown
+                  in the cart sidebar and the checkout summary. */}
+              {voucher.applied && (
+                <>
+                  <div className="cart-total-row" style={{ marginBottom: 6 }}>
+                    <span className="cart-total-lbl" style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+                      {lang === 'el' ? 'Υποσύνολο' : 'Subtotal'}
+                    </span>
+                    <span style={{ fontSize: 13, fontWeight: 800, color: 'var(--text-muted)' }}>
+                      {fmt(rawTotal)}
+                    </span>
+                  </div>
+                  <div className="cart-total-row" style={{ marginBottom: 6 }}>
+                    <span className="cart-total-lbl" style={{ color: 'var(--green-dark)', fontSize: 13 }}>
+                      {t('discount')}
+                    </span>
+                    <span style={{ fontWeight: 900, color: 'var(--green)', fontSize: 14 }}>
+                      −{fmt(rawTotal - total)}
+                    </span>
+                  </div>
+                </>
               )}
 
               <div className="cart-total-row">

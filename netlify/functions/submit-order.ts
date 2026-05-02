@@ -52,8 +52,18 @@ function addError(errors: Errors, key: string, msg: string) {
 }
 
 // ─── Cutoff helpers ─────────────────────────────────────────────────────────
-// Duplicated from src/lib/helpers.ts so the function is self-contained.
-// Keep in sync when the resolution logic changes.
+// All cutoff hours are interpreted in Europe/Athens — the operational tz.
+//
+// WEC-205: the previous version used JS Date local-time methods
+// (`new Date('YYYY-MM-DDT00:00:00')`, `setHours`, `getDay`). On Netlify
+// Functions the server tz is UTC, so a 6pm-Athens cutoff was being computed
+// as 6pm UTC = 9pm Athens — giving every customer 3 hours of grace past the
+// actual cutoff (2h in winter / EET). testBot caught it: order placed at
+// Sat 18:34 Athens (= 15:34 UTC) passed because 15:34 UTC < 18:00 UTC.
+//
+// Fix: keep all date math as YYYY-MM-DD strings + hour-of-day, and convert
+// to absolute UTC ms only at the final step via an Intl.DateTimeFormat
+// round-trip in Europe/Athens. DST is handled by Intl automatically.
 
 interface WeekdayCutoff { dow: number; hour: number }
 interface DateCutoff    { cutoffDate: string; hour: number }
@@ -66,36 +76,64 @@ interface CutoffSettings {
   minOrderCents: number
 }
 
-const toIsoDow = (jsDay: number): number => (jsDay === 0 ? 7 : jsDay)
+const ATHENS_TZ = 'Europe/Athens'
 
-function getCutoffDate(isoDate: string, cfg: CutoffSettings): Date {
+/** ISO weekday (1=Mon..7=Sun) for a YYYY-MM-DD calendar date. */
+function isoWeekday(isoDate: string): number {
+  // Calendar weekday is timezone-agnostic; using noon UTC avoids edge cases.
+  const d = new Date(isoDate + 'T12:00:00Z')
+  return ((d.getUTCDay() + 6) % 7) + 1
+}
+
+/** Subtract n calendar days from a YYYY-MM-DD string. */
+function isoSubDays(isoDate: string, n: number): string {
+  const [y, m, d] = isoDate.split('-').map(Number)
+  const dt = new Date(Date.UTC(y, m - 1, d - n))
+  return dt.toISOString().slice(0, 10)
+}
+
+/**
+ * Returns the absolute UTC ms at which the Europe/Athens wall-clock equals
+ * `isoDate hour:00`. Handles DST automatically.
+ *
+ * Algorithm: pretend the target wall-clock is in UTC ("guess"); ask Intl
+ * what that absolute moment IS in Athens; the difference between the two
+ * is the offset we need to subtract.
+ */
+function athensWallClockMs(isoDate: string, hour: number): number {
+  const [y, m, d] = isoDate.split('-').map(Number)
+  const guessUtcMs = Date.UTC(y, m - 1, d, hour, 0, 0, 0)
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: ATHENS_TZ,
+    year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit', second: '2-digit',
+    hour12: false,
+  }).formatToParts(new Date(guessUtcMs))
+  const g = (t: string) => parseInt(parts.find((p) => p.type === t)!.value, 10)
+  const athensAsUtcMs = Date.UTC(
+    g('year'), g('month') - 1, g('day'),
+    g('hour') === 24 ? 0 : g('hour'), g('minute'), g('second'), 0,
+  )
+  return guessUtcMs - (athensAsUtcMs - guessUtcMs)
+}
+
+/** Returns the absolute UTC ms at which ordering for a delivery date closes. */
+function getCutoffMs(isoDate: string, cfg: CutoffSettings): number {
   // 1. Per-date override (holidays, long weekends)
   const dateOv = cfg.dateOverrides[isoDate]
-  if (dateOv) {
-    const cutoff = new Date(dateOv.cutoffDate + 'T00:00:00')
-    cutoff.setHours(dateOv.hour, 0, 0, 0)
-    return cutoff
-  }
+  if (dateOv) return athensWallClockMs(dateOv.cutoffDate, dateOv.hour)
 
-  const delivery = new Date(isoDate + 'T00:00:00')
-  const deliveryIsoDow = toIsoDow(delivery.getDay())
-
-  // 2. Weekday override (e.g. Monday → Saturday 18:00)
-  const wdOv = cfg.weekdayOverrides[deliveryIsoDow]
+  // 2. Weekday override (e.g. Monday delivery → Saturday 18:00)
+  const dow = isoWeekday(isoDate)
+  const wdOv = cfg.weekdayOverrides[dow]
   if (wdOv) {
-    let diff = deliveryIsoDow - wdOv.dow
+    let diff = dow - wdOv.dow
     if (diff <= 0) diff += 7
-    const cutoff = new Date(delivery)
-    cutoff.setDate(delivery.getDate() - diff)
-    cutoff.setHours(wdOv.hour, 0, 0, 0)
-    return cutoff
+    return athensWallClockMs(isoSubDays(isoDate, diff), wdOv.hour)
   }
 
-  // 3. Default: previous calendar day at cutoffHour
-  const cutoff = new Date(delivery)
-  cutoff.setDate(cutoff.getDate() - 1)
-  cutoff.setHours(cfg.cutoffHour, 0, 0, 0)
-  return cutoff
+  // 3. Default: previous calendar day at cfg.cutoffHour Athens.
+  return athensWallClockMs(isoSubDays(isoDate, 1), cfg.cutoffHour)
 }
 
 const DEFAULT_CUTOFF: CutoffSettings = {
@@ -135,13 +173,21 @@ function parseCutoffSettings(rows: { key: string; value: unknown }[] | null): Cu
   return cfg
 }
 
-/** Today's date in YYYY-MM-DD (server-local tz). */
+/**
+ * Today's calendar date in Europe/Athens, YYYY-MM-DD.
+ *
+ * Was previously server-local (= UTC on Netlify); used for the
+ * `delivery_date < today` past-date guard. UTC vs Athens diverge for ~3
+ * hours every night around midnight Athens, so a customer ordering for
+ * "today" at 00:30 Athens (= 21:30 UTC the previous day) would have the
+ * server think today is yesterday. Mostly harmless — the cutoff guard
+ * catches it — but worth fixing for correctness alongside WEC-205.
+ */
 function todayIso(): string {
-  const d = new Date()
-  const yyyy = d.getFullYear()
-  const mm = String(d.getMonth() + 1).padStart(2, '0')
-  const dd = String(d.getDate()).padStart(2, '0')
-  return `${yyyy}-${mm}-${dd}`
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: ATHENS_TZ,
+    year: 'numeric', month: '2-digit', day: '2-digit',
+  }).format(new Date())
 }
 
 // ─── Basic payload validation ───────────────────────────────────────────────
@@ -368,11 +414,12 @@ export default async (request: Request) => {
       let dayTotal = 0
 
       // 3a-pre. Delivery date must be today or later, and cutoff must not have passed.
+      // Both `today` and the cutoff are computed in Europe/Athens (WEC-205).
       if (day.deliveryDate < today) {
         addError(errors, k, `Delivery date ${day.deliveryDate} is in the past`)
       } else {
-        const cutoffAt = getCutoffDate(day.deliveryDate, cutoffCfg)
-        if (nowMs >= cutoffAt.getTime()) {
+        const cutoffMs = getCutoffMs(day.deliveryDate, cutoffCfg)
+        if (nowMs >= cutoffMs) {
           addError(errors, k, `Ordering cutoff for ${day.deliveryDate} has passed`)
         }
       }
@@ -630,33 +677,51 @@ export default async (request: Request) => {
       }
     }
 
-    // ─── Record voucher usage ─────────────────────────────────────────
+    // ─── Record voucher usage (WEC-211 + WEC-144) ──────────────────────
+    //
+    // Routes through `redeem_voucher_for_order` — a SECURITY DEFINER RPC
+    // that locks the voucher row, re-validates max_uses/per_user_limit/
+    // credit remaining (closes the redemption race), inserts voucher_uses,
+    // and increments uses_count + decrements remaining atomically.
+    //
+    // Why an RPC instead of a JS-side insert + update:
+    //   - voucher_uses had no INSERT RLS policy for non-admin callers,
+    //     so the previous JS insert silently failed under RLS for
+    //     authenticated customers (testBot S07 caught this — discount
+    //     applied to order, voucher_uses row never landed).
+    //   - The previous JS update had a TOCTOU gap between the limit
+    //     check (Phase 4) and the increment (here) — two concurrent
+    //     orders could both pass the limit check and both commit.
+    //
+    // Failure path: roll back the order (cascade cleans child_orders +
+    // order_items + voucher_uses) and surface the specific reason. We
+    // don't need to call unredeem here because no voucher_uses row was
+    // ever created if the RPC raised.
 
     if (voucherId && discountAmount > 0) {
-      // Record voucher usage
-      await supabase.from('voucher_uses').insert({
-        voucher_id: voucherId,
-        user_id: userId,
-        order_id: orderId,
-        amount: discountAmount,
+      const { error: redeemErr } = await supabase.rpc('redeem_voucher_for_order', {
+        p_voucher_id: voucherId,
+        p_user_id: userId,
+        p_order_id: orderId,
+        p_amount_cents: discountAmount,
       })
+      if (redeemErr) {
+        const msg = redeemErr.message ?? ''
+        console.error('redeem_voucher_for_order failed for orderId=%s:', orderId, redeemErr)
+        await supabase.from('orders').delete().eq('id', orderId)
 
-      // Fetch current voucher state for atomic updates
-      const { data: vCurrent } = await supabase
-        .from('vouchers')
-        .select('uses_count, type, remaining')
-        .eq('id', voucherId)
-        .single()
+        let userMsg = 'Voucher redemption failed'
+        if (msg.includes('voucher_not_found'))             userMsg = 'Voucher not found'
+        else if (msg.includes('voucher_inactive'))         userMsg = 'Voucher is no longer active'
+        else if (msg.includes('voucher_expired'))          userMsg = 'Voucher has expired'
+        else if (msg.includes('voucher_max_uses_reached')) userMsg = 'Voucher usage limit reached'
+        else if (msg.includes('voucher_per_user_limit_reached')) userMsg = 'You have already used this voucher'
+        else if (msg.includes('voucher_insufficient_credit'))    userMsg = 'Voucher does not have enough credit for this order'
 
-      if (vCurrent) {
-        const updates: Record<string, any> = {
-          uses_count: (vCurrent.uses_count ?? 0) + 1,
-        }
-        // For credit vouchers, decrement remaining balance
-        if (vCurrent.type === 'credit' && vCurrent.remaining != null) {
-          updates.remaining = Math.max(0, vCurrent.remaining - discountAmount)
-        }
-        await supabase.from('vouchers').update(updates).eq('id', voucherId)
+        return Response.json(
+          { error: userMsg, validationErrors: { voucher: [userMsg] } },
+          { status: 400 },
+        )
       }
     }
 
@@ -700,12 +765,15 @@ export default async (request: Request) => {
         const code = (debitErr as { code?: string }).code ?? ''
         const msg = debitErr.message ?? ''
         console.error('wallet_debit_for_order failed for orderId=%s:', orderId, debitErr)
-        // Roll back the order row. Cascade cleans descendants.
-        await supabase.from('orders').delete().eq('id', orderId)
-        // Roll back voucher use if any.
+        // Roll back voucher BEFORE deleting the order — unredeem_voucher_for_order
+        // reverses uses_count + remaining, then deletes the voucher_uses row. The
+        // FK cascade on order delete would only remove the use row, leaving the
+        // counters incremented (existing pre-WEC-211 bug, fixed here).
         if (voucherId) {
-          await supabase.from('voucher_uses').delete().eq('order_id', orderId)
+          await supabase.rpc('unredeem_voucher_for_order', { p_order_id: orderId })
         }
+        // Roll back the order row. Cascade cleans child_orders + order_items.
+        await supabase.from('orders').delete().eq('id', orderId)
         if (code === 'P0002' || msg.includes('insufficient_balance')) {
           return Response.json(
             { error: 'Insufficient wallet balance', validationErrors: { general: ['Insufficient wallet balance'] } },
