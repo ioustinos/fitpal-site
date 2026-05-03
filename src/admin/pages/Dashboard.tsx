@@ -2,26 +2,29 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuthStore } from '../../store/useAuthStore'
 import { fetchDashboardStats, fetchLatestReconcileRun, type DashboardStats, type ReconcileSummary } from '../../lib/api/adminDashboard'
+import { fetchAdminWalletStats, type WalletPlanStats } from '../../lib/api/adminWalletPlans'
 
 export function Dashboard() {
   const user = useAuthStore((s) => s.user)
   const navigate = useNavigate()
   const [stats, setStats] = useState<DashboardStats | null>(null)
   const [reconcile, setReconcile] = useState<ReconcileSummary | null>(null)
+  const [walletStats, setWalletStats] = useState<WalletPlanStats | null>(null)
   const [loading, setLoading] = useState(true)
   const [err, setErr] = useState<string | null>(null)
 
   useEffect(() => {
     (async () => {
       setLoading(true)
-      const [statsRes, reconcileRes] = await Promise.all([
+      const [statsRes, reconcileRes, walletRes] = await Promise.all([
         fetchDashboardStats(),
         fetchLatestReconcileRun(),
+        fetchAdminWalletStats(),
       ])
       if (statsRes.error) setErr(statsRes.error)
       if (statsRes.data) setStats(statsRes.data)
-      // reconcile is best-effort — silence errors, just leave null
       if (reconcileRes.data) setReconcile(reconcileRes.data)
+      if (walletRes.data) setWalletStats(walletRes.data)
       setLoading(false)
     })()
   }, [])
@@ -103,8 +106,58 @@ export function Dashboard() {
             </div>
           )}
 
+          {walletStats && <WalletStatsRow stats={walletStats} onClick={() => navigate('/admin/wallet-purchases')} />}
+
           <ReconcileHealthRow reconcile={reconcile} />
         </>
+      )}
+    </div>
+  )
+}
+
+/** Wallet purchases stats — quick glance over recent activity. */
+function WalletStatsRow({ stats, onClick }: { stats: WalletPlanStats; onClick: () => void }) {
+  const stuckTone = stats.stuckPendingCount > 0 ? '#ef4444' : '#6b7280'
+  return (
+    <div className="admin-quick-actions" style={{ marginTop: 24 }}>
+      <div className="admin-quick-head" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <span>Wallet purchases</span>
+        <button className="admin-inline-link" onClick={onClick}>View all →</button>
+      </div>
+      <div className="admin-stats-grid" style={{ marginTop: 12 }}>
+        <StatCard
+          title="Paid today"
+          value={stats.paidToday}
+          hint={stats.paidToday === 1 ? 'plan' : 'plans'}
+          accent="primary"
+          onClick={onClick}
+        />
+        <StatCard
+          title="This week"
+          value={stats.paidWeek}
+          hint={`€${(stats.revenueWeekCents / 100).toFixed(2)} revenue`}
+          accent="primary"
+          onClick={onClick}
+        />
+        <StatCard
+          title="This month"
+          value={stats.paidMonth}
+          hint={`€${(stats.revenueMonthCents / 100).toFixed(2)} revenue`}
+          accent="primary"
+          onClick={onClick}
+        />
+        <StatCard
+          title="Pending now"
+          value={stats.pendingCount}
+          hint={stats.stuckPendingCount > 0 ? `⚠ ${stats.stuckPendingCount} stuck >3min` : 'awaiting payment'}
+          accent={stats.stuckPendingCount > 0 ? 'warning' : 'muted'}
+          onClick={onClick}
+        />
+      </div>
+      {stats.stuckPendingCount > 0 && (
+        <div style={{ marginTop: 8, fontSize: 12, color: stuckTone }}>
+          ⚠ {stats.stuckPendingCount} wallet purchase{stats.stuckPendingCount === 1 ? '' : 's'} stuck in pending — check Viva integration health.
+        </div>
       )}
     </div>
   )

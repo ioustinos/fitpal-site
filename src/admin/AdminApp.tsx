@@ -9,6 +9,8 @@ import { Settings } from './pages/Settings'
 import { Zones } from './pages/Zones'
 import { Vouchers } from './pages/Vouchers'
 import { Users } from './pages/Users'
+import { WalletPurchases } from './pages/WalletPurchases'
+import { WalletSettings } from './pages/WalletSettings'
 import './admin.css'
 
 /**
@@ -26,6 +28,8 @@ export default function AdminApp() {
           <Route path="orders" element={<Orders />} />
           <Route path="users" element={<Users />} />
           <Route path="vouchers" element={<Vouchers />} />
+          <Route path="wallet-purchases" element={<WalletPurchases />} />
+          <Route path="wallet-settings"  element={<WalletSettings />} />
           <Route path="settings" element={<Settings />} />
           <Route path="zones" element={<Zones />} />
         </Route>

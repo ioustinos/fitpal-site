@@ -22,6 +22,7 @@ import { createClient, SupabaseClient } from '@supabase/supabase-js'
 import { getVivaCreds } from '../lib/viva/env'
 import { verifyVivaTransaction } from '../lib/viva/verify'
 import { markFailed } from '../lib/viva/markPaid'
+import { verifyWalletPlanTransaction } from '../lib/wallet/verifyWalletPlanTransaction'
 
 const SUPABASE_URL = process.env.VITE_SUPABASE_URL ?? ''
 const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY ?? ''
@@ -147,18 +148,37 @@ export default async (request: Request) => {
 
   const eventData = (payload.EventData ?? {}) as Record<string, unknown>
   const transactionId = typeof eventData.TransactionId === 'string' ? eventData.TransactionId : ''
+  // merchantTrns is used ONLY for routing (order vs wallet plan). The verify
+  // functions re-fetch via Viva API, so any tampering here is harmless.
+  const merchantTrns = typeof eventData.MerchantTrns === 'string' ? eventData.MerchantTrns : ''
+  const isWalletPlan = merchantTrns.startsWith('wp:')
 
   try {
     if (eventTypeId === EVT_PAYMENT_CREATED) {
       if (!transactionId) throw new Error('Payment Created event without TransactionId')
-      const outcome = await verifyVivaTransaction(transactionId)
-      console.info('[viva-webhook] payment-created outcome=%s', outcome.status)
+      if (isWalletPlan) {
+        const outcome = await verifyWalletPlanTransaction(transactionId)
+        console.info('[viva-webhook] payment-created (wallet) outcome=%s', outcome.status)
+      } else {
+        const outcome = await verifyVivaTransaction(transactionId)
+        console.info('[viva-webhook] payment-created (order) outcome=%s', outcome.status)
+      }
     } else if (eventTypeId === EVT_TRANSACTION_FAIL) {
       if (transactionId) {
-        await verifyVivaTransaction(transactionId).catch(async () => {
-          // If retrieve fails, mark failed by orderCode if possible.
+        const verifier = isWalletPlan
+          ? () => verifyWalletPlanTransaction(transactionId)
+          : () => verifyVivaTransaction(transactionId)
+        await verifier().catch(async () => {
+          // Fallback: mark failed by orderCode if retrieve failed.
           const orderCode = eventData.OrderCode ? String(eventData.OrderCode) : null
-          if (orderCode) {
+          if (!orderCode) return
+          if (isWalletPlan) {
+            await supabase
+              .from('wallet_plans')
+              .update({ payment_status: 'failed' })
+              .eq('viva_order_code', orderCode)
+              .eq('payment_status', 'pending')
+          } else {
             const { data: link } = await supabase
               .from('payment_links')
               .select('order_id')

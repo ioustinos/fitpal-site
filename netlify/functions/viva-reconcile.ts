@@ -12,6 +12,7 @@ import { createClient, SupabaseClient } from '@supabase/supabase-js'
 import { getVivaAccessToken } from '../lib/viva/auth'
 import { getVivaCreds } from '../lib/viva/env'
 import { verifyVivaTransaction } from '../lib/viva/verify'
+import { verifyWalletPlanTransaction } from '../lib/wallet/verifyWalletPlanTransaction'
 
 const SUPABASE_URL = process.env.VITE_SUPABASE_URL ?? ''
 const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY ?? ''
@@ -21,6 +22,13 @@ const BATCH_LIMIT = 50
 interface PendingRow {
   order_id: string
   viva_order_code: string
+}
+
+interface PendingWalletPlanRow {
+  id: string
+  viva_order_code: string
+  amount_cents: number
+  created_at: string
 }
 
 interface VivaOrderTransactions {
@@ -96,6 +104,35 @@ export default async () => {
     }
   }
 
+  // ── 1b. Find stale pending WALLET PLANS via parallel SQL function ──
+  let walletChecked = 0, walletPaid = 0, walletFailed = 0, walletStillPending = 0
+  const { data: walletRows, error: walletFnErr } = await supabase.rpc('viva_stale_pending_wallet_plans', {
+    p_limit: BATCH_LIMIT,
+  })
+  if (walletFnErr) {
+    console.error('[viva-reconcile] viva_stale_pending_wallet_plans RPC failed:', walletFnErr)
+    errorNotes.push(`wallet_rpc: ${walletFnErr.message}`)
+  } else {
+    const planRows: PendingWalletPlanRow[] = (walletRows ?? []) as PendingWalletPlanRow[]
+    for (const row of planRows) {
+      walletChecked++
+      try {
+        const txIds = await listVivaTransactions(row.viva_order_code)
+        if (txIds.length === 0) { walletStillPending++; continue }
+        const latestTx = txIds[txIds.length - 1]
+        const outcome = await verifyWalletPlanTransaction(latestTx)
+        if (outcome.status === 'paid')        walletPaid++
+        else if (outcome.status === 'failed') walletFailed++
+        else                                   walletStillPending++
+      } catch (err) {
+        errors++
+        const msg = err instanceof Error ? err.message : String(err)
+        errorNotes.push(`wp/${row.viva_order_code}: ${msg}`)
+        console.error('[viva-reconcile] wallet plan error orderCode=%s:', row.viva_order_code, err)
+      }
+    }
+  }
+
   // ── 2. Cancel orphan pending card/link orders older than 48h ───────
   const abandonThreshold = new Date(Date.now() - 48 * 3600 * 1000).toISOString()
   const { data: cancelled } = await supabase
@@ -112,9 +149,28 @@ export default async () => {
 
   cancelledTimeout = (cancelled ?? []).length
 
-  const summary = { checked, paid, failed: failedN, stillPending, cancelledTimeout, errors }
+  // ── 2b. Cancel orphan pending wallet plans (card/link) older than 48h ─
+  const { data: cancelledPlans } = await supabase
+    .from('wallet_plans')
+    .update({
+      payment_status: 'failed',
+      updated_at: new Date().toISOString(),
+    })
+    .in('payment_method', ['card', 'link'])
+    .eq('payment_status', 'pending')
+    .lt('created_at', abandonThreshold)
+    .select('id')
+  const cancelledWalletTimeout = (cancelledPlans ?? []).length
+
+  const summary = {
+    checked, paid, failed: failedN, stillPending, cancelledTimeout, errors,
+    walletChecked, walletPaid, walletFailed, walletStillPending, cancelledWalletTimeout,
+  }
   if (paid > 0) {
     console.warn('[viva-reconcile] RESCUED %d pending orders — webhook may be unhealthy', paid)
+  }
+  if (walletPaid > 0) {
+    console.warn('[viva-reconcile] RESCUED %d pending wallet plans — webhook may be unhealthy', walletPaid)
   }
   console.info('[viva-reconcile]', summary)
 

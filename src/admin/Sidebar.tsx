@@ -15,11 +15,13 @@ const items: NavItem[] = [
   { path: '/admin/orders',   label: 'Orders',      icon: 'orders',                wec: 'WEC-115' },
   { path: '/admin/users',    label: 'Users',       icon: 'users' },
   { path: '/admin/vouchers', label: 'Vouchers',    icon: 'vouchers' },
+  { path: '/admin/wallet-purchases', label: 'Wallet purchases', icon: 'wallet' },
+  { path: '/admin/wallet-settings',  label: 'Wallet settings',  icon: 'walletSettings' },
   { path: '/admin/settings', label: 'Settings',    icon: 'settings',              wec: 'WEC-118' },
   { path: '/admin/zones',    label: 'Delivery zones', icon: 'zones',              wec: 'WEC-119' },
 ]
 
-type IconName = 'dashboard' | 'menus' | 'dishes' | 'orders' | 'settings' | 'zones' | 'users' | 'vouchers'
+type IconName = 'dashboard' | 'menus' | 'dishes' | 'orders' | 'settings' | 'zones' | 'users' | 'vouchers' | 'wallet' | 'walletSettings'
 
 function Icon({ name }: { name: IconName }) {
   const p = {
@@ -88,6 +90,21 @@ function Icon({ name }: { name: IconName }) {
         <svg {...p}>
           <path d="M20 12V8H4v4a2 2 0 0 0 0 4v4h16v-4a2 2 0 0 0 0-4z" />
           <line x1="13" y1="5" x2="13" y2="19" strokeDasharray="2 2" />
+        </svg>
+      )
+    case 'wallet':
+      return (
+        <svg {...p}>
+          <rect x="2" y="5" width="20" height="14" rx="2" />
+          <path d="M16 12h.01" />
+          <path d="M2 10h20" />
+        </svg>
+      )
+    case 'walletSettings':
+      return (
+        <svg {...p}>
+          <rect x="2" y="5" width="20" height="14" rx="2" />
+          <path d="M9 12a3 3 0 1 0 6 0 3 3 0 0 0-6 0z" />
         </svg>
       )
   }

@@ -1782,7 +1782,274 @@ header {
 .sub-calc-savings-amt { font-size: 36px; font-weight: 900; color: #FFD88E; line-height: 1.1; }
 .sub-calc-savings-label { font-size: 12px; font-weight: 700; color: rgba(255,216,142,0.6); margin-top: 4px; }
 .sub-calc-cta { width: 100%; margin-top: auto; padding: 14px; background: var(--green); color: var(--white); border: none; border-radius: var(--radius); font-size: 14px; font-weight: 900; cursor: pointer; transition: all 0.22s; font-family: inherit; position: relative; z-index: 1; }
-.sub-calc-cta:hover { background: #00a060; box-shadow: 0 6px 20px rgba(0,185,107,0.4); }
+.sub-calc-cta:hover:not(:disabled) { background: #00a060; box-shadow: 0 6px 20px rgba(0,185,107,0.4); }
+.sub-calc-cta:disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* ══════════════════════════════════════════════════════════════════
+   WALLET PAGE V2 (.wpv2-*) — reference design (Plus Jakarta Sans)
+   Scoped under .wpv2-page so the rest of the site (Nunito, brand
+   greens) is untouched. Tokens are -fp-* (matching the reference).
+   ══════════════════════════════════════════════════════════════════ */
+
+.wpv2-page {
+  /* design tokens (scoped) */
+  --fp-paper:        #ffffff;
+  --fp-cream-100:    #fdfbf5;
+  --fp-cream-300:    #faf6ed;
+  --fp-cream-500:    #f5efe4;
+  --fp-ink-900:      #1a2320;
+  --fp-ink-700:      #39453f;
+  --fp-ink-500:      #6b776f;
+  --fp-ink-400:      #8a948d;
+  --fp-ink-300:      #b7bfb9;
+  --fp-ink-200:      #dfe3df;
+  --fp-ink-100:      #eef1ec;
+  --fp-green-50:     #f1faf4;
+  --fp-green-100:    #e3f3ea;
+  --fp-green-300:    #a8dcbf;
+  --fp-green-500:    #46b57a;
+  --fp-green-600:    #2a8a5f;
+  --fp-green-700:    #1e6b4a;
+  --fp-green-900:    #0f3d2e;
+  --fp-accent-orange:#f08a3e;
+  --fp-accent-yellow:#f2c94c;
+  --fp-radius-sm:    8px;
+  --fp-radius:       14px;
+  --fp-radius-lg:    20px;
+  --fp-radius-xl:    28px;
+  --fp-shadow-sm:    0 1px 2px rgba(15,61,46,0.04), 0 1px 1px rgba(15,61,46,0.03);
+  --fp-shadow:       0 4px 16px rgba(15,61,46,0.06), 0 1px 2px rgba(15,61,46,0.04);
+  --fp-shadow-lg:    0 14px 40px rgba(15,61,46,0.10), 0 2px 6px rgba(15,61,46,0.05);
+
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+  background: var(--fp-cream-500);
+  color: var(--fp-ink-900);
+  padding: 28px 32px 48px;
+  min-height: calc(100vh - var(--hdr));
+}
+
+/* ── Header ───────────────────────────────────────────────────── */
+.wpv2-h { max-width: 1280px; margin: 0 auto 28px; display: flex; flex-direction: column; gap: 10px; }
+.wpv2-back { display: inline-flex; align-items: center; gap: 6px; background: none; border: none; color: var(--fp-ink-500); font-size: 13px; font-weight: 700; cursor: pointer; padding: 0; align-self: flex-start; font-family: inherit; transition: color 0.15s; }
+.wpv2-back:hover { color: var(--fp-green-700); }
+.wpv2-h-title { font-size: 32px; font-weight: 800; color: var(--fp-ink-900); letter-spacing: -0.8px; line-height: 1.15; }
+.wpv2-h-sub { font-size: 15px; color: var(--fp-ink-500); font-weight: 500; max-width: 640px; line-height: 1.55; }
+.wpv2-h-cta { align-self: flex-start; margin-top: 6px; display: inline-flex; align-items: center; gap: 8px; padding: 10px 18px; background: var(--fp-ink-900); color: var(--fp-paper); border: none; border-radius: 999px; font-size: 13px; font-weight: 700; cursor: pointer; font-family: inherit; transition: background 0.18s; }
+.wpv2-h-cta:hover { background: var(--fp-green-900); }
+
+/* ── Two-column layout ────────────────────────────────────────── */
+.wpv2-grid { max-width: 1280px; margin: 0 auto; display: grid; grid-template-columns: minmax(0, 1fr) 380px; gap: 28px; align-items: start; }
+.wpv2-main { min-width: 0; display: flex; flex-direction: column; gap: 18px; }
+.wpv2-aside { position: sticky; top: 24px; }
+
+/* ── Section card ─────────────────────────────────────────────── */
+.wpv2-section { background: var(--fp-paper); border: 1px solid var(--fp-ink-200); border-radius: var(--fp-radius-lg); padding: 24px 26px; box-shadow: var(--fp-shadow-sm); }
+.wpv2-section-head { display: flex; align-items: flex-start; gap: 12px; margin-bottom: 18px; }
+.wpv2-section-num { flex-shrink: 0; width: 26px; height: 26px; border-radius: 50%; background: var(--fp-green-100); color: var(--fp-green-700); font-size: 12px; font-weight: 800; display: flex; align-items: center; justify-content: center; margin-top: 1px; }
+.wpv2-section-title { font-size: 17px; font-weight: 800; color: var(--fp-ink-900); letter-spacing: -0.3px; line-height: 1.3; }
+.wpv2-section-sub { font-size: 13px; color: var(--fp-ink-500); font-weight: 500; line-height: 1.5; margin-top: 2px; }
+
+/* ── Goal cards (image cards) ─────────────────────────────────── */
+.wpv2-goals { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+.wpv2-goal { position: relative; padding: 0; background: var(--fp-paper); border: 2px solid var(--fp-ink-200); border-radius: var(--fp-radius); cursor: pointer; transition: all 0.18s; overflow: hidden; text-align: left; font-family: inherit; }
+.wpv2-goal:hover { border-color: var(--fp-green-300); transform: translateY(-2px); box-shadow: var(--fp-shadow); }
+.wpv2-goal.sel { border-color: var(--fp-green-600); background: var(--fp-green-50); }
+.wpv2-goal-img { width: 100%; aspect-ratio: 4 / 3; object-fit: cover; display: block; background: var(--fp-ink-100); }
+.wpv2-goal-body { padding: 12px 14px 14px; }
+.wpv2-goal-name { font-size: 14px; font-weight: 800; color: var(--fp-ink-900); margin-bottom: 4px; }
+.wpv2-goal-desc { font-size: 12px; color: var(--fp-ink-500); font-weight: 500; line-height: 1.45; }
+.wpv2-goal-check { position: absolute; top: 12px; right: 12px; width: 26px; height: 26px; border-radius: 50%; background: rgba(255,255,255,0.85); border: 1.5px solid var(--fp-ink-200); backdrop-filter: blur(4px); display: flex; align-items: center; justify-content: center; }
+.wpv2-goal.sel .wpv2-goal-check { background: var(--fp-green-600); border-color: var(--fp-green-600); }
+.wpv2-goal.sel .wpv2-goal-check svg { color: white; }
+.wpv2-goal-check svg { color: transparent; }
+
+/* ── Profile inputs ───────────────────────────────────────────── */
+.wpv2-profile-row { display: grid; gap: 14px; margin-bottom: 14px; }
+.wpv2-profile-row.r2 { grid-template-columns: 1fr 1fr; }
+.wpv2-profile-row.r3 { grid-template-columns: 1fr 1fr 1fr; }
+.wpv2-profile-row:last-child { margin-bottom: 0; }
+.wpv2-field { display: flex; flex-direction: column; gap: 6px; }
+.wpv2-label { font-size: 11px; font-weight: 700; color: var(--fp-ink-500); letter-spacing: 0.5px; text-transform: uppercase; }
+.wpv2-input { width: 100%; padding: 11px 14px; border: 1.5px solid var(--fp-ink-200); border-radius: var(--fp-radius-sm); font-size: 14px; font-weight: 600; color: var(--fp-ink-900); background: var(--fp-paper); font-family: inherit; transition: border-color 0.15s, box-shadow 0.15s; box-sizing: border-box; }
+.wpv2-input:hover { border-color: var(--fp-ink-300); }
+.wpv2-input:focus { outline: none; border-color: var(--fp-green-600); box-shadow: 0 0 0 3px var(--fp-green-100); }
+.wpv2-input::-webkit-outer-spin-button, .wpv2-input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+
+/* Segmented control (sex) */
+.wpv2-seg { display: flex; gap: 6px; }
+.wpv2-seg-opt { flex: 1; padding: 10px 8px; background: var(--fp-paper); border: 1.5px solid var(--fp-ink-200); border-radius: var(--fp-radius-sm); font-size: 13px; font-weight: 700; color: var(--fp-ink-700); cursor: pointer; transition: all 0.15s; font-family: inherit; }
+.wpv2-seg-opt:hover { border-color: var(--fp-green-300); }
+.wpv2-seg-opt.sel { background: var(--fp-green-600); color: var(--fp-paper); border-color: var(--fp-green-600); }
+
+/* Activity chips (5-up grid) */
+.wpv2-activity { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; }
+.wpv2-activity-opt { padding: 12px 8px; background: var(--fp-paper); border: 1.5px solid var(--fp-ink-200); border-radius: var(--fp-radius-sm); cursor: pointer; transition: all 0.15s; text-align: left; font-family: inherit; }
+.wpv2-activity-opt:hover { border-color: var(--fp-green-300); }
+.wpv2-activity-opt.sel { border-color: var(--fp-green-600); background: var(--fp-green-50); }
+.wpv2-activity-name { font-size: 12px; font-weight: 700; color: var(--fp-ink-900); line-height: 1.25; margin-bottom: 3px; }
+.wpv2-activity-sub { font-size: 10px; font-weight: 500; color: var(--fp-ink-500); line-height: 1.35; }
+
+/* ── Macros (3 cream cards with colored bars) ─────────────────── */
+.wpv2-macros { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+.wpv2-macro { background: var(--fp-cream-300); border: 1px solid var(--fp-ink-100); border-radius: var(--fp-radius); padding: 18px 20px; }
+.wpv2-macro-label { font-size: 11px; font-weight: 800; color: var(--fp-ink-500); letter-spacing: 0.8px; text-transform: uppercase; margin-bottom: 10px; }
+.wpv2-macro-val { font-size: 32px; font-weight: 800; color: var(--fp-ink-900); letter-spacing: -1px; line-height: 1; margin-bottom: 14px; }
+.wpv2-macro-val small { font-size: 16px; font-weight: 600; color: var(--fp-ink-500); margin-left: 2px; }
+.wpv2-macro-bar { height: 6px; background: rgba(255,255,255,0.7); border-radius: 999px; overflow: hidden; }
+.wpv2-macro-bar-fill { height: 100%; border-radius: 999px; transition: width 0.3s ease; }
+.wpv2-macro.carbs   .wpv2-macro-bar-fill { background: var(--fp-accent-orange); }
+.wpv2-macro.protein .wpv2-macro-bar-fill { background: var(--fp-green-500); }
+.wpv2-macro.fat     .wpv2-macro-bar-fill { background: var(--fp-accent-yellow); }
+.wpv2-macro-grams { font-size: 11px; font-weight: 600; color: var(--fp-ink-500); margin-top: 8px; }
+
+/* ── Meal chips ───────────────────────────────────────────────── */
+.wpv2-meals { display: flex; flex-wrap: wrap; gap: 10px; }
+.wpv2-meal { display: inline-flex; align-items: center; gap: 10px; padding: 11px 18px 11px 12px; background: var(--fp-paper); border: 1.5px solid var(--fp-ink-200); border-radius: 999px; cursor: pointer; transition: all 0.15s; font-family: inherit; min-width: 168px; }
+.wpv2-meal:hover { border-color: var(--fp-green-300); }
+.wpv2-meal.sel { border-color: var(--fp-green-600); background: var(--fp-green-50); }
+.wpv2-meal-check { width: 22px; height: 22px; border: 1.5px solid var(--fp-ink-300); border-radius: 6px; background: var(--fp-paper); display: flex; align-items: center; justify-content: center; transition: all 0.15s; flex-shrink: 0; }
+.wpv2-meal.sel .wpv2-meal-check { background: var(--fp-green-600); border-color: var(--fp-green-600); }
+.wpv2-meal-check svg { color: white; opacity: 0; transition: opacity 0.15s; }
+.wpv2-meal.sel .wpv2-meal-check svg { opacity: 1; }
+.wpv2-meal-emoji { font-size: 16px; }
+.wpv2-meal-name { font-size: 14px; font-weight: 700; color: var(--fp-ink-900); }
+.wpv2-meals-warn { width: 100%; margin-top: 12px; padding: 10px 14px; background: #FFF6E0; border: 1px solid #F5D680; border-radius: var(--fp-radius-sm); font-size: 12px; font-weight: 700; color: #8B6914; }
+
+/* ── Frequency cards (3-up) ───────────────────────────────────── */
+.wpv2-freq { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+.wpv2-freq-opt { display: flex; align-items: center; gap: 12px; padding: 18px 18px; background: var(--fp-paper); border: 1.5px solid var(--fp-ink-200); border-radius: var(--fp-radius); cursor: pointer; transition: all 0.18s; font-family: inherit; text-align: left; }
+.wpv2-freq-opt:hover { border-color: var(--fp-green-300); }
+.wpv2-freq-opt.sel { border-color: var(--fp-green-600); background: var(--fp-green-50); }
+.wpv2-freq-radio { width: 18px; height: 18px; border: 1.5px solid var(--fp-ink-300); border-radius: 50%; background: var(--fp-paper); flex-shrink: 0; position: relative; transition: all 0.15s; }
+.wpv2-freq-opt.sel .wpv2-freq-radio { border-color: var(--fp-green-600); border-width: 2px; }
+.wpv2-freq-opt.sel .wpv2-freq-radio::after { content: ''; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 8px; height: 8px; border-radius: 50%; background: var(--fp-green-600); }
+.wpv2-freq-name { font-size: 14px; font-weight: 700; color: var(--fp-ink-900); line-height: 1.3; }
+.wpv2-freq-sub { font-size: 12px; color: var(--fp-ink-500); font-weight: 500; margin-top: 1px; }
+
+/* ── Plan length cards ────────────────────────────────────────── */
+.wpv2-lengths { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+.wpv2-length { position: relative; padding: 18px 18px 16px; background: var(--fp-paper); border: 1.5px solid var(--fp-ink-200); border-radius: var(--fp-radius); cursor: pointer; transition: all 0.18s; font-family: inherit; text-align: left; display: flex; flex-direction: column; gap: 4px; }
+.wpv2-length:hover { border-color: var(--fp-green-300); }
+.wpv2-length.sel { border-color: var(--fp-green-600); background: var(--fp-green-50); }
+.wpv2-length-badge { display: inline-block; align-self: flex-start; padding: 3px 10px; border-radius: 999px; font-size: 9px; font-weight: 800; letter-spacing: 0.7px; margin-bottom: 6px; }
+.wpv2-length-badge.test    { background: var(--fp-ink-100); color: var(--fp-ink-700); }
+.wpv2-length-badge.popular { background: var(--fp-green-100); color: var(--fp-green-700); }
+.wpv2-length-badge.value   { background: var(--fp-ink-900); color: var(--fp-paper); }
+.wpv2-length-name { font-size: 18px; font-weight: 800; color: var(--fp-ink-900); letter-spacing: -0.3px; }
+.wpv2-length-sub { font-size: 12px; color: var(--fp-ink-500); font-weight: 500; }
+.wpv2-length-disc { font-size: 12px; font-weight: 700; color: var(--fp-green-700); margin-top: 2px; }
+.wpv2-length-disc.none { color: var(--fp-ink-400); font-weight: 600; }
+.wpv2-length-check { position: absolute; top: 14px; right: 14px; width: 22px; height: 22px; border-radius: 50%; border: 1.5px solid var(--fp-ink-200); display: flex; align-items: center; justify-content: center; }
+.wpv2-length.sel .wpv2-length-check { background: var(--fp-green-600); border-color: var(--fp-green-600); }
+.wpv2-length-check svg { color: transparent; }
+.wpv2-length.sel .wpv2-length-check svg { color: white; }
+
+/* ── Services list ────────────────────────────────────────────── */
+.wpv2-services { display: flex; flex-direction: column; gap: 10px; }
+.wpv2-service { display: flex; align-items: flex-start; gap: 14px; padding: 16px 18px; background: var(--fp-paper); border: 1.5px solid var(--fp-ink-200); border-radius: var(--fp-radius-sm); cursor: pointer; transition: all 0.15s; }
+.wpv2-service:hover { border-color: var(--fp-green-300); }
+.wpv2-service.sel { border-color: var(--fp-green-600); background: var(--fp-green-50); }
+.wpv2-service-cb { width: 22px; height: 22px; border: 1.5px solid var(--fp-ink-300); border-radius: 6px; background: var(--fp-paper); display: flex; align-items: center; justify-content: center; flex-shrink: 0; margin-top: 1px; }
+.wpv2-service.sel .wpv2-service-cb { background: var(--fp-green-600); border-color: var(--fp-green-600); }
+.wpv2-service-cb svg { color: white; opacity: 0; }
+.wpv2-service.sel .wpv2-service-cb svg { opacity: 1; }
+.wpv2-service-body { flex: 1; }
+.wpv2-service-name { font-size: 14px; font-weight: 700; color: var(--fp-ink-900); margin-bottom: 3px; }
+.wpv2-service-desc { font-size: 12px; color: var(--fp-ink-500); font-weight: 500; line-height: 1.45; }
+.wpv2-service-price { font-size: 13px; font-weight: 800; color: var(--fp-green-600); align-self: center; flex-shrink: 0; }
+
+/* ── Sidebar ──────────────────────────────────────────────────── */
+.wpv2-aside-card { background: var(--fp-paper); border: 1px solid var(--fp-ink-200); border-radius: var(--fp-radius-lg); padding: 22px 22px; box-shadow: var(--fp-shadow); display: flex; flex-direction: column; gap: 14px; }
+.wpv2-aside-h { font-size: 17px; font-weight: 800; color: var(--fp-ink-900); letter-spacing: -0.3px; }
+.wpv2-aside-sub { font-size: 12px; color: var(--fp-ink-500); font-weight: 500; margin-top: -10px; }
+.wpv2-aside-menu-cta { display: flex; align-items: center; justify-content: space-between; padding: 12px 14px; background: var(--fp-green-50); border: 1.5px dashed var(--fp-green-300); border-radius: var(--fp-radius-sm); cursor: pointer; font-family: inherit; transition: all 0.15s; text-align: left; }
+.wpv2-aside-menu-cta:hover { background: var(--fp-green-100); border-style: solid; }
+.wpv2-aside-menu-cta-l { display: flex; align-items: center; gap: 10px; }
+.wpv2-aside-menu-cta-icon { width: 28px; height: 28px; border-radius: 50%; background: var(--fp-green-600); color: var(--fp-paper); display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.wpv2-aside-menu-cta-text { font-size: 13px; font-weight: 700; color: var(--fp-ink-900); line-height: 1.3; }
+.wpv2-aside-menu-cta-text small { display: block; font-size: 11px; font-weight: 500; color: var(--fp-ink-500); margin-top: 1px; }
+.wpv2-aside-menu-cta svg.arrow { color: var(--fp-ink-500); }
+.wpv2-aside-plan { display: flex; align-items: center; gap: 10px; padding: 12px 14px; background: var(--fp-green-100); border-radius: var(--fp-radius-sm); }
+.wpv2-aside-plan-icon { width: 28px; height: 28px; border-radius: 50%; background: var(--fp-green-600); color: var(--fp-paper); display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.wpv2-aside-plan-name { font-size: 13px; font-weight: 700; color: var(--fp-green-900); }
+.wpv2-aside-plan-name small { display: block; font-size: 11px; font-weight: 500; color: var(--fp-green-700); margin-top: 1px; }
+.wpv2-aside-rows { display: flex; flex-direction: column; gap: 8px; padding-top: 4px; }
+.wpv2-aside-row { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; font-size: 13px; }
+.wpv2-aside-row-lbl { color: var(--fp-ink-500); font-weight: 500; }
+.wpv2-aside-row-val { color: var(--fp-ink-900); font-weight: 700; white-space: nowrap; }
+.wpv2-aside-row.discount .wpv2-aside-row-val { color: var(--fp-green-700); }
+.wpv2-aside-divider { height: 1px; background: var(--fp-ink-100); margin: 4px 0; }
+.wpv2-aside-voucher { display: flex; gap: 8px; }
+.wpv2-aside-voucher input { flex: 1; padding: 9px 12px; border: 1.5px solid var(--fp-ink-200); border-radius: var(--fp-radius-sm); font-size: 13px; font-weight: 600; color: var(--fp-ink-900); background: var(--fp-paper); font-family: inherit; }
+.wpv2-aside-voucher input:focus { outline: none; border-color: var(--fp-green-600); }
+.wpv2-aside-voucher button { padding: 9px 14px; background: var(--fp-cream-300); color: var(--fp-ink-900); border: 1.5px solid var(--fp-ink-200); border-radius: var(--fp-radius-sm); font-size: 13px; font-weight: 700; cursor: pointer; font-family: inherit; transition: all 0.15s; }
+.wpv2-aside-voucher button:hover { background: var(--fp-cream-500); }
+.wpv2-aside-total { display: flex; justify-content: space-between; align-items: baseline; padding-top: 4px; }
+.wpv2-aside-total-lbl { font-size: 16px; font-weight: 800; color: var(--fp-ink-900); }
+.wpv2-aside-total-val { font-size: 26px; font-weight: 800; color: var(--fp-ink-900); letter-spacing: -0.5px; }
+.wpv2-aside-credits { background: var(--fp-green-50); border: 1px solid var(--fp-green-100); border-radius: var(--fp-radius-sm); padding: 10px 12px; font-size: 12px; color: var(--fp-green-900); font-weight: 600; line-height: 1.45; }
+.wpv2-aside-credits b { font-weight: 800; }
+.wpv2-aside-cta { padding: 14px 18px; background: var(--fp-green-600); color: var(--fp-paper); border: none; border-radius: var(--fp-radius-sm); font-size: 15px; font-weight: 800; cursor: pointer; font-family: inherit; transition: all 0.18s; display: flex; align-items: center; justify-content: center; gap: 10px; }
+.wpv2-aside-cta:hover:not(:disabled) { background: var(--fp-green-700); transform: translateY(-1px); box-shadow: 0 6px 18px rgba(42,138,95,0.32); }
+.wpv2-aside-cta:disabled { opacity: 0.5; cursor: not-allowed; }
+.wpv2-aside-trust { display: flex; align-items: center; justify-content: center; gap: 6px; font-size: 11px; color: var(--fp-ink-500); font-weight: 500; padding-top: 2px; }
+
+/* ── Payment method picker (in sidebar, above CTA) ────────────── */
+.wpv2-paymethods { display: flex; flex-direction: column; gap: 6px; }
+.wpv2-paymethods-label { font-size: 11px; font-weight: 700; color: var(--fp-ink-500); letter-spacing: 0.5px; text-transform: uppercase; }
+.wpv2-paymethods-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+.wpv2-paymethod { padding: 9px 6px; background: var(--fp-paper); border: 1.5px solid var(--fp-ink-200); border-radius: var(--fp-radius-sm); font-size: 12px; font-weight: 700; color: var(--fp-ink-700); cursor: pointer; transition: all 0.15s; font-family: inherit; }
+.wpv2-paymethod:hover { border-color: var(--fp-green-300); }
+.wpv2-paymethod.sel { border-color: var(--fp-green-600); background: var(--fp-green-50); color: var(--fp-green-900); }
+.wpv2-paymethods-hint { font-size: 11px; color: var(--fp-ink-500); font-weight: 500; line-height: 1.4; padding-top: 2px; }
+
+/* ── Inline error in sidebar ─────────────────────────────────── */
+.wpv2-aside-err { background: #fdecea; border: 1px solid #f5c6c2; border-radius: var(--fp-radius-sm); padding: 10px 12px; font-size: 12px; color: #8a1a14; font-weight: 600; line-height: 1.45; }
+
+/* ── Bank-transfer success overlay ───────────────────────────── */
+.wpv2-bank-overlay { position: fixed; inset: 0; background: rgba(15,61,46,0.55); display: flex; align-items: center; justify-content: center; z-index: 1000; padding: 20px; }
+.wpv2-bank-card { background: var(--fp-paper); border-radius: var(--fp-radius-lg); padding: 28px 28px 22px; max-width: 460px; width: 100%; box-shadow: var(--fp-shadow-lg); }
+.wpv2-bank-card h3 { font-size: 20px; font-weight: 800; color: var(--fp-green-900); margin-bottom: 8px; letter-spacing: -0.3px; }
+.wpv2-bank-card p { font-size: 13px; color: var(--fp-ink-700); font-weight: 500; line-height: 1.55; margin-bottom: 18px; }
+.wpv2-bank-details { display: grid; grid-template-columns: max-content 1fr; gap: 8px 16px; padding: 14px 16px; background: var(--fp-cream-300); border-radius: var(--fp-radius-sm); margin-bottom: 18px; }
+.wpv2-bank-details dt { font-size: 11px; font-weight: 700; color: var(--fp-ink-500); letter-spacing: 0.5px; text-transform: uppercase; align-self: center; }
+.wpv2-bank-details dd { font-size: 13px; font-weight: 700; color: var(--fp-ink-900); font-variant-numeric: tabular-nums; }
+.wpv2-bank-close { width: 100%; padding: 12px; background: var(--fp-green-600); color: var(--fp-paper); border: none; border-radius: var(--fp-radius-sm); font-size: 14px; font-weight: 800; cursor: pointer; font-family: inherit; transition: background 0.15s; }
+.wpv2-bank-close:hover { background: var(--fp-green-700); }
+
+/* ── Inline signup (revealed after CTA when not logged in) ────── */
+.wpv2-signup { background: var(--fp-cream-100); border: 1.5px solid var(--fp-green-100); border-radius: var(--fp-radius-sm); padding: 16px; display: flex; flex-direction: column; gap: 10px; animation: wpv2In 0.22s ease; }
+@keyframes wpv2In { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: translateY(0); } }
+.wpv2-signup-h { font-size: 13px; font-weight: 800; color: var(--fp-ink-900); line-height: 1.35; }
+.wpv2-signup-note { font-size: 12px; color: var(--fp-ink-500); font-weight: 500; line-height: 1.45; }
+.wpv2-signup-field { display: flex; flex-direction: column; gap: 4px; }
+.wpv2-signup-field label { font-size: 10px; font-weight: 700; color: var(--fp-ink-500); letter-spacing: 0.5px; text-transform: uppercase; }
+.wpv2-signup-field input { padding: 10px 12px; border: 1.5px solid var(--fp-ink-200); border-radius: var(--fp-radius-sm); font-size: 13px; font-weight: 600; color: var(--fp-ink-900); background: var(--fp-paper); font-family: inherit; box-sizing: border-box; }
+.wpv2-signup-field input:focus { outline: none; border-color: var(--fp-green-600); }
+.wpv2-signup-btn { padding: 10px; background: var(--fp-ink-900); color: var(--fp-paper); border: none; border-radius: var(--fp-radius-sm); font-size: 13px; font-weight: 700; cursor: pointer; font-family: inherit; transition: background 0.15s; }
+.wpv2-signup-btn:hover:not(:disabled) { background: var(--fp-green-900); }
+.wpv2-signup-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+.wpv2-signup-resend { background: none; border: none; color: var(--fp-ink-500); font-size: 11px; font-weight: 600; cursor: pointer; text-decoration: underline; text-underline-offset: 2px; font-family: inherit; align-self: center; padding: 4px; }
+
+/* ── Responsive ───────────────────────────────────────────────── */
+@media (max-width: 1024px) {
+  .wpv2-grid { grid-template-columns: 1fr; }
+  .wpv2-aside { position: static; }
+  .wpv2-goals { grid-template-columns: repeat(2, 1fr); }
+  .wpv2-activity { grid-template-columns: repeat(3, 1fr); }
+}
+@media (max-width: 640px) {
+  .wpv2-page { padding: 20px 16px 32px; }
+  .wpv2-h-title { font-size: 24px; }
+  .wpv2-section { padding: 18px 16px; }
+  .wpv2-goals { grid-template-columns: 1fr; }
+  .wpv2-macros { grid-template-columns: 1fr; gap: 10px; }
+  .wpv2-profile-row.r3 { grid-template-columns: 1fr 1fr; }
+  .wpv2-activity { grid-template-columns: repeat(2, 1fr); }
+  .wpv2-freq { grid-template-columns: 1fr; }
+  .wpv2-lengths { grid-template-columns: 1fr; }
+  .wpv2-meal { min-width: 0; flex: 1 1 calc(50% - 10px); }
+}
 
 /* ── FAQ ── */
 .wlp-faq-wrap { margin-bottom: 48px; }
