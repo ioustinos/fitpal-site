@@ -194,13 +194,51 @@ function todayIso(): string {
 
 const VALID_METHODS = ['cash', 'card', 'link', 'transfer', 'wallet']
 
+// WEC-220 / WEC-237: server-side mirror of client validation. Frontend laxness
+// compounded with missing server-side checks would let garbage payloads through
+// (single-char names, "foo" emails, invoice toggle on with empty fields). We
+// reject here too so a bypassed/malicious client can't get an order through.
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+
 function validatePayload(body: OrderPayload): Errors {
   const errors: Errors = {}
 
-  if (!body.customerName?.trim()) addError(errors, 'general', 'Customer name is required')
-  if (!body.customerEmail?.trim()) addError(errors, 'general', 'Customer email is required')
+  // Contact (WEC-220)
+  const customerName = body.customerName?.trim() ?? ''
+  if (!customerName) {
+    addError(errors, 'general', 'Customer name is required')
+  } else if (customerName.length < 2) {
+    addError(errors, 'general', 'Customer name must be at least 2 characters')
+  }
+  const customerEmail = body.customerEmail?.trim() ?? ''
+  if (!customerEmail) {
+    addError(errors, 'general', 'Customer email is required')
+  } else if (!EMAIL_RE.test(customerEmail)) {
+    addError(errors, 'general', 'Customer email is invalid')
+  }
+  // Phone is optional at the schema level (logged-in users without one),
+  // but if provided we sanity-check it has at least 8 digits so something
+  // like "+30" or "abc" can't slip through.
+  if (body.customerPhone) {
+    const digits = body.customerPhone.replace(/\D/g, '')
+    if (digits.length < 8) addError(errors, 'general', 'Customer phone is invalid')
+  }
+
   if (!VALID_METHODS.includes(body.paymentMethod)) addError(errors, 'general', `Invalid payment method: ${body.paymentMethod}`)
   if (!body.days || body.days.length === 0) addError(errors, 'general', 'Order must have at least one day')
+
+  // Invoice (WEC-237) — if the toggle was on, the fields must be present.
+  // Client validates already; this is the server-side belt to the client braces.
+  if (body.invoiceType) {
+    const invName = body.invoiceName?.trim() ?? ''
+    const invVatDigits = (body.invoiceVat ?? '').replace(/\D/g, '')
+    if (!invName) addError(errors, 'general', 'Invoice: company or name is required')
+    if (invVatDigits.length === 0) {
+      addError(errors, 'general', 'Invoice: VAT number is required')
+    } else if (invVatDigits.length < 5) {
+      addError(errors, 'general', 'Invoice: VAT must be at least 5 digits')
+    }
+  }
 
   for (let i = 0; i < (body.days ?? []).length; i++) {
     const day = body.days[i]

@@ -37,10 +37,12 @@ interface ContactSectionProps {
 export function ContactSection({ value, onChange, showErrors = false }: ContactSectionProps) {
   const lang = useUIStore((s) => s.lang)
 
-  const nameInvalid = showErrors && !value.name.trim()
-  const emailInvalid = showErrors && (!value.email.trim() || !/^.+@.+\..+$/.test(value.email.trim()))
-  // Phone is optional at the field level until submit. For `showErrors` we
-  // require both non-empty AND a valid number (per country rules).
+  // WEC-220: keep these in sync with the validator in CheckoutPage.
+  // Name ≥ 2 chars (was just non-empty — accepted "X"). Email pattern
+  // disallows whitespace and @ in either half. Phone uses the per-country
+  // libphonenumber-js validator.
+  const nameInvalid = showErrors && value.name.trim().length < 2
+  const emailInvalid = showErrors && (!value.email.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.email.trim()))
   const phoneInvalid = showErrors && !isValidPhone(value.phone)
 
   // Memoise country list reference so PhoneInput doesn't re-render on every keystroke

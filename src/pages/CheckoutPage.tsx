@@ -94,16 +94,22 @@ export function CheckoutPage() {
 
   // Contact info (WEC-130) — server requires name + email, we also require a
   // valid phone up-front so cash-on-delivery / support callbacks work.
+  // WEC-220: tightened — name needs ≥ 2 chars (was just non-empty, accepted "X"),
+  // email regex disallows whitespace + @ in either side (was `^.+@.+\..+$`,
+  // which is permissive but still rejects "foo"; the new pattern is just the
+  // canonical one, kept in case the previous regex had edge-case false-positives).
   const contactName = contact.name.trim()
   const contactEmail = contact.email.trim()
-  const emailRe = /^.+@.+\..+$/
-  const contactNameOk = contactName.length > 0
+  const emailRe = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+  const contactNameOk = contactName.length >= 2
   const contactEmailOk = contactEmail.length > 0 && emailRe.test(contactEmail)
   const contactPhoneOk = isValidPhone(contact.phone)
 
   if (!contactNameOk) {
     validationIssues.push(
-      lang === 'el' ? 'Λείπει το ονοματεπώνυμο' : 'Name is required'
+      contactName.length === 0
+        ? (lang === 'el' ? 'Λείπει το ονοματεπώνυμο' : 'Name is required')
+        : (lang === 'el' ? 'Το ονοματεπώνυμο πρέπει να έχει τουλάχιστον 2 χαρακτήρες' : 'Name must be at least 2 characters')
     )
   }
   if (!contactEmailOk) {

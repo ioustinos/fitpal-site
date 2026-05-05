@@ -34,6 +34,14 @@ export function ExtrasSection({ attempted = false }: ExtrasSectionProps) {
 
   return (
     <div className="extras-section">
+      {/* WEC-237: setPayment is a partial-merge (state.payment + info), so we
+          pass ONLY the field we want to update. The previous pattern
+          `setPayment({ ...payment, X: y })` captured `payment` from the
+          render closure — under rapid changes (toggle ON, immediately fill
+          fields) the closure was stale and clobbered just-applied keys. The
+          most visible symptom: invoice toggle going on→off→on by accident,
+          which then made the validator insist invoiceName/invoiceVat were
+          missing because the toggle wasn't actually `true` in the store. */}
       <div className="extra-row">
         <div className="extra-label">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -43,7 +51,7 @@ export function ExtrasSection({ attempted = false }: ExtrasSectionProps) {
         </div>
         <Toggle
           checked={payment.cutlery ?? false}
-          onChange={(v) => setPayment({ ...payment, cutlery: v })}
+          onChange={(v) => setPayment({ cutlery: v })}
         />
       </div>
 
@@ -56,7 +64,7 @@ export function ExtrasSection({ attempted = false }: ExtrasSectionProps) {
         </div>
         <Toggle
           checked={payment.invoice ?? false}
-          onChange={(v) => setPayment({ ...payment, invoice: v })}
+          onChange={(v) => setPayment({ invoice: v })}
         />
       </div>
 
@@ -67,7 +75,7 @@ export function ExtrasSection({ attempted = false }: ExtrasSectionProps) {
             <input
               className={`form-input${showNameErr ? ' is-invalid' : ''}`}
               value={payment.invoiceName ?? ''}
-              onChange={(e) => setPayment({ ...payment, invoiceName: e.target.value })}
+              onChange={(e) => setPayment({ invoiceName: e.target.value })}
             />
             {showNameErr && (
               <div className="form-hint form-hint-error">
@@ -81,7 +89,7 @@ export function ExtrasSection({ attempted = false }: ExtrasSectionProps) {
               className={`form-input${showVatErr ? ' is-invalid' : ''}`}
               value={payment.invoiceVat ?? ''}
               inputMode="numeric"
-              onChange={(e) => setPayment({ ...payment, invoiceVat: e.target.value })}
+              onChange={(e) => setPayment({ invoiceVat: e.target.value })}
             />
             {showVatErr && (
               <div className="form-hint form-hint-error">
@@ -99,7 +107,7 @@ export function ExtrasSection({ attempted = false }: ExtrasSectionProps) {
         <textarea
           className="form-input notes-ta"
           value={payment.notes ?? ''}
-          onChange={(e) => setPayment({ ...payment, notes: e.target.value })}
+          onChange={(e) => setPayment({ notes: e.target.value })}
           rows={2}
           placeholder={lang === 'el' ? 'Σημειώσεις για την παραγγελία...' : 'Any notes for your order...'}
         />
