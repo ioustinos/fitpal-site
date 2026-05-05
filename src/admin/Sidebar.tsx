@@ -12,7 +12,7 @@ const items: NavItem[] = [
   { path: '/admin',          label: 'Dashboard',   icon: 'dashboard', end: true, wec: 'WEC-112' },
   { path: '/admin/menus',    label: 'Menu builder',icon: 'menus',                 wec: 'WEC-114' },
   { path: '/admin/dishes',   label: 'Dishes',      icon: 'dishes',                wec: 'WEC-113' },
-  { path: '/admin/import-images', label: 'Import images', icon: 'images' },
+  { path: '/admin/dish-images',   label: 'Dish images',    icon: 'images' },
   { path: '/admin/orders',   label: 'Orders',      icon: 'orders',                wec: 'WEC-115' },
   { path: '/admin/users',    label: 'Users',       icon: 'users' },
   { path: '/admin/vouchers', label: 'Vouchers',    icon: 'vouchers' },

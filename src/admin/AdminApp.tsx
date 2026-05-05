@@ -26,7 +26,7 @@ export default function AdminApp() {
           <Route index element={<Dashboard />} />
           <Route path="menus" element={<Menus />} />
           <Route path="dishes" element={<Dishes />} />
-          <Route path="import-images" element={<ImportImages />} />
+          <Route path="dish-images" element={<ImportImages />} />
           <Route path="orders" element={<Orders />} />
           <Route path="users" element={<Users />} />
           <Route path="vouchers" element={<Vouchers />} />

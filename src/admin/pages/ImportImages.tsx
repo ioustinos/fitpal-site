@@ -2,19 +2,19 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { supabase } from '../../lib/supabase'
 
 /**
- * Admin → Import images.
+ * Admin → Dish images.
  *
- * Lists every dish whose `image_url` is still an external (e.g. Drive) link
- * and lets the admin pull each into Supabase Storage with one click. The
- * button calls /api/admin-import-dish-image (Netlify Function) — that's where
- * the actual download + upload happens, server-side, because the dev sandbox
- * can't reach drive.google.com directly.
+ * One pane for managing the dish image pipeline: see which dishes are still
+ * pointing at external URLs (typically a Google Drive share link from the
+ * data-entry sheet), pull them into Supabase Storage in bulk or one-by-one,
+ * and re-import any dish whose photo got updated upstream.
  *
- * Uses relative URLs (`/api/...`), so the page works on localhost via
- * `netlify dev`, on dev--fitpal-order, and on production interchangeably.
+ * The Import button calls /api/admin-import-dish-image (Netlify Function) —
+ * that's where the actual download + upload happens, server-side, because
+ * the dev sandbox can't reach drive.google.com directly.
  *
- * Reusable beyond the bulk import — any time a future admin updates a dish
- * image upstream they paste the new URL here and re-import (force=true).
+ * Uses relative URLs (`/api/...`) so the page behaves identically on
+ * localhost (netlify dev), dev--fitpal-order, and production.
  */
 
 type DishRow = {
@@ -169,11 +169,11 @@ export function ImportImages() {
     <div className="admin-page">
       <div className="admin-page-head">
         <div>
-          <h1 className="admin-page-title">Import images</h1>
+          <h1 className="admin-page-title">Dish images</h1>
           <p className="admin-page-sub">
             {pendingCount === 0
-              ? 'No pending images — every dish is already on Storage.'
-              : `${pendingCount} dish${pendingCount === 1 ? '' : 'es'} still pointing at external URLs.`}
+              ? 'No pending imports — every dish image is on Supabase Storage.'
+              : `${pendingCount} dish${pendingCount === 1 ? '' : 'es'} still pointing at external URLs (e.g. Drive). Import to copy them into Storage.`}
           </p>
         </div>
         <div className="admin-page-actions" style={{ display: 'flex', gap: 8 }}>
