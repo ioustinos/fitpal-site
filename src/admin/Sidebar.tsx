@@ -12,6 +12,7 @@ const items: NavItem[] = [
   { path: '/admin',          label: 'Dashboard',   icon: 'dashboard', end: true, wec: 'WEC-112' },
   { path: '/admin/menus',    label: 'Menu builder',icon: 'menus',                 wec: 'WEC-114' },
   { path: '/admin/dishes',   label: 'Dishes',      icon: 'dishes',                wec: 'WEC-113' },
+  { path: '/admin/import-images', label: 'Import images', icon: 'images' },
   { path: '/admin/orders',   label: 'Orders',      icon: 'orders',                wec: 'WEC-115' },
   { path: '/admin/users',    label: 'Users',       icon: 'users' },
   { path: '/admin/vouchers', label: 'Vouchers',    icon: 'vouchers' },
@@ -21,7 +22,7 @@ const items: NavItem[] = [
   { path: '/admin/zones',    label: 'Delivery zones', icon: 'zones',              wec: 'WEC-119' },
 ]
 
-type IconName = 'dashboard' | 'menus' | 'dishes' | 'orders' | 'settings' | 'zones' | 'users' | 'vouchers' | 'wallet' | 'walletSettings'
+type IconName = 'dashboard' | 'menus' | 'dishes' | 'images' | 'orders' | 'settings' | 'zones' | 'users' | 'vouchers' | 'wallet' | 'walletSettings'
 
 function Icon({ name }: { name: IconName }) {
   const p = {
@@ -52,6 +53,14 @@ function Icon({ name }: { name: IconName }) {
         <svg {...p}>
           <circle cx="12" cy="12" r="9" />
           <circle cx="12" cy="12" r="3" />
+        </svg>
+      )
+    case 'images':
+      return (
+        <svg {...p}>
+          <rect x="3" y="3" width="18" height="18" rx="2" />
+          <circle cx="8.5" cy="8.5" r="1.5" />
+          <polyline points="21 15 16 10 5 21" />
         </svg>
       )
     case 'orders':

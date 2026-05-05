@@ -4,6 +4,7 @@ import { AdminLayout } from './AdminLayout'
 import { Dashboard } from './pages/Dashboard'
 import { Menus } from './pages/Menus'
 import { Dishes } from './pages/Dishes'
+import { ImportImages } from './pages/ImportImages'
 import { Orders } from './pages/Orders'
 import { Settings } from './pages/Settings'
 import { Zones } from './pages/Zones'
@@ -25,6 +26,7 @@ export default function AdminApp() {
           <Route index element={<Dashboard />} />
           <Route path="menus" element={<Menus />} />
           <Route path="dishes" element={<Dishes />} />
+          <Route path="import-images" element={<ImportImages />} />
           <Route path="orders" element={<Orders />} />
           <Route path="users" element={<Users />} />
           <Route path="vouchers" element={<Vouchers />} />
