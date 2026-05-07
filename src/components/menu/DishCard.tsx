@@ -102,7 +102,7 @@ export function DishCard({ dish, dayIndex }: DishCardProps) {
         )}
 
         {/* Discount ribbon — top right */}
-        {dish.discount && (
+        {!!dish.discount && (
           <div className="disc-ribbon">−{dish.discount}%</div>
         )}
 
@@ -136,7 +136,7 @@ export function DishCard({ dish, dayIndex }: DishCardProps) {
         )}
 
         {/* Discount line in body */}
-        {dish.discount && (
+        {!!dish.discount && (
           <div className="disc-card-line">
             <span className="disc-card-pct">−{dish.discount}%</span>
             <span className="disc-card-was">€{minPrice.toFixed(2)}</span>

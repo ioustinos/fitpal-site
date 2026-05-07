@@ -122,7 +122,7 @@ export function DishModal() {
             {dish.tags?.map((tag) => (
               <span key={tag} className={`tag tag-${tag}`}>{tagLabel(tag, lang)}</span>
             ))}
-            {dish.discount && (
+            {!!dish.discount && (
               <span className="tag tag-sale">-{dish.discount}%</span>
             )}
           </div>

@@ -170,6 +170,33 @@ function DropdownsPicker({ dish, selectedVariantId, onChange, lang }: Props) {
     return s.includes('.') ? s.replace(/\.?0+$/, '') : s
   }
 
+  // Match the current selection back to a real variant so we can show its
+  // label / macros / price on the result pill.
+  const selectedVariant = dish.variants.find((v) => v.id === selectedVariantId) ?? dish.variants[0]
+  const selectedPriceCents = effPrice(selectedVariant.price, dish.discount)
+
+  /**
+   * Decide whether picking `option` for `targetIngId` would land on a real
+   * variant given the user's current selections for the OTHER dropdowns.
+   *
+   * Used to grey out impossible combinations — e.g. if you pick chicken=210γ
+   * and there's no variant with chicken=210γ + rice=240γ, the rice=240γ
+   * option becomes disabled until you change chicken.
+   */
+  function isOptionAvailable(targetIngId: string, option: number): boolean {
+    if (!choiceGroups) return true
+    return dish.variants.some((v) => {
+      for (const g of choiceGroups) {
+        const grams = g.byVariant.get(v.id)
+        const want = g.ing.ingredientId === targetIngId
+          ? option
+          : currentSelection.get(g.ing.ingredientId)
+        if (want !== grams) return false
+      }
+      return true
+    })
+  }
+
   return (
     <div className="dm-variants">
       <div className="dm-section-title">{t('selectSize')}</div>
@@ -185,13 +212,41 @@ function DropdownsPicker({ dish, selectedVariantId, onChange, lang }: Props) {
                 value={selected ?? g.distinctGrams[0] ?? 0}
                 onChange={(e) => handleChange(g.ing.ingredientId, parseFloat(e.target.value))}
               >
-                {g.distinctGrams.map((grams) => (
-                  <option key={grams} value={grams}>{fmtGrams(grams)}γρ</option>
-                ))}
+                {g.distinctGrams.map((grams) => {
+                  const available = isOptionAvailable(g.ing.ingredientId, grams)
+                  return (
+                    <option
+                      key={grams}
+                      value={grams}
+                      disabled={!available}
+                      style={!available ? { color: '#bbb' } : undefined}
+                    >
+                      {fmtGrams(grams)}γρ{available ? '' : ' — μη διαθέσιμο'}
+                    </option>
+                  )
+                })}
               </select>
             </div>
           )
         })}
+      </div>
+
+      {/* Result pill — mirrors the pills-mode .variant-row.sel layout so the
+          customer sees the same affordance regardless of how the variant was
+          chosen. Label/macros/price come from the matched variant. */}
+      <div className="dm-variant-list" style={{ marginTop: 12 }}>
+        <div className="variant-row sel">
+          <div className="vr-radio" />
+          <div className="vr-info">
+            <div className="vr-label">{lang === 'el' ? selectedVariant.labelEl : selectedVariant.labelEn}</div>
+            {selectedVariant.macros && (
+              <div className="vr-macros">
+                {selectedVariant.macros.cal} kcal · {selectedVariant.macros.pro}g {t('pro')} · {selectedVariant.macros.carb}g {t('carb')} · {selectedVariant.macros.fat}g {t('fat')}
+              </div>
+            )}
+          </div>
+          <div className="vr-price">€{selectedPriceCents.toFixed(2)}</div>
+        </div>
       </div>
     </div>
   )
