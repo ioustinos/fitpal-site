@@ -284,6 +284,105 @@ export async function toggleDishActive(id: string, active: boolean): Promise<{ e
   return { error: error?.message ?? null }
 }
 
+// ─── Dish recipe (WEC-249) ───────────────────────────────────────────────
+
+import { searchKey } from './adminIngredients'
+
+export interface RecipeEntryInput {
+  /** ID of an existing catalog row, or null if the entry is a free-text name
+   *  the admin typed — saveDishRecipe will auto-create the catalog row. */
+  ingredientId: string | null
+  /** Display name (used to create a catalog row when ingredientId is null). */
+  nameEl: string
+  isVariant: boolean
+  /** Required when isVariant=false. */
+  fixedGrams: number | null
+  /** Map of variant.id → grams. Required keys when isVariant=true (0 = absent). */
+  perVariant: Record<string, number>
+  sortOrder: number
+}
+
+/**
+ * Persist a dish's recipe in one delete-then-insert pass. Idempotent — call
+ * it as often as the admin saves; any prior recipe rows for this dish are
+ * cleanly replaced.
+ *
+ * Auto-creates ingredients catalog rows for entries whose ingredientId is
+ * null (the admin typed a name that isn't in the catalog yet). Uses the
+ * same search_key normalization as the CSV import so the catalog stays
+ * deduplicated regardless of which entry path created the row.
+ */
+export async function saveDishRecipe(
+  dishId: string,
+  entries: RecipeEntryInput[],
+): Promise<{ error: string | null }> {
+  // 1. Resolve ingredientIds for entries that don't have one yet.
+  //    Auto-create missing catalog rows by search_key.
+  const resolved: Array<RecipeEntryInput & { ingredientId: string }> = []
+  for (const e of entries) {
+    if (!e.nameEl.trim()) continue
+    if (e.ingredientId) {
+      resolved.push({ ...e, ingredientId: e.ingredientId })
+      continue
+    }
+    const sk = searchKey(e.nameEl)
+    // Lookup-or-create. Race-safe via the search_key UNIQUE constraint:
+    // if a parallel admin already created the row, ON CONFLICT skips and
+    // we re-fetch the existing row.
+    const { error: upErr } = await supabase
+      .from('ingredients')
+      .upsert({ name_el: e.nameEl.trim(), search_key: sk }, { onConflict: 'search_key', ignoreDuplicates: true })
+    if (upErr) return { error: upErr.message }
+    const { data, error: lookupErr } = await supabase
+      .from('ingredients')
+      .select('id')
+      .eq('search_key', sk)
+      .single()
+    if (lookupErr || !data) return { error: lookupErr?.message ?? 'Ingredient lookup failed' }
+    resolved.push({ ...e, ingredientId: data.id as string })
+  }
+
+  // 2. Delete existing recipe rows for this dish.
+  const { error: delAmtErr } = await supabase
+    .from('dish_variant_ingredient_amounts')
+    .delete()
+    .in('variant_id', (await supabase.from('dish_variants').select('id').eq('dish_id', dishId)).data?.map((v) => v.id as string) ?? [])
+  if (delAmtErr) return { error: delAmtErr.message }
+  const { error: delDIErr } = await supabase
+    .from('dish_ingredients')
+    .delete()
+    .eq('dish_id', dishId)
+  if (delDIErr) return { error: delDIErr.message }
+
+  if (resolved.length === 0) return { error: null }
+
+  // 3. Insert dish_ingredients.
+  const diRows = resolved.map((e, i) => ({
+    dish_id: dishId,
+    ingredient_id: e.ingredientId,
+    sort_order: e.sortOrder ?? i,
+    is_variant: e.isVariant,
+    fixed_grams: e.isVariant ? null : e.fixedGrams,
+  }))
+  const { error: insDIErr } = await supabase.from('dish_ingredients').insert(diRows)
+  if (insDIErr) return { error: insDIErr.message }
+
+  // 4. Insert per-variant amounts for is_variant=true entries.
+  const amtRows: Array<{ variant_id: string; ingredient_id: string; grams: number }> = []
+  for (const e of resolved) {
+    if (!e.isVariant) continue
+    for (const [variantId, grams] of Object.entries(e.perVariant)) {
+      amtRows.push({ variant_id: variantId, ingredient_id: e.ingredientId, grams })
+    }
+  }
+  if (amtRows.length > 0) {
+    const { error: insAmtErr } = await supabase.from('dish_variant_ingredient_amounts').insert(amtRows)
+    if (insAmtErr) return { error: insAmtErr.message }
+  }
+
+  return { error: null }
+}
+
 // ─── Categories ───────────────────────────────────────────────────────────
 
 export async function saveCategory(c: { id?: string; nameEl: string; nameEn: string; sortOrder: number; active: boolean }): Promise<{ error: string | null }> {

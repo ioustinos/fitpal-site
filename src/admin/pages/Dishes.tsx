@@ -4,6 +4,7 @@ import {
   fetchAdminCategories,
   fetchAdminTags,
   saveDish,
+  saveDishRecipe,
   deleteDish,
   toggleDishActive,
   saveCategory,
@@ -16,6 +17,8 @@ import {
   type AdminCategory,
   type AdminTag,
 } from '../../lib/api/adminDishes'
+import { fetchDishRecipe } from '../../lib/api/dishRecipe'
+import { DishRecipeEditor, type RecipeRow } from '../components/DishRecipeEditor'
 
 type LangTab = 'el' | 'en'
 
@@ -238,6 +241,36 @@ function DishDrawer({
   const [imageMode, setImageMode] = useState<'upload' | 'url'>(dish.imageUrl ? 'url' : 'upload')
   const fileInput = useRef<HTMLInputElement>(null)
 
+  // WEC-249: recipe state — loaded on mount for existing dishes, persisted
+  // alongside the dish on save. Empty for new dishes; admin builds it before
+  // first save.
+  const [recipe, setRecipe] = useState<RecipeRow[]>([])
+  useEffect(() => {
+    if (isNew || !dish.id) return
+    let cancelled = false
+    fetchDishRecipe(dish.id).then((res) => {
+      if (cancelled || !res.data) return
+      const rows: RecipeRow[] = res.data.ingredients.map((ing, i) => {
+        const perVariant: Record<string, number> = {}
+        for (const a of res.data!.variantAmounts) {
+          if (a.ingredientId === ing.ingredientId) perVariant[a.variantId] = Number(a.grams)
+        }
+        return {
+          _key: `${ing.ingredientId}-${i}`,
+          ingredientId: ing.ingredientId,
+          nameEl: ing.nameEl,
+          isVariant: ing.isVariant,
+          fixedGrams: ing.fixedGrams != null ? Number(ing.fixedGrams) : null,
+          perVariant,
+          sortOrder: ing.sortOrder,
+        }
+      })
+      setRecipe(rows)
+    })
+    return () => { cancelled = true }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dish.id])
+
   function patch<K extends keyof AdminDish>(key: K, value: AdminDish[K]) {
     setForm((f) => ({ ...f, [key]: value }))
   }
@@ -261,7 +294,7 @@ function DishDrawer({
     }
     setSaving(true)
     setErr(null)
-    const { error } = await saveDish({
+    const { data: saveData, error } = await saveDish({
       id: isNew ? undefined : form.id,
       categoryId: form.categoryId,
       nameEl: form.nameEl.trim(),
@@ -277,8 +310,52 @@ function DishDrawer({
       variants: form.variants,
       tagIds: form.tagIds,
     })
+    if (error) { setSaving(false); setErr(error); return }
+
+    // WEC-249: persist recipe alongside dish + variants. Recipe rows
+    // reference variants by id; saveDish above may have re-issued IDs for
+    // brand-new variants, so we re-fetch the persisted variant ids.
+    const dishId = saveData?.id ?? form.id
+    if (dishId) {
+      // Map old (form) variant ids → persisted ids by sortOrder, since
+      // saveDish replaces variants and assigns new ids for brand-new ones.
+      // For existing dishes whose variants kept their ids, the map is identity.
+      const { data: freshVariants } = await import('../../lib/supabase').then(({ supabase }) =>
+        supabase.from('dish_variants').select('id, sort_order').eq('dish_id', dishId).order('sort_order'),
+      )
+      const idBySort = new Map<number, string>()
+      for (const v of (freshVariants ?? []) as Array<{ id: string; sort_order: number }>) {
+        idBySort.set(v.sort_order, v.id)
+      }
+      const remappedRecipe = recipe.map((r) => {
+        const perVariant: Record<string, number> = {}
+        for (let i = 0; i < form.variants.length; i++) {
+          const oldId = form.variants[i].id
+          const newId = idBySort.get(i) ?? oldId
+          if (r.perVariant[oldId] != null) perVariant[newId] = r.perVariant[oldId]
+        }
+        return { ...r, perVariant }
+      })
+
+      const { error: recipeErr } = await saveDishRecipe(
+        dishId,
+        remappedRecipe.map((r) => ({
+          ingredientId: r.ingredientId,
+          nameEl: r.nameEl,
+          isVariant: r.isVariant,
+          fixedGrams: r.fixedGrams,
+          perVariant: r.perVariant,
+          sortOrder: r.sortOrder,
+        })),
+      )
+      if (recipeErr) {
+        setSaving(false)
+        setErr(`Recipe save failed: ${recipeErr}`)
+        return
+      }
+    }
+
     setSaving(false)
-    if (error) { setErr(error); return }
     onSaved()
   }
 
@@ -458,6 +535,19 @@ function DishDrawer({
                 }
               />
             ))}
+          </section>
+
+          {/* Recipe — fixed + per-variant ingredient amounts (WEC-249). */}
+          <section className="admin-form-section">
+            <div className="admin-section-head">
+              <label className="admin-form-label">Recipe</label>
+            </div>
+            <DishRecipeEditor
+              dishId={form.id}
+              variants={form.variants}
+              value={recipe}
+              onChange={setRecipe}
+            />
           </section>
         </div>
 
