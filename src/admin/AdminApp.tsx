@@ -3,6 +3,7 @@ import { AdminGuard } from './AdminGuard'
 import { AdminLayout } from './AdminLayout'
 import { Dashboard } from './pages/Dashboard'
 import { Menus } from './pages/Menus'
+import { Allergies } from './pages/Allergies'
 import { Dishes } from './pages/Dishes'
 import { ImportImages } from './pages/ImportImages'
 import { ImportMenu } from './pages/ImportMenu'
@@ -27,6 +28,7 @@ export default function AdminApp() {
           <Route index element={<Dashboard />} />
           <Route path="menus" element={<Menus />} />
           <Route path="dishes" element={<Dishes />} />
+          <Route path="allergies" element={<Allergies />} />
           <Route path="import-menu" element={<ImportMenu />} />
           <Route path="dish-images" element={<ImportImages />} />
           <Route path="orders" element={<Orders />} />
