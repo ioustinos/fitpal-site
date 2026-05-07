@@ -74,6 +74,59 @@ function jsonError(status: number, error: string) {
   return Response.json({ ok: false, error }, { status })
 }
 
+/**
+ * PostgREST `.in()` translates to a URL query string. With hundreds of
+ * Greek ingredient names (some 30+ chars each) the URL blows past the
+ * proxy's max length and we get a 400 Bad Request. Chunk all such
+ * operations into safely-sized batches.
+ */
+const IN_BATCH = 50
+const INSERT_BATCH = 500
+
+async function chunkedSelectIn<T>(
+  client: ReturnType<typeof createClient>,
+  table: string,
+  cols: string,
+  col: string,
+  values: string[],
+): Promise<{ data: T[] | null; error: { message: string } | null }> {
+  const out: T[] = []
+  for (let i = 0; i < values.length; i += IN_BATCH) {
+    const batch = values.slice(i, i + IN_BATCH)
+    const { data, error } = await client.from(table).select(cols).in(col, batch)
+    if (error) return { data: null, error }
+    if (data) out.push(...(data as T[]))
+  }
+  return { data: out, error: null }
+}
+
+async function chunkedDeleteIn(
+  client: ReturnType<typeof createClient>,
+  table: string,
+  col: string,
+  values: string[],
+): Promise<{ error: { message: string } | null }> {
+  for (let i = 0; i < values.length; i += IN_BATCH) {
+    const batch = values.slice(i, i + IN_BATCH)
+    const { error } = await client.from(table).delete().in(col, batch)
+    if (error) return { error }
+  }
+  return { error: null }
+}
+
+async function chunkedInsert<T>(
+  client: ReturnType<typeof createClient>,
+  table: string,
+  rows: T[],
+): Promise<{ error: { message: string } | null }> {
+  for (let i = 0; i < rows.length; i += INSERT_BATCH) {
+    const batch = rows.slice(i, i + INSERT_BATCH)
+    const { error } = await client.from(table).insert(batch)
+    if (error) return { error }
+  }
+  return { error: null }
+}
+
 export default async (request: Request) => {
   if (request.method === 'OPTIONS') {
     return new Response(null, {
@@ -141,12 +194,12 @@ export default async (request: Request) => {
     }
   }
 
-  // Look up the resolved IDs for every search_key we touched.
+  // Look up the resolved IDs for every search_key we touched. Chunked to
+  // avoid PostgREST URL-length blowup with hundreds of long Greek names.
   const allSearchKeys = Array.from(uniqueIngredients.keys())
-  const { data: idLookup, error: lookupErr } = await svc
-    .from('ingredients')
-    .select('id, search_key')
-    .in('search_key', allSearchKeys)
+  const { data: idLookup, error: lookupErr } = await chunkedSelectIn<{ id: string; search_key: string }>(
+    svc, 'ingredients', 'id, search_key', 'search_key', allSearchKeys,
+  )
   if (lookupErr || !idLookup) {
     console.error('ingredients lookup failed:', lookupErr)
     return jsonError(500, `ingredients lookup: ${lookupErr?.message ?? 'no rows'}`)
@@ -191,22 +244,18 @@ export default async (request: Request) => {
   const allVariantCodes = variantRows.map((v) => v.id)
   const allDishIds = dishes.map((d) => d.id)
 
-  // Delete existing recipe rows for the touched dishes/variants. The order
-  // matters: variant_amounts first (their FK on variant_id was set up with
-  // ON DELETE CASCADE — but we're not deleting the variants, just the
-  // amount rows themselves), then dish_ingredients.
-  const { error: delAmtErr } = await svc
-    .from('dish_variant_ingredient_amounts')
-    .delete()
-    .in('variant_id', allVariantCodes)
+  // Delete existing recipe rows for the touched dishes/variants. Chunked
+  // for the same URL-length reason as the lookup above.
+  const { error: delAmtErr } = await chunkedDeleteIn(
+    svc, 'dish_variant_ingredient_amounts', 'variant_id', allVariantCodes,
+  )
   if (delAmtErr) {
     console.error('amounts delete failed:', delAmtErr)
     return jsonError(500, `amounts delete: ${delAmtErr.message}`)
   }
-  const { error: delDIErr } = await svc
-    .from('dish_ingredients')
-    .delete()
-    .in('dish_id', allDishIds)
+  const { error: delDIErr } = await chunkedDeleteIn(
+    svc, 'dish_ingredients', 'dish_id', allDishIds,
+  )
   if (delDIErr) {
     console.error('dish_ingredients delete failed:', delDIErr)
     return jsonError(500, `dish_ingredients delete: ${delDIErr.message}`)
@@ -249,15 +298,17 @@ export default async (request: Request) => {
     }
   }
 
+  // Insert chunked — keeps each POST body small enough to clear PostgREST's
+  // request limits even on the largest CSVs.
   if (dishIngRows.length > 0) {
-    const { error: diErr } = await svc.from('dish_ingredients').insert(dishIngRows)
+    const { error: diErr } = await chunkedInsert(svc, 'dish_ingredients', dishIngRows)
     if (diErr) {
       console.error('dish_ingredients insert failed:', diErr)
       return jsonError(500, `dish_ingredients insert: ${diErr.message}`)
     }
   }
   if (amountRows.length > 0) {
-    const { error: amtErr } = await svc.from('dish_variant_ingredient_amounts').insert(amountRows)
+    const { error: amtErr } = await chunkedInsert(svc, 'dish_variant_ingredient_amounts', amountRows)
     if (amtErr) {
       console.error('amounts insert failed:', amtErr)
       return jsonError(500, `amounts insert: ${amtErr.message}`)
