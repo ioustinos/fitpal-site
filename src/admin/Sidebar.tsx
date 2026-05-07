@@ -12,6 +12,7 @@ const items: NavItem[] = [
   { path: '/admin',          label: 'Dashboard',   icon: 'dashboard', end: true, wec: 'WEC-112' },
   { path: '/admin/menus',    label: 'Menu builder',icon: 'menus',                 wec: 'WEC-114' },
   { path: '/admin/dishes',   label: 'Dishes',      icon: 'dishes',                wec: 'WEC-113' },
+  { path: '/admin/ingredients',   label: 'Ingredients',    icon: 'ingredients' },
   { path: '/admin/allergies',     label: 'Allergies',      icon: 'allergies' },
   { path: '/admin/import-menu',   label: 'Import menu',    icon: 'import' },
   { path: '/admin/dish-images',   label: 'Dish images',    icon: 'images' },
@@ -24,7 +25,7 @@ const items: NavItem[] = [
   { path: '/admin/zones',    label: 'Delivery zones', icon: 'zones',              wec: 'WEC-119' },
 ]
 
-type IconName = 'dashboard' | 'menus' | 'dishes' | 'allergies' | 'images' | 'import' | 'orders' | 'settings' | 'zones' | 'users' | 'vouchers' | 'wallet' | 'walletSettings'
+type IconName = 'dashboard' | 'menus' | 'dishes' | 'ingredients' | 'allergies' | 'images' | 'import' | 'orders' | 'settings' | 'zones' | 'users' | 'vouchers' | 'wallet' | 'walletSettings'
 
 function Icon({ name }: { name: IconName }) {
   const p = {
@@ -71,6 +72,14 @@ function Icon({ name }: { name: IconName }) {
           <path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
           <line x1="12" y1="9" x2="12" y2="13" />
           <line x1="12" y1="17" x2="12.01" y2="17" />
+        </svg>
+      )
+    case 'ingredients':
+      return (
+        <svg {...p}>
+          <path d="M3 12c0-4 4-7 9-7s9 3 9 7-4 7-9 7-9-3-9-7z" />
+          <path d="M12 5v14" />
+          <path d="M7 12h10" />
         </svg>
       )
     case 'import':

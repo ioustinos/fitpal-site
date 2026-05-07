@@ -7,6 +7,7 @@ import { Allergies } from './pages/Allergies'
 import { Dishes } from './pages/Dishes'
 import { ImportImages } from './pages/ImportImages'
 import { ImportMenu } from './pages/ImportMenu'
+import { Ingredients } from './pages/Ingredients'
 import { Orders } from './pages/Orders'
 import { Settings } from './pages/Settings'
 import { Zones } from './pages/Zones'
@@ -28,6 +29,7 @@ export default function AdminApp() {
           <Route index element={<Dashboard />} />
           <Route path="menus" element={<Menus />} />
           <Route path="dishes" element={<Dishes />} />
+          <Route path="ingredients" element={<Ingredients />} />
           <Route path="allergies" element={<Allergies />} />
           <Route path="import-menu" element={<ImportMenu />} />
           <Route path="dish-images" element={<ImportImages />} />
