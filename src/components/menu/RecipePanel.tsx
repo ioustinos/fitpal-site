@@ -53,8 +53,8 @@ export function RecipePanel({ dishId, variantId, lang }: Props) {
   }
 
   const headerLabel = lang === 'el'
-    ? `Πλήρης σύνθεση (${items.length})`
-    : `Full ingredients (${items.length})`
+    ? `Συστατικά (${items.length})`
+    : `Ingredients (${items.length})`
 
   return (
     <div className={`dm-recipe${expanded ? ' expanded' : ''}`}>
