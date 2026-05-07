@@ -7,6 +7,8 @@ import { useMenuStore } from '../../store/useMenuStore'
 import { useToast } from '../ui/Toast'
 import { effPrice, isDayOrderable } from '../../lib/helpers'
 import { makeTr } from '../../lib/translations'
+import { RecipePanel } from './RecipePanel'
+import { VariantPicker } from './VariantPicker'
 
 export function DishModal() {
   const lang = useUIStore((s) => s.lang)
@@ -145,37 +147,18 @@ export function DishModal() {
           />
         )}
 
-        {/* Variant selector — matches demo .variant-row layout */}
-        {dish.variants.length > 1 && (
-          <div className="dm-variants">
-            <div className="dm-section-title">{t('selectSize')}</div>
-            <div className="dm-variant-list">
-              {dish.variants.map((v) => {
-                const vBase = effPrice(v.price, dish.discount)
-                const vFinal = vBase
-                const isActive = variantId === v.id
-                return (
-                  <div
-                    key={v.id}
-                    className={`variant-row${isActive ? ' sel' : ''}`}
-                    onClick={() => setVariantId(v.id)}
-                  >
-                    <div className="vr-radio" />
-                    <div className="vr-info">
-                      <div className="vr-label">{lang === 'el' ? v.labelEl : v.labelEn}</div>
-                      {v.macros && (
-                        <div className="vr-macros">
-                          {v.macros.cal} kcal · {v.macros.pro}g {t('pro')} · {v.macros.carb}g {t('carb')} · {v.macros.fat}g {t('fat')}
-                        </div>
-                      )}
-                    </div>
-                    <div className="vr-price">€{vFinal.toFixed(2)}</div>
-                  </div>
-                )
-              })}
-            </div>
-          </div>
-        )}
+        {/* Recipe panel — full ingredient list for the selected variant (WEC-245).
+            Renders nothing when the dish has no structured recipe rows yet. */}
+        <RecipePanel dishId={dish.id} variantId={variant.id} lang={lang} />
+
+        {/* Variant picker — pills for ≤4 variants, ingredient dropdowns for 5+,
+            with admin override via dishes.variant_ux_mode (WEC-246). */}
+        <VariantPicker
+          dish={dish}
+          selectedVariantId={variantId}
+          onChange={setVariantId}
+          lang={lang}
+        />
 
         {/* Dish comment */}
         <div className="dm-comment-wrap">

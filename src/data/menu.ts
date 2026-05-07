@@ -34,6 +34,8 @@ export interface Dish {
   previewPro?: number
   previewCarb?: number
   previewFat?: number
+  /** Customer-side variant picker mode (WEC-246). Defaults to 'auto'. */
+  variantUxMode?: 'auto' | 'pills' | 'dropdowns'
 }
 
 export interface WeekDay {

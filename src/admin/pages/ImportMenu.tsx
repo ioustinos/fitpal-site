@@ -6,6 +6,7 @@ import {
   type ParsedDish,
   type ClassifiedDishIngredient,
 } from '../../lib/menu-csv/parse'
+import { DishImageImporter } from '../components/DishImageImporter'
 
 /**
  * Admin → Import menu (CSV).
@@ -288,9 +289,23 @@ export function ImportMenu() {
                 <li>{importState.ingredientsUpserted} ingredients in catalog</li>
                 <li>{importState.recipeRowsInserted} recipe rows inserted</li>
               </ul>
-              <a href="/admin/dish-images" className="admin-btn admin-btn-primary" style={{ marginTop: 12, display: 'inline-block' }}>
-                Next: import images →
-              </a>
+
+              {/* WEC-244: image import button right here so the operator
+                  doesn't have to navigate to /admin/dish-images. Same
+                  component used on that page — single source of truth. */}
+              <div style={{ marginTop: 16 }}>
+                <h4 style={{ fontSize: 13, marginBottom: 6 }}>4. Import images</h4>
+                <p style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 8 }}>
+                  Pulls the dishes' Drive image URLs into Supabase Storage. Runs serially.
+                </p>
+                <DishImageImporter
+                  dishIds={parsed?.dishes.map((d) => d.id)}
+                  reloadKey={Date.now()}
+                />
+                <p style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 8 }}>
+                  Or visit <a href="/admin/dish-images">Dish images</a> to manage all imports across the catalog.
+                </p>
+              </div>
             </div>
           )}
           {importState.state === 'error' && (

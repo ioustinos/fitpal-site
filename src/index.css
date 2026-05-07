@@ -740,6 +740,10 @@ header {
 .auth-switch { font-size: 12px; font-weight: 600; color: var(--text-muted); text-align: center; }
 .auth-switch span { color: var(--green-dark); font-weight: 800; cursor: pointer; }
 .auth-switch span:hover { text-decoration: underline; }
+.auth-note { font-size: 12px; font-weight: 600; color: var(--text-muted); background: var(--green-pale); border: 1px solid var(--green-light); border-radius: var(--radius-sm); padding: 9px 12px; line-height: 1.5; }
+.auth-otp-toggle { text-align: center; }
+.auth-otp-toggle button { background: none; border: none; font-size: 12px; font-weight: 700; color: var(--green-dark); cursor: pointer; padding: 4px 8px; text-decoration: underline; text-underline-offset: 2px; font-family: inherit; }
+.auth-otp-toggle button:hover { color: var(--green); }
 
 /* ══════════════════════════════════════════
    BUTTONS
@@ -1241,6 +1245,14 @@ header {
 .payment-desc { font-weight: 400; font-size: 11px; color: var(--text-muted); }
 .payment-check { margin-left: auto; color: var(--green); flex-shrink: 0; }
 
+/* Bank transfer info reveal — shown when 'transfer' is the selected method */
+.bank-info-box { background: var(--green-pale); border: 1px solid var(--green-light); border-radius: var(--radius); padding: 14px 16px; }
+.bank-info-title { font-size: 12px; font-weight: 800; color: var(--green-dark); letter-spacing: 0.4px; margin-bottom: 10px; text-transform: uppercase; }
+.bank-info-list { display: grid; grid-template-columns: max-content 1fr; gap: 6px 14px; margin: 0; }
+.bank-info-list dt { font-size: 11px; font-weight: 700; color: var(--text-muted); letter-spacing: 0.3px; text-transform: uppercase; align-self: center; }
+.bank-info-list dd { font-size: 13px; font-weight: 700; color: var(--text); margin: 0; font-variant-numeric: tabular-nums; }
+.bank-info-note { margin-top: 10px; font-size: 11px; font-weight: 600; color: var(--text-mid); line-height: 1.5; padding-top: 10px; border-top: 1px solid var(--green-light); }
+
 /* ══════════════════════════════════════════
    EXTRAS SECTION
 ══════════════════════════════════════════ */
@@ -1417,6 +1429,19 @@ header {
 .btn-save-green:hover { background: var(--green-dark); }
 .btn-cancel { padding: 10px 20px; background: none; border: 1px solid var(--border); border-radius: var(--radius-sm); font-size: 13px; font-weight: 700; color: var(--text-muted); cursor: pointer; transition: all 0.18s; }
 .btn-cancel:hover { border-color: var(--text-muted); color: var(--text); }
+
+/* Set/change password section in Account → Profile (OTP-everywhere epic) */
+.set-password-section { margin-top: 24px; padding-top: 20px; border-top: 1px solid var(--border); }
+.set-password-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
+.set-password-title { font-size: 14px; font-weight: 800; color: var(--text); margin-bottom: 2px; }
+.set-password-desc { font-size: 12px; font-weight: 600; color: var(--text-muted); line-height: 1.5; max-width: 380px; }
+.btn-link-green { background: none; border: none; color: var(--green-dark); font-size: 13px; font-weight: 800; cursor: pointer; text-decoration: underline; text-underline-offset: 2px; padding: 4px 0; font-family: inherit; flex-shrink: 0; }
+.btn-link-green:hover { color: var(--green); }
+.btn-link-muted { background: none; border: none; color: var(--text-muted); font-size: 13px; font-weight: 700; cursor: pointer; padding: 4px 8px; font-family: inherit; }
+.btn-link-muted:hover { color: var(--text); }
+.set-password-form { display: flex; flex-direction: column; gap: 12px; margin-top: 14px; padding: 16px; background: var(--cream-light); border: 1px solid var(--border); border-radius: var(--radius); }
+.set-password-actions { display: flex; align-items: center; gap: 10px; margin-top: 4px; }
+.set-password-ok { font-size: 12px; font-weight: 700; color: var(--green); }
 
 /* ── Addresses (WEC-79) ── */
 .addr-card { border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 16px; }

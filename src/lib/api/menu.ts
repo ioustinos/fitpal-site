@@ -18,6 +18,7 @@ interface DbDish {
   preview_pro: number | null
   preview_carb: number | null
   preview_fat: number | null
+  variant_ux_mode: 'auto' | 'pills' | 'dropdowns' | null
 }
 
 interface DbVariant {
@@ -106,6 +107,7 @@ const toDish = (
   previewPro: row.preview_pro ?? undefined,
   previewCarb: row.preview_carb ?? undefined,
   previewFat: row.preview_fat ?? undefined,
+  variantUxMode: row.variant_ux_mode ?? 'auto',
 })
 
 const toCategory = (row: DbCategory): CategoryDef => ({
@@ -221,7 +223,7 @@ export async function fetchWeekDishes(menuId: string): Promise<{
   // 2. Dishes
   const { data: rawDishes, error: dishErr } = await supabase
     .from('dishes')
-    .select('id, category_id, name_el, name_en, desc_el, desc_en, image_url, emoji, discount_pct, active, preview_cal, preview_pro, preview_carb, preview_fat')
+    .select('id, category_id, name_el, name_en, desc_el, desc_en, image_url, emoji, discount_pct, active, preview_cal, preview_pro, preview_carb, preview_fat, variant_ux_mode')
     .in('id', dishIds)
     .eq('active', true)
 
@@ -310,7 +312,7 @@ export async function fetchActiveMenu(): Promise<{
   // 3. Dishes
   const { data: rawDishes, error: dishErr } = await supabase
     .from('dishes')
-    .select('id, category_id, name_el, name_en, desc_el, desc_en, image_url, emoji, discount_pct, active, preview_cal, preview_pro, preview_carb, preview_fat')
+    .select('id, category_id, name_el, name_en, desc_el, desc_en, image_url, emoji, discount_pct, active, preview_cal, preview_pro, preview_carb, preview_fat, variant_ux_mode')
     .in('id', dishIds)
     .eq('active', true)
 
@@ -426,7 +428,7 @@ export async function fetchDishesForDay(date: string): Promise<{
   // Fetch dishes + variants + tags
   const { data: rawDishes, error: dErr } = await supabase
     .from('dishes')
-    .select('id, category_id, name_el, name_en, desc_el, desc_en, image_url, emoji, discount_pct, active, preview_cal, preview_pro, preview_carb, preview_fat')
+    .select('id, category_id, name_el, name_en, desc_el, desc_en, image_url, emoji, discount_pct, active, preview_cal, preview_pro, preview_carb, preview_fat, variant_ux_mode')
     .in('id', dishIds)
     .eq('active', true)
 
