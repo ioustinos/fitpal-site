@@ -51,6 +51,8 @@ export function PaymentSection() {
     return true
   })
 
+  const bankInfo = useMenuStore((s) => s.settings.bankTransferInfo)
+
   return (
     <div className="payment-section">
       <div className="payment-methods">
@@ -83,6 +85,24 @@ export function PaymentSection() {
           </button>
         ))}
       </div>
+
+      {payment.method === 'transfer' && bankInfo?.iban && (
+        <div className="bank-info-box">
+          <div className="bank-info-title">
+            {lang === 'el' ? 'Στοιχεία τραπεζικής μεταφοράς' : 'Bank transfer details'}
+          </div>
+          <dl className="bank-info-list">
+            <dt>IBAN</dt> <dd>{bankInfo.iban}</dd>
+            <dt>{lang === 'el' ? 'Δικαιούχος' : 'Beneficiary'}</dt> <dd>{bankInfo.beneficiary}</dd>
+            {bankInfo.bankName && (<><dt>{lang === 'el' ? 'Τράπεζα' : 'Bank'}</dt> <dd>{bankInfo.bankName}</dd></>)}
+          </dl>
+          <div className="bank-info-note">
+            {lang === 'el'
+              ? 'Η παραγγελία σου θα επιβεβαιωθεί όταν λάβουμε το ποσό. Χρησιμοποίησε τον αριθμό παραγγελίας ως αιτιολογία.'
+              : 'Your order is confirmed once we receive the funds. Use your order number as the wire reference.'}
+          </div>
+        </div>
+      )}
     </div>
   )
 }

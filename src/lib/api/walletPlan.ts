@@ -70,36 +70,9 @@ export async function purchaseWalletPlan(
   }
 }
 
-/** Send a 6-digit email OTP to the given email. Creates the user if missing. */
-export async function sendEmailOtp(
-  email: string,
-  name: string,
-): Promise<{ ok: boolean; error?: string }> {
-  const { error } = await supabase.auth.signInWithOtp({
-    email,
-    options: {
-      shouldCreateUser: true,
-      data: { name },
-    },
-  })
-  if (error) return { ok: false, error: error.message }
-  return { ok: true }
-}
-
-/** Verify a 6-digit email OTP. Returns active session on success. */
-export async function verifyEmailOtp(
-  email: string,
-  token: string,
-): Promise<{ ok: boolean; error?: string }> {
-  const { data, error } = await supabase.auth.verifyOtp({
-    email,
-    token,
-    type: 'email',
-  })
-  if (error) return { ok: false, error: error.message }
-  if (!data.session) return { ok: false, error: 'Verification succeeded but no session returned' }
-  return { ok: true }
-}
+// OTP helpers moved to src/lib/api/auth.ts since they're shared with AuthModal.
+// Re-export here so existing callers keep working.
+export { sendEmailOtp, verifyEmailOtp } from './auth'
 
 /** After OTP verify + phone capture, write phone to the user's profile. */
 export async function savePhoneToProfile(phone: string): Promise<{ ok: boolean; error?: string }> {

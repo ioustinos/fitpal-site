@@ -26,6 +26,12 @@ interface ContactInfo {
   facebookUrl?: string
 }
 
+interface BankTransferInfo {
+  iban?: string
+  beneficiary?: string
+  bankName?: string
+}
+
 export function Settings() {
   const [all, setAll] = useState<SettingRow[]>([])
   const [allergies, setAllergies] = useState<AdminAllergy[]>([])
@@ -73,6 +79,7 @@ export function Settings() {
           <TimeSlotsSection value={(byKey.get('time_slots') as string[]) ?? []} onSave={(v) => save('time_slots', v)} />
           <PaymentMethodsSection value={(byKey.get('payment_methods_enabled') as PaymentMethod[]) ?? ALL_PAYMENT_METHODS} onSave={(v) => save('payment_methods_enabled', v)} />
           <ContactInfoSection value={(byKey.get('contact') as ContactInfo) ?? {}} onSave={(v) => save('contact', v)} />
+          <BankTransferInfoSection value={(byKey.get('bank_transfer_info') as BankTransferInfo) ?? {}} onSave={(v) => save('bank_transfer_info', v)} />
           <AllergiesSection allergies={allergies} onChanged={refresh} />
           <RawJsonSection rows={all} onSaved={refresh} />
         </>
@@ -290,6 +297,38 @@ function ContactInfoSection({ value, onSave }: { value: ContactInfo; onSave: (v:
         <div>
           <label className="admin-form-label">Facebook URL</label>
           <input className="admin-input" type="url" value={form.facebookUrl ?? ''} onChange={(e) => patch('facebookUrl', e.target.value)} placeholder="https://facebook.com/…" />
+        </div>
+      </div>
+      <div className="admin-inline-form" style={{ marginTop: 12 }}>
+        <button className="admin-btn-primary" disabled={!dirty} onClick={() => onSave(form)}>Save</button>
+      </div>
+    </SectionCard>
+  )
+}
+
+function BankTransferInfoSection({ value, onSave }: { value: BankTransferInfo; onSave: (v: BankTransferInfo) => void }) {
+  const [form, setForm] = useState<BankTransferInfo>(value)
+  useEffect(() => setForm(value), [value])
+  const dirty = JSON.stringify(form) !== JSON.stringify(value)
+
+  function patch<K extends keyof BankTransferInfo>(k: K, v: BankTransferInfo[K]) {
+    setForm((f) => ({ ...f, [k]: v }))
+  }
+
+  return (
+    <SectionCard title="Bank transfer info" desc="Shown to customers who pick bank transfer at checkout — applies to both regular orders and wallet plan purchases.">
+      <div className="admin-grid-2">
+        <div style={{ gridColumn: '1 / -1' }}>
+          <label className="admin-form-label">IBAN</label>
+          <input className="admin-input" type="text" value={form.iban ?? ''} onChange={(e) => patch('iban', e.target.value)} placeholder="GR00 0000 0000 0000 0000 0000 000" />
+        </div>
+        <div>
+          <label className="admin-form-label">Beneficiary</label>
+          <input className="admin-input" type="text" value={form.beneficiary ?? ''} onChange={(e) => patch('beneficiary', e.target.value)} placeholder="Fitpal Meals" />
+        </div>
+        <div>
+          <label className="admin-form-label">Bank name (optional)</label>
+          <input className="admin-input" type="text" value={form.bankName ?? ''} onChange={(e) => patch('bankName', e.target.value)} placeholder="Eurobank, Πειραιώς…" />
         </div>
       </div>
       <div className="admin-inline-form" style={{ marginTop: 12 }}>

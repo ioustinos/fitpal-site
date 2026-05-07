@@ -90,6 +90,7 @@ export const useMenuStore = create<MenuStore>((set, get) => ({
     cutoffDateOverrides: {},
     paymentMethodsEnabled: ['cash', 'card', 'link', 'transfer', 'wallet'],
     contact: {},
+    bankTransferInfo: { iban: '', beneficiary: '' },
   },
   isLoading: false,
   error: null,

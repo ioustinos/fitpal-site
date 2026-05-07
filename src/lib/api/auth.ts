@@ -177,6 +177,60 @@ export async function signOut(): Promise<{ error: string | null }> {
   return { error: error?.message ?? null }
 }
 
+// ─── OTP (passwordless email auth) ───────────────────────────────────────────
+//
+// Used by AuthModal (regular signup + optional login) and WalletPage (wallet
+// plan signup). Same Supabase APIs across the site so behaviour is consistent.
+//
+// Requires the Supabase email template ("Magic Link") to render `{{ .Token }}`
+// — without that, signInWithOtp delivers a clickable link instead of a code
+// and verifyOtp won't match. See docs setup notes.
+
+export async function sendEmailOtp(
+  email: string,
+  name?: string,
+): Promise<{ ok: boolean; error?: string }> {
+  const emailRedirectTo = typeof window !== 'undefined' ? window.location.origin : undefined
+
+  const { error } = await supabase.auth.signInWithOtp({
+    email,
+    options: {
+      shouldCreateUser: true,
+      data: name ? { name } : undefined,
+      emailRedirectTo,
+    },
+  })
+  if (error) return { ok: false, error: error.message }
+  return { ok: true }
+}
+
+export async function verifyEmailOtp(
+  email: string,
+  token: string,
+): Promise<{ ok: boolean; error?: string }> {
+  const { data, error } = await supabase.auth.verifyOtp({ email, token, type: 'email' })
+  if (error) return { ok: false, error: error.message }
+  if (!data.session) return { ok: false, error: 'Verification succeeded but no session returned' }
+  return { ok: true }
+}
+
+/**
+ * Set or change the password on the currently logged-in user. Used by
+ * Account → Profile to let an OTP-signed-up user opt into fast password
+ * login on subsequent visits. Existing users with a password use this to
+ * change it.
+ */
+export async function updatePassword(
+  newPassword: string,
+): Promise<{ ok: boolean; error?: string }> {
+  if (newPassword.length < 6) {
+    return { ok: false, error: 'Password must be at least 6 characters' }
+  }
+  const { error } = await supabase.auth.updateUser({ password: newPassword })
+  if (error) return { ok: false, error: error.message }
+  return { ok: true }
+}
+
 export async function getSession(): Promise<{
   data: { userId: string; email: string } | null
   error: string | null

@@ -27,6 +27,12 @@ export interface ContactInfo {
   facebookUrl?: string
 }
 
+export interface BankTransferInfo {
+  iban: string
+  beneficiary: string
+  bankName?: string
+}
+
 export interface AppSettings {
   minOrder: number                                        // euros
   cutoffHour: number                                      // default cutoff hour on previous day
@@ -36,6 +42,8 @@ export interface AppSettings {
   paymentMethodsEnabled: PaymentMethodId[]
   /** Contact info shown to customers (footer, emails). */
   contact: ContactInfo
+  /** Bank wire details shown when customer picks bank-transfer payment. */
+  bankTransferInfo: BankTransferInfo
 }
 
 const ALL_METHODS: PaymentMethodId[] = ['cash', 'card', 'link', 'transfer', 'wallet']
@@ -47,6 +55,7 @@ const DEFAULTS: AppSettings = {
   cutoffDateOverrides: {},
   paymentMethodsEnabled: ALL_METHODS,
   contact: {},
+  bankTransferInfo: { iban: '', beneficiary: '' },
 }
 
 // ─── Query ──────────────────────────────────────────────────────────────────
@@ -99,6 +108,14 @@ export async function fetchSettings(): Promise<{ data: AppSettings; error: strin
   if (typeof rawContact.instagramUrl === 'string') contact.instagramUrl = rawContact.instagramUrl
   if (typeof rawContact.facebookUrl === 'string') contact.facebookUrl = rawContact.facebookUrl
 
+  // bank_transfer_info — IBAN + beneficiary + optional bank name
+  const rawBank = (map.bank_transfer_info as Record<string, unknown> | undefined) ?? {}
+  const bankTransferInfo: BankTransferInfo = {
+    iban: typeof rawBank.iban === 'string' ? rawBank.iban : '',
+    beneficiary: typeof rawBank.beneficiary === 'string' ? rawBank.beneficiary : '',
+    bankName: typeof rawBank.bankName === 'string' ? rawBank.bankName : undefined,
+  }
+
   return {
     data: {
       minOrder: typeof map.min_order === 'number' ? map.min_order / 100 : DEFAULTS.minOrder,
@@ -107,6 +124,7 @@ export async function fetchSettings(): Promise<{ data: AppSettings; error: strin
       cutoffDateOverrides,
       paymentMethodsEnabled: paymentMethodsFinal,
       contact,
+      bankTransferInfo,
     },
     error: null,
   }

@@ -204,13 +204,14 @@ export default async (request: Request) => {
 
     // 9. Branch by payment method
     if (body.paymentMethod === 'transfer') {
-      // Bank transfer — return wire instructions, plan stays pending until admin marks paid
+      // Bank transfer — return wire instructions from settings; plan stays
+      // pending until admin marks paid (when funds land).
       const response: PurchaseResultTransfer = {
         walletPlanId,
         paymentMethod: 'transfer',
         bankInstructions: {
-          iban: process.env.FITPAL_BANK_IBAN ?? 'GR00 0000 0000 0000 0000 0000 000',
-          beneficiary: process.env.FITPAL_BANK_BENEFICIARY ?? 'Fitpal Meals',
+          iban: config.bankTransferInfo.iban || 'IBAN not configured — contact support',
+          beneficiary: config.bankTransferInfo.beneficiary || 'Fitpal',
           reference: `WP-${walletPlanId.slice(0, 8).toUpperCase()}`,
         },
       }

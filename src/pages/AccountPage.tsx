@@ -245,6 +245,109 @@ function ProfileTab({ user, lang }: any) {
           ? (lang === 'el' ? '✓ Αποθηκεύτηκε' : '✓ Saved')
           : (lang === 'el' ? 'Αποθήκευση' : 'Save')}
       </button>
+
+      <SetPasswordSection lang={lang} />
+    </div>
+  )
+}
+
+/* ───────────────────────────────────────────────────────────────────────────
+   Set / change password — optional, OTP-everywhere epic
+─────────────────────────────────────────────────────────────────────────── */
+
+function SetPasswordSection({ lang }: { lang: 'el' | 'en' }) {
+  const isEl = lang === 'el'
+  const [open, setOpen] = useState(false)
+  const [pwd, setPwd] = useState('')
+  const [pwd2, setPwd2] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [msg, setMsg] = useState<{ type: 'ok' | 'err'; text: string } | null>(null)
+
+  async function handleSave() {
+    setMsg(null)
+    if (pwd.length < 6) {
+      setMsg({ type: 'err', text: isEl ? 'Τουλάχιστον 6 χαρακτήρες' : 'At least 6 characters' })
+      return
+    }
+    if (pwd !== pwd2) {
+      setMsg({ type: 'err', text: isEl ? 'Οι κωδικοί δεν ταιριάζουν' : 'Passwords do not match' })
+      return
+    }
+    setBusy(true)
+    const { updatePassword } = await import('../lib/api/auth')
+    const { ok, error } = await updatePassword(pwd)
+    setBusy(false)
+    if (!ok) { setMsg({ type: 'err', text: error ?? 'Could not save password' }); return }
+    setMsg({ type: 'ok', text: isEl ? '✓ Ο κωδικός αποθηκεύτηκε' : '✓ Password saved' })
+    setPwd(''); setPwd2('')
+    setTimeout(() => setMsg(null), 3000)
+  }
+
+  return (
+    <div className="set-password-section">
+      <div className="set-password-head">
+        <div>
+          <div className="set-password-title">
+            {isEl ? 'Κωδικός σύνδεσης' : 'Sign-in password'}
+          </div>
+          <div className="set-password-desc">
+            {isEl
+              ? 'Προαιρετικός. Με κωδικό συνδέεσαι ταχύτερα από συσκευή που σε θυμάται.'
+              : 'Optional. Lets you sign in faster on devices that remember you.'}
+          </div>
+        </div>
+        {!open && (
+          <button className="btn-link-green" type="button" onClick={() => setOpen(true)}>
+            {isEl ? 'Ορισμός / αλλαγή' : 'Set / change'}
+          </button>
+        )}
+      </div>
+
+      {open && (
+        <div className="set-password-form">
+          <div className="form-row">
+            <label className="form-label">{isEl ? 'Νέος κωδικός' : 'New password'}</label>
+            <input
+              className="form-input"
+              type="password"
+              value={pwd}
+              onChange={(e) => setPwd(e.target.value)}
+              autoComplete="new-password"
+              minLength={6}
+              placeholder="••••••••"
+            />
+          </div>
+          <div className="form-row">
+            <label className="form-label">{isEl ? 'Επιβεβαίωση' : 'Confirm'}</label>
+            <input
+              className="form-input"
+              type="password"
+              value={pwd2}
+              onChange={(e) => setPwd2(e.target.value)}
+              autoComplete="new-password"
+              minLength={6}
+              placeholder="••••••••"
+            />
+          </div>
+          {msg && (
+            <div className={msg.type === 'err' ? 'auth-error' : 'set-password-ok'}>
+              {msg.text}
+            </div>
+          )}
+          <div className="set-password-actions">
+            <button className="btn-save-green" type="button" onClick={handleSave} disabled={busy || !pwd || !pwd2}>
+              {busy ? '...' : (isEl ? 'Αποθήκευση' : 'Save')}
+            </button>
+            <button
+              className="btn-link-muted"
+              type="button"
+              onClick={() => { setOpen(false); setPwd(''); setPwd2(''); setMsg(null) }}
+            >
+              {isEl ? 'Άκυρο' : 'Cancel'}
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

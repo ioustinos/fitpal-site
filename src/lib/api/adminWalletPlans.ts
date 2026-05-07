@@ -90,7 +90,7 @@ export async function fetchAdminWalletPlans(
 ): Promise<{ data: AdminWalletPlanRow[] | null; error: string | null }> {
   let q = supabase
     .from('wallet_plans')
-    .select('*, wallets!inner(user_id, profiles:user_id(name, email))')
+    .select('*, wallets!wallet_plans_wallet_id_fkey(user_id, profiles:user_id(name, email))')
     .order('created_at', { ascending: false })
     .limit(filters.limit ?? 100)
 
@@ -110,7 +110,7 @@ export async function fetchAdminWalletPlanDetail(
 ): Promise<{ data: AdminWalletPlanDetail | null; error: string | null }> {
   const { data, error } = await supabase
     .from('wallet_plans')
-    .select('*, wallets!inner(user_id, profiles:user_id(name, email))')
+    .select('*, wallets!wallet_plans_wallet_id_fkey(user_id, profiles:user_id(name, email))')
     .eq('id', planId)
     .maybeSingle()
   if (error) return { data: null, error: error.message }

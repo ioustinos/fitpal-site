@@ -32,6 +32,12 @@ interface ServiceCatalogItem {
   defaultOn: boolean
 }
 
+export interface BankTransferInfo {
+  iban: string
+  beneficiary: string
+  bankName?: string
+}
+
 export interface FullWalletConfig {
   /** The settings the calculator needs */
   settings: WalletSettings
@@ -43,6 +49,8 @@ export interface FullWalletConfig {
   servicesCatalog: ServiceCatalogItem[]
   /** Minimum total (cents) for a wallet purchase */
   minAmountCents: number
+  /** Bank wire details shown on the transfer-payment success overlay */
+  bankTransferInfo: BankTransferInfo
 }
 
 let cache: { value: FullWalletConfig; loadedAt: number } | null = null
@@ -75,6 +83,7 @@ export async function loadWalletConfig(opts: { force?: boolean } = {}): Promise<
       'wallet_voucher_enabled',
       'wallet_services_catalog',
       'wallet_min_amount_cents',
+      'bank_transfer_info',
     ])
 
   if (error) {
@@ -96,10 +105,11 @@ export async function loadWalletConfig(opts: { force?: boolean } = {}): Promise<
 
   const config: FullWalletConfig = {
     settings,
-    paymentMethods:  (map.get('wallet_payment_methods')   as PaymentMethod[])         ?? ['card', 'link', 'transfer'],
-    voucherEnabled:  (map.get('wallet_voucher_enabled')   as boolean)                 ?? true,
-    servicesCatalog: (map.get('wallet_services_catalog')  as ServiceCatalogItem[])    ?? [],
-    minAmountCents:  (map.get('wallet_min_amount_cents')  as number)                  ?? 3000,
+    paymentMethods:   (map.get('wallet_payment_methods')   as PaymentMethod[])         ?? ['card', 'link', 'transfer'],
+    voucherEnabled:   (map.get('wallet_voucher_enabled')   as boolean)                 ?? true,
+    servicesCatalog:  (map.get('wallet_services_catalog')  as ServiceCatalogItem[])    ?? [],
+    minAmountCents:   (map.get('wallet_min_amount_cents')  as number)                  ?? 3000,
+    bankTransferInfo: (map.get('bank_transfer_info') as BankTransferInfo)              ?? { iban: '', beneficiary: '' },
   }
 
   cache = { value: config, loadedAt: Date.now() }
@@ -118,5 +128,6 @@ function defaultConfig(): FullWalletConfig {
     voucherEnabled: true,
     servicesCatalog: [],
     minAmountCents: 3000,
+    bankTransferInfo: { iban: '', beneficiary: '' },
   }
 }
