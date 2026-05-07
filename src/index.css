@@ -616,6 +616,18 @@ header {
 .dm-section-title { font-size: 12px; font-weight: 900; color: var(--text); /* uppercase removed — WEC-187 */ letter-spacing: 0.5px; margin-bottom: 7px; }
 /* WEC-132: variant list no longer needs its own internal scroll — outer modal already scrolls */
 .dm-variants { display: flex; flex-direction: column; gap: 6px; margin-bottom: 14px; }
+/* WEC-245: recipe panel — full ingredient list per variant */
+.dm-recipe { margin-bottom: 14px; }
+.dm-recipe-list { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 4px; }
+.dm-recipe-item { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; padding: 6px 10px; background: var(--cream, #faf7f2); border-radius: 8px; font-size: 12px; }
+.dm-recipe-name { color: var(--text); }
+.dm-recipe-grams { color: var(--text-muted); font-weight: 700; font-size: 11px; flex-shrink: 0; }
+/* WEC-246: dropdowns variant picker (5+ variants OR admin override) */
+.dm-variant-dropdowns { display: flex; flex-direction: column; gap: 10px; }
+.dm-variant-dropdown { display: flex; flex-direction: column; gap: 4px; }
+.dm-variant-dropdown-label { font-size: 11px; font-weight: 700; color: var(--text-muted); }
+.dm-variant-dropdown-select { padding: 8px 10px; border: 1.5px solid var(--border); border-radius: 8px; background: var(--white); font-size: 13px; font-weight: 600; color: var(--text); cursor: pointer; appearance: none; background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23666' stroke-width='2.5'><polyline points='6 9 12 15 18 9'/></svg>"); background-repeat: no-repeat; background-position: right 10px center; padding-right: 32px; }
+.dm-variant-dropdown-select:focus { outline: none; border-color: var(--green); }
 /* variant-row — WEC-132 compact */
 .variant-row { display: flex; align-items: center; gap: 10px; padding: 8px 12px; border: 2px solid var(--border); border-radius: var(--radius); cursor: pointer; transition: all 0.18s; background: var(--white); }
 .variant-row:hover, .variant-row.sel { border-color: var(--green); background: var(--green-pale); }
