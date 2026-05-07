@@ -13,6 +13,7 @@ export interface AdminVariant {
   carbs: number
   fat: number
   sortOrder: number
+  isDefault: boolean
 }
 
 export interface AdminDish {
@@ -98,12 +99,14 @@ export async function fetchAdminDishes(): Promise<{ data: AdminDish[] | null; er
     const row = v as {
       id: string; dish_id: string; label_el: string; label_en: string; price: number;
       calories: number | null; protein: number | null; carbs: number | null; fat: number | null; sort_order: number;
+      is_default: boolean | null;
     }
     const arr = variantsByDish.get(row.dish_id) ?? []
     arr.push({
       id: row.id, dishId: row.dish_id, labelEl: row.label_el, labelEn: row.label_en ?? '',
       price: row.price, calories: row.calories ?? 0, protein: row.protein ?? 0,
       carbs: row.carbs ?? 0, fat: row.fat ?? 0, sortOrder: row.sort_order ?? 0,
+      isDefault: row.is_default ?? false,
     })
     variantsByDish.set(row.dish_id, arr)
   }
@@ -251,6 +254,7 @@ export async function saveDish(input: SaveDishInput): Promise<{ data: { id: stri
       carbs: Math.round(v.carbs),
       fat: Math.round(v.fat),
       sort_order: i,
+      is_default: !!v.isDefault,
     }))
     const { error: insVarErr } = await supabase.from('dish_variants').insert(variantRows)
     if (insVarErr) return { data: null, error: insVarErr.message }

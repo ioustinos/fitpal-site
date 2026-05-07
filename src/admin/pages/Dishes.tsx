@@ -436,7 +436,7 @@ function DishDrawer({
                 onClick={() =>
                   patch('variants', [
                     ...form.variants,
-                    { id: `new-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 5)}`, dishId: form.id, labelEl: '', labelEn: '', price: 0, calories: 0, protein: 0, carbs: 0, fat: 0, sortOrder: form.variants.length },
+                    { id: `new-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 5)}`, dishId: form.id, labelEl: '', labelEn: '', price: 0, calories: 0, protein: 0, carbs: 0, fat: 0, sortOrder: form.variants.length, isDefault: false },
                   ])
                 }
               >
@@ -450,6 +450,12 @@ function DishDrawer({
                 v={v}
                 onChange={(nv) => patch('variants', form.variants.map((x, j) => (j === i ? nv : x)))}
                 onDelete={() => patch('variants', form.variants.filter((_, j) => j !== i))}
+                onSetDefault={() =>
+                  // Single-default invariant: only one variant can be flagged
+                  // is_default at a time per dish. Clearing the others on the
+                  // client keeps the form in sync with the post-save state.
+                  patch('variants', form.variants.map((x, j) => ({ ...x, isDefault: j === i })))
+                }
               />
             ))}
           </section>
@@ -468,10 +474,19 @@ function DishDrawer({
   )
 }
 
-function VariantRow({ v, onChange, onDelete }: { v: AdminVariant; onChange: (v: AdminVariant) => void; onDelete: () => void }) {
+function VariantRow({ v, onChange, onDelete, onSetDefault }: { v: AdminVariant; onChange: (v: AdminVariant) => void; onDelete: () => void; onSetDefault: () => void }) {
   function num(n: string): number { return Math.max(0, +n || 0) }
   return (
     <div className="admin-variant-row">
+      <button
+        type="button"
+        className={`admin-variant-default${v.isDefault ? ' on' : ''}`}
+        onClick={onSetDefault}
+        title={v.isDefault ? 'Default variant (shown when modal opens)' : 'Set as default variant'}
+        aria-label="Set as default variant"
+      >
+        {v.isDefault ? '★' : '☆'}
+      </button>
       <input className="admin-input" placeholder="Label EL" value={v.labelEl} onChange={(e) => onChange({ ...v, labelEl: e.target.value })} />
       <input className="admin-input" placeholder="Label EN" value={v.labelEn} onChange={(e) => onChange({ ...v, labelEn: e.target.value })} />
       <input className="admin-input" type="number" step="0.01" min={0} placeholder="Price €"

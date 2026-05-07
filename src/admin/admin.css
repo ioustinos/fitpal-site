@@ -360,7 +360,7 @@
 }
 .admin-modal-overlay { justify-content: center; align-items: center; padding: 24px; }
 .admin-drawer {
-  width: min(620px, 100vw);
+  width: min(880px, 100vw);
   height: 100vh;
   background: var(--a-surface);
   display: flex; flex-direction: column;
@@ -379,11 +379,25 @@
 @keyframes admin-drawer-in { from { opacity: 0; transform: translateX(16px); } to { opacity: 1; transform: translateX(0); } }
 
 .admin-drawer-head {
-  padding: 16px 22px;
+  padding: 16px 24px;
   border-bottom: 1px solid var(--a-border);
   display: flex; align-items: center; justify-content: space-between;
+  /* Explicit colours — earlier the head was inheriting a brand-green
+     background from a parent in some routes, dropping the h2's dark text
+     onto a green field with poor contrast. Lock it down to surface white. */
+  background: var(--a-surface);
+  color: var(--a-text);
 }
-.admin-drawer-head h2 { margin: 0; font-size: 17px; font-weight: 700; }
+.admin-drawer-head h2 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--a-text);
+  letter-spacing: -0.2px;
+  /* Long Greek dish names need to wrap rather than blow out the head */
+  line-height: 1.3;
+  word-break: break-word;
+}
 .admin-drawer-close {
   width: 32px; height: 32px; border-radius: 8px;
   border: none; background: transparent; cursor: pointer;
@@ -487,9 +501,18 @@
 /* Variants repeater */
 .admin-variant-row {
   display: grid;
-  grid-template-columns: 1.2fr 1.2fr 0.9fr repeat(4, 0.8fr) 32px;
+  grid-template-columns: 32px 1.2fr 1.2fr 0.9fr repeat(4, 0.8fr) 32px;
   gap: 6px; margin-bottom: 8px; align-items: center;
 }
+.admin-variant-default {
+  width: 32px; height: 32px; border-radius: 6px;
+  border: 1px solid var(--a-border); background: var(--a-surface);
+  color: #cbd5e1; font-size: 18px; cursor: pointer;
+  display: inline-flex; align-items: center; justify-content: center;
+  transition: all 0.15s;
+}
+.admin-variant-default:hover { background: #fff8e1; border-color: #fbbf24; color: #f59e0b; }
+.admin-variant-default.on { background: #fff8e1; border-color: #f59e0b; color: #f59e0b; }
 .admin-variant-del {
   width: 32px; height: 32px; border-radius: 6px;
   border: 1px solid var(--a-border); background: var(--a-surface);

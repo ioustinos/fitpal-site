@@ -16,6 +16,10 @@ export interface Variant {
   labelEn: string
   price: number
   macros: Macros
+  /** Per-dish default variant — admin marks one in the dish editor.
+   * Customer modal opens with this one selected, falling back to
+   * sort_order=1 if no variant is marked default on this dish. */
+  isDefault?: boolean
 }
 
 export interface Dish {

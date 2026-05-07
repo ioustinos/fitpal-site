@@ -32,6 +32,7 @@ interface DbVariant {
   carbs: number | null
   fat: number | null
   sort_order: number
+  is_default: boolean
 }
 
 interface DbCategory {
@@ -80,6 +81,7 @@ const toVariant = (row: DbVariant): Variant => ({
   id: row.id,
   labelEl: row.label_el,
   labelEn: row.label_en,
+  isDefault: row.is_default,
   price: centsToEuros(row.price),
   macros: toMacros(row),
 })
@@ -232,7 +234,7 @@ export async function fetchWeekDishes(menuId: string): Promise<{
   // 3. Variants
   const { data: rawVariants, error: varErr } = await supabase
     .from('dish_variants')
-    .select('id, dish_id, label_el, label_en, price, calories, protein, carbs, fat, sort_order')
+    .select('id, dish_id, label_el, label_en, price, calories, protein, carbs, fat, sort_order, is_default')
     .in('dish_id', dishIds)
 
   if (varErr) return { data: null, error: varErr.message }
@@ -321,7 +323,7 @@ export async function fetchActiveMenu(): Promise<{
   // 4. Variants for those dishes
   const { data: rawVariants, error: varErr } = await supabase
     .from('dish_variants')
-    .select('id, dish_id, label_el, label_en, price, calories, protein, carbs, fat, sort_order')
+    .select('id, dish_id, label_el, label_en, price, calories, protein, carbs, fat, sort_order, is_default')
     .in('dish_id', dishIds)
 
   if (varErr) return { data: null, error: varErr.message }
@@ -436,7 +438,7 @@ export async function fetchDishesForDay(date: string): Promise<{
 
   const { data: rawVariants, error: vErr } = await supabase
     .from('dish_variants')
-    .select('id, dish_id, label_el, label_en, price, calories, protein, carbs, fat, sort_order')
+    .select('id, dish_id, label_el, label_en, price, calories, protein, carbs, fat, sort_order, is_default')
     .in('dish_id', dishIds)
 
   if (vErr) return { data: null, error: vErr.message }

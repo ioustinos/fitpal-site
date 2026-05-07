@@ -34,7 +34,11 @@ export function DishModal() {
 
   useEffect(() => {
     if (dish) {
-      setVariantId(dish.variants[0]?.id ?? '')
+      // Open with the admin-marked default variant if one is set; otherwise
+      // fall back to the first variant by sort_order. Defends against the
+      // (unlikely) case of multiple defaults — picks whichever sorts first.
+      const defaultV = dish.variants.find((v) => v.isDefault)
+      setVariantId(defaultV?.id ?? dish.variants[0]?.id ?? '')
       setQty(1)
       setComment('')
       setImgError(false)
