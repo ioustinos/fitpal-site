@@ -19,6 +19,8 @@ import {
 } from '../../lib/api/adminDishes'
 import { fetchDishRecipe } from '../../lib/api/dishRecipe'
 import { DishRecipeEditor, type RecipeRow } from '../components/DishRecipeEditor'
+import { supabase } from '../../lib/supabase'
+import { parseIngredientList } from '../../lib/menu-csv/parse'
 
 type LangTab = 'el' | 'en'
 
@@ -285,6 +287,130 @@ function DishDrawer({
     patch('imageUrl', url)
   }
 
+  // Import from URL (Drive link, public CDN, etc.) → server downloads + uploads
+  // to Supabase Storage and rewrites dishes.image_url. Mirrors the bulk-import
+  // flow on /admin/dish-images, but for a single dish from inside the drawer.
+  // Disabled for new dishes: the function needs a real dishes.id row to update.
+  async function handleImportFromUrl() {
+    if (isNew || !form.id) { setErr('Save the dish first, then import its image from a URL.'); return }
+    if (!form.imageUrl || !/^https?:\/\//i.test(form.imageUrl)) { setErr('Paste a URL first (https://…).'); return }
+    setUploading(true)
+    setErr(null)
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      const jwt = session?.access_token
+      if (!jwt) { setErr('Not authenticated'); setUploading(false); return }
+      const res = await fetch('/api/admin-import-dish-image', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${jwt}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ dishId: form.id, sourceUrl: form.imageUrl, force: true }),
+      })
+      const body = await res.json()
+      if (!res.ok || !body.ok) {
+        setErr(body.error ?? `HTTP ${res.status}`)
+      } else if (body.publicUrl) {
+        patch('imageUrl', body.publicUrl)
+      }
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : String(e))
+    }
+    setUploading(false)
+  }
+
+  // ─── WEC-251: Bidirectional Variants ↔ Recipe sync ────────────────────
+  // Two operations on the same data, used when the admin has built one side
+  // (text labels OR structured recipe) and wants to derive the other side
+  // mechanically instead of typing it twice.
+  //
+  // Round-trip-safe format: "<name> (<grams>γρ)" — same shape parseIngredientList
+  // recognises, so labels generated from a recipe parse cleanly back into the
+  // same recipe.
+
+  // Direction: text → ingredients. For each variant, parse its label looking
+  // for "(Xγρ)" markers, aggregate per ingredient across variants, and apply
+  // the same fixed-vs-variable classifier the CSV importer uses.
+  function recipeFromVariantLabels() {
+    setErr(null)
+    if (form.variants.length === 0) { setErr('Add at least one variant first.'); return }
+
+    const parsed = form.variants.map((v) => ({ variantId: v.id, ings: parseIngredientList(v.labelEl) }))
+    const total = parsed.reduce((n, p) => n + p.ings.length, 0)
+    if (total === 0) { setErr('No "(Xγρ)" patterns found in any variant label — nothing to parse.'); return }
+
+    if (recipe.length > 0 && !confirm('Replace the current recipe with what is parsed from the variant labels?')) return
+
+    // Aggregate per searchKey, preserving first-seen order across variants.
+    const byKey = new Map<string, { name: string; perVariant: Record<string, number>; order: number }>()
+    let nextOrder = 0
+    for (const { variantId, ings } of parsed) {
+      for (const ing of ings) {
+        let row = byKey.get(ing.searchKey)
+        if (!row) {
+          row = { name: ing.name, perVariant: {}, order: ++nextOrder }
+          byKey.set(ing.searchKey, row)
+        }
+        row.perVariant[variantId] = (row.perVariant[variantId] ?? 0) + ing.grams
+      }
+    }
+
+    // Classify: same grams in every variant → Fixed; otherwise Variable.
+    const rows: RecipeRow[] = []
+    let i = 0
+    for (const [, info] of byKey) {
+      const distinct = new Set(Object.values(info.perVariant))
+      const presentInAll = Object.keys(info.perVariant).length === form.variants.length
+      const isVariant = !(distinct.size === 1 && presentInAll)
+      if (isVariant) {
+        for (const v of form.variants) {
+          if (info.perVariant[v.id] == null) info.perVariant[v.id] = 0
+        }
+      }
+      rows.push({
+        _key: `gen-${Date.now().toString(36)}-${i}`,
+        // ingredientId stays null — saveDishRecipe resolves by search_key,
+        // creating catalog rows for any new names. Keeps this generator
+        // independent of the catalog state in DishRecipeEditor.
+        ingredientId: null,
+        nameEl: info.name,
+        isVariant,
+        fixedGrams: isVariant ? null : Array.from(distinct)[0],
+        perVariant: isVariant ? info.perVariant : {},
+        sortOrder: info.order,
+      })
+      i++
+    }
+    setRecipe(rows)
+  }
+
+  // Direction: ingredients → text. For each variant, walk the recipe rows
+  // and build "<name> (<grams>γρ), …" from the ones with grams > 0 in that
+  // variant. Empty grams are skipped so the label stays clean for variants
+  // where a Variable ingredient is absent.
+  function labelsFromRecipe() {
+    setErr(null)
+    if (recipe.length === 0) { setErr('Add ingredients first.'); return }
+    if (form.variants.length === 0) { setErr('Add at least one variant first.'); return }
+
+    const hasLabels = form.variants.some((v) => v.labelEl.trim().length > 0)
+    if (hasLabels && !confirm('Overwrite the current variant labels with text generated from the recipe?')) return
+
+    const sorted = [...recipe].sort((a, b) => a.sortOrder - b.sortOrder)
+    const newVariants = form.variants.map((v) => {
+      const parts: string[] = []
+      for (const r of sorted) {
+        const grams = r.isVariant ? (r.perVariant[v.id] ?? 0) : (r.fixedGrams ?? 0)
+        if (grams > 0 && r.nameEl.trim()) {
+          // Render integers as integers ("200γρ"), halves with one decimal
+          // ("12.5γρ"). String(num) already does this in JS — no formatter
+          // needed.
+          parts.push(`${r.nameEl.trim()} (${String(grams)}γρ)`)
+        }
+      }
+      return { ...v, labelEl: parts.join(', ') }
+    })
+    patch('variants', newVariants)
+  }
+
   async function handleSave() {
     if (!form.nameEl.trim()) { setErr('Greek name is required'); return }
     if (form.variants.length === 0) { setErr('At least one variant is required'); return }
@@ -379,6 +505,32 @@ function DishDrawer({
         <div className="admin-drawer-body">
           {err && <div className="admin-error-banner">{err}</div>}
 
+          {/* External code — the slug used everywhere (CSV, URLs, admin search). */}
+          {/* Read-only on existing dishes (renaming would orphan past order rows). */}
+          <section className="admin-form-section">
+            <label className="admin-form-label">Code</label>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <code style={{
+                fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
+                fontSize: 13, padding: '6px 10px',
+                background: 'var(--a-bg)', border: '1px dashed var(--a-border)',
+                borderRadius: 6, userSelect: 'text', minWidth: 200,
+              }}>
+                {form.id || (isNew ? '(auto-generated on save)' : '—')}
+              </code>
+              {!isNew && form.id && (
+                <button
+                  type="button"
+                  className="admin-btn-ghost"
+                  onClick={() => navigator.clipboard.writeText(form.id)}
+                  title="Copy code to clipboard"
+                >
+                  Copy
+                </button>
+              )}
+            </div>
+          </section>
+
           {/* Image */}
           <section className="admin-form-section">
             <label className="admin-form-label">Image</label>
@@ -404,11 +556,27 @@ function DishDrawer({
                 {form.imageUrl && <button className="admin-btn-ghost" onClick={() => patch('imageUrl', null)}>Remove</button>}
               </>
             ) : (
-              <input
-                className="admin-input" type="url" placeholder="https://…"
-                value={form.imageUrl ?? ''}
-                onChange={(e) => patch('imageUrl', e.target.value || null)}
-              />
+              <>
+                <input
+                  className="admin-input" type="url" placeholder="https://…"
+                  value={form.imageUrl ?? ''}
+                  onChange={(e) => patch('imageUrl', e.target.value || null)}
+                />
+                <div style={{ display: 'flex', gap: 8, marginTop: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+                  <button
+                    type="button"
+                    className="admin-btn-ghost"
+                    disabled={uploading || isNew || !form.id || !form.imageUrl}
+                    onClick={handleImportFromUrl}
+                    title={isNew ? 'Save the dish first, then import' : 'Download from this URL and host on Supabase Storage'}
+                  >
+                    {uploading ? 'Importing…' : 'Import to Storage'}
+                  </button>
+                  <span style={{ fontSize: 11, color: 'var(--a-text-muted)' }}>
+                    Drive links and any public image URL. Hosts the file on our CDN so the original can disappear.
+                  </span>
+                </div>
+              </>
             )}
           </section>
 
@@ -521,6 +689,20 @@ function DishDrawer({
               </button>
             </div>
             {form.variants.length === 0 && <div className="admin-text-muted">At least one variant is required.</div>}
+            {form.variants.length > 0 && (
+              <div className="admin-variant-headers">
+                <span title="Default variant — the one selected when the dish modal opens"></span>
+                <span>Code</span>
+                <span>Label EL</span>
+                <span>Label EN</span>
+                <span>Price €</span>
+                <span>kcal</span>
+                <span>Pro</span>
+                <span>Carb</span>
+                <span>Fat</span>
+                <span></span>
+              </div>
+            )}
             {form.variants.map((v, i) => (
               <VariantRow
                 key={v.id}
@@ -535,6 +717,30 @@ function DishDrawer({
                 }
               />
             ))}
+          </section>
+
+          {/* WEC-251: Bidirectional sync — derive one side from the other. */}
+          {/* Sits between Variants and Recipe because both directions are equally */}
+          {/* common: legacy dishes have ingredient text in variant labels, new */}
+          {/* dishes are built recipe-first and the labels need filling in. */}
+          <section className="admin-sync-bar" aria-label="Sync variants and recipe">
+            <button
+              type="button"
+              className="admin-btn-ghost admin-sync-btn"
+              onClick={labelsFromRecipe}
+              title="Build variant labels from the recipe rows below"
+            >
+              ↑ Generate labels from recipe
+            </button>
+            <span className="admin-sync-hint">⇅ keep in sync</span>
+            <button
+              type="button"
+              className="admin-btn-ghost admin-sync-btn"
+              onClick={recipeFromVariantLabels}
+              title='Parse "(Xγρ)" patterns from variant labels and populate the recipe'
+            >
+              ↓ Generate recipe from labels
+            </button>
           </section>
 
           {/* Recipe — fixed + per-variant ingredient amounts (WEC-249). */}
@@ -566,6 +772,11 @@ function DishDrawer({
 
 function VariantRow({ v, onChange, onDelete, onSetDefault }: { v: AdminVariant; onChange: (v: AdminVariant) => void; onDelete: () => void; onSetDefault: () => void }) {
   function num(n: string): number { return Math.max(0, +n || 0) }
+  // The variant's code (212-1) IS its primary key. Once persisted it can't
+  // change without orphaning order rows that snapshot it, so we display it
+  // read-only post-save. For never-saved rows (id starts with "new-") we
+  // leave it blank — Postgres assigns one server-side at save time.
+  const persisted = !!v.id && !v.id.startsWith('new-')
   return (
     <div className="admin-variant-row">
       <button
@@ -577,16 +788,19 @@ function VariantRow({ v, onChange, onDelete, onSetDefault }: { v: AdminVariant; 
       >
         {v.isDefault ? '★' : '☆'}
       </button>
+      <div className="admin-variant-code" title={persisted ? `Variant code (used in past orders): ${v.id}` : 'Auto-generated on save'}>
+        {persisted ? v.id : '—'}
+      </div>
       <input className="admin-input" placeholder="Label EL" value={v.labelEl} onChange={(e) => onChange({ ...v, labelEl: e.target.value })} />
       <input className="admin-input" placeholder="Label EN" value={v.labelEn} onChange={(e) => onChange({ ...v, labelEn: e.target.value })} />
-      <input className="admin-input" type="number" step="0.01" min={0} placeholder="Price €"
+      <input className="admin-input numeric" type="number" step="0.01" min={0} placeholder="€"
         value={v.price === 0 ? '' : (v.price / 100).toFixed(2)}
         onChange={(e) => onChange({ ...v, price: Math.round((+e.target.value || 0) * 100) })}
       />
-      <input className="admin-input" type="number" min={0} placeholder="kcal" value={v.calories || ''} onChange={(e) => onChange({ ...v, calories: num(e.target.value) })} />
-      <input className="admin-input" type="number" min={0} placeholder="Pro g" value={v.protein || ''} onChange={(e) => onChange({ ...v, protein: num(e.target.value) })} />
-      <input className="admin-input" type="number" min={0} placeholder="Carb g" value={v.carbs || ''} onChange={(e) => onChange({ ...v, carbs: num(e.target.value) })} />
-      <input className="admin-input" type="number" min={0} placeholder="Fat g" value={v.fat || ''} onChange={(e) => onChange({ ...v, fat: num(e.target.value) })} />
+      <input className="admin-input numeric" type="number" min={0} placeholder="kcal" value={v.calories || ''} onChange={(e) => onChange({ ...v, calories: num(e.target.value) })} />
+      <input className="admin-input numeric" type="number" min={0} placeholder="g" value={v.protein || ''} onChange={(e) => onChange({ ...v, protein: num(e.target.value) })} />
+      <input className="admin-input numeric" type="number" min={0} placeholder="g" value={v.carbs || ''} onChange={(e) => onChange({ ...v, carbs: num(e.target.value) })} />
+      <input className="admin-input numeric" type="number" min={0} placeholder="g" value={v.fat || ''} onChange={(e) => onChange({ ...v, fat: num(e.target.value) })} />
       <button className="admin-variant-del" onClick={onDelete} title="Remove variant">×</button>
     </div>
   )
