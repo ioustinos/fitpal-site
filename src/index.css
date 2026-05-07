@@ -616,12 +616,30 @@ header {
 .dm-section-title { font-size: 12px; font-weight: 900; color: var(--text); /* uppercase removed — WEC-187 */ letter-spacing: 0.5px; margin-bottom: 7px; }
 /* WEC-132: variant list no longer needs its own internal scroll — outer modal already scrolls */
 .dm-variants { display: flex; flex-direction: column; gap: 6px; margin-bottom: 14px; }
-/* WEC-245: recipe panel — full ingredient list per variant */
+/* WEC-245: recipe panel — collapsible pill list of every ingredient */
 .dm-recipe { margin-bottom: 14px; }
-.dm-recipe-list { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 4px; }
-.dm-recipe-item { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; padding: 6px 10px; background: var(--cream, #faf7f2); border-radius: 8px; font-size: 12px; }
-.dm-recipe-name { color: var(--text); }
-.dm-recipe-grams { color: var(--text-muted); font-weight: 700; font-size: 11px; flex-shrink: 0; }
+.dm-recipe-toggle {
+  display: flex; align-items: center; justify-content: space-between;
+  width: 100%; padding: 8px 12px; background: var(--cream, #faf7f2);
+  border: 1px solid var(--border); border-radius: 10px; cursor: pointer;
+  font-size: 12px; font-weight: 800; color: var(--text);
+  letter-spacing: 0.3px; transition: background 0.15s, border-color 0.15s;
+}
+.dm-recipe-toggle:hover { background: var(--green-pale, #f0faf5); border-color: var(--green-light, #cceedd); }
+.dm-recipe-chevron { transition: transform 0.2s ease; flex-shrink: 0; }
+.dm-recipe.expanded .dm-recipe-chevron { transform: rotate(180deg); }
+.dm-recipe-pills {
+  list-style: none; padding: 8px 2px 0; margin: 0;
+  display: flex; flex-wrap: wrap; gap: 6px;
+}
+.dm-recipe-pill {
+  display: inline-flex; align-items: baseline; gap: 5px;
+  padding: 4px 10px; background: var(--cream, #faf7f2);
+  border-radius: 999px; font-size: 11px; line-height: 1.4;
+  border: 1px solid var(--border);
+}
+.dm-recipe-pill-name { color: var(--text); }
+.dm-recipe-pill-grams { color: var(--text-muted); font-weight: 700; font-size: 10.5px; }
 /* WEC-246: dropdowns variant picker (5+ variants OR admin override) */
 .dm-variant-dropdowns { display: flex; flex-direction: column; gap: 10px; }
 .dm-variant-dropdown { display: flex; flex-direction: column; gap: 4px; }

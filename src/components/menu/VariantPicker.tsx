@@ -200,7 +200,27 @@ function DropdownsPicker({ dish, selectedVariantId, onChange, lang }: Props) {
   return (
     <div className="dm-variants">
       <div className="dm-section-title">{t('selectSize')}</div>
-      <div className="dm-variant-dropdowns">
+
+      {/* Result pill above dropdowns — visually anchors the chosen variant in
+          the same slot pills-mode dishes use. Same .variant-row.sel styling so
+          customers see the same affordance whether they picked via tap or
+          dropdown. The dropdowns below act as the size mechanic. */}
+      <div className="dm-variant-list">
+        <div className="variant-row sel">
+          <div className="vr-radio" />
+          <div className="vr-info">
+            <div className="vr-label">{lang === 'el' ? selectedVariant.labelEl : selectedVariant.labelEn}</div>
+            {selectedVariant.macros && (
+              <div className="vr-macros">
+                {selectedVariant.macros.cal} kcal · {selectedVariant.macros.pro}g {t('pro')} · {selectedVariant.macros.carb}g {t('carb')} · {selectedVariant.macros.fat}g {t('fat')}
+              </div>
+            )}
+          </div>
+          <div className="vr-price">€{selectedPriceCents.toFixed(2)}</div>
+        </div>
+      </div>
+
+      <div className="dm-variant-dropdowns" style={{ marginTop: 10 }}>
         {choiceGroups.map((g) => {
           const ingName = lang === 'en' ? (g.ing.nameEn || g.ing.nameEl) : g.ing.nameEl
           const selected = currentSelection.get(g.ing.ingredientId)
@@ -229,24 +249,6 @@ function DropdownsPicker({ dish, selectedVariantId, onChange, lang }: Props) {
             </div>
           )
         })}
-      </div>
-
-      {/* Result pill — mirrors the pills-mode .variant-row.sel layout so the
-          customer sees the same affordance regardless of how the variant was
-          chosen. Label/macros/price come from the matched variant. */}
-      <div className="dm-variant-list" style={{ marginTop: 12 }}>
-        <div className="variant-row sel">
-          <div className="vr-radio" />
-          <div className="vr-info">
-            <div className="vr-label">{lang === 'el' ? selectedVariant.labelEl : selectedVariant.labelEn}</div>
-            {selectedVariant.macros && (
-              <div className="vr-macros">
-                {selectedVariant.macros.cal} kcal · {selectedVariant.macros.pro}g {t('pro')} · {selectedVariant.macros.carb}g {t('carb')} · {selectedVariant.macros.fat}g {t('fat')}
-              </div>
-            )}
-          </div>
-          <div className="vr-price">€{selectedPriceCents.toFixed(2)}</div>
-        </div>
       </div>
     </div>
   )
