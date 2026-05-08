@@ -164,6 +164,10 @@ header {
 .week-toggle:hover { border-color: var(--green); background: var(--green-pale); }
 .week-toggle.loading { opacity: 0.7; pointer-events: none; }
 .week-toggle.loading .wt-arrow { animation: wt-spin 0.8s linear infinite; color: var(--green); display: inline-block; }
+/* WEC-257: disabled "Coming soon" placeholder when no next week exists yet.
+   Same shape as the regular toggle so the strip's right edge stays anchored. */
+.week-toggle.coming-soon { cursor: default; opacity: 0.5; pointer-events: none; }
+.week-toggle.coming-soon .wt-arrow { color: var(--text-muted); }
 @keyframes wt-spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
 .wt-arrow { font-size: 14px; color: var(--text-muted); line-height: 1; }
 .wt-label { font-size: 9px; font-weight: 700; color: var(--text-muted); }

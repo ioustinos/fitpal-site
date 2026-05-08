@@ -84,14 +84,27 @@ export function DayNav() {
         )
       })}
 
-      {/* Next toggle — shown when more weeks exist */}
-      {nextMeta && (
+      {/* Next toggle — when more weeks exist, normal navigable toggle.
+          When the user is on the LAST loaded week we still render a slot but
+          disabled with a "Coming soon" label (WEC-257). The slot keeps the
+          strip's right edge anchored and signals that more weeks are
+          forthcoming, instead of just disappearing. */}
+      {nextMeta ? (
         <div
           className={`week-toggle${nextLoading ? ' loading' : ''}`}
           onClick={() => goWeek(activeWeek + 1)}
         >
           <div className="wt-label">{weekRange(nextMeta.days, lang)}</div>
           <div className="wt-arrow">{nextLoading ? '⟳' : '→'}</div>
+        </div>
+      ) : (
+        <div
+          className="week-toggle coming-soon"
+          aria-disabled="true"
+          title={lang === 'el' ? 'Σύντομα διαθέσιμο' : 'Coming soon'}
+        >
+          <div className="wt-label">{lang === 'el' ? 'Σύντομα διαθέσιμο' : 'Coming soon'}</div>
+          <div className="wt-arrow">→</div>
         </div>
       )}
     </div>
