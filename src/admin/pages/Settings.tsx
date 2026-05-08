@@ -1,7 +1,7 @@
 import { Fragment, useEffect, useMemo, useState } from 'react'
 import {
-  fetchAllSettings, setSetting, fetchAllergies, saveAllergy, deleteAllergy,
-  type SettingRow, type AdminAllergy,
+  fetchAllSettings, setSetting,
+  type SettingRow,
 } from '../../lib/api/adminSettings'
 
 const DAY_NAMES_FULL = ['', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
@@ -38,18 +38,15 @@ interface BankTransferInfo {
 
 export function Settings() {
   const [all, setAll] = useState<SettingRow[]>([])
-  const [allergies, setAllergies] = useState<AdminAllergy[]>([])
   const [loading, setLoading] = useState(true)
   const [err, setErr] = useState<string | null>(null)
   const [savingMsg, setSavingMsg] = useState<string | null>(null)
 
   async function refresh() {
     setLoading(true); setErr(null)
-    const [s, a] = await Promise.all([fetchAllSettings(), fetchAllergies()])
+    const s = await fetchAllSettings()
     if (s.error) setErr(s.error)
-    if (a.error) setErr(a.error)
     setAll(s.data ?? [])
-    setAllergies(a.data ?? [])
     setLoading(false)
   }
   useEffect(() => { refresh() }, [])
@@ -85,7 +82,6 @@ export function Settings() {
           <MacrosDisplaySection value={(byKey.get('macros_display') === 'dots' ? 'dots' : 'numbers')} onSave={(v) => save('macros_display', v)} />
           <ContactInfoSection value={(byKey.get('contact') as ContactInfo) ?? {}} onSave={(v) => save('contact', v)} />
           <BankTransferInfoSection value={(byKey.get('bank_transfer_info') as BankTransferInfo) ?? {}} onSave={(v) => save('bank_transfer_info', v)} />
-          <AllergiesSection allergies={allergies} onChanged={refresh} />
           <RawJsonSection rows={all} onSaved={refresh} />
         </>
       )}
@@ -426,61 +422,6 @@ function BankTransferInfoSection({ value, onSave }: { value: BankTransferInfo; o
         <button className="admin-btn-primary" disabled={!dirty} onClick={() => onSave(form)}>Save</button>
       </div>
     </SectionCard>
-  )
-}
-
-function AllergiesSection({ allergies, onChanged }: { allergies: AdminAllergy[]; onChanged: () => void }) {
-  const [el, setEl] = useState('')
-  const [en, setEn] = useState('')
-  const [desc, setDesc] = useState('')
-  const [err, setErr] = useState<string | null>(null)
-
-  async function add() {
-    if (!el.trim()) return
-    setErr(null)
-    const { error } = await saveAllergy({ nameEl: el.trim(), nameEn: en.trim() || el.trim(), description: desc.trim() || null })
-    if (error) { setErr(error); return }
-    setEl(''); setEn(''); setDesc(''); onChanged()
-  }
-
-  return (
-    <SectionCard title="Allergies" desc="Master list shown in user preferences. Keep it short and unambiguous.">
-      {err && <div className="admin-error-banner">{err}</div>}
-      <table className="admin-table admin-table-tight">
-        <thead><tr><th>Greek</th><th>English</th><th>Description</th><th></th></tr></thead>
-        <tbody>
-          {allergies.map((a) => <AllergyRow key={a.id} a={a} onChanged={onChanged} />)}
-          {allergies.length === 0 && <tr><td colSpan={4} className="admin-table-empty">No allergies yet.</td></tr>}
-        </tbody>
-      </table>
-      <div className="admin-section-head" style={{ marginTop: 12 }}><strong>Add new</strong></div>
-      <div className="admin-inline-form">
-        <input className="admin-input" placeholder="Greek" value={el} onChange={(e) => setEl(e.target.value)} />
-        <input className="admin-input" placeholder="English" value={en} onChange={(e) => setEn(e.target.value)} />
-        <input className="admin-input" placeholder="Description (optional)" value={desc} onChange={(e) => setDesc(e.target.value)} />
-        <button className="admin-btn-primary" onClick={add} disabled={!el.trim()}>Add</button>
-      </div>
-    </SectionCard>
-  )
-}
-
-function AllergyRow({ a, onChanged }: { a: AdminAllergy; onChanged: () => void }) {
-  const [nameEl, setNameEl] = useState(a.nameEl)
-  const [nameEn, setNameEn] = useState(a.nameEn)
-  const [desc, setDesc] = useState(a.description ?? '')
-  const dirty = nameEl !== a.nameEl || nameEn !== a.nameEn || (desc || null) !== a.description
-  async function save() { await saveAllergy({ id: a.id, nameEl, nameEn, description: desc || null }); onChanged() }
-  async function del() { if (confirm(`Delete "${a.nameEl}"?`)) { await deleteAllergy(a.id); onChanged() } }
-  return (
-    <tr>
-      <td><input className="admin-input admin-input-tight" value={nameEl} onChange={(e) => setNameEl(e.target.value)} /></td>
-      <td><input className="admin-input admin-input-tight" value={nameEn} onChange={(e) => setNameEn(e.target.value)} /></td>
-      <td><input className="admin-input admin-input-tight" value={desc} onChange={(e) => setDesc(e.target.value)} /></td>
-      <td style={{ whiteSpace: 'nowrap' }}>
-        {dirty && <button className="admin-row-btn" onClick={save}>Save</button>}
-        <button className="admin-row-btn danger" onClick={del}>Delete</button>
-      </td>
-    </tr>
   )
 }
 
