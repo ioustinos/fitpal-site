@@ -144,13 +144,18 @@ function DropdownsPicker({ dish, selectedVariantId, onChange, lang }: Props) {
     return <div className="dm-variants"><div style={{ padding: 8, fontSize: 12, color: 'var(--text-muted)' }}>Loading options…</div></div>
   }
 
+  // WEC-258: never block the customer in a sparse-variant dish. Try the
+  // exact match first (fast path — keeps every other dropdown stable), then
+  // fall back to the first variant (by sort_order) whose target-ingredient
+  // value matches the chosen option. The other dropdowns auto-rerender via
+  // the existing currentSelection useMemo since they're derived from the
+  // selected variant.
   function handleChange(ingId: string, grams: number) {
     if (!choiceGroups) return
-    // Build target selection
+    // Fast path: exact match on every dropdown's current selection.
     const target = new Map(currentSelection)
     target.set(ingId, grams)
-    // Find variant whose amounts match all dropdowns
-    const match = dish.variants.find((v) => {
+    const exact = dish.variants.find((v) => {
       for (const g of choiceGroups) {
         const want = target.get(g.ing.ingredientId)
         const got = g.byVariant.get(v.id)
@@ -158,11 +163,21 @@ function DropdownsPicker({ dish, selectedVariantId, onChange, lang }: Props) {
       }
       return true
     })
-    if (match) {
-      onChange(match.id)
+    if (exact) {
+      onChange(exact.id)
+      return
     }
-    // If no match (shouldn't happen with clean data), do nothing — keeps the
-    // dropdown showing the requested value but variant unchanged.
+    // Fallback: pick the first variant by sort_order where the target
+    // ingredient = the chosen value, regardless of the other dropdowns.
+    // dish.variants is already sort_order-ordered by the customer fetch.
+    const targetGroup = choiceGroups.find((g) => g.ing.ingredientId === ingId)
+    if (!targetGroup) return
+    const realign = dish.variants.find((v) => targetGroup.byVariant.get(v.id) === grams)
+    if (realign) {
+      onChange(realign.id)
+    }
+    // If even that's empty (shouldn't happen — option came from this group's
+    // distinctGrams), do nothing rather than silently corrupt the selection.
   }
 
   const fmtGrams = (g: number) => {
@@ -176,16 +191,19 @@ function DropdownsPicker({ dish, selectedVariantId, onChange, lang }: Props) {
   const selectedPriceCents = effPrice(selectedVariant.price, dish.discount)
 
   /**
-   * Decide whether picking `option` for `targetIngId` would land on a real
-   * variant given the user's current selections for the OTHER dropdowns.
+   * WEC-258: classify each option as either "matches" (real variant exists
+   * with this option AND every other current dropdown value — picking it
+   * leaves the other dropdowns alone) or "requires-adjust" (a variant
+   * exists with this option but it'll re-align the OTHER dropdowns).
    *
-   * Used to grey out impossible combinations — e.g. if you pick chicken=210γ
-   * and there's no variant with chicken=210γ + rice=240γ, the rice=240γ
-   * option becomes disabled until you change chicken.
+   * Replaces the old isOptionAvailable boolean — instead of disabling
+   * options that don't match, we now always allow them and surface a
+   * soft hint in the option label. This avoids dead-ends on dishes with
+   * sparse variant matrices.
    */
-  function isOptionAvailable(targetIngId: string, option: number): boolean {
-    if (!choiceGroups) return true
-    return dish.variants.some((v) => {
+  function optionStatus(targetIngId: string, option: number): 'matches' | 'requires-adjust' {
+    if (!choiceGroups) return 'matches'
+    const matchesAllCurrent = dish.variants.some((v) => {
       for (const g of choiceGroups) {
         const grams = g.byVariant.get(v.id)
         const want = g.ing.ingredientId === targetIngId
@@ -195,6 +213,7 @@ function DropdownsPicker({ dish, selectedVariantId, onChange, lang }: Props) {
       }
       return true
     })
+    return matchesAllCurrent ? 'matches' : 'requires-adjust'
   }
 
   return (
@@ -233,15 +252,14 @@ function DropdownsPicker({ dish, selectedVariantId, onChange, lang }: Props) {
                 onChange={(e) => handleChange(g.ing.ingredientId, parseFloat(e.target.value))}
               >
                 {g.distinctGrams.map((grams) => {
-                  const available = isOptionAvailable(g.ing.ingredientId, grams)
+                  // WEC-258: every option is selectable. The hint just tells
+                  // the customer the OTHER dropdowns will shift to a matching
+                  // variant when they pick it.
+                  const status = optionStatus(g.ing.ingredientId, grams)
+                  const adjustHint = lang === 'el' ? ' · προσαρμογή' : ' · adjusts'
                   return (
-                    <option
-                      key={grams}
-                      value={grams}
-                      disabled={!available}
-                      style={!available ? { color: '#bbb' } : undefined}
-                    >
-                      {fmtGrams(grams)}γρ{available ? '' : ' — μη διαθέσιμο'}
+                    <option key={grams} value={grams}>
+                      {fmtGrams(grams)}γρ{status === 'requires-adjust' ? adjustHint : ''}
                     </option>
                   )
                 })}
