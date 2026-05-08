@@ -33,6 +33,17 @@ export interface BankTransferInfo {
   bankName?: string
 }
 
+/**
+ * How the customer dish-card macros render. WEC-254.
+ *  - 'numbers' (default): real values for the preselected variant
+ *      (kcal / 37g Πρωτ. / 27g Υδ/κες / 17g Λίπη)
+ *  - 'dots': legacy 1-5 dot scale based on admin-set previewCal/Pro/Carb/Fat
+ *
+ * Both renderers ship in the bundle. Flip via /admin/settings or:
+ *   update settings set value = '"dots"'::jsonb where key = 'macros_display';
+ */
+export type MacrosDisplay = 'numbers' | 'dots'
+
 export interface AppSettings {
   minOrder: number                                        // euros
   cutoffHour: number                                      // default cutoff hour on previous day
@@ -44,6 +55,8 @@ export interface AppSettings {
   contact: ContactInfo
   /** Bank wire details shown when customer picks bank-transfer payment. */
   bankTransferInfo: BankTransferInfo
+  /** Customer dish-card macros: 'numbers' (default) or 'dots' (legacy). WEC-254. */
+  macrosDisplay: MacrosDisplay
 }
 
 const ALL_METHODS: PaymentMethodId[] = ['cash', 'card', 'link', 'transfer', 'wallet']
@@ -56,6 +69,7 @@ const DEFAULTS: AppSettings = {
   paymentMethodsEnabled: ALL_METHODS,
   contact: {},
   bankTransferInfo: { iban: '', beneficiary: '' },
+  macrosDisplay: 'numbers',
 }
 
 // ─── Query ──────────────────────────────────────────────────────────────────
@@ -116,6 +130,11 @@ export async function fetchSettings(): Promise<{ data: AppSettings; error: strin
     bankName: typeof rawBank.bankName === 'string' ? rawBank.bankName : undefined,
   }
 
+  // macros_display — string enum, defensively defaults to 'numbers' for any
+  // unexpected DB value so a typo doesn't leave the menu page blank.
+  const rawMacros = map.macros_display
+  const macrosDisplay: MacrosDisplay = rawMacros === 'dots' ? 'dots' : 'numbers'
+
   return {
     data: {
       minOrder: typeof map.min_order === 'number' ? map.min_order / 100 : DEFAULTS.minOrder,
@@ -125,6 +144,7 @@ export async function fetchSettings(): Promise<{ data: AppSettings; error: strin
       paymentMethodsEnabled: paymentMethodsFinal,
       contact,
       bankTransferInfo,
+      macrosDisplay,
     },
     error: null,
   }

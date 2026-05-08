@@ -578,6 +578,14 @@ header {
 .macro.prot .macro-dot.filled { background: #059669; }
 .macro.carb .macro-dot.filled { background: #B8860B; }
 .macro.fat  .macro-dot.filled { background: #C2703A; }
+/* WEC-254: numeric values mode — same cell shape, dots replaced by the value.
+   Slightly bigger value font than the dot variant; unit pinned with a thin gap. */
+.macro-val { font-size: 12px; font-weight: 900; color: var(--green-dark); line-height: 1.05; margin-top: 2px; letter-spacing: -0.2px; display: inline-flex; align-items: baseline; gap: 1px; }
+.macro-unit { font-size: 9px; font-weight: 800; color: var(--text-muted); letter-spacing: 0; }
+.macro.cal  .macro-val { color: #D97706; }
+.macro.prot .macro-val { color: #059669; }
+.macro.carb .macro-val { color: #B8860B; }
+.macro.fat  .macro-val { color: #C2703A; }
 .dish-footer { display: flex; align-items: center; justify-content: space-between; }
 .dish-price { font-size: 14px; font-weight: 900; color: var(--green-dark); }
 .dish-price .orig { font-size: 11px; color: var(--text-muted); text-decoration: line-through; margin-right: 4px; font-weight: 600; }

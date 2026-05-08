@@ -101,6 +101,40 @@ export function MacroDotsRow({ cal, pro, carb, fat, labels, levels }: MacroBarPr
   )
 }
 
+/**
+ * Card macro row — same 4-cell cream-box layout as MacroDotsRow but with the
+ * preselected variant's real values instead of the 1-5 dot scale (WEC-254).
+ *
+ * Per-cell layout: icon → label → "405 kcal" / "37g". The icon row stays the
+ * same shape so the card height doesn't jump when admins flip macros_display
+ * between modes. Lives in `.macros .macro-vals` so .macros styling is reused
+ * and only the inner row needs new CSS (smaller font, bolder weight than dots).
+ */
+export function MacroValuesRow({ cal, pro, carb, fat, labels }: MacroBarProps) {
+  const items: Array<{ val: number; label: string; type: MacroKey; unit: string }> = [
+    { val: cal,  label: labels.kcal, type: 'cal',  unit: 'kcal' },
+    { val: pro,  label: labels.pro,  type: 'pro',  unit: 'g' },
+    { val: carb, label: labels.carb, type: 'carb', unit: 'g' },
+    { val: fat,  label: labels.fat,  type: 'fat',  unit: 'g' },
+  ]
+  return (
+    <div className="macros macros-vals">
+      {items.map((m) => (
+        <div key={m.type} className={`macro ${cssType(m.type)}`}>
+          <div className="macro-ico">
+            <MacroIcon type={m.type} />
+          </div>
+          <div className="macro-l">{m.label}</div>
+          <div className="macro-val">
+            {Math.round(m.val)}
+            <span className="macro-unit">{m.unit === 'kcal' ? '' : m.unit}</span>
+          </div>
+        </div>
+      ))}
+    </div>
+  )
+}
+
 /** Big numeric macro display for dish modal. Matches .dm-macro CSS from demo.html */
 export function MacroBoxes({ cal, pro, carb, fat, labels }: MacroBarProps) {
   const items: Array<{ val: number; label: string; type: MacroKey; unit?: string }> = [

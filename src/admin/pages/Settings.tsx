@@ -78,6 +78,7 @@ export function Settings() {
           <MinOrderSection value={Number(byKey.get('min_order') ?? 1500)} onSave={(v) => save('min_order', v)} />
           <TimeSlotsSection value={(byKey.get('time_slots') as string[]) ?? []} onSave={(v) => save('time_slots', v)} />
           <PaymentMethodsSection value={(byKey.get('payment_methods_enabled') as PaymentMethod[]) ?? ALL_PAYMENT_METHODS} onSave={(v) => save('payment_methods_enabled', v)} />
+          <MacrosDisplaySection value={(byKey.get('macros_display') === 'dots' ? 'dots' : 'numbers')} onSave={(v) => save('macros_display', v)} />
           <ContactInfoSection value={(byKey.get('contact') as ContactInfo) ?? {}} onSave={(v) => save('contact', v)} />
           <BankTransferInfoSection value={(byKey.get('bank_transfer_info') as BankTransferInfo) ?? {}} onSave={(v) => save('bank_transfer_info', v)} />
           <AllergiesSection allergies={allergies} onChanged={refresh} />
@@ -265,6 +266,29 @@ function PaymentMethodsSection({ value, onSave }: { value: PaymentMethod[]; onSa
           Save
         </button>
         {enabled.length === 0 && <span className="admin-text-muted">Enable at least one method.</span>}
+      </div>
+    </SectionCard>
+  )
+}
+
+function MacrosDisplaySection({ value, onSave }: { value: 'numbers' | 'dots'; onSave: (v: 'numbers' | 'dots') => void }) {
+  const [v, setV] = useState<'numbers' | 'dots'>(value)
+  useEffect(() => setV(value), [value])
+  return (
+    <SectionCard
+      title="Customer dish-card macros (WEC-254)"
+      desc='Numbers = real values for the preselected variant ("405 kcal / 37g Πρωτ. / 27g Υδ/κες / 17g Λίπη"). Dots = legacy 1-5 admin-set scale. Flip back to dots if the raw numbers feel misleading without context.'
+    >
+      <div className="admin-inline-form">
+        <label className="admin-form-checkbox">
+          <input type="radio" name="macros_display" value="numbers" checked={v === 'numbers'} onChange={() => setV('numbers')} />
+          <span>Numbers (default)</span>
+        </label>
+        <label className="admin-form-checkbox">
+          <input type="radio" name="macros_display" value="dots" checked={v === 'dots'} onChange={() => setV('dots')} />
+          <span>Dots (legacy)</span>
+        </label>
+        <button className="admin-btn-primary" disabled={v === value} onClick={() => onSave(v)}>Save</button>
       </div>
     </SectionCard>
   )

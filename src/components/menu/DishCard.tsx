@@ -2,7 +2,7 @@ import { useUIStore } from '../../store/useUIStore'
 import { useCartStore } from '../../store/useCartStore'
 import { useMenuStore } from '../../store/useMenuStore'
 import { effPrice, isDayOrderable } from '../../lib/helpers'
-import { MacroDotsRow } from '../ui/MacroDots'
+import { MacroDotsRow, MacroValuesRow } from '../ui/MacroDots'
 import { makeTr } from '../../lib/translations'
 import type { Dish } from '../../data/menu'
 
@@ -28,12 +28,19 @@ export function DishCard({ dish, dayIndex }: DishCardProps) {
   const dayItems = cart[dayIndex] ?? []
   const inCart = dayItems.filter((ci) => ci.dishId === dish.id).reduce((s, ci) => s + ci.qty, 0)
 
-  const defaultVariant = dish.variants[0]
-  const minPrice = defaultVariant.price
-  const discPrice = effPrice(defaultVariant.price, dish.discount)
+  // First variant by sort_order — used for the "από €X.XX" pricing badge so it
+  // always reflects the cheapest option, regardless of admin's preselection.
+  const cheapestVariant = dish.variants[0]
+  const minPrice = cheapestVariant.price
+  const discPrice = effPrice(cheapestVariant.price, dish.discount)
   const finalPrice = discPrice
 
-  const macros = defaultVariant.macros
+  // WEC-254: macros come from the admin-marked default variant (the one the
+  // dish modal will preselect). For dishes with no marked default we fall back
+  // to the first variant — matches old behaviour.
+  const preselectedVariant = dish.variants.find((v) => v.isDefault) ?? cheapestVariant
+  const macros = preselectedVariant.macros
+  const macrosDisplay = settings.macrosDisplay
   const name = lang === 'el' ? dish.nameEl : dish.nameEn
   const desc = lang === 'el' ? dish.descEl : dish.descEn
 
@@ -48,16 +55,18 @@ export function DishCard({ dish, dayIndex }: DishCardProps) {
       openDishModal(dish, dayIndex)
       return
     }
+    // Only reached for single-variant dishes (the if above sends >1 to the
+    // modal). For 1-variant dishes the preselected variant IS the only one.
     addItem(dayIndex, {
       dishId: dish.id,
-      variantId: defaultVariant.id,
+      variantId: preselectedVariant.id,
       nameEl: dish.nameEl,
       nameEn: dish.nameEn,
-      variantLabelEl: defaultVariant.labelEl,
-      variantLabelEn: defaultVariant.labelEn,
+      variantLabelEl: preselectedVariant.labelEl,
+      variantLabelEn: preselectedVariant.labelEn,
       price: finalPrice,
       qty: 1,
-      macros: defaultVariant.macros,
+      macros: preselectedVariant.macros,
       img: dish.img,
       emoji: dish.emoji,
     })
@@ -147,8 +156,23 @@ export function DishCard({ dish, dayIndex }: DishCardProps) {
 
         {desc && <div className="dish-desc">{desc}</div>}
 
-        {/* Macros — 4-column cream grid with admin-set dot levels */}
-        {macros && (
+        {/* Macros — WEC-254: numeric values for the preselected variant by default,
+            with the legacy 1-5 dot scale available as a fallback the admin can
+            flip to from /admin/settings (settings.macros_display = 'dots'). */}
+        {macros && (macrosDisplay === 'numbers' ? (
+          <MacroValuesRow
+            cal={macros.cal}
+            pro={macros.pro}
+            carb={macros.carb}
+            fat={macros.fat}
+            labels={{
+              kcal: 'kcal',
+              pro: t('pro'),
+              carb: t('carb'),
+              fat: t('fat'),
+            }}
+          />
+        ) : (
           <MacroDotsRow
             cal={macros.cal}
             pro={macros.pro}
@@ -167,7 +191,7 @@ export function DishCard({ dish, dayIndex }: DishCardProps) {
               fat: dish.previewFat,
             } : undefined}
           />
-        )}
+        ))}
 
         {/* Full-width add button */}
         <button
