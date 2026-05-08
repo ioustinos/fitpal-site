@@ -628,6 +628,34 @@
 }
 .admin-cat-pill:hover { box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08); }
 .admin-cat-pill:active { cursor: grabbing; }
+.admin-cat-order-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-left: auto;
+}
+.admin-cat-order-dirty {
+  font-size: 0.78rem;
+  font-style: italic;
+  padding: 2px 8px;
+  background: rgba(220, 150, 0, 0.12);
+  color: #8a5a00;
+  border-radius: 999px;
+}
+.admin-cat-order-saved {
+  font-size: 0.78rem;
+  padding: 2px 8px;
+  background: rgba(0, 140, 70, 0.12);
+  color: #0a6e3a;
+  border-radius: 999px;
+  transition: opacity 0.3s ease;
+}
+.admin-cat-order-view {
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  font-size: 0.85rem;
+}
 
 /* Layout — 2-column grid. Library sticks vertically so it stays visible while
    the user scrolls through tall day columns. Days grid expands as wide as it

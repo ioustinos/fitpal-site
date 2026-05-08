@@ -225,19 +225,22 @@ export function Menus() {
     await loadWeek()
   }
 
-  // WEC-253: persist a new per-menu category order.
-  async function handleCategoryOrderChange(next: string[]) {
+  // WEC-253: persist a new per-menu category order. Throws on failure so the
+  // strip can leave the user's draft intact for a retry instead of silently
+  // reverting (the strip awaits this promise + locks Apply while it's running,
+  // which is what serializes overlapping reorders).
+  async function handleApplyCategoryOrder(next: string[]): Promise<void> {
     if (!selectedMenu) return
-    // Optimistic local update so the strip animates smoothly.
-    setMenusInWeek((prev) =>
-      prev.map((m) => (m.id === selectedMenu.id ? { ...m, categoryOrder: next } : m)),
-    )
     const { error } = await setMenuCategoryOrder(selectedMenu.id, next)
     if (error) {
       setError(error)
-      // Revert on failure — re-pull the canonical state.
-      await loadWeek()
+      throw new Error(error)
     }
+    // Update the local snapshot so the strip's `categoryOrder` prop matches
+    // the new saved state and `isDirty` flips back to false.
+    setMenusInWeek((prev) =>
+      prev.map((m) => (m.id === selectedMenu.id ? { ...m, categoryOrder: next } : m)),
+    )
   }
 
   // ─── Drag handlers ────────────────────────────────────────────────
@@ -425,7 +428,7 @@ export function Menus() {
       <CategoryOrderStrip
         categoryOrder={selectedMenu?.categoryOrder ?? []}
         categories={categories}
-        onChange={handleCategoryOrderChange}
+        onApply={handleApplyCategoryOrder}
         disabled={!selectedMenu}
       />
 
