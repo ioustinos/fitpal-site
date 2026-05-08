@@ -64,6 +64,7 @@ interface DbWeeklyMenu {
   from_date: string
   to_date: string
   active: boolean
+  category_order: string[]
 }
 
 // ─── Mappers ─────────────────────────────────────────────────────────────────
@@ -141,6 +142,8 @@ export interface WeekMeta {
   labelEl: string
   labelEn: string
   days: { date: string }[]
+  /** Snapshot of category id ordering for this menu (WEC-253). */
+  categoryOrder: string[]
 }
 
 /**
@@ -157,7 +160,7 @@ export async function fetchActiveWeeksMeta(): Promise<{
 }> {
   const { data: menuRows, error: menuErr } = await supabase
     .from('weekly_menus')
-    .select('id, name, from_date, to_date, active, inactive_dates')
+    .select('id, name, from_date, to_date, active, inactive_dates, category_order')
     .eq('active', true)
     .order('from_date')
 
@@ -193,6 +196,7 @@ export async function fetchActiveWeeksMeta(): Promise<{
     labelEl: menu.name,
     labelEn: menu.name,
     days: (dateMap.get(menu.id) ?? []).map((date) => ({ date })),
+    categoryOrder: menu.category_order ?? [],
   }))
 
   return { data: weeks, error: null }
@@ -282,7 +286,7 @@ export async function fetchActiveMenu(): Promise<{
   // 1. All active weekly menus
   const { data: menuRows, error: menuErr } = await supabase
     .from('weekly_menus')
-    .select('id, name, from_date, to_date, active')
+    .select('id, name, from_date, to_date, active, category_order')
     .eq('active', true)
     .order('from_date')
 
@@ -388,6 +392,7 @@ export async function fetchActiveMenu(): Promise<{
       labelEl: menu.name,
       labelEn: menu.name,
       days,
+      categoryOrder: menu.category_order ?? [],
     }
   })
 

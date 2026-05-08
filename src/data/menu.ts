@@ -52,6 +52,13 @@ export interface WeekDef {
   labelEl: string
   labelEn: string
   days: WeekDay[]
+  /**
+   * Snapshot of category id ordering for this menu (WEC-253).
+   * Source of truth for the customer UI's category sequence.
+   * Empty array falls back to global `categories.sort_order` (defensive — backfill
+   * + insert trigger should keep this populated for every menu).
+   */
+  categoryOrder: string[]
 }
 
 export interface CategoryDef {
@@ -1692,6 +1699,7 @@ export const WEEK_DATA: WeekDef[] = [
         dishIds: ['e01', 'e02', 'e03', 'e04', 'e05', 'e06', 'e07', 'e08', 'e09', 'e10', 's01', 's02', 's03'],
       },
     ],
+    categoryOrder: [],
   },
   {
     id: 'week2',
@@ -1719,6 +1727,7 @@ export const WEEK_DATA: WeekDef[] = [
         dishIds: ['e01', 'e02', 'e03', 'e04', 'e05', 'e06', 'e07', 'e08', 'e09', 'e10', 's01', 's02', 's03'],
       },
     ],
+    categoryOrder: [],
   },
 ]
 

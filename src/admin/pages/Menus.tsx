@@ -28,8 +28,10 @@ import {
   fetchMenusOverlapping, fetchMenuDayDishes,
   createWeeklyMenu, deleteWeeklyMenu, setMenuActive, renameMenu, setMenuDateActive,
   addDishToDay, removeMenuDayDish, reorderMenuDayDishes, duplicateMenuContent,
+  setMenuCategoryOrder,
   type AdminWeeklyMenu, type AdminMenuDayDish,
 } from '../../lib/api/adminMenus'
+import { CategoryOrderStrip } from '../components/CategoryOrderStrip'
 
 const DAY_NAMES_BY_DOW = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'] as const
 
@@ -223,6 +225,21 @@ export function Menus() {
     await loadWeek()
   }
 
+  // WEC-253: persist a new per-menu category order.
+  async function handleCategoryOrderChange(next: string[]) {
+    if (!selectedMenu) return
+    // Optimistic local update so the strip animates smoothly.
+    setMenusInWeek((prev) =>
+      prev.map((m) => (m.id === selectedMenu.id ? { ...m, categoryOrder: next } : m)),
+    )
+    const { error } = await setMenuCategoryOrder(selectedMenu.id, next)
+    if (error) {
+      setError(error)
+      // Revert on failure — re-pull the canonical state.
+      await loadWeek()
+    }
+  }
+
   // ─── Drag handlers ────────────────────────────────────────────────
   function onDragStart(e: DragStartEvent) {
     setDraggingId(String(e.active.id))
@@ -403,6 +420,14 @@ export function Menus() {
           )}
         </div>
       </div>
+
+      {/* WEC-253: per-menu category ordering. Only shown when a menu is selected. */}
+      <CategoryOrderStrip
+        categoryOrder={selectedMenu?.categoryOrder ?? []}
+        categories={categories}
+        onChange={handleCategoryOrderChange}
+        disabled={!selectedMenu}
+      />
 
       {error && <div className="admin-error-banner">{error}</div>}
       {loading && <div className="admin-loading">Loading…</div>}

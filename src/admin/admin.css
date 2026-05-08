@@ -601,6 +601,34 @@
 .admin-menu-select-wrap .admin-select, .admin-menu-select-wrap .admin-input { width: 100%; }
 .admin-menu-actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
 
+/* WEC-253: per-menu category ordering strip. */
+.admin-cat-order-strip {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  margin: 12px 0;
+  background: var(--surface-2, #f7f7f5);
+  border: 1px solid var(--border, #e5e5e0);
+  border-radius: 10px;
+  flex-wrap: wrap;
+}
+.admin-cat-order-strip-disabled { opacity: 0.6; }
+.admin-cat-pills { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.admin-cat-pill {
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: white;
+  border: 1px solid var(--border, #d8d8d2);
+  font-size: 0.85rem;
+  cursor: grab;
+  user-select: none;
+  white-space: nowrap;
+  transition: box-shadow 0.15s ease, transform 0.15s ease;
+}
+.admin-cat-pill:hover { box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08); }
+.admin-cat-pill:active { cursor: grabbing; }
+
 /* Layout — 2-column grid. Library sticks vertically so it stays visible while
    the user scrolls through tall day columns. Days grid expands as wide as it
    wants; the page handles horizontal overflow (columns stay readable). */

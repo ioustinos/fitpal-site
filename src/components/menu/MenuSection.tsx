@@ -1,7 +1,7 @@
 import { DishCard } from './DishCard'
 import { useUIStore } from '../../store/useUIStore'
 import { useMenuStore } from '../../store/useMenuStore'
-import type { Dish } from '../../data/menu'
+import type { Dish, CategoryDef } from '../../data/menu'
 
 interface MenuSectionProps {
   dishes: Dish[]
@@ -11,6 +11,11 @@ interface MenuSectionProps {
 export function MenuSection({ dishes, dayIndex }: MenuSectionProps) {
   const lang = useUIStore((s) => s.lang)
   const categories = useMenuStore((s) => s.categories)
+  // WEC-253: per-menu category ordering. Read from the active week.
+  const activeWeek = useUIStore((s) => s.activeWeek)
+  const weekCategoryOrder = useMenuStore(
+    (s) => s.weeks[activeWeek]?.categoryOrder ?? [],
+  )
 
   // Group by category
   const grouped = new Map<string, Dish[]>()
@@ -20,11 +25,23 @@ export function MenuSection({ dishes, dayIndex }: MenuSectionProps) {
     grouped.get(cat)!.push(dish)
   }
 
-  // Show all categories in canonical order, skip 'all'
-  const entries = categories
-    .filter((c) => c.id !== 'all')
-    .map((c) => ({ cat: c, dishes: grouped.get(c.id) ?? [] }))
-    .filter((e) => e.dishes.length > 0)
+  // Build a label-lookup. Then use the active week's `categoryOrder`
+  // to sequence categories. Falls back to the global categories array
+  // ordering if categoryOrder is empty (defensive — backfill should
+  // mean it's always populated).
+  const catById = new Map(categories.filter((c) => c.id !== 'all').map((c) => [c.id, c]))
+  const orderedCatIds =
+    weekCategoryOrder.length > 0
+      ? weekCategoryOrder
+      : categories.filter((c) => c.id !== 'all').map((c) => c.id)
+  const entries: { cat: CategoryDef; dishes: Dish[] }[] = []
+  for (const id of orderedCatIds) {
+    const cat = catById.get(id)
+    if (!cat) continue
+    const catDishes = grouped.get(id) ?? []
+    if (catDishes.length === 0) continue
+    entries.push({ cat, dishes: catDishes })
+  }
 
   if (entries.length === 0) {
     return (

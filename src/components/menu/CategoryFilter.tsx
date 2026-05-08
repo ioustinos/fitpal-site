@@ -10,6 +10,11 @@ interface CategoryFilterProps {
 export function CategoryFilter({ dishes }: CategoryFilterProps) {
   const lang = useUIStore((s) => s.lang)
   const categories = useMenuStore((s) => s.categories)
+  // WEC-253: per-menu category ordering. Read from the active week.
+  const activeWeek = useUIStore((s) => s.activeWeek)
+  const weekCategoryOrder = useMenuStore(
+    (s) => s.weeks[activeWeek]?.categoryOrder ?? [],
+  )
   const [activeCat, setActiveCat] = useState<string | null>(null)
 
   // Count dishes per category (only categories that exist in current day)
@@ -19,8 +24,16 @@ export function CategoryFilter({ dishes }: CategoryFilterProps) {
     countByCat.set(cat, (countByCat.get(cat) ?? 0) + 1)
   }
 
-  // Only show cats that have dishes today, skip 'all'
-  const visibleCats = categories.filter((c) => c.id !== 'all' && (countByCat.get(c.id) ?? 0) > 0)
+  // Sequence pills by the active menu's categoryOrder; fall back to the
+  // global categories array order if categoryOrder is empty (defensive).
+  const catById = new Map(categories.filter((c) => c.id !== 'all').map((c) => [c.id, c]))
+  const orderedCatIds =
+    weekCategoryOrder.length > 0
+      ? weekCategoryOrder
+      : categories.filter((c) => c.id !== 'all').map((c) => c.id)
+  const visibleCats = orderedCatIds
+    .map((id) => catById.get(id))
+    .filter((c): c is NonNullable<typeof c> => !!c && (countByCat.get(c.id) ?? 0) > 0)
 
   function handlePillClick(catId: string) {
     setActiveCat(catId)

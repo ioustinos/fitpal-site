@@ -10,6 +10,8 @@ export interface AdminWeeklyMenu {
   active: boolean
   /** Dates where the kitchen is closed — dishes assigned to these dates are hidden from customers. */
   inactiveDates: string[]
+  /** Snapshot of category id ordering for this menu (WEC-253). */
+  categoryOrder: string[]
 }
 
 export interface AdminMenuDayDish {
@@ -66,11 +68,12 @@ export function weekDays(monday: Date): Date[] {
 // ─── Queries ──────────────────────────────────────────────────────────────
 
 function mapMenuRow(r: unknown): AdminWeeklyMenu {
-  const row = r as { id: string; name: string | null; from_date: string; to_date: string; active: boolean | null; inactive_dates: string[] | null }
+  const row = r as { id: string; name: string | null; from_date: string; to_date: string; active: boolean | null; inactive_dates: string[] | null; category_order: string[] | null }
   return {
     id: row.id, name: row.name, fromDate: row.from_date, toDate: row.to_date,
     active: row.active ?? false,
     inactiveDates: row.inactive_dates ?? [],
+    categoryOrder: row.category_order ?? [],
   }
 }
 
@@ -123,13 +126,39 @@ export async function fetchMenuDayDishes(menuId: string): Promise<{ data: AdminM
 // ─── Mutations ────────────────────────────────────────────────────────────
 
 export async function createWeeklyMenu(input: { fromDate: string; toDate: string; name?: string | null }): Promise<{ data: AdminWeeklyMenu | null; error: string | null }> {
+  // WEC-253: snapshot the current global category order into the new menu.
+  // Cloning will later snapshot from the parent instead.
+  const { data: globalCats, error: catsErr } = await supabase
+    .from('categories')
+    .select('id, sort_order')
+    .eq('active', true)
+    .order('sort_order', { ascending: true })
+    .order('id', { ascending: true })
+  if (catsErr) return { data: null, error: catsErr.message }
+  const categoryOrder = (globalCats ?? []).map((c) => (c as { id: string }).id)
+
   const { data, error } = await supabase
     .from('weekly_menus')
-    .insert({ from_date: input.fromDate, to_date: input.toDate, name: input.name ?? null, active: false })
+    .insert({
+      from_date: input.fromDate,
+      to_date: input.toDate,
+      name: input.name ?? null,
+      active: false,
+      category_order: categoryOrder,
+    })
     .select('*')
     .single()
   if (error) return { data: null, error: error.message }
   return { data: mapMenuRow(data), error: null }
+}
+
+/** WEC-253: persist a new category sequence for a menu. */
+export async function setMenuCategoryOrder(id: string, categoryOrder: string[]): Promise<{ error: string | null }> {
+  const { error } = await supabase
+    .from('weekly_menus')
+    .update({ category_order: categoryOrder })
+    .eq('id', id)
+  return { error: error?.message ?? null }
 }
 
 export async function deleteWeeklyMenu(id: string): Promise<{ error: string | null }> {

@@ -60,6 +60,7 @@ function buildPlaceholderWeeks(meta: WeekMeta[]): WeekDef[] {
     labelEl: m.labelEl,
     labelEn: m.labelEn,
     days: m.days.map((d) => ({ date: d.date, dishIds: [] })),
+    categoryOrder: m.categoryOrder,
   }))
 }
 
