@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { fetchDishRecipe, type DishRecipe } from '../../lib/api/dishRecipe'
 import { effPrice } from '../../lib/helpers'
-import type { Dish, Variant } from '../../data/menu'
+import type { Dish } from '../../data/menu'
 import { makeTr } from '../../lib/translations'
 
 /**
