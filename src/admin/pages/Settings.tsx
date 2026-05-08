@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { Fragment, useEffect, useMemo, useState } from 'react'
 import {
   fetchAllSettings, setSetting, fetchAllergies, saveAllergy, deleteAllergy,
   type SettingRow, type AdminAllergy,
@@ -18,6 +18,10 @@ const PAYMENT_METHOD_LABELS: Record<PaymentMethod, string> = {
   transfer: 'Bank transfer',
   wallet: 'Fitpal wallet',
 }
+
+/** WEC-255: per-method visibility — { public, admin } each. */
+type MethodVisibility = { public: boolean; admin: boolean }
+type PaymentMethodVisibilityMap = Record<PaymentMethod, MethodVisibility>
 
 interface ContactInfo {
   supportEmail?: string
@@ -77,7 +81,7 @@ export function Settings() {
           <DateOverridesSection value={(byKey.get('cutoff_date_overrides') as DateOverrides) ?? {}} onSave={(v) => save('cutoff_date_overrides', v)} />
           <MinOrderSection value={Number(byKey.get('min_order') ?? 1500)} onSave={(v) => save('min_order', v)} />
           <TimeSlotsSection value={(byKey.get('time_slots') as string[]) ?? []} onSave={(v) => save('time_slots', v)} />
-          <PaymentMethodsSection value={(byKey.get('payment_methods_enabled') as PaymentMethod[]) ?? ALL_PAYMENT_METHODS} onSave={(v) => save('payment_methods_enabled', v)} />
+          <PaymentMethodsSection value={parseVisibility(byKey.get('payment_methods_enabled'))} onSave={(v) => save('payment_methods_enabled', v)} />
           <MacrosDisplaySection value={(byKey.get('macros_display') === 'dots' ? 'dots' : 'numbers')} onSave={(v) => save('macros_display', v)} />
           <ContactInfoSection value={(byKey.get('contact') as ContactInfo) ?? {}} onSave={(v) => save('contact', v)} />
           <BankTransferInfoSection value={(byKey.get('bank_transfer_info') as BankTransferInfo) ?? {}} onSave={(v) => save('bank_transfer_info', v)} />
@@ -242,30 +246,93 @@ function TimeSlotsSection({ value, onSave }: { value: string[]; onSave: (v: stri
   )
 }
 
-function PaymentMethodsSection({ value, onSave }: { value: PaymentMethod[]; onSave: (v: PaymentMethod[]) => void }) {
-  const [enabled, setEnabled] = useState<PaymentMethod[]>(value)
-  useEffect(() => setEnabled(value), [value])
-  const dirty = JSON.stringify(enabled.slice().sort()) !== JSON.stringify(value.slice().sort())
+/**
+ * Parse settings.payment_methods_enabled into the canonical visibility map
+ * (WEC-255). Accepts:
+ *   - undefined/null → everything visible to everyone
+ *   - legacy array of method strings → those public, all admin
+ *   - new object map → validated entry-by-entry
+ */
+function parseVisibility(raw: unknown): PaymentMethodVisibilityMap {
+  const out: PaymentMethodVisibilityMap = {
+    cash:     { public: true, admin: true },
+    card:     { public: true, admin: true },
+    link:     { public: true, admin: true },
+    transfer: { public: true, admin: true },
+    wallet:   { public: true, admin: true },
+  }
+  if (raw == null) return out
+  if (Array.isArray(raw)) {
+    const inArr = new Set(raw.filter((v) => typeof v === 'string') as string[])
+    for (const m of ALL_PAYMENT_METHODS) {
+      out[m] = { public: inArr.has(m), admin: true }
+    }
+    return out
+  }
+  if (typeof raw === 'object') {
+    const obj = raw as Record<string, unknown>
+    for (const m of ALL_PAYMENT_METHODS) {
+      const e = obj[m]
+      if (e && typeof e === 'object') {
+        const o = e as Record<string, unknown>
+        out[m] = { public: o.public === true, admin: o.admin === true }
+      }
+    }
+    return out
+  }
+  return out
+}
 
-  function toggle(m: PaymentMethod) {
-    setEnabled(enabled.includes(m) ? enabled.filter((x) => x !== m) : [...enabled, m])
+function PaymentMethodsSection({ value, onSave }: { value: PaymentMethodVisibilityMap; onSave: (v: PaymentMethodVisibilityMap) => void }) {
+  const [vis, setVis] = useState<PaymentMethodVisibilityMap>(value)
+  useEffect(() => setVis(value), [value])
+  const dirty = JSON.stringify(vis) !== JSON.stringify(value)
+
+  // At least one method has to be reachable somewhere — otherwise checkout
+  // would be unusable for everyone, including admins.
+  const anyEnabled = ALL_PAYMENT_METHODS.some((m) => vis[m].public || vis[m].admin)
+
+  function setFlag(m: PaymentMethod, flag: 'public' | 'admin', on: boolean) {
+    setVis({ ...vis, [m]: { ...vis[m], [flag]: on } })
   }
 
   return (
-    <SectionCard title="Enabled payment methods" desc="Methods offered to customers at checkout. At least one must stay enabled.">
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+    <SectionCard
+      title="Payment method visibility"
+      desc={'Per method: "Public" = shown to customers at checkout, "Admin" = shown when an admin is impersonating a customer. Useful when e.g. you don’t want customers to manage their wallet but admins should be able to debit it on their behalf.'}
+    >
+      <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 90px 90px', columnGap: 16, rowGap: 8, alignItems: 'center' }}>
+        <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--a-text-muted)', textTransform: 'uppercase', letterSpacing: 0.4 }}>Method</div>
+        <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--a-text-muted)', textTransform: 'uppercase', letterSpacing: 0.4, textAlign: 'center' }}>Public</div>
+        <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--a-text-muted)', textTransform: 'uppercase', letterSpacing: 0.4, textAlign: 'center' }}>Admin</div>
         {ALL_PAYMENT_METHODS.map((m) => (
-          <label key={m} className="admin-form-checkbox" style={{ gap: 10 }}>
-            <input type="checkbox" checked={enabled.includes(m)} onChange={() => toggle(m)} />
-            <span><strong>{PAYMENT_METHOD_LABELS[m]}</strong> <code style={{ color: 'var(--a-text-muted)', fontSize: 11 }}>{m}</code></span>
-          </label>
+          <Fragment key={m}>
+            <div>
+              <strong>{PAYMENT_METHOD_LABELS[m]}</strong>{' '}
+              <code style={{ color: 'var(--a-text-muted)', fontSize: 11 }}>{m}</code>
+            </div>
+            <label style={{ display: 'flex', justifyContent: 'center' }}>
+              <input
+                type="checkbox"
+                checked={vis[m].public}
+                onChange={(e) => setFlag(m, 'public', e.target.checked)}
+              />
+            </label>
+            <label style={{ display: 'flex', justifyContent: 'center' }}>
+              <input
+                type="checkbox"
+                checked={vis[m].admin}
+                onChange={(e) => setFlag(m, 'admin', e.target.checked)}
+              />
+            </label>
+          </Fragment>
         ))}
       </div>
-      <div className="admin-inline-form" style={{ marginTop: 12 }}>
-        <button className="admin-btn-primary" disabled={!dirty || enabled.length === 0} onClick={() => onSave(enabled)}>
+      <div className="admin-inline-form" style={{ marginTop: 14 }}>
+        <button className="admin-btn-primary" disabled={!dirty || !anyEnabled} onClick={() => onSave(vis)}>
           Save
         </button>
-        {enabled.length === 0 && <span className="admin-text-muted">Enable at least one method.</span>}
+        {!anyEnabled && <span className="admin-text-muted">At least one method must stay reachable.</span>}
       </div>
     </SectionCard>
   )

@@ -20,6 +20,27 @@ export interface DateCutoff {
 
 export type PaymentMethodId = 'cash' | 'card' | 'link' | 'transfer' | 'wallet'
 
+/**
+ * Per-method visibility flags (WEC-255).
+ *  - public: shown to public customers at checkout
+ *  - admin:  shown to an admin who's impersonating a customer
+ *
+ * Common patterns:
+ *   { public: true,  admin: true }  — fully enabled (most methods)
+ *   { public: false, admin: true }  — admin-only (e.g. wallet, when customers
+ *                                     shouldn't manage it but admins fund/spend
+ *                                     it on their behalf)
+ *   { public: true,  admin: false } — rare, but valid (admin can't accidentally
+ *                                     pick this method while impersonating)
+ *   { public: false, admin: false } — fully disabled
+ */
+export interface PaymentMethodVisibility {
+  public: boolean
+  admin: boolean
+}
+
+export type PaymentMethodVisibilityMap = Record<PaymentMethodId, PaymentMethodVisibility>
+
 export interface ContactInfo {
   supportEmail?: string
   supportPhone?: string
@@ -49,7 +70,17 @@ export interface AppSettings {
   cutoffHour: number                                      // default cutoff hour on previous day
   cutoffWeekdayOverrides: Record<number, WeekdayCutoff>   // key = ISO weekday of delivery
   cutoffDateOverrides: Record<string, DateCutoff>         // key = YYYY-MM-DD of delivery
-  /** Payment methods the customer checkout should offer. Empty = fall back to all. */
+  /**
+   * Per-method visibility (WEC-255). Canonical source for what the customer
+   * checkout offers. The legacy `paymentMethodsEnabled` array below is
+   * derived from this (public-visible methods only) for back-compat.
+   */
+  paymentMethodVisibility: PaymentMethodVisibilityMap
+  /**
+   * @deprecated since WEC-255 — derived from `paymentMethodVisibility` (the
+   * subset of methods with `public: true`). New code should consume the
+   * visibility map directly so it can branch on impersonation context.
+   */
   paymentMethodsEnabled: PaymentMethodId[]
   /** Contact info shown to customers (footer, emails). */
   contact: ContactInfo
@@ -61,11 +92,21 @@ export interface AppSettings {
 
 const ALL_METHODS: PaymentMethodId[] = ['cash', 'card', 'link', 'transfer', 'wallet']
 
+/** Defensive default — everything visible to everyone. Used when settings row is missing. */
+const DEFAULT_VISIBILITY: PaymentMethodVisibilityMap = {
+  cash:     { public: true, admin: true },
+  card:     { public: true, admin: true },
+  link:     { public: true, admin: true },
+  transfer: { public: true, admin: true },
+  wallet:   { public: true, admin: true },
+}
+
 const DEFAULTS: AppSettings = {
   minOrder: 15,
   cutoffHour: 18,
   cutoffWeekdayOverrides: {},
   cutoffDateOverrides: {},
+  paymentMethodVisibility: DEFAULT_VISIBILITY,
   paymentMethodsEnabled: ALL_METHODS,
   contact: {},
   bankTransferInfo: { iban: '', beneficiary: '' },
@@ -105,13 +146,41 @@ export async function fetchSettings(): Promise<{ data: AppSettings; error: strin
     }
   }
 
-  // payment_methods_enabled — array of strings; validate each against the known set
+  // payment_methods_enabled — accepts two shapes for back-compat (WEC-255):
+  //   1. Legacy array: ['cash','card',...] → public=true for those, admin=true
+  //      for everything (admins shouldn't get more locked out by accident).
+  //   2. Object map: { method: { public, admin } } → canonical post-WEC-255.
+  // Anything else falls back to the default-everything-on map. Each known
+  // method is shape-validated independently so a typo doesn't blank checkout.
   const rawPayment = map.payment_methods_enabled
-  const paymentMethodsEnabled: PaymentMethodId[] = Array.isArray(rawPayment)
-    ? (rawPayment as unknown[]).filter((v): v is PaymentMethodId =>
+  const paymentMethodVisibility: PaymentMethodVisibilityMap = { ...DEFAULT_VISIBILITY }
+  if (Array.isArray(rawPayment)) {
+    // Legacy: array of public-visible method strings.
+    const allowed = new Set(
+      (rawPayment as unknown[]).filter((v): v is PaymentMethodId =>
         typeof v === 'string' && (ALL_METHODS as string[]).includes(v),
-      )
-    : ALL_METHODS
+      ),
+    )
+    for (const m of ALL_METHODS) {
+      paymentMethodVisibility[m] = { public: allowed.has(m), admin: true }
+    }
+  } else if (rawPayment && typeof rawPayment === 'object') {
+    // New object map. Validate each entry — defensive against partial writes.
+    const obj = rawPayment as Record<string, unknown>
+    for (const m of ALL_METHODS) {
+      const entry = obj[m]
+      if (entry && typeof entry === 'object') {
+        const e = entry as Record<string, unknown>
+        paymentMethodVisibility[m] = {
+          public: e.public === true,
+          admin:  e.admin  === true,
+        }
+      }
+      // else leave the default for this method
+    }
+  }
+  // Derive the legacy public-only array from the canonical map.
+  const paymentMethodsEnabled: PaymentMethodId[] = ALL_METHODS.filter((m) => paymentMethodVisibility[m].public)
   const paymentMethodsFinal = paymentMethodsEnabled.length > 0 ? paymentMethodsEnabled : ALL_METHODS
 
   // contact — object with known string fields
@@ -141,6 +210,7 @@ export async function fetchSettings(): Promise<{ data: AppSettings; error: strin
       cutoffHour: typeof map.cutoff_hour === 'number' ? map.cutoff_hour : DEFAULTS.cutoffHour,
       cutoffWeekdayOverrides,
       cutoffDateOverrides,
+      paymentMethodVisibility,
       paymentMethodsEnabled: paymentMethodsFinal,
       contact,
       bankTransferInfo,

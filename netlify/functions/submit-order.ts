@@ -402,13 +402,28 @@ export default async (request: Request) => {
       settingsRes.error ? null : (settingsRes.data as { key: string; value: unknown }[] | null),
     )
 
-    // ── WEC-177: server-side enabled-methods guard ───────────────────────
-    // Client UI already filters by this, but never trust it.
+    // ── WEC-177 + WEC-255: server-side enabled-methods guard ────────────
+    // Client UI already filters by this, but never trust it. Accepts both
+    // the legacy array shape and the new {method: {public, admin}} object.
+    // For the server check we accept any method where public OR admin is
+    // true — admin-impersonation context is a UI distinction; server can't
+    // reliably tell since session-swap impersonation uses the customer JWT.
     const methodsRow = (settingsRes.data ?? [] as { key: string; value: unknown }[])
       .find((r: { key: string }) => r.key === 'payment_methods_enabled')
-    if (methodsRow && Array.isArray(methodsRow.value)) {
-      const enabled = methodsRow.value as string[]
-      if (enabled.length > 0 && !enabled.includes(body.paymentMethod)) {
+    if (methodsRow) {
+      let allowed: Set<string> | null = null
+      if (Array.isArray(methodsRow.value)) {
+        const arr = methodsRow.value as string[]
+        if (arr.length > 0) allowed = new Set(arr)
+      } else if (methodsRow.value && typeof methodsRow.value === 'object') {
+        const obj = methodsRow.value as Record<string, { public?: boolean; admin?: boolean }>
+        allowed = new Set(
+          Object.entries(obj)
+            .filter(([, v]) => v && (v.public === true || v.admin === true))
+            .map(([k]) => k),
+        )
+      }
+      if (allowed && !allowed.has(body.paymentMethod)) {
         return Response.json(
           { error: `Payment method "${body.paymentMethod}" is not enabled`, validationErrors: { general: [`Payment method "${body.paymentMethod}" is not enabled`] } },
           { status: 400 },

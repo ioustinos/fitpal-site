@@ -20,7 +20,11 @@ export function PaymentSection() {
   const cart = useCartStore((s) => s.cart)
   const voucher = useCartStore((s) => s.voucher)
   const user = useAuthStore((s) => s.user)
-  const enabledMethods = useMenuStore((s) => s.settings.paymentMethodsEnabled)
+  // WEC-255: per-method visibility flags { public, admin }. The legacy
+  // paymentMethodsEnabled is the public subset and is no longer consumed
+  // here — we read the full map and pick the right flag below based on
+  // whether an admin is impersonating.
+  const visibility = useMenuStore((s) => s.settings.paymentMethodVisibility)
   // With session-swap impersonation, `user` already IS the impersonated
   // customer (their JWT is active, their profile/wallet were re-loaded by
   // App.tsx's onAuthStateChange handler). So we just read user.wallet
@@ -32,18 +36,22 @@ export function PaymentSection() {
   const total = subTotal(cart, voucher)
   const walletSufficient = walletBalance >= total
 
-  // Filter hardcoded catalog by the admin-configured list.
+  // Filter hardcoded catalog by the admin-configured visibility map (WEC-255).
   //
-  // Wallet visibility rules:
-  //   * If wallet is admin-managed and we're NOT impersonating: hide
-  //     (only the curating admin can spend, via impersonation flow).
-  //   * If user has no wallet OR balance is 0: hide entirely (WEC-194).
-  //     The previous behaviour rendered a disabled "Insufficient" chip
-  //     which was confusing — better to just not offer it at all.
-  //     Exception: during impersonation, keep showing wallet so the admin
-  //     can see "this customer has €0" rather than wondering where it went.
+  // Two layers of filtering, applied in order:
+  //   1. Visibility flag — `admin` flag if an admin is impersonating, else
+  //      `public`. Lets ops hide methods like the wallet from public customers
+  //      while still letting admins debit it on their behalf.
+  //   2. Wallet special-cases (kept from WEC-194):
+  //        - admin-managed wallets only show during impersonation
+  //        - non-impersonating users without an active wallet or with 0 balance
+  //          don't see the wallet option at all (cleaner than a disabled chip)
+  //        - during impersonation we keep showing wallet even at €0 so admins
+  //          notice the empty state instead of hunting for a missing button
   const visibleMethods = PAYMENT_METHODS.filter((m) => {
-    if (!enabledMethods.includes(m.id)) return false
+    const v = visibility[m.id]
+    if (!v) return false
+    if (!(isImpersonating ? v.admin : v.public)) return false
     if (m.id === 'wallet') {
       if (!isImpersonating && user?.wallet?.adminManaged) return false
       if (!isImpersonating && (!walletActive || walletBalance <= 0)) return false
