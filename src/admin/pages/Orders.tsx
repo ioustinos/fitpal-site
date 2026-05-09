@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { useAuthStore } from '../../store/useAuthStore'
 import {
   listAdminOrders, getAdminOrder,
@@ -311,7 +312,22 @@ function OverviewTab({ order, onChanged }: { order: AdminOrder; onChanged: () =>
   return (
     <div>
       <section className="admin-form-section">
-        <h3 className="admin-form-label" style={{ fontSize: 13 }}>Customer</h3>
+        <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 8 }}>
+          <h3 className="admin-form-label" style={{ fontSize: 13 }}>Customer</h3>
+          {/* WEC-263: shortcut to the customer's profile in Users admin.
+              Hidden for guest checkouts (order.userId === null) — there's
+              no profile to land on. */}
+          {order.userId && (
+            <Link
+              to={`/admin/users?userId=${order.userId}`}
+              className="admin-row-btn"
+              style={{ textDecoration: 'none' }}
+              title="Open this customer's profile in the Users admin"
+            >
+              Go to customer →
+            </Link>
+          )}
+        </div>
         <div><strong>{order.customerName || '—'}</strong></div>
         <div className="admin-sub">{order.customerEmail} · {order.customerPhone}</div>
       </section>

@@ -5,7 +5,7 @@ import {
   type AdminUserRow, type AdminUserDetail, type WalletGrantType,
 } from '../../lib/api/adminUsers'
 import { useImpersonationStore } from '../../store/useImpersonationStore'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 
 const PAGE_SIZE = 50
 
@@ -26,6 +26,11 @@ const PAGE_SIZE = 50
 export function Users() {
   const navigate = useNavigate()
   const startImpersonation = useImpersonationStore((s) => s.start)
+  const [searchParams, setSearchParams] = useSearchParams()
+  // WEC-263: deep-link from /admin/orders → /admin/users?userId=<uuid>.
+  // Read once on mount; we strip the param after consuming it so back-nav
+  // doesn't keep re-selecting on refresh.
+  const deepLinkUserId = searchParams.get('userId')
 
   const [rows, setRows] = useState<AdminUserRow[]>([])
   const [total, setTotal] = useState(0)
@@ -51,6 +56,19 @@ export function Users() {
   }
 
   useEffect(() => { refresh() }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // WEC-263: handle deep-links like /admin/users?userId=<uuid>. Run once
+  // after the list resolves (loading flips false). Consumes the param to
+  // keep the URL clean — refreshing the page won't re-trigger the select.
+  useEffect(() => {
+    if (!deepLinkUserId || loading) return
+    loadDetail(deepLinkUserId)
+    // Strip the param so back/forward + refresh behaves naturally.
+    const next = new URLSearchParams(searchParams)
+    next.delete('userId')
+    setSearchParams(next, { replace: true })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [deepLinkUserId, loading])
 
   async function loadDetail(userId: string) {
     setSelectedId(userId); setDetailLoading(true)
