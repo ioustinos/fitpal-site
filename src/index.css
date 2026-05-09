@@ -516,6 +516,15 @@ header {
 .dish-card:hover .dish-img { transform: scale(1.06); }
 .dish-img-fallback { width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; font-size: 64px; background: linear-gradient(135deg, var(--green-dark), var(--green-mid)); }
 .dish-tags { position: absolute; top: 10px; left: 10px; display: flex; gap: 5px; flex-wrap: wrap; z-index: 1; }
+/* WEC-256: per-placement positioning. .dish-tags-tl matches the legacy
+   default; the other three are new corners. The discount ribbon (.disc-ribbon)
+   keeps its own absolute slot at top-right; tags pinned top_right stack
+   underneath it, anchored a step lower so they don't collide. */
+.dish-tags-tl { top: 10px; left: 10px; right: auto; bottom: auto; }
+.dish-tags-tr { top: 10px; right: 10px; left: auto; bottom: auto; align-items: flex-end; flex-direction: column; }
+.dish-tags-bl { bottom: 10px; left: 10px; right: auto; top: auto; }
+/* When both a discount ribbon and top_right tags exist, push tags down to clear it. */
+.dish-img-wrap:has(.disc-ribbon) .dish-tags-tr { top: 44px; }
 /* WEC-133 inline tags — rendered in card body, no backdrop-filter */
 .dish-inline-tags { display: flex; gap: 5px; flex-wrap: wrap; margin: 4px 0 6px; }
 .tag { padding: 3px 10px; border-radius: 999px; font-size: 10px; font-weight: 800; letter-spacing: 0.2px; backdrop-filter: blur(8px); }

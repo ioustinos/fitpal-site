@@ -888,11 +888,20 @@ function CategoryEditRow({ c, onChanged, onDelete }: { c: AdminCategory; onChang
 
 // ─── Tags modal ───────────────────────────────────────────────────────────
 
+// WEC-256: per-tag placement options for the dish card / modal.
+const TAG_PLACEMENTS: Array<{ value: 'top_left' | 'top_right' | 'bottom_left' | 'under_title'; label: string }> = [
+  { value: 'top_left',     label: 'Top-left (overlay)' },
+  { value: 'top_right',    label: 'Top-right (overlay, under discount)' },
+  { value: 'bottom_left',  label: 'Bottom-left (overlay)' },
+  { value: 'under_title',  label: 'Under title (inline chip)' },
+]
+
 function TagsModal({ tags, onClose, onChanged }: { tags: AdminTag[]; onClose: () => void; onChanged: () => void }) {
   const [newEl, setNewEl] = useState('')
   const [newEn, setNewEn] = useState('')
   const [newBg, setNewBg] = useState('#0a7b4a')
   const [newFg, setNewFg] = useState('#ffffff')
+  const [newPlacement, setNewPlacement] = useState<'top_left' | 'top_right' | 'bottom_left' | 'under_title'>('top_left')
   const [err, setErr] = useState<string | null>(null)
 
   async function add() {
@@ -901,6 +910,7 @@ function TagsModal({ tags, onClose, onChanged }: { tags: AdminTag[]; onClose: ()
     const { error } = await saveTag({
       labelEl: newEl.trim(), labelEn: newEn.trim() || newEl.trim(),
       bgColor: newBg, fontColor: newFg, sortOrder: tags.length,
+      placement: newPlacement,
     })
     if (error) { setErr(error); return }
     setNewEl(''); setNewEn('')
@@ -925,7 +935,7 @@ function TagsModal({ tags, onClose, onChanged }: { tags: AdminTag[]; onClose: ()
         <div className="admin-drawer-body">
           {err && <div className="admin-error-banner">{err}</div>}
           <table className="admin-table admin-table-tight">
-            <thead><tr><th>Preview</th><th>Label (EL)</th><th>Label (EN)</th><th>Bg</th><th>Fg</th><th></th></tr></thead>
+            <thead><tr><th>Preview</th><th>Label (EL)</th><th>Label (EN)</th><th>Bg</th><th>Fg</th><th>Placement</th><th></th></tr></thead>
             <tbody>
               {tags.map((t) => <TagEditRow key={t.id} t={t} onChanged={onChanged} onDelete={() => del(t)} />)}
             </tbody>
@@ -938,6 +948,9 @@ function TagsModal({ tags, onClose, onChanged }: { tags: AdminTag[]; onClose: ()
             <input className="admin-input" placeholder="Label (EN)" value={newEn} onChange={(e) => setNewEn(e.target.value)} />
             <input className="admin-input admin-color-input" type="color" value={newBg} onChange={(e) => setNewBg(e.target.value)} title="Background" />
             <input className="admin-input admin-color-input" type="color" value={newFg} onChange={(e) => setNewFg(e.target.value)} title="Font" />
+            <select className="admin-select" value={newPlacement} onChange={(e) => setNewPlacement(e.target.value as typeof newPlacement)}>
+              {TAG_PLACEMENTS.map((p) => <option key={p.value} value={p.value}>{p.label}</option>)}
+            </select>
             <button className="admin-btn-primary" onClick={add} disabled={!newEl.trim()}>Add</button>
           </div>
         </div>
@@ -951,9 +964,10 @@ function TagEditRow({ t, onChanged, onDelete }: { t: AdminTag; onChanged: () => 
   const [labelEn, setLabelEn] = useState(t.labelEn)
   const [bg, setBg] = useState(t.bgColor)
   const [fg, setFg] = useState(t.fontColor)
-  const dirty = labelEl !== t.labelEl || labelEn !== t.labelEn || bg !== t.bgColor || fg !== t.fontColor
+  const [placement, setPlacement] = useState<typeof t.placement>(t.placement)
+  const dirty = labelEl !== t.labelEl || labelEn !== t.labelEn || bg !== t.bgColor || fg !== t.fontColor || placement !== t.placement
   async function save() {
-    await saveTag({ id: t.id, labelEl, labelEn, bgColor: bg, fontColor: fg, sortOrder: t.sortOrder })
+    await saveTag({ id: t.id, labelEl, labelEn, bgColor: bg, fontColor: fg, sortOrder: t.sortOrder, placement })
     onChanged()
   }
   return (
@@ -963,6 +977,11 @@ function TagEditRow({ t, onChanged, onDelete }: { t: AdminTag; onChanged: () => 
       <td><input className="admin-input admin-input-tight" value={labelEn} onChange={(e) => setLabelEn(e.target.value)} /></td>
       <td><input className="admin-input admin-color-input" type="color" value={bg} onChange={(e) => setBg(e.target.value)} /></td>
       <td><input className="admin-input admin-color-input" type="color" value={fg} onChange={(e) => setFg(e.target.value)} /></td>
+      <td>
+        <select className="admin-select admin-input-tight" value={placement} onChange={(e) => setPlacement(e.target.value as typeof placement)}>
+          {TAG_PLACEMENTS.map((p) => <option key={p.value} value={p.value}>{p.label}</option>)}
+        </select>
+      </td>
       <td style={{ whiteSpace: 'nowrap' }}>
         {dirty && <button className="admin-row-btn" onClick={save}>Save</button>}
         <button className="admin-row-btn danger" onClick={onDelete}>Delete</button>

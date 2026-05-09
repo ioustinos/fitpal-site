@@ -1,5 +1,5 @@
 import { supabase } from '../supabase'
-import type { Dish, Variant, Macros, CategoryDef, WeekDef, WeekDay } from '../../data/menu'
+import type { Dish, Variant, Macros, CategoryDef, WeekDef, WeekDay, TagDef, TagPlacement } from '../../data/menu'
 
 // ─── DB row shapes (snake_case, money in cents) ──────────────────────────────
 
@@ -49,6 +49,8 @@ interface DbTag {
   label_en: string
   bg_color: string | null
   font_color: string | null
+  /** WEC-256: top_left | top_right | bottom_left | under_title. */
+  placement: string | null
 }
 
 interface DbMenuDayDish {
@@ -124,6 +126,34 @@ const toCategory = (row: DbCategory): CategoryDef => ({
 /**
  * Fetch all active categories, sorted by sort_order.
  */
+/**
+ * Fetch the global tags catalog (WEC-256). Customer side reads this once
+ * to resolve `Dish.tags[]` IDs into label / colour / placement triples.
+ */
+export async function fetchTags(): Promise<{ data: TagDef[] | null; error: string | null }> {
+  const { data, error } = await supabase
+    .from('tags')
+    .select('id, label_el, label_en, bg_color, font_color, placement')
+    .order('sort_order')
+
+  if (error) return { data: null, error: error.message }
+  const out: TagDef[] = (data ?? []).map((t) => {
+    const r = t as DbTag
+    const p = r.placement
+    const placement: TagPlacement =
+      p === 'top_right' || p === 'bottom_left' || p === 'under_title' ? p : 'top_left'
+    return {
+      id: r.id,
+      labelEl: r.label_el,
+      labelEn: r.label_en ?? r.label_el,
+      bgColor: r.bg_color ?? '#e0e0e0',
+      fontColor: r.font_color ?? '#333333',
+      placement,
+    }
+  })
+  return { data: out, error: null }
+}
+
 export async function fetchCategories(): Promise<{ data: CategoryDef[] | null; error: string | null }> {
   const { data, error } = await supabase
     .from('categories')

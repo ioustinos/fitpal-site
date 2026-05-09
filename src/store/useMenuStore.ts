@@ -3,13 +3,14 @@ import {
   fetchActiveWeeksMeta,
   fetchWeekDishes,
   fetchCategories,
+  fetchTags,
   type WeekMeta,
 } from '../lib/api/menu'
 import { fetchZones, type DeliveryZone, type TimeSlot } from '../lib/api/zones'
 import { fetchSettings, type AppSettings } from '../lib/api/settings'
 import { findLandingDay } from '../lib/helpers'
 import { useUIStore } from './useUIStore'
-import type { Dish, WeekDef, CategoryDef } from '../data/menu'
+import type { Dish, WeekDef, CategoryDef, TagDef } from '../data/menu'
 
 // ─── Store interface ───────────────────────────────────────────────────────────
 
@@ -32,6 +33,8 @@ interface MenuStore {
 
   dishMap: Record<string, Dish>      // dish id → Dish (accumulates across loaded weeks)
   categories: CategoryDef[]
+  /** WEC-256: tag catalog (id → label/colour/placement). */
+  tags: TagDef[]
   zones: DeliveryZone[]
   timeSlots: TimeSlot[]
   settings: AppSettings
@@ -82,6 +85,7 @@ export const useMenuStore = create<MenuStore>((set, get) => ({
   weekLoading: {},
   dishMap: {},
   categories: [],
+  tags: [],
   zones: [],
   timeSlots: [],
   settings: {
@@ -113,10 +117,11 @@ export const useMenuStore = create<MenuStore>((set, get) => ({
   reload: async () => {
     set({ isLoading: true, error: null })
 
-    // Phase 1: parallel fetch for meta + categories + zones + settings
-    const [metaRes, catsRes, zonesRes, settingsRes] = await Promise.all([
+    // Phase 1: parallel fetch for meta + categories + tags + zones + settings
+    const [metaRes, catsRes, tagsRes, zonesRes, settingsRes] = await Promise.all([
       fetchActiveWeeksMeta(),
       fetchCategories(),
+      fetchTags(),
       fetchZones(),
       fetchSettings(),
     ])
@@ -152,6 +157,7 @@ export const useMenuStore = create<MenuStore>((set, get) => ({
       weekLoading: eagerLoading,
       dishMap: {},
       categories: catsRes.data ?? [],
+      tags: tagsRes.data ?? [],
       zones: zonesRes.data?.zones ?? [],
       timeSlots: zonesRes.data?.slots ?? [],
       settings,

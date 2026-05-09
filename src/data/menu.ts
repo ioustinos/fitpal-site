@@ -67,6 +67,23 @@ export interface CategoryDef {
   labelEn: string
 }
 
+/** WEC-256: where a tag renders on the dish card / modal. */
+export type TagPlacement = 'top_left' | 'top_right' | 'bottom_left' | 'under_title'
+
+/**
+ * Customer-side tag definition (WEC-256). Used to look up label / colour /
+ * placement when rendering tag chips on the dish card and modal. Keyed by
+ * tag.id — Dish.tags is the list of ids, this lets components resolve them.
+ */
+export interface TagDef {
+  id: string
+  labelEl: string
+  labelEn: string
+  bgColor: string
+  fontColor: string
+  placement: TagPlacement
+}
+
 export interface WalletPlan {
   id: string
   nameEl: string

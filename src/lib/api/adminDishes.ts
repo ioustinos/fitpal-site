@@ -48,6 +48,9 @@ export interface AdminCategory {
   dishCount?: number
 }
 
+/** WEC-256: where this tag renders on the dish card / modal. */
+export type TagPlacement = 'top_left' | 'top_right' | 'bottom_left' | 'under_title'
+
 export interface AdminTag {
   id: string
   labelEl: string
@@ -55,6 +58,7 @@ export interface AdminTag {
   bgColor: string
   fontColor: string
   sortOrder: number
+  placement: TagPlacement
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────
@@ -173,11 +177,22 @@ export async function fetchAdminTags(): Promise<{ data: AdminTag[] | null; error
   const { data, error } = await supabase.from('tags').select('*').order('sort_order')
   if (error) return { data: null, error: error.message }
   const tags: AdminTag[] = (data ?? []).map((t) => {
-    const r = t as { id: string; label_el: string; label_en: string | null; bg_color: string | null; font_color: string | null; sort_order: number | null }
+    const r = t as {
+      id: string; label_el: string; label_en: string | null;
+      bg_color: string | null; font_color: string | null;
+      sort_order: number | null; placement: string | null
+    }
+    // Validate placement defensively — DB CHECK constraint should keep it in
+    // the four allowed values, but a partial migration or manual edit could
+    // sneak something else in.
+    const p = r.placement
+    const placement: TagPlacement =
+      p === 'top_right' || p === 'bottom_left' || p === 'under_title' ? p : 'top_left'
     return {
       id: r.id, labelEl: r.label_el, labelEn: r.label_en ?? '',
       bgColor: r.bg_color ?? '#e0e0e0', fontColor: r.font_color ?? '#333333',
       sortOrder: r.sort_order ?? 0,
+      placement,
     }
   })
   return { data: tags, error: null }
@@ -415,12 +430,18 @@ export async function deleteCategory(id: string): Promise<{ error: string | null
 
 // ─── Tags ─────────────────────────────────────────────────────────────────
 
-export async function saveTag(t: { id?: string; labelEl: string; labelEn: string; bgColor: string; fontColor: string; sortOrder: number }): Promise<{ error: string | null }> {
+export async function saveTag(t: {
+  id?: string; labelEl: string; labelEn: string;
+  bgColor: string; fontColor: string; sortOrder: number;
+  /** WEC-256: where this tag renders. Defaults to top_left for new tags. */
+  placement?: TagPlacement
+}): Promise<{ error: string | null }> {
   const row = {
     id: t.id ?? makeTagId(t.labelEn || t.labelEl),
     label_el: t.labelEl, label_en: t.labelEn,
     bg_color: t.bgColor, font_color: t.fontColor,
     sort_order: t.sortOrder,
+    placement: t.placement ?? 'top_left',
   }
   if (t.id) {
     const { error } = await supabase.from('tags').update(row).eq('id', t.id)

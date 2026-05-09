@@ -28,6 +28,32 @@ export function DishCard({ dish, dayIndex }: DishCardProps) {
   const dayItems = cart[dayIndex] ?? []
   const inCart = dayItems.filter((ci) => ci.dishId === dish.id).reduce((s, ci) => s + ci.qty, 0)
 
+  // WEC-256: tag catalog from the store, look up each dish.tag id to render
+  // it in the correct slot (top_left / top_right / bottom_left / under_title).
+  // Falls back to the hardcoded TAG_META + isOverlayTag map for any tag id
+  // not yet in the store (defensive — first paint can race with the fetch).
+  const tagsCatalog = useMenuStore((s) => s.tags)
+  const resolvedTags = (dish.tags ?? [])
+    .map((id) => {
+      const t = tagsCatalog.find((x) => x.id === id)
+      if (t) return { id, labelEl: t.labelEl, labelEn: t.labelEn, bgColor: t.bgColor, fontColor: t.fontColor, placement: t.placement }
+      // Fallback for unknown tag ids (legacy seeds, race conditions)
+      return {
+        id,
+        labelEl: tagLabel(id, 'el'),
+        labelEn: tagLabel(id, 'en'),
+        bgColor: undefined as string | undefined,
+        fontColor: undefined as string | undefined,
+        placement: (isOverlayTag(id) ? 'top_left' : 'under_title') as 'top_left' | 'under_title',
+      }
+    })
+  const tagsBy = {
+    top_left:    resolvedTags.filter((t) => t.placement === 'top_left'),
+    top_right:   resolvedTags.filter((t) => t.placement === 'top_right'),
+    bottom_left: resolvedTags.filter((t) => t.placement === 'bottom_left'),
+    under_title: resolvedTags.filter((t) => t.placement === 'under_title'),
+  }
+
   // First variant by sort_order — used for the "από €X.XX" pricing badge so it
   // always reflects the cheapest option, regardless of admin's preselection.
   const cheapestVariant = dish.variants[0]
@@ -99,18 +125,53 @@ export function DishCard({ dish, dayIndex }: DishCardProps) {
           {dish.emoji}
         </div>
 
-        {/* Overlay tags — absolute top-left (e.g. "Sale", "Hot") */}
-        {dish.tags && dish.tags.some((t) => isOverlayTag(t)) && (
-          <div className="dish-tags">
-            {dish.tags.filter((t) => isOverlayTag(t)).map((tag) => (
-              <span key={tag} className={`tag tag-${tag}`}>
-                {tagLabel(tag, lang)}
+        {/* WEC-256: image-overlay tags grouped by placement.
+            top-left and top-right corners stack with the existing discount
+            ribbon — discount stays anchored top-right so admin tags placed
+            top_right slot under it. bottom_left is a new slot. */}
+        {tagsBy.top_left.length > 0 && (
+          <div className="dish-tags dish-tags-tl">
+            {tagsBy.top_left.map((t) => (
+              <span
+                key={t.id}
+                className={`tag tag-${t.id}`}
+                style={t.bgColor ? { background: t.bgColor, color: t.fontColor } : undefined}
+              >
+                {lang === 'el' ? t.labelEl : t.labelEn}
+              </span>
+            ))}
+          </div>
+        )}
+        {tagsBy.top_right.length > 0 && (
+          <div className="dish-tags dish-tags-tr">
+            {tagsBy.top_right.map((t) => (
+              <span
+                key={t.id}
+                className={`tag tag-${t.id}`}
+                style={t.bgColor ? { background: t.bgColor, color: t.fontColor } : undefined}
+              >
+                {lang === 'el' ? t.labelEl : t.labelEn}
+              </span>
+            ))}
+          </div>
+        )}
+        {tagsBy.bottom_left.length > 0 && (
+          <div className="dish-tags dish-tags-bl">
+            {tagsBy.bottom_left.map((t) => (
+              <span
+                key={t.id}
+                className={`tag tag-${t.id}`}
+                style={t.bgColor ? { background: t.bgColor, color: t.fontColor } : undefined}
+              >
+                {lang === 'el' ? t.labelEl : t.labelEn}
               </span>
             ))}
           </div>
         )}
 
-        {/* Discount ribbon — top right */}
+        {/* Discount ribbon — top right (rendered AFTER tags-tr so it stays
+            visually on top if both exist; CSS pins them to different spots
+            on the same edge). */}
         {!!dish.discount && (
           <div className="disc-ribbon">−{dish.discount}%</div>
         )}
@@ -133,12 +194,16 @@ export function DishCard({ dish, dayIndex }: DishCardProps) {
       <div className="dish-body">
         <div className="dish-name">{name}</div>
 
-        {/* Non-overlay tags — appear below the name like little chips */}
-        {dish.tags && dish.tags.some((t) => !isOverlayTag(t)) && (
+        {/* Inline 'under the title' tags — chips below the dish name. */}
+        {tagsBy.under_title.length > 0 && (
           <div className="dish-inline-tags">
-            {dish.tags.filter((t) => !isOverlayTag(t)).map((tag) => (
-              <span key={tag} className={`tag tag-inline tag-${tag}`}>
-                {tagLabel(tag, lang)}
+            {tagsBy.under_title.map((t) => (
+              <span
+                key={t.id}
+                className={`tag tag-inline tag-${t.id}`}
+                style={t.bgColor ? { background: t.bgColor, color: t.fontColor } : undefined}
+              >
+                {lang === 'el' ? t.labelEl : t.labelEn}
               </span>
             ))}
           </div>

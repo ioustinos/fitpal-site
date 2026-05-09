@@ -21,6 +21,7 @@ export function DishModal() {
   const cart = useCartStore((s) => s.cart)
   const weeksMeta = useMenuStore((s) => s.weeksMeta)
   const settings = useMenuStore((s) => s.settings)
+  const tagsCatalog = useMenuStore((s) => s.tags)
   const toast = useToast((s) => s.show)
   const t = makeTr(lang)
 
@@ -120,12 +121,27 @@ export function DishModal() {
 
       {/* Body */}
       <div className="dm-body">
-        {/* Tags */}
+        {/* Tags — WEC-256 dynamic placement. The modal flattens all tags into
+            a single under-title chip row regardless of placement, since the
+            modal already has its own image area with corner overlays. */}
         {(dish.tags?.length || dish.discount) ? (
           <div className="dm-tags">
-            {dish.tags?.map((tag) => (
-              <span key={tag} className={`tag tag-${tag}`}>{tagLabel(tag, lang)}</span>
-            ))}
+            {(dish.tags ?? []).map((tagId) => {
+              const t = tagsCatalog.find((x) => x.id === tagId)
+              const labelEl = t?.labelEl ?? tagLabel(tagId, 'el')
+              const labelEn = t?.labelEn ?? tagLabel(tagId, 'en')
+              const bg = t?.bgColor
+              const fg = t?.fontColor
+              return (
+                <span
+                  key={tagId}
+                  className={`tag tag-${tagId}`}
+                  style={bg ? { background: bg, color: fg } : undefined}
+                >
+                  {lang === 'el' ? labelEl : labelEn}
+                </span>
+              )
+            })}
             {!!dish.discount && (
               <span className="tag tag-sale">-{dish.discount}%</span>
             )}
