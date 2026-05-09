@@ -9,12 +9,20 @@ import { supabase } from '../../lib/supabase'
 /**
  * Login modes:
  *   - 'password': email + password (default for returning users — fast with autofill)
- *   - 'otp':      email → 6-digit code (no password required, works for any user)
+ *   - 'otp':      email → numeric code (no password required, works for any user)
  *
  * Signup mode is OTP-only — no password is collected at signup. Users who
  * want fast returning-login can opt in via Account → Profile → "Set a password"
  * later. See OTP-everywhere epic.
+ *
+ * WEC-272: OTP length is configured server-side in Supabase Dashboard →
+ * Authentication → Email → "OTP length". Our project is set to 8 digits.
+ * Keep this constant in sync with that setting. We also accept paste input
+ * up to OTP_MAX_LENGTH defensively so a future config bump to 10 doesn't
+ * silently truncate the user's input and trigger "otp_expired" mismatches.
  */
+const OTP_LENGTH = 8
+const OTP_MAX_LENGTH = 10
 type LoginMode = 'password' | 'otp'
 type OtpStep = 'enterEmail' | 'enterCode'
 
@@ -202,7 +210,7 @@ export function AuthModal() {
             />
           </div>
           <div className="auth-note">
-            {isEl ? 'Θα σου στείλουμε 6-ψήφιο κωδικό.' : "We'll send you a 6-digit code."}
+            {isEl ? `Θα σου στείλουμε ${OTP_LENGTH}-ψήφιο κωδικό.` : `We'll send you a ${OTP_LENGTH}-digit code.`}
           </div>
           {authError && <div className="auth-error">{authError}</div>}
           <button className="btn-auth" type="submit" disabled={busy || !loginEmail}>
@@ -222,21 +230,21 @@ export function AuthModal() {
             {isEl ? `Στείλαμε κωδικό στο ${loginEmail}` : `We sent a code to ${loginEmail}`}
           </div>
           <div className="form-row">
-            <label className="form-label">{isEl ? 'Κωδικός 6 ψηφίων' : '6-digit code'}</label>
+            <label className="form-label">{isEl ? `Κωδικός ${OTP_LENGTH} ψηφίων` : `${OTP_LENGTH}-digit code`}</label>
             <input
               className="form-input"
               type="text"
               inputMode="numeric"
-              maxLength={6}
+              maxLength={OTP_MAX_LENGTH}
               value={loginOtpCode}
-              onChange={(e) => setLoginOtpCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
-              placeholder="123456"
+              onChange={(e) => setLoginOtpCode(e.target.value.replace(/\D/g, '').slice(0, OTP_MAX_LENGTH))}
+              placeholder={'1'.repeat(OTP_LENGTH)}
               autoComplete="one-time-code"
               required
             />
           </div>
           {authError && <div className="auth-error">{authError}</div>}
-          <button className="btn-auth" type="submit" disabled={busy || loginOtpCode.length !== 6}>
+          <button className="btn-auth" type="submit" disabled={busy || loginOtpCode.length < OTP_LENGTH}>
             {busy ? '...' : (isEl ? 'Επαλήθευση & σύνδεση' : 'Verify & sign in')}
           </button>
           <div className="auth-otp-toggle">
@@ -275,8 +283,8 @@ export function AuthModal() {
           </div>
           <div className="auth-note">
             {isEl
-              ? 'Χωρίς κωδικό στην εγγραφή — θα σου στείλουμε 6-ψήφιο κωδικό. Μπορείς να ορίσεις κωδικό αργότερα από τις ρυθμίσεις.'
-              : "No password at signup — we'll send you a 6-digit code. You can set a password later from your account."}
+              ? `Χωρίς κωδικό στην εγγραφή — θα σου στείλουμε ${OTP_LENGTH}-ψήφιο κωδικό. Μπορείς να ορίσεις κωδικό αργότερα από τις ρυθμίσεις.`
+              : `No password at signup — we'll send you a ${OTP_LENGTH}-digit code. You can set a password later from your account.`}
           </div>
           {authError && <div className="auth-error">{authError}</div>}
           <button className="btn-auth" type="submit" disabled={busy || !regName || !regEmail}>
@@ -295,21 +303,21 @@ export function AuthModal() {
             {isEl ? `Στείλαμε κωδικό στο ${regEmail}` : `We sent a code to ${regEmail}`}
           </div>
           <div className="form-row">
-            <label className="form-label">{isEl ? 'Κωδικός 6 ψηφίων' : '6-digit code'}</label>
+            <label className="form-label">{isEl ? `Κωδικός ${OTP_LENGTH} ψηφίων` : `${OTP_LENGTH}-digit code`}</label>
             <input
               className="form-input"
               type="text"
               inputMode="numeric"
-              maxLength={6}
+              maxLength={OTP_MAX_LENGTH}
               value={regOtpCode}
-              onChange={(e) => setRegOtpCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
-              placeholder="123456"
+              onChange={(e) => setRegOtpCode(e.target.value.replace(/\D/g, '').slice(0, OTP_MAX_LENGTH))}
+              placeholder={'1'.repeat(OTP_LENGTH)}
               autoComplete="one-time-code"
               required
             />
           </div>
           {authError && <div className="auth-error">{authError}</div>}
-          <button className="btn-auth" type="submit" disabled={busy || regOtpCode.length !== 6}>
+          <button className="btn-auth" type="submit" disabled={busy || regOtpCode.length < OTP_LENGTH}>
             {busy ? '...' : (isEl ? 'Επαλήθευση & ολοκλήρωση' : 'Verify & finish')}
           </button>
           <div className="auth-otp-toggle">
