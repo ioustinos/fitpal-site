@@ -42,6 +42,12 @@ export function MobileCartSheet({ mode = 'menu' }: Props) {
   const lang = useUIStore((s) => s.lang)
   const activeWeek = useUIStore((s) => s.activeWeek)
   const goToCheckout = useUIStore((s) => s.goToCheckout)
+  // WEC-264 v2: hide the cart sheet whenever any modal is open. Without
+  // this, the bottom bar renders on top of the auth/wallet/dish modal
+  // sheets and obscures their CTAs (reported by Ioustinos with the
+  // login modal). Modals already have their own footer buttons, so the
+  // cart isn't useful in that context.
+  const openModal = useUIStore((s) => s.openModal)
   const cart = useCartStore((s) => s.cart)
   const voucher = useCartStore((s) => s.voucher)
   const t = makeTr(lang)
@@ -91,6 +97,11 @@ export function MobileCartSheet({ mode = 'menu' }: Props) {
   // there without items) but we hide rather than render junk.
   if (!hasItems && mode === 'checkout') return null
 
+  // WEC-264 v2: hide entirely whenever any modal is open. Modals manage
+  // their own bottom-aligned content (auth submit button, wallet CTA,
+  // dish "Add to cart") and the bar fights with them visually.
+  if (openModal) return null
+
   return (
     <>
       {/* Backdrop scrim — only when expanded. Click to collapse. */}
@@ -110,15 +121,28 @@ export function MobileCartSheet({ mode = 'menu' }: Props) {
           aria-expanded={expanded}
           aria-controls="mcs-body"
         >
-          <span className="mcs-bar-icon" aria-hidden="true">🛒</span>
+          <span className="mcs-bar-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" width="22" height="22">
+              <circle cx="9" cy="21" r="1"/>
+              <circle cx="20" cy="21" r="1"/>
+              <path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/>
+            </svg>
+          </span>
           <span className="mcs-bar-count">
             {hasItems ? cartCount : 0}
           </span>
           <span className="mcs-bar-total">
             {hasItems ? `€${total.toFixed(2)}` : t('cartEmpty')}
           </span>
+          {/* "View" hint nudges discoverability — the bar is tappable but
+              the cue helps first-timers know that. Hidden when expanded. */}
+          {!expanded && (
+            <span className="mcs-bar-cta">
+              {lang === 'el' ? 'ΑΝΟΙΓΜΑ' : 'OPEN'}
+            </span>
+          )}
           <span className="mcs-bar-chev" aria-hidden="true">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
               <polyline points={expanded ? '6 15 12 9 18 15' : '6 9 12 15 18 9'}/>
             </svg>
           </span>

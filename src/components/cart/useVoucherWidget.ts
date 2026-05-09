@@ -76,23 +76,35 @@ export function useVoucherWidget() {
     }
   }, [rawTotal, voucher.applied, voucher.minOrder, removeVoucher, lang])
 
+  // Resolve category ids → labels so the auto-drop message can tell the
+  // customer exactly which categories the voucher works on, instead of
+  // a generic "not applicable" line.
+  const categories = useMenuStore((s) => s.categories)
+
   // WEC-262: auto-drop scoped voucher when no eligible items remain in
   // the cart. e.g. customer applies "salads only", removes all salads —
-  // the voucher disappears with a clear "not applicable to your selection"
-  // message. Without this, the discount line lingers at €0 and feels broken.
+  // the voucher disappears with a clear list of which categories it does
+  // apply to so the customer knows what they could add.
   useEffect(() => {
     if (!voucher.applied) return
     const cats = voucher.applicableCategoryIds
     if (!cats || cats.length === 0) return
     if (eligibleNow <= 0) {
       removeVoucher()
+      const labels = cats
+        .map((id) => {
+          const c = categories.find((cc) => cc.id === id)
+          if (!c) return id
+          return lang === 'el' ? c.labelEl : c.labelEn
+        })
+        .join(', ')
       setError(
         lang === 'el'
-          ? 'Το κουπόνι δεν εφαρμόζεται στις τρέχουσες επιλογές σου'
-          : 'Voucher not applicable to your current selection',
+          ? `Το κουπόνι εφαρμόζεται μόνο στις εξής κατηγορίες: ${labels}`
+          : `This voucher only applies to: ${labels}`,
       )
     }
-  }, [eligibleNow, voucher.applied, voucher.applicableCategoryIds, removeVoucher, lang])
+  }, [eligibleNow, voucher.applied, voucher.applicableCategoryIds, removeVoucher, lang, categories])
 
   return {
     /** Cart-store voucher state (.applied, .code, .type, .value, .minOrder, etc.) */

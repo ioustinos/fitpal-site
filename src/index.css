@@ -761,6 +761,23 @@ header {
 .mcs-backdrop, .mcs-sheet { display: none; }
 
 @media (max-width: 768px) {
+  /* WEC-264 v2: header polish on mobile — top bar was clipping admin pill,
+     wallet pill, lang toggle and user avatar at the right edge. Trim
+     padding, hide the 'Healthy delivery' decorative subtitle (logo still
+     reads as fitpalmeals), shrink pill paddings so they fit in ~360px. */
+  header { padding: 0 12px; }
+  .logo { gap: 6px; }
+  .logo-sub { display: none; }
+  .logo-text { font-size: 17px; }
+  .logo-icon { width: 26px; height: 26px; font-size: 9px; }
+  .lang-wrap { gap: 6px; }
+  .hdr-admin-link { padding: 4px 9px 4px 8px; font-size: 11px; gap: 4px; }
+  .hdr-admin-link span { display: inline; }
+  .wallet-hdr-badge { padding: 4px 10px; }
+  .wallet-hdr-amt { font-size: 12px; }
+  .lang-toggle { padding: 2px; }
+  .lang-btn { padding: 4px 10px; font-size: 11px; }
+
   /* Desktop sidebars hidden on mobile — sheet replaces them. */
   .sidebar { display: none !important; }
   .checkout-sidebar { display: none !important; }
@@ -778,22 +795,28 @@ header {
   .mcs-sheet {
     display: flex; flex-direction: column;
     position: fixed; left: 0; right: 0; bottom: 0;
+    width: 100%;        /* WEC-264 v2: explicit so flex content can't grow past viewport */
+    max-width: 100vw;
     z-index: 999;
     background: var(--white);
     border-top-left-radius: 16px;
     border-top-right-radius: 16px;
     box-shadow: 0 -8px 24px rgba(0,0,0,0.12);
-    max-height: 56px;
+    max-height: 60px;
     transition: max-height 0.22s ease-out;
     overflow: hidden;
     padding-bottom: env(safe-area-inset-bottom);
   }
-  .mcs-sheet.expanded { max-height: 75vh; }
+  .mcs-sheet.expanded { max-height: 78vh; }
 
+  /* WEC-264 v2: redesigned bar — cleaner hierarchy, more breathing room,
+     two visual zones (left = cart contents, right = action affordance).
+     Cart icon is an SVG instead of emoji (renders consistently across
+     devices). Slightly taller (60px) for better tap target. */
   .mcs-bar {
-    flex: 0 0 56px;
-    width: 100%;
-    display: flex; align-items: center; gap: 10px;
+    flex: 0 0 60px;
+    width: 100%; min-width: 0;
+    display: flex; align-items: center; gap: 12px;
     padding: 0 16px;
     border: none;
     background: var(--green);
@@ -802,15 +825,38 @@ header {
     font-size: 14px; font-weight: 800;
     -webkit-tap-highlight-color: transparent;
   }
-  .mcs-bar-icon { font-size: 18px; }
-  .mcs-bar-count {
-    background: var(--white); color: var(--green-dark);
-    border-radius: 999px; min-width: 22px; height: 22px;
+  .mcs-bar-icon {
+    flex: 0 0 auto;
+    width: 22px; height: 22px;
     display: inline-flex; align-items: center; justify-content: center;
-    font-size: 12px; font-weight: 900; padding: 0 7px;
+    color: var(--white); opacity: 0.95;
   }
-  .mcs-bar-total { flex: 1; text-align: left; font-size: 15px; }
-  .mcs-bar-chev { display: inline-flex; opacity: 0.85; }
+  .mcs-bar-count {
+    flex: 0 0 auto;
+    background: var(--white); color: var(--green-dark);
+    border-radius: 999px; min-width: 24px; height: 22px;
+    display: inline-flex; align-items: center; justify-content: center;
+    font-size: 12px; font-weight: 900; padding: 0 8px;
+    letter-spacing: -0.2px;
+  }
+  .mcs-bar-total {
+    flex: 1 1 auto; min-width: 0;
+    text-align: left; font-size: 16px; font-weight: 900;
+    letter-spacing: -0.3px;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .mcs-bar-cta {
+    flex: 0 0 auto;
+    font-size: 12px; font-weight: 700;
+    color: rgba(255,255,255,0.9);
+    text-transform: uppercase; letter-spacing: 0.6px;
+  }
+  .mcs-bar-chev {
+    flex: 0 0 auto;
+    display: inline-flex; align-items: center;
+    width: 18px; height: 18px;
+    opacity: 0.9;
+  }
 
   .mcs-body {
     flex: 1 1 auto;
@@ -839,8 +885,24 @@ header {
   .mcs-scroll {
     flex: 1 1 auto;
     overflow-y: auto;
+    overflow-x: hidden;     /* WEC-264 v2: kill horizontal scroll inside the sheet */
     padding: 8px 14px 4px;
     -webkit-overflow-scrolling: touch;
+    min-width: 0;
+  }
+  /* WEC-264 v2: ensure cart content (DayOrderGroup, items, macros) shrinks
+     to fit narrow viewports instead of forcing the parent to scroll
+     horizontally. Each row is allowed to wrap or truncate as needed. */
+  .mcs-scroll .cart-day-block,
+  .mcs-scroll .cart-item,
+  .mcs-scroll .summary-item,
+  .mcs-scroll .day-macros-block { min-width: 0; max-width: 100%; }
+  .mcs-scroll .cart-item { flex-wrap: wrap; row-gap: 6px; }
+  .mcs-scroll .ci-info { min-width: 0; }
+  .mcs-scroll .ci-name,
+  .mcs-scroll .ci-var,
+  .mcs-scroll .summary-item-name {
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
   }
   .mcs-foot {
     flex: 0 0 auto;
