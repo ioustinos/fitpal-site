@@ -22,6 +22,8 @@ export interface AdminVoucher {
   expiresAt: string | null
   active: boolean
   createdAt: string
+  /** WEC-262: empty array = applies to all categories. Non-empty = scoped. */
+  applicableCategoryIds: string[]
 }
 
 export interface AdminVoucherUseRow {
@@ -50,13 +52,16 @@ function rowToVoucher(r: Record<string, unknown>): AdminVoucher {
     expiresAt: (r.expires_at as string | null) ?? null,
     active: (r.active as boolean) ?? true,
     createdAt: (r.created_at as string) ?? '',
+    applicableCategoryIds: Array.isArray(r.applicable_category_ids)
+      ? (r.applicable_category_ids as string[])
+      : [],
   }
 }
 
 export async function fetchAdminVouchers(): Promise<{ data: AdminVoucher[]; error: string | null }> {
   const { data, error } = await supabase
     .from('vouchers')
-    .select('id, code, user_id, type, value, remaining, min_order, max_uses, uses_count, per_user_limit, expires_at, active, created_at')
+    .select('id, code, user_id, type, value, remaining, min_order, max_uses, uses_count, per_user_limit, expires_at, active, created_at, applicable_category_ids')
     .order('created_at', { ascending: false })
 
   if (error) return { data: [], error: error.message }
@@ -74,6 +79,8 @@ export interface VoucherDraft {
   perUserLimit?: number | null
   expiresAt?: string | null
   active?: boolean
+  /** WEC-262: empty array = applies to all categories. */
+  applicableCategoryIds?: string[]
 }
 
 export async function createVoucher(d: VoucherDraft): Promise<{ data: AdminVoucher | null; error: string | null }> {
@@ -92,12 +99,13 @@ export async function createVoucher(d: VoucherDraft): Promise<{ data: AdminVouch
     per_user_limit: d.perUserLimit ?? null,
     expires_at: d.expiresAt ?? null,
     active: d.active ?? true,
+    applicable_category_ids: d.applicableCategoryIds ?? [],
   }
 
   const { data, error } = await supabase
     .from('vouchers')
     .insert(payload)
-    .select('id, code, user_id, type, value, remaining, min_order, max_uses, uses_count, per_user_limit, expires_at, active, created_at')
+    .select('id, code, user_id, type, value, remaining, min_order, max_uses, uses_count, per_user_limit, expires_at, active, created_at, applicable_category_ids')
     .single()
 
   if (error) return { data: null, error: error.message }
@@ -116,6 +124,7 @@ export async function saveVoucher(id: string, patch: Partial<VoucherDraft>): Pro
   if (patch.perUserLimit !== undefined) payload.per_user_limit = patch.perUserLimit
   if (patch.expiresAt !== undefined) payload.expires_at = patch.expiresAt
   if (patch.active !== undefined) payload.active = patch.active
+  if (patch.applicableCategoryIds !== undefined) payload.applicable_category_ids = patch.applicableCategoryIds
 
   const { error } = await supabase.from('vouchers').update(payload).eq('id', id)
   return { error: error?.message ?? null }

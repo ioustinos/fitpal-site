@@ -369,7 +369,7 @@ export default async (request: Request) => {
       // Dish names + active status
       supabase
         .from('dishes')
-        .select('id, name_el, name_en, active')
+        .select('id, name_el, name_en, active, category_id')
         .in('id', allDishIds),
 
       // Menu-day assignments (which dishes are on which dates)
@@ -607,13 +607,40 @@ export default async (request: Request) => {
         }
       }
 
-      // Calculate discount (all values in cents)
+      // WEC-262: scope discount to a subset of categories when configured.
+      // Empty array → applies to entire order (legacy behaviour).
+      // Non-empty array → discount applies only to the items whose dishes'
+      // category_id is in that list. Voucher is rejected if no cart items
+      // qualify, with generic anti-enumeration wording (per WEC-148).
+      const scopedCats = Array.isArray(voucher.applicable_category_ids) ? (voucher.applicable_category_ids as string[]) : []
+      let discountBase = orderSubtotal
+      if (scopedCats.length > 0) {
+        let eligible = 0
+        for (const day of body.days) {
+          for (const item of day.items) {
+            const dish = dishMap.get(item.dishId) as { category_id?: string } | undefined
+            const variant = variantMap.get(item.variantId) as { price?: number } | undefined
+            if (!dish || !variant) continue
+            if (typeof dish.category_id === 'string' && scopedCats.includes(dish.category_id)) {
+              eligible += (variant.price ?? 0) * item.quantity
+            }
+          }
+        }
+        if (eligible <= 0) {
+          return Response.json({ error: 'Voucher not applicable', validationErrors: { voucher: ['Voucher not applicable to your selection'] } }, { status: 400 })
+        }
+        discountBase = eligible
+      }
+
+      // Calculate discount (all values in cents). Caps at discountBase so we
+      // never refund more than the eligible items even with fixed/credit
+      // vouchers worth more than the eligible total.
       if (voucher.type === 'pct') {
-        discountAmount = Math.round(orderSubtotal * voucher.value / 100)
+        discountAmount = Math.round(discountBase * voucher.value / 100)
       } else if (voucher.type === 'fixed') {
-        discountAmount = Math.min(voucher.value, orderSubtotal)
+        discountAmount = Math.min(voucher.value, discountBase)
       } else if (voucher.type === 'credit') {
-        discountAmount = Math.min(voucher.remaining ?? 0, orderSubtotal)
+        discountAmount = Math.min(voucher.remaining ?? 0, discountBase)
       }
 
       voucherId = voucher.id

@@ -4,6 +4,7 @@ import {
   fetchVoucherUses, VOUCHER_TYPES,
   type AdminVoucher, type AdminVoucherUseRow, type VoucherType,
 } from '../../lib/api/adminVouchers'
+import { fetchAdminCategories, type AdminCategory } from '../../lib/api/adminDishes'
 
 /**
  * Vouchers admin — list + per-row editor + uses panel.
@@ -139,6 +140,8 @@ interface FormState {
   expiresAt: string
   active: boolean
   userEmail: string  // optional — links voucher to a specific customer
+  /** WEC-262: empty array = applies to all categories. */
+  applicableCategoryIds: string[]
 }
 
 function VoucherEditor({
@@ -322,6 +325,17 @@ function VoucherEditor({
         </div>
 
         <div className="admin-form-row">
+          <label>Applicable categories (WEC-262)</label>
+          <CategoryPicker
+            selected={form.applicableCategoryIds}
+            onChange={(ids) => patch('applicableCategoryIds', ids)}
+          />
+          <small className="admin-text-muted">
+            Leave all unchecked to apply the discount to the whole order. Pick one or more categories to scope it — the discount only applies to the cart items in those categories.
+          </small>
+        </div>
+
+        <div className="admin-form-row">
           <label>Active</label>
           <input
             type="checkbox"
@@ -390,6 +404,7 @@ function fromVoucher(v: AdminVoucher | null): FormState {
       code: '', type: 'pct', valueDisplay: '10', remainingDisplay: '',
       minOrderDisplay: '0', maxUses: '', perUserLimit: '',
       expiresAt: '', active: true, userEmail: '',
+      applicableCategoryIds: [],
     }
   }
   return {
@@ -403,6 +418,7 @@ function fromVoucher(v: AdminVoucher | null): FormState {
     expiresAt: v.expiresAt ? toLocalInputValue(v.expiresAt) : '',
     active: v.active,
     userEmail: '',
+    applicableCategoryIds: v.applicableCategoryIds ?? [],
   }
 }
 
@@ -459,6 +475,7 @@ function serialise(form: FormState):
       perUserLimit,
       expiresAt: form.expiresAt ? new Date(form.expiresAt).toISOString() : null,
       active: form.active,
+      applicableCategoryIds: form.applicableCategoryIds,
     },
   }
 }
@@ -477,5 +494,44 @@ function mergeDraftForDisplay(
     perUserLimit: draft.perUserLimit ?? v.perUserLimit,
     expiresAt: draft.expiresAt ?? v.expiresAt,
     active: draft.active ?? v.active,
+    applicableCategoryIds: draft.applicableCategoryIds ?? v.applicableCategoryIds,
   }
+}
+
+/**
+ * WEC-262: category multi-select for the voucher editor. Loads categories
+ * once on mount; checkboxes toggle membership in `selected`. Empty selected
+ * means "applies to all" — that's the legacy behaviour and the default for
+ * new vouchers.
+ */
+function CategoryPicker({
+  selected, onChange,
+}: {
+  selected: string[]
+  onChange: (ids: string[]) => void
+}) {
+  const [cats, setCats] = useState<AdminCategory[]>([])
+  const [loading, setLoading] = useState(true)
+  useEffect(() => {
+    fetchAdminCategories().then(({ data }) => {
+      setCats(data ?? [])
+      setLoading(false)
+    })
+  }, [])
+  if (loading) return <div className="admin-text-muted">Loading categories…</div>
+  if (cats.length === 0) return <div className="admin-text-muted">No categories yet.</div>
+  function toggle(id: string) {
+    if (selected.includes(id)) onChange(selected.filter((x) => x !== id))
+    else onChange([...selected, id])
+  }
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+      {cats.map((c) => (
+        <label key={c.id} className="admin-form-checkbox" style={{ gap: 8 }}>
+          <input type="checkbox" checked={selected.includes(c.id)} onChange={() => toggle(c.id)} />
+          <span>{c.nameEl} <code style={{ fontSize: 11, color: 'var(--a-text-muted)' }}>{c.id}</code></span>
+        </label>
+      ))}
+    </div>
+  )
 }
