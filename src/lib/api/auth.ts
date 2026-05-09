@@ -208,10 +208,41 @@ export async function verifyEmailOtp(
   email: string,
   token: string,
 ): Promise<{ ok: boolean; error?: string }> {
-  const { data, error } = await supabase.auth.verifyOtp({ email, token, type: 'email' })
-  if (error) return { ok: false, error: error.message }
-  if (!data.session) return { ok: false, error: 'Verification succeeded but no session returned' }
-  return { ok: true }
+  // Supabase stores tokens for signInWithOtp under different slots depending
+  // on whether the user is new or existing/confirmed. The `type` parameter
+  // can be either 'email' or 'magiclink' for OTP-by-email flows. Some
+  // project configs (and some Supabase versions) require 'magiclink' for
+  // existing confirmed users where the token lives in the recovery_token
+  // slot, while 'email' is the modern unified type.
+  //
+  // Try 'email' first (the recommended path), fall back to 'magiclink'
+  // if Supabase says the token isn't valid for that type. Token consumption
+  // is atomic so the fallback is safe — only one path will succeed.
+
+  const tryTypes: Array<'email' | 'magiclink' | 'recovery'> = ['email', 'magiclink', 'recovery']
+  let lastError: string | undefined
+
+  for (const type of tryTypes) {
+    const { data, error } = await supabase.auth.verifyOtp({ email, token, type })
+    if (error) {
+      lastError = error.message
+      // Console-log so we can see in DevTools which types Supabase rejects.
+      // Helps diagnose project-config quirks without server-log access.
+      // eslint-disable-next-line no-console
+      console.warn('[verifyEmailOtp] type=%s rejected:', type, error.message, 'status=', error.status, 'code=', (error as { code?: string }).code)
+      // Only fall through on token/type errors. Other errors (rate limit,
+      // network, etc.) should bubble up immediately.
+      const isTokenError = /token|expired|invalid|otp/i.test(error.message ?? '')
+      if (!isTokenError) return { ok: false, error: error.message }
+      continue
+    }
+    if (!data.session) return { ok: false, error: 'Verification succeeded but no session returned' }
+    // eslint-disable-next-line no-console
+    console.info('[verifyEmailOtp] succeeded with type=%s', type)
+    return { ok: true }
+  }
+
+  return { ok: false, error: lastError ?? 'Could not verify code' }
 }
 
 /**
