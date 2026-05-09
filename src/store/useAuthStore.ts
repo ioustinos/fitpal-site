@@ -231,10 +231,20 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
   },
 
   refreshUser: async (userId: string) => {
+    // WEC-272: this used to early-return when `currentUser` was null,
+    // which broke fresh OTP / SIGNED_IN flows — at the moment the
+    // session lands we DON'T have a store user yet, that's the whole
+    // point of refreshing. Fall back to the active session's email
+    // when there's no cached user.
     const currentUser = get().user
-    if (!currentUser) return
+    let email = currentUser?.email
+    if (!email) {
+      const { data } = await supabase.auth.getSession()
+      email = data.session?.user?.email ?? ''
+    }
+    if (!email) return  // truly nothing to do (logged out)
 
-    const user = await buildFullUser(userId, currentUser.email)
+    const user = await buildFullUser(userId, email)
     if (user) set({ user })
   },
 
