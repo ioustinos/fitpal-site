@@ -109,7 +109,12 @@ export async function loadWalletConfig(opts: { force?: boolean } = {}): Promise<
     voucherEnabled:   (map.get('wallet_voucher_enabled')   as boolean)                 ?? true,
     servicesCatalog:  (map.get('wallet_services_catalog')  as ServiceCatalogItem[])    ?? [],
     minAmountCents:   (map.get('wallet_min_amount_cents')  as number)                  ?? 3000,
-    bankTransferInfo: (map.get('bank_transfer_info') as BankTransferInfo)              ?? { iban: '', beneficiary: '' },
+    // WEC-260: bank_transfer_info is now an array of up to 5 entries.
+    // Wallet-plan-purchase only renders one IBAN on its success overlay,
+    // so we always pick the first valid entry. Falls back to a placeholder
+    // when the admin hasn't configured one — the customer-facing message
+    // ("contact support") is rendered in wallet-plan-purchase.ts.
+    bankTransferInfo: pickFirstBank(map.get('bank_transfer_info')),
   }
 
   cache = { value: config, loadedAt: Date.now() }
@@ -119,6 +124,29 @@ export async function loadWalletConfig(opts: { force?: boolean } = {}): Promise<
 /** Bypass the cache — useful when admin just edited the settings UI. */
 export function invalidateWalletConfigCache(): void {
   cache = null
+}
+
+/**
+ * Normalise the legacy single-object and the new array shape of
+ * `settings.bank_transfer_info` (WEC-260) down to one IBAN entry —
+ * what the wallet-plan UI expects.
+ */
+function pickFirstBank(raw: unknown): BankTransferInfo {
+  const fallback: BankTransferInfo = { iban: '', beneficiary: '' }
+  if (!raw) return fallback
+  const list = Array.isArray(raw) ? raw : [raw]
+  for (const entry of list) {
+    if (!entry || typeof entry !== 'object') continue
+    const o = entry as Record<string, unknown>
+    const iban = typeof o.iban === 'string' ? o.iban.trim() : ''
+    if (!iban) continue
+    return {
+      iban,
+      beneficiary: typeof o.beneficiary === 'string' ? o.beneficiary : '',
+      bankName: typeof o.bankName === 'string' ? o.bankName : undefined,
+    }
+  }
+  return fallback
 }
 
 function defaultConfig(): FullWalletConfig {

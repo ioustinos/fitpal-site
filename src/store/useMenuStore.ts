@@ -98,7 +98,7 @@ export const useMenuStore = create<MenuStore>((set, get) => ({
     },
     paymentMethodsEnabled: ['cash', 'card', 'link', 'transfer', 'wallet'],
     contact: {},
-    bankTransferInfo: { iban: '', beneficiary: '' },
+    bankTransferInfos: [],
     macrosDisplay: 'numbers',
   },
   isLoading: false,

@@ -54,6 +54,9 @@ export interface BankTransferInfo {
   bankName?: string
 }
 
+/** Hard cap on how many IBANs the admin can configure (WEC-260). */
+export const MAX_BANK_IBANS = 5
+
 /**
  * How the customer dish-card macros render. WEC-254.
  *  - 'numbers' (default): real values for the preselected variant
@@ -84,8 +87,12 @@ export interface AppSettings {
   paymentMethodsEnabled: PaymentMethodId[]
   /** Contact info shown to customers (footer, emails). */
   contact: ContactInfo
-  /** Bank wire details shown when customer picks bank-transfer payment. */
-  bankTransferInfo: BankTransferInfo
+  /**
+   * Bank wire details shown when the customer picks bank-transfer (WEC-260).
+   * Always an array of up to 5 entries. Empty array = no IBAN configured;
+   * the customer-facing UI shows a "contact support" placeholder.
+   */
+  bankTransferInfos: BankTransferInfo[]
   /** Customer dish-card macros: 'numbers' (default) or 'dots' (legacy). WEC-254. */
   macrosDisplay: MacrosDisplay
 }
@@ -109,7 +116,7 @@ const DEFAULTS: AppSettings = {
   paymentMethodVisibility: DEFAULT_VISIBILITY,
   paymentMethodsEnabled: ALL_METHODS,
   contact: {},
-  bankTransferInfo: { iban: '', beneficiary: '' },
+  bankTransferInfos: [],
   macrosDisplay: 'numbers',
 }
 
@@ -191,12 +198,29 @@ export async function fetchSettings(): Promise<{ data: AppSettings; error: strin
   if (typeof rawContact.instagramUrl === 'string') contact.instagramUrl = rawContact.instagramUrl
   if (typeof rawContact.facebookUrl === 'string') contact.facebookUrl = rawContact.facebookUrl
 
-  // bank_transfer_info — IBAN + beneficiary + optional bank name
-  const rawBank = (map.bank_transfer_info as Record<string, unknown> | undefined) ?? {}
-  const bankTransferInfo: BankTransferInfo = {
-    iban: typeof rawBank.iban === 'string' ? rawBank.iban : '',
-    beneficiary: typeof rawBank.beneficiary === 'string' ? rawBank.beneficiary : '',
-    bankName: typeof rawBank.bankName === 'string' ? rawBank.bankName : undefined,
+  // bank_transfer_info — accepts two shapes (WEC-260):
+  //   1. Legacy single object {iban, beneficiary, bankName?}
+  //      → wrapped in [obj] if iban is non-empty, else empty array
+  //   2. Array of up to MAX_BANK_IBANS entries (canonical post-WEC-260)
+  // Each entry is shape-validated; entries with no iban are dropped to keep
+  // the customer-facing list clean (empty placeholder rows from the admin
+  // editor get filtered out at read time).
+  const rawBankInfos = map.bank_transfer_info
+  const bankTransferInfos: BankTransferInfo[] = []
+  const rawBankList = Array.isArray(rawBankInfos)
+    ? (rawBankInfos as unknown[])
+    : (rawBankInfos && typeof rawBankInfos === 'object' ? [rawBankInfos] : [])
+  for (const entry of rawBankList) {
+    if (bankTransferInfos.length >= MAX_BANK_IBANS) break
+    if (!entry || typeof entry !== 'object') continue
+    const o = entry as Record<string, unknown>
+    const iban = typeof o.iban === 'string' ? o.iban.trim() : ''
+    if (!iban) continue
+    bankTransferInfos.push({
+      iban,
+      beneficiary: typeof o.beneficiary === 'string' ? o.beneficiary : '',
+      bankName: typeof o.bankName === 'string' ? o.bankName : undefined,
+    })
   }
 
   // macros_display — string enum, defensively defaults to 'numbers' for any
@@ -213,7 +237,7 @@ export async function fetchSettings(): Promise<{ data: AppSettings; error: strin
       paymentMethodVisibility,
       paymentMethodsEnabled: paymentMethodsFinal,
       contact,
-      bankTransferInfo,
+      bankTransferInfos,
       macrosDisplay,
     },
     error: null,

@@ -59,7 +59,9 @@ export function PaymentSection() {
     return true
   })
 
-  const bankInfo = useMenuStore((s) => s.settings.bankTransferInfo)
+  // WEC-260: bank info is now an array of up to 5 entries. Customer sees
+  // all configured IBANs stacked when they pick the bank-transfer method.
+  const bankInfos = useMenuStore((s) => s.settings.bankTransferInfos)
 
   return (
     <div className="payment-section">
@@ -94,16 +96,21 @@ export function PaymentSection() {
         ))}
       </div>
 
-      {payment.method === 'transfer' && bankInfo?.iban && (
+      {payment.method === 'transfer' && bankInfos.length > 0 && (
         <div className="bank-info-box">
           <div className="bank-info-title">
             {lang === 'el' ? 'Στοιχεία τραπεζικής μεταφοράς' : 'Bank transfer details'}
           </div>
-          <dl className="bank-info-list">
-            <dt>IBAN</dt> <dd>{bankInfo.iban}</dd>
-            <dt>{lang === 'el' ? 'Δικαιούχος' : 'Beneficiary'}</dt> <dd>{bankInfo.beneficiary}</dd>
-            {bankInfo.bankName && (<><dt>{lang === 'el' ? 'Τράπεζα' : 'Bank'}</dt> <dd>{bankInfo.bankName}</dd></>)}
-          </dl>
+          {/* WEC-260: render every configured IBAN. Customer can pick whichever
+              bank is most convenient. Each entry is its own definition list so
+              the visual grouping survives long IBANs and odd ordering. */}
+          {bankInfos.map((b, i) => (
+            <dl key={`${b.iban}-${i}`} className="bank-info-list" style={i > 0 ? { marginTop: 12, paddingTop: 12, borderTop: '1px dashed var(--border)' } : undefined}>
+              {b.bankName && (<><dt>{lang === 'el' ? 'Τράπεζα' : 'Bank'}</dt> <dd>{b.bankName}</dd></>)}
+              <dt>IBAN</dt> <dd>{b.iban}</dd>
+              <dt>{lang === 'el' ? 'Δικαιούχος' : 'Beneficiary'}</dt> <dd>{b.beneficiary}</dd>
+            </dl>
+          ))}
           <div className="bank-info-note">
             {lang === 'el'
               ? 'Η παραγγελία σου θα επιβεβαιωθεί όταν λάβουμε το ποσό. Χρησιμοποίησε τον αριθμό παραγγελίας ως αιτιολογία.'

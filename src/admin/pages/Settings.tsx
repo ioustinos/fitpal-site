@@ -36,6 +36,9 @@ interface BankTransferInfo {
   bankName?: string
 }
 
+/** WEC-260: hard cap on the number of IBAN rows the admin can configure. */
+const MAX_BANK_IBANS = 5
+
 export function Settings() {
   const [all, setAll] = useState<SettingRow[]>([])
   const [loading, setLoading] = useState(true)
@@ -81,7 +84,7 @@ export function Settings() {
           <PaymentMethodsSection value={parseVisibility(byKey.get('payment_methods_enabled'))} onSave={(v) => save('payment_methods_enabled', v)} />
           <MacrosDisplaySection value={(byKey.get('macros_display') === 'dots' ? 'dots' : 'numbers')} onSave={(v) => save('macros_display', v)} />
           <ContactInfoSection value={(byKey.get('contact') as ContactInfo) ?? {}} onSave={(v) => save('contact', v)} />
-          <BankTransferInfoSection value={(byKey.get('bank_transfer_info') as BankTransferInfo) ?? {}} onSave={(v) => save('bank_transfer_info', v)} />
+          <BankTransferInfoSection value={parseBankInfos(byKey.get('bank_transfer_info'))} onSave={(v) => save('bank_transfer_info', v)} />
           <RawJsonSection rows={all} onSaved={refresh} />
         </>
       )}
@@ -393,33 +396,83 @@ function ContactInfoSection({ value, onSave }: { value: ContactInfo; onSave: (v:
   )
 }
 
-function BankTransferInfoSection({ value, onSave }: { value: BankTransferInfo; onSave: (v: BankTransferInfo) => void }) {
-  const [form, setForm] = useState<BankTransferInfo>(value)
-  useEffect(() => setForm(value), [value])
-  const dirty = JSON.stringify(form) !== JSON.stringify(value)
+/**
+ * WEC-260: parse settings.bank_transfer_info into an array.
+ * - undefined/null → empty array (admin gets one blank row to fill)
+ * - legacy single object → wrapped in [obj]
+ * - array → returned as-is, capped at MAX_BANK_IBANS
+ */
+function parseBankInfos(raw: unknown): BankTransferInfo[] {
+  if (!raw) return []
+  const list = Array.isArray(raw) ? raw : [raw]
+  const out: BankTransferInfo[] = []
+  for (const e of list) {
+    if (out.length >= MAX_BANK_IBANS) break
+    if (!e || typeof e !== 'object') continue
+    const o = e as Record<string, unknown>
+    out.push({
+      iban: typeof o.iban === 'string' ? o.iban : '',
+      beneficiary: typeof o.beneficiary === 'string' ? o.beneficiary : '',
+      bankName: typeof o.bankName === 'string' ? o.bankName : '',
+    })
+  }
+  return out
+}
 
-  function patch<K extends keyof BankTransferInfo>(k: K, v: BankTransferInfo[K]) {
-    setForm((f) => ({ ...f, [k]: v }))
+function BankTransferInfoSection({ value, onSave }: { value: BankTransferInfo[]; onSave: (v: BankTransferInfo[]) => void }) {
+  // Always show at least one editable row so a fresh install isn't blank.
+  const [rows, setRows] = useState<BankTransferInfo[]>(value.length > 0 ? value : [{ iban: '', beneficiary: '', bankName: '' }])
+  useEffect(() => {
+    setRows(value.length > 0 ? value : [{ iban: '', beneficiary: '', bankName: '' }])
+  }, [value])
+
+  // Compare against the saved value; ignore the synthetic empty placeholder
+  // we add for first-time UX (rows[0] all-empty + value is an empty array
+  // means "no real change").
+  const cleaned = rows.filter((r) => (r.iban ?? '').trim().length > 0)
+  const dirty = JSON.stringify(cleaned) !== JSON.stringify(value)
+
+  function patchRow(i: number, k: keyof BankTransferInfo, v: string) {
+    setRows((rs) => rs.map((r, j) => (j === i ? { ...r, [k]: v } : r)))
+  }
+  function add() {
+    if (rows.length >= MAX_BANK_IBANS) return
+    setRows([...rows, { iban: '', beneficiary: '', bankName: '' }])
+  }
+  function remove(i: number) {
+    setRows((rs) => (rs.length === 1 ? [{ iban: '', beneficiary: '', bankName: '' }] : rs.filter((_, j) => j !== i)))
   }
 
   return (
-    <SectionCard title="Bank transfer info" desc="Shown to customers who pick bank transfer at checkout — applies to both regular orders and wallet plan purchases.">
-      <div className="admin-grid-2">
-        <div style={{ gridColumn: '1 / -1' }}>
-          <label className="admin-form-label">IBAN</label>
-          <input className="admin-input" type="text" value={form.iban ?? ''} onChange={(e) => patch('iban', e.target.value)} placeholder="GR00 0000 0000 0000 0000 0000 000" />
+    <SectionCard
+      title="Bank transfer info"
+      desc={`Up to ${MAX_BANK_IBANS} IBANs shown to customers who pick bank transfer. The wallet-plan purchase flow uses the first one. Empty rows are dropped on save.`}
+    >
+      {rows.map((r, i) => (
+        <div key={i} className="admin-grid-2" style={{ marginBottom: 12, paddingBottom: 12, borderBottom: i < rows.length - 1 ? '1px dashed var(--a-border)' : 'none' }}>
+          <div style={{ gridColumn: '1 / -1', display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+            <strong style={{ fontSize: 12, color: 'var(--a-text-muted)' }}>IBAN #{i + 1}</strong>
+            <button className="admin-row-btn danger" onClick={() => remove(i)}>Remove</button>
+          </div>
+          <div style={{ gridColumn: '1 / -1' }}>
+            <label className="admin-form-label">IBAN</label>
+            <input className="admin-input" type="text" value={r.iban ?? ''} onChange={(e) => patchRow(i, 'iban', e.target.value)} placeholder="GR00 0000 0000 0000 0000 0000 000" />
+          </div>
+          <div>
+            <label className="admin-form-label">Beneficiary</label>
+            <input className="admin-input" type="text" value={r.beneficiary ?? ''} onChange={(e) => patchRow(i, 'beneficiary', e.target.value)} placeholder="Fitpal Meals" />
+          </div>
+          <div>
+            <label className="admin-form-label">Bank name (optional)</label>
+            <input className="admin-input" type="text" value={r.bankName ?? ''} onChange={(e) => patchRow(i, 'bankName', e.target.value)} placeholder="Eurobank, Πειραιώς…" />
+          </div>
         </div>
-        <div>
-          <label className="admin-form-label">Beneficiary</label>
-          <input className="admin-input" type="text" value={form.beneficiary ?? ''} onChange={(e) => patch('beneficiary', e.target.value)} placeholder="Fitpal Meals" />
-        </div>
-        <div>
-          <label className="admin-form-label">Bank name (optional)</label>
-          <input className="admin-input" type="text" value={form.bankName ?? ''} onChange={(e) => patch('bankName', e.target.value)} placeholder="Eurobank, Πειραιώς…" />
-        </div>
-      </div>
-      <div className="admin-inline-form" style={{ marginTop: 12 }}>
-        <button className="admin-btn-primary" disabled={!dirty} onClick={() => onSave(form)}>Save</button>
+      ))}
+      <div className="admin-inline-form" style={{ marginTop: 4 }}>
+        <button className="admin-btn-ghost" onClick={add} disabled={rows.length >= MAX_BANK_IBANS}>
+          + Add IBAN ({rows.length}/{MAX_BANK_IBANS})
+        </button>
+        <button className="admin-btn-primary" disabled={!dirty} onClick={() => onSave(cleaned)}>Save</button>
       </div>
     </SectionCard>
   )
