@@ -286,6 +286,10 @@ export interface SubmitDayPayload {
   addressArea: string
   addressZip?: string
   addressFloor?: string
+  /** WEC-259: 'delivery' (default) or 'pickup'. */
+  fulfillmentType?: 'delivery' | 'pickup'
+  /** WEC-259: pickup-only — references settings.pickup_locations[i].id. */
+  pickupLocationId?: string | null
   items: SubmitItemPayload[]
 }
 

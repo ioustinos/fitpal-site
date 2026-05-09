@@ -33,6 +33,10 @@ interface DayPayload {
   addressArea: string
   addressZip?: string
   addressFloor?: string
+  /** WEC-259: 'delivery' (default) or 'pickup'. */
+  fulfillmentType?: 'delivery' | 'pickup'
+  /** WEC-259: pickup-only — references settings.pickup_locations[i].id. */
+  pickupLocationId?: string | null
   items: ItemPayload[]
 }
 
@@ -516,14 +520,15 @@ export default async (request: Request) => {
       // 3c. Delivery zone — postcode only. Zone names are admin-organisational
       // labels, never matched against the customer's free-text area field.
       //
-      // Normalize the same way the client does (helpers.ts resolveZone):
-      // strip ALL whitespace, not just trim. Greek postcodes are commonly
-      // entered as "116 36" but stored as "11636" in `delivery_zones.postcodes`.
-      // Without matching normalisation, the client says "✓ delivery available"
-      // but submit-order rejects with "Postcode is not in any active zone".
+      // WEC-259: Skip the zone check entirely on pickup days — there's no
+      // address to validate. Pickup days still need a time slot but use the
+      // same global slot list (no per-fulfillment slot setting in V1).
+      const isPickup = day.fulfillmentType === 'pickup'
       const zip = day.addressZip?.replace(/\s/g, '')
       let matchedZone: any = null
-      if (!zip) {
+      if (isPickup) {
+        // No-op for pickup; no address fields validated.
+      } else if (!zip) {
         addError(errors, k, 'Postcode is required to determine delivery zone')
       } else {
         matchedZone = zones.find((z: any) => Array.isArray(z.postcodes) && z.postcodes.includes(zip)) ?? null
@@ -715,6 +720,9 @@ export default async (request: Request) => {
           // and any future analytics that filter by zip.
           address_zip: day.addressZip?.replace(/\s/g, '') ?? null,
           address_floor: day.addressFloor ?? null,
+          // WEC-259: per-day fulfillment.
+          fulfillment_type: day.fulfillmentType ?? 'delivery',
+          pickup_location_id: day.fulfillmentType === 'pickup' ? (day.pickupLocationId ?? null) : null,
         })
         .select('id')
         .single()

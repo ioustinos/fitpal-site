@@ -55,9 +55,14 @@ export interface VoucherState {
 
 // ─── Store interface ───────────────────────────────────────────────────────────
 
+/** WEC-259: per-day fulfillment toggle. */
+export type FulfillmentType = 'delivery' | 'pickup'
+
 interface CartStore {
   cart: Record<number, CartItem[]>     // keyed by day index
   delivery: Record<number, DeliveryInfo>
+  /** WEC-259: per-day fulfillment. Missing key = 'delivery' (default). */
+  fulfillment: Record<number, FulfillmentType>
   payment: PaymentInfo
   voucher: VoucherState
 
@@ -69,6 +74,8 @@ interface CartStore {
 
   setDelivery: (dayIndex: number, info: Partial<DeliveryInfo>) => void
   copyDeliveryToAll: (srcDay: number) => void
+  /** WEC-259: flip a single day between delivery and pickup. */
+  setFulfillment: (dayIndex: number, type: FulfillmentType) => void
 
   setPayment: (info: Partial<PaymentInfo>) => void
 
@@ -117,6 +124,7 @@ export const useCartStore = create<CartStore>()(
     (set) => ({
   cart: {},
   delivery: {},
+  fulfillment: {},
   payment: defaultPayment,
   voucher: defaultVoucher,
   voucherLoading: false,
@@ -185,6 +193,10 @@ export const useCartStore = create<CartStore>()(
 
   setPayment: (info) =>
     set((state) => ({ payment: { ...state.payment, ...info } })),
+
+  // WEC-259: per-day fulfillment toggle.
+  setFulfillment: (dayIndex, type) =>
+    set((state) => ({ fulfillment: { ...state.fulfillment, [dayIndex]: type } })),
 
   applyVoucher: async (code, cartTotal, userId) => {
     set({ voucherLoading: true })

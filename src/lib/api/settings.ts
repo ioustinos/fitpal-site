@@ -58,6 +58,22 @@ export interface BankTransferInfo {
 export const MAX_BANK_IBANS = 5
 
 /**
+ * Pickup location entry (WEC-259). Stored as an array in
+ * `settings.pickup_locations`. V1 ships with one entry; the array shape
+ * leaves room to expand without another schema change.
+ */
+export interface PickupLocation {
+  id: string
+  nameEl: string
+  nameEn: string
+  address: string
+  /** ISO weekday numbers (1=Mon..7=Sun) where pickup is offered. Empty = none. */
+  availableWeekdays: number[]
+  hoursNoteEl?: string
+  hoursNoteEn?: string
+}
+
+/**
  * How the customer dish-card macros render. WEC-254.
  *  - 'numbers' (default): real values for the preselected variant
  *      (kcal / 37g Πρωτ. / 27g Υδ/κες / 17g Λίπη)
@@ -95,6 +111,8 @@ export interface AppSettings {
   bankTransferInfos: BankTransferInfo[]
   /** Customer dish-card macros: 'numbers' (default) or 'dots' (legacy). WEC-254. */
   macrosDisplay: MacrosDisplay
+  /** Pickup locations array (WEC-259). V1: 1 entry. */
+  pickupLocations: PickupLocation[]
 }
 
 const ALL_METHODS: PaymentMethodId[] = ['cash', 'card', 'link', 'transfer', 'wallet']
@@ -118,6 +136,7 @@ const DEFAULTS: AppSettings = {
   contact: {},
   bankTransferInfos: [],
   macrosDisplay: 'numbers',
+  pickupLocations: [],
 }
 
 // ─── Query ──────────────────────────────────────────────────────────────────
@@ -228,6 +247,31 @@ export async function fetchSettings(): Promise<{ data: AppSettings; error: strin
   const rawMacros = map.macros_display
   const macrosDisplay: MacrosDisplay = rawMacros === 'dots' ? 'dots' : 'numbers'
 
+  // pickup_locations — array of PickupLocation entries (WEC-259). Defensive
+  // shape validation per entry; bad entries are dropped silently.
+  const rawPickup = map.pickup_locations
+  const pickupLocations: PickupLocation[] = []
+  if (Array.isArray(rawPickup)) {
+    for (const e of rawPickup as unknown[]) {
+      if (!e || typeof e !== 'object') continue
+      const o = e as Record<string, unknown>
+      const id = typeof o.id === 'string' ? o.id : ''
+      if (!id) continue
+      const weekdays = Array.isArray(o.available_weekdays)
+        ? (o.available_weekdays as unknown[]).filter((v): v is number => typeof v === 'number' && v >= 1 && v <= 7)
+        : []
+      pickupLocations.push({
+        id,
+        nameEl: typeof o.name_el === 'string' ? o.name_el : id,
+        nameEn: typeof o.name_en === 'string' ? o.name_en : id,
+        address: typeof o.address === 'string' ? o.address : '',
+        availableWeekdays: weekdays,
+        hoursNoteEl: typeof o.hours_note_el === 'string' ? o.hours_note_el : undefined,
+        hoursNoteEn: typeof o.hours_note_en === 'string' ? o.hours_note_en : undefined,
+      })
+    }
+  }
+
   return {
     data: {
       minOrder: typeof map.min_order === 'number' ? map.min_order / 100 : DEFAULTS.minOrder,
@@ -239,6 +283,7 @@ export async function fetchSettings(): Promise<{ data: AppSettings; error: strin
       contact,
       bankTransferInfos,
       macrosDisplay,
+      pickupLocations,
     },
     error: null,
   }

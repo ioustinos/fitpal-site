@@ -53,8 +53,10 @@ export function CheckoutPage() {
   const delivery = useCartStore((s) => s.delivery)
   const payment = useCartStore((s) => s.payment)
   const voucher = useCartStore((s) => s.voucher)
+  const fulfillment = useCartStore((s) => s.fulfillment)
   const setDelivery = useCartStore((s) => s.setDelivery)
   const setPayment = useCartStore((s) => s.setPayment)
+  const setFulfillment = useCartStore((s) => s.setFulfillment)
   const user = useAuthStore((s) => s.user)
   const toast = useToast((s) => s.show)
 
@@ -79,6 +81,7 @@ export function CheckoutPage() {
   const weeks = useMenuStore((s) => s.weeks)
   const zones = useMenuStore((s) => s.zones)
   const minOrder = useMenuStore((s) => s.settings.minOrder)
+  const pickupLocations = useMenuStore((s) => s.settings.pickupLocations)
   const week = weeks[activeWeek] ?? weeks[0]
   const days = week?.days ?? []
   // Resolve the long weekday label for day-index `i` via the real ISO date
@@ -329,15 +332,20 @@ export function CheckoutPage() {
       const items = cart[i] ?? []
       const dayDate = days[i]?.date ?? ''
       const { from, to } = parseSlot(del?.timeSlot ?? '')
+      const ftype = fulfillment[i] ?? 'delivery'
+      const pickupLoc = pickupLocations[0]
 
       return {
         deliveryDate: dayDate,
         timeFrom: from,
         timeTo: to,
-        addressStreet: del?.street ?? '',
-        addressArea: del?.area ?? '',
-        addressZip: del?.zip,
-        addressFloor: del?.floor,
+        // WEC-259: pickup days don't carry an address — server skips zone check.
+        addressStreet: ftype === 'pickup' ? '' : (del?.street ?? ''),
+        addressArea: ftype === 'pickup' ? '' : (del?.area ?? ''),
+        addressZip: ftype === 'pickup' ? undefined : del?.zip,
+        addressFloor: ftype === 'pickup' ? undefined : del?.floor,
+        fulfillmentType: ftype,
+        pickupLocationId: ftype === 'pickup' ? (pickupLoc?.id ?? null) : null,
         items: items.map((item) => ({
           dishId: item.dishId,
           variantId: item.variantId,
@@ -534,13 +542,57 @@ export function CheckoutPage() {
             {activeDayIdxs.map((i) => {
               const day = days[i]
               const label = dayLabelFor(i)
+              const ftype = fulfillment[i] ?? 'delivery'
+              // WEC-259: pickup is offered only on weekdays the admin has
+              // marked available_weekdays for the (single) pickup location.
+              const pickupLoc = pickupLocations[0]
+              // ISO weekday: Mon=1..Sun=7. JS getDay(): Sun=0..Sat=6.
+              const dDate = new Date(day.date + 'T12:00:00')
+              const isoDow = ((dDate.getDay() + 6) % 7) + 1
+              const pickupAvailable = !!pickupLoc && pickupLoc.availableWeekdays.includes(isoDow)
               return (
                 <div key={day.date} className="day-deliv-block">
                   <div className="ddb-title">
                     {label} — {formatDate(day.date, lang)}
                   </div>
 
-                  {/* Time slots FIRST (matches demo) */}
+                  {/* WEC-259: Fulfillment toggle. Shown only when at least one
+                      pickup location is configured globally; otherwise the
+                      whole feature stays hidden and behaviour is exactly as
+                      before this change shipped. */}
+                  {pickupLoc && (
+                    <div className="ddb-zone">
+                      <div className="ddb-section-hdr">
+                        {lang === 'el' ? 'ΤΡΟΠΟΣ ΠΑΡΑΔΟΣΗΣ' : 'FULFILLMENT'}
+                      </div>
+                      <div className="ddb-fulfillment-toggle" role="radiogroup">
+                        <button
+                          type="button"
+                          role="radio"
+                          aria-checked={ftype === 'delivery'}
+                          className={`ddb-fulfillment-opt${ftype === 'delivery' ? ' selected' : ''}`}
+                          onClick={() => setFulfillment(i, 'delivery')}
+                        >
+                          {lang === 'el' ? 'Παράδοση στο σπίτι' : 'Home delivery'}
+                        </button>
+                        <button
+                          type="button"
+                          role="radio"
+                          aria-checked={ftype === 'pickup'}
+                          disabled={!pickupAvailable}
+                          className={`ddb-fulfillment-opt${ftype === 'pickup' ? ' selected' : ''}${!pickupAvailable ? ' disabled' : ''}`}
+                          onClick={() => pickupAvailable && setFulfillment(i, 'pickup')}
+                          title={!pickupAvailable
+                            ? (lang === 'el' ? 'Παραλαβή μη διαθέσιμη αυτή την ημέρα' : 'Pickup not available on this day')
+                            : undefined}
+                        >
+                          {lang === 'el' ? 'Παραλαβή από κατάστημα' : 'Pickup'}
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Time slots — same picker for delivery + pickup (per spec). */}
                   <div className="ddb-zone">
                     <div className="ddb-section-hdr">
                       <span className="ddb-section-ico">
@@ -548,23 +600,45 @@ export function CheckoutPage() {
                           <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
                         </svg>
                       </span>
-                      {lang === 'el' ? 'ΠΑΡΑΘΥΡΟ ΠΑΡΑΔΟΣΗΣ' : 'DELIVERY WINDOW'}
+                      {ftype === 'pickup'
+                        ? (lang === 'el' ? 'ΠΑΡΑΘΥΡΟ ΠΑΡΑΛΑΒΗΣ' : 'PICKUP WINDOW')
+                        : (lang === 'el' ? 'ΠΑΡΑΘΥΡΟ ΠΑΡΑΔΟΣΗΣ' : 'DELIVERY WINDOW')}
                     </div>
                     <TimeSlotPicker dayIndex={i} inline />
                   </div>
 
-                  {/* Address SECOND (matches demo) */}
-                  <div className="ddb-zone">
-                    <div className="ddb-section-hdr">
-                      <span className="ddb-section-ico">
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                          <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/>
-                        </svg>
-                      </span>
-                      {lang === 'el' ? 'ΔΙΕΥΘΥΝΣΗ' : 'ADDRESS'}
+                  {/* Address (delivery) OR pickup-location info — never both. */}
+                  {ftype === 'pickup' && pickupLoc ? (
+                    <div className="ddb-zone">
+                      <div className="ddb-section-hdr">
+                        <span className="ddb-section-ico">
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/>
+                          </svg>
+                        </span>
+                        {lang === 'el' ? 'ΣΗΜΕΙΟ ΠΑΡΑΛΑΒΗΣ' : 'PICKUP LOCATION'}
+                      </div>
+                      <div className="pickup-loc-card">
+                        <div className="pickup-loc-name">{lang === 'el' ? pickupLoc.nameEl : pickupLoc.nameEn}</div>
+                        <div className="pickup-loc-addr">{pickupLoc.address}</div>
+                        {((lang === 'el' ? pickupLoc.hoursNoteEl : pickupLoc.hoursNoteEn) ?? '').length > 0 && (
+                          <div className="pickup-loc-hours">{lang === 'el' ? pickupLoc.hoursNoteEl : pickupLoc.hoursNoteEn}</div>
+                        )}
+                      </div>
                     </div>
-                    <AddressSection dayIndex={i} />
-                  </div>
+                  ) : (
+                    <div className="ddb-zone">
+                      <div className="ddb-section-hdr">
+                        <span className="ddb-section-ico">
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/>
+                          </svg>
+                        </span>
+                        {lang === 'el' ? 'ΔΙΕΥΘΥΝΣΗ' : 'ADDRESS'}
+                      </div>
+                      <AddressSection dayIndex={i} />
+                    </div>
+                  )}
                 </div>
               )
             })}

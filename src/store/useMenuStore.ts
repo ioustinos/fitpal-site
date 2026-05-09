@@ -104,6 +104,7 @@ export const useMenuStore = create<MenuStore>((set, get) => ({
     contact: {},
     bankTransferInfos: [],
     macrosDisplay: 'numbers',
+    pickupLocations: [],
   },
   isLoading: false,
   error: null,

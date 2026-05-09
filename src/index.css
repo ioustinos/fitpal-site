@@ -1158,6 +1158,19 @@ header {
 .ddb-section-hdr { display: flex; align-items: center; gap: 6px; font-size: 11px; font-weight: 800; color: var(--text-muted); /* uppercase removed — WEC-187 */ letter-spacing: 0.4px; margin-bottom: 8px; }
 .ddb-section-ico { width: 14px; height: 14px; opacity: 0.6; display: flex; align-items: center; }
 
+/* WEC-259: per-day fulfillment toggle */
+.ddb-fulfillment-toggle { display: flex; gap: 8px; }
+.ddb-fulfillment-opt { flex: 1; padding: 10px 12px; border-radius: var(--radius-sm); border: 1.5px solid var(--border); background: var(--white); font-size: 13px; font-weight: 700; color: var(--text); cursor: pointer; transition: all 0.18s; text-align: center; }
+.ddb-fulfillment-opt:hover:not(.disabled) { border-color: var(--green); }
+.ddb-fulfillment-opt.selected { background: var(--green-pale); border-color: var(--green); color: var(--green-dark); }
+.ddb-fulfillment-opt.disabled { opacity: 0.45; cursor: not-allowed; }
+
+/* Pickup-location info card on the checkout day block. */
+.pickup-loc-card { background: var(--white); border: 1.5px solid var(--border); border-radius: var(--radius-sm); padding: 12px 14px; }
+.pickup-loc-name { font-size: 14px; font-weight: 800; color: var(--text); margin-bottom: 4px; }
+.pickup-loc-addr { font-size: 13px; color: var(--text-mid); margin-bottom: 4px; }
+.pickup-loc-hours { font-size: 12px; color: var(--text-muted); font-style: italic; }
+
 /* Time slot grid (matches demo .time-grid / .tslot) */
 .time-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; }
 /* WEC-138 empty state — gentle dashed box so the user knows the section
