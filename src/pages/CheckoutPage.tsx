@@ -543,13 +543,12 @@ export function CheckoutPage() {
               const day = days[i]
               const label = dayLabelFor(i)
               const ftype = fulfillment[i] ?? 'delivery'
-              // WEC-259: pickup is offered only on weekdays the admin has
-              // marked available_weekdays for the (single) pickup location.
+              // WEC-259 redesign: pickup matches the delivery schedule
+              // exactly. As long as a pickup location is configured, the
+              // toggle is offered on every day block (the weekday gate
+              // we shipped in stage 1 was dropped at Ioustinos's request).
               const pickupLoc = pickupLocations[0]
-              // ISO weekday: Mon=1..Sun=7. JS getDay(): Sun=0..Sat=6.
-              const dDate = new Date(day.date + 'T12:00:00')
-              const isoDow = ((dDate.getDay() + 6) % 7) + 1
-              const pickupAvailable = !!pickupLoc && pickupLoc.availableWeekdays.includes(isoDow)
+              const pickupAvailable = !!pickupLoc
               return (
                 <div key={day.date} className="day-deliv-block">
                   <div className="ddb-title">
