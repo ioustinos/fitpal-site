@@ -7,6 +7,7 @@ import { TimeSlotPicker } from '../components/checkout/TimeSlotPicker'
 import { PaymentSection } from '../components/checkout/PaymentSection'
 import { ExtrasSection } from '../components/checkout/ExtrasSection'
 import { OrderSummary } from '../components/checkout/OrderSummary'
+import { MobileCartSheet } from '../components/cart/MobileCartSheet'
 import { ConfirmationScreen } from '../components/checkout/ConfirmationScreen'
 import { ContactSection, type ContactInfo } from '../components/checkout/ContactSection'
 import { activeDays, dayAmt, zipInZone } from '../lib/helpers'
@@ -702,6 +703,12 @@ export function CheckoutPage() {
           <OrderSummary />
         </div>
       </div>
+
+      {/* WEC-264: mobile-only bottom-sheet for the order summary. The
+          checkout-sidebar is hidden on mobile via CSS; the customer needs
+          to be able to review what they're about to pay. Read-only mode
+          (no checkout CTA — they're already on this page). */}
+      <MobileCartSheet mode="checkout" />
     </div>
   )
 }

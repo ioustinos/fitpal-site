@@ -8,6 +8,7 @@ import { CategoryFilter } from '../components/menu/CategoryFilter'
 import { CutoffBar } from '../components/menu/CutoffBar'
 import { MenuSection } from '../components/menu/MenuSection'
 import { CartSidebar } from '../components/cart/CartSidebar'
+import { MobileCartSheet } from '../components/cart/MobileCartSheet'
 import { WALLET_PLANS } from '../data/menu'
 import { makeTr } from '../lib/translations'
 import FpLoader from '../components/ui/FpLoader'
@@ -233,20 +234,12 @@ export function MenuPage() {
         <CartSidebar />
       </div>
 
-      {/* Mobile cart FAB — hidden on desktop via CSS, taps open checkout.
-          WEC-136: wired the onClick that was missing — the button did
-          nothing on tap, which is the exact kind of dead affordance that
-          erodes trust on mobile. */}
-      {cartCount > 0 && (
-        <button
-          className="fab"
-          onClick={goToCheckout}
-          aria-label={lang === 'el' ? 'Πλοηγήσου στο checkout' : 'Go to checkout'}
-        >
-          <div className="fab-dot" />
-          🛒 <span>{cartCount}</span> · <span>€{Object.values(cart).reduce((s, items) => s + items.reduce((ss, i) => ss + i.price * i.qty, 0), 0).toFixed(2)}</span>
-        </button>
-      )}
+      {/* WEC-264: mobile-only bottom-sheet cart. Replaces the old FAB —
+          tap-to-expand reveals the full cart with editable qty + per-day
+          totals + the Continue-to-checkout CTA, instead of routing
+          straight to checkout. CSS hides this on desktop and the desktop
+          sidebar above on mobile. */}
+      <MobileCartSheet mode="menu" />
     </div>
   )
 }
