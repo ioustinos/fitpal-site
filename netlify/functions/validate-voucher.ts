@@ -8,8 +8,19 @@ const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY ?? ''
 
 interface ValidateRequest {
   code: string
-  cartTotal: number    // euros
+  cartTotal: number    // euros — full subtotal, used for min_order check
   userId?: string
+  /**
+   * WEC-262: optional cart items so the server can compute the
+   * eligible-only subtotal when the voucher is category-scoped. Each
+   * entry is `{ dishId, lineTotal }` (lineTotal = unit_price × qty in euros).
+   * Older clients that don't pass this still get a result — but if the
+   * voucher is scoped AND no items are passed, the server treats every
+   * item as eligible (back-compat — the authoritative scoped calc still
+   * runs at submit-order). When items ARE passed and none qualify, the
+   * voucher is rejected as "not applicable".
+   */
+  items?: Array<{ dishId: string; lineTotal: number }>
 }
 
 interface VoucherResult {
@@ -22,6 +33,13 @@ interface VoucherResult {
    *  this so it can re-validate locally when the cart shrinks (the server
    *  also re-validates on submit). */
   minOrder: number | null
+  /**
+   * WEC-262: category ids this voucher applies to. Empty array = applies
+   * to all categories. The client uses this list to (a) compute eligible
+   * subtotal when the cart changes (no extra server round-trip) and (b)
+   * render per-item "discount applies here" badges in the cart.
+   */
+  applicableCategoryIds: string[]
   error?: string
 }
 
@@ -135,18 +153,46 @@ export default async (request: Request) => {
     // Credit voucher with zero remaining → generic.
     if (voucher.type === 'credit' && (voucher.remaining ?? 0) <= 0) return reject('credit exhausted')
 
-    // Calculate discount
+    // WEC-262: scoped vouchers — compute the eligible subtotal from the
+    // cart items the client passed. Without an items array we can't filter,
+    // so we fall through to the legacy "discount on full cart" behaviour
+    // (submit-order will tighten this for the actual order); but if items
+    // are provided AND none qualify, this voucher is rejected outright.
+    const scopedCats = Array.isArray(voucher.applicable_category_ids) ? (voucher.applicable_category_ids as string[]) : []
+    let eligibleCents = cartTotalCents
+    if (scopedCats.length > 0 && Array.isArray(body.items) && body.items.length > 0) {
+      const dishIds = Array.from(new Set(body.items.map((i) => i.dishId)))
+      const { data: dishRows } = await supabase
+        .from('dishes')
+        .select('id, category_id')
+        .in('id', dishIds)
+      const catByDish = new Map<string, string>()
+      for (const r of (dishRows ?? []) as Array<{ id: string; category_id: string }>) {
+        catByDish.set(r.id, r.category_id)
+      }
+      const eligibleEuros = body.items
+        .filter((i) => {
+          const cat = catByDish.get(i.dishId)
+          return typeof cat === 'string' && scopedCats.includes(cat)
+        })
+        .reduce((s, i) => s + i.lineTotal, 0)
+      eligibleCents = Math.round(eligibleEuros * 100)
+      if (eligibleCents <= 0) return reject('no eligible items in cart')
+    }
+
+    // Calculate discount on the eligible total (full cart for unscoped
+    // vouchers, eligible-only for scoped ones).
     let discount = 0
     const type = voucher.type as 'pct' | 'fixed' | 'credit'
     const value = voucher.value // stored as number (percentage or cents)
 
     if (type === 'pct') {
-      discount = Math.round(cartTotalCents * value / 100) / 100 // result in euros
+      discount = Math.round(eligibleCents * value / 100) / 100 // result in euros
     } else if (type === 'fixed') {
-      discount = Math.min(value / 100, body.cartTotal) // value is in cents, cap at cart total
+      discount = Math.min(value / 100, eligibleCents / 100) // value is in cents, cap at eligible
     } else if (type === 'credit') {
       const remaining = (voucher.remaining ?? 0) / 100 // cents to euros
-      discount = Math.min(remaining, body.cartTotal)
+      discount = Math.min(remaining, eligibleCents / 100)
     }
 
     return Response.json({
@@ -156,6 +202,7 @@ export default async (request: Request) => {
       value: type === 'pct' ? value : value / 100, // return euros for fixed/credit, pct as-is
       discount: +discount.toFixed(2),
       minOrder: voucher.min_order != null ? voucher.min_order / 100 : null, // euros, or null
+      applicableCategoryIds: scopedCats,
       voucherId: voucher.id, // needed for submit-order to record usage
     } satisfies VoucherResult & { voucherId: string })
   } catch (err) {

@@ -2,7 +2,8 @@ import { useEffect, useState } from 'react'
 import { useCartStore } from '../../store/useCartStore'
 import { useUIStore } from '../../store/useUIStore'
 import { useAuthStore } from '../../store/useAuthStore'
-import { activeDays, dayAmt } from '../../lib/helpers'
+import { useMenuStore } from '../../store/useMenuStore'
+import { activeDays, dayAmt, eligibleSubtotal } from '../../lib/helpers'
 
 /**
  * Shared voucher logic for the two surfaces that render a voucher widget:
@@ -28,12 +29,19 @@ export function useVoucherWidget() {
   const cart = useCartStore((s) => s.cart)
   const user = useAuthStore((s) => s.user)
 
+  const dishMap = useMenuStore((s) => s.dishMap)
+  const catLookup = (id: string) => dishMap[id]?.catId
+
   const [code, setCode] = useState('')
   const [error, setError] = useState('')
 
   // Cart-wide raw total (before voucher), used for min-order checks at
   // apply-time and for the "drop voucher when cart shrinks" effect below.
   const rawTotal = activeDays(cart).reduce((sum, i) => sum + dayAmt(cart, i), 0)
+  // WEC-262: eligible-only subtotal under a scoped voucher. When the
+  // customer removes the last item that qualifies, we drop the voucher
+  // to keep the displayed total honest.
+  const eligibleNow = eligibleSubtotal(cart, voucher, catLookup)
 
   async function apply() {
     const trimmed = code.trim().toUpperCase()
@@ -67,6 +75,24 @@ export function useVoucherWidget() {
       )
     }
   }, [rawTotal, voucher.applied, voucher.minOrder, removeVoucher, lang])
+
+  // WEC-262: auto-drop scoped voucher when no eligible items remain in
+  // the cart. e.g. customer applies "salads only", removes all salads —
+  // the voucher disappears with a clear "not applicable to your selection"
+  // message. Without this, the discount line lingers at €0 and feels broken.
+  useEffect(() => {
+    if (!voucher.applied) return
+    const cats = voucher.applicableCategoryIds
+    if (!cats || cats.length === 0) return
+    if (eligibleNow <= 0) {
+      removeVoucher()
+      setError(
+        lang === 'el'
+          ? 'Το κουπόνι δεν εφαρμόζεται στις τρέχουσες επιλογές σου'
+          : 'Voucher not applicable to your current selection',
+      )
+    }
+  }, [eligibleNow, voucher.applied, voucher.applicableCategoryIds, removeVoucher, lang])
 
   return {
     /** Cart-store voucher state (.applied, .code, .type, .value, .minOrder, etc.) */

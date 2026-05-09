@@ -1018,6 +1018,9 @@ header {
 .ci-right { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; flex-shrink: 0; }
 .ci-price-was { font-size: 11px; font-weight: 700; color: var(--text-muted); text-decoration: line-through; }
 .ci-price { font-size: 13px; font-weight: 900; color: var(--green-dark); }
+/* WEC-262: per-item voucher discount allocation, shown when a scoped voucher applies to this item. */
+.ci-price-disc { font-size: 11px; font-weight: 800; color: #B91C1C; margin-top: 2px; }
+.summary-item-disc { font-size: 11px; font-weight: 800; color: #B91C1C; margin-left: 6px; }
 /* Qty controls — cart-scoped compact round buttons (WEC-131) */
 .qty-ctrl { display: flex; align-items: center; gap: 4px; }
 .qty-n { font-size: 13px; font-weight: 900; min-width: 18px; text-align: center; color: var(--text); }

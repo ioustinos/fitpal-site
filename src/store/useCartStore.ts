@@ -51,6 +51,13 @@ export interface VoucherState {
    *  silently keep applying a discount that no longer qualifies. The
    *  server also re-validates at submit time. */
   minOrder?: number
+  /**
+   * WEC-262: empty array = applies to whole cart. Non-empty = discount
+   * only applies to cart items whose dish category is in this list.
+   * subTotal() in helpers.ts uses this to compute the right total
+   * client-side without an extra server round-trip per cart change.
+   */
+  applicableCategoryIds?: string[]
 }
 
 // ─── Store interface ───────────────────────────────────────────────────────────
@@ -201,10 +208,25 @@ export const useCartStore = create<CartStore>()(
   applyVoucher: async (code, cartTotal, userId) => {
     set({ voucherLoading: true })
     try {
+      // WEC-262: send the cart's items so the server can compute the
+      // eligible-only subtotal for category-scoped vouchers. We dedupe
+      // and aggregate per-dish line totals to keep the payload small.
+      const cartState = (useCartStore.getState() as { cart: Record<number, CartItem[]> }).cart
+      const totalsByDish = new Map<string, number>()
+      for (const dayItems of Object.values(cartState)) {
+        for (const it of dayItems) {
+          totalsByDish.set(it.dishId, (totalsByDish.get(it.dishId) ?? 0) + it.price * it.qty)
+        }
+      }
+      const items = Array.from(totalsByDish.entries()).map(([dishId, lineTotal]) => ({
+        dishId,
+        lineTotal: +lineTotal.toFixed(2),
+      }))
+
       const res = await fetch('/api/validate-voucher', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ code: code.toUpperCase(), cartTotal, userId }),
+        body: JSON.stringify({ code: code.toUpperCase(), cartTotal, userId, items }),
       })
       const json = await res.json()
 
@@ -220,6 +242,7 @@ export const useCartStore = create<CartStore>()(
           type: json.type as 'pct' | 'fixed',
           value: json.value,
           minOrder: json.minOrder ?? undefined,
+          applicableCategoryIds: Array.isArray(json.applicableCategoryIds) ? json.applicableCategoryIds : [],
         },
         voucherLoading: false,
       })

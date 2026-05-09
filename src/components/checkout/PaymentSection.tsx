@@ -32,8 +32,12 @@ export function PaymentSection() {
   const isImpersonating = useImpersonationStore((s) => s.active)
   const walletBalance = user?.wallet?.balance ?? 0
   const walletActive = user?.wallet?.active
+  // WEC-262: scope-aware total — wallet sufficiency check needs to use
+  // the same number the customer sees in the order summary.
+  const dishMap = useMenuStore((s) => s.dishMap)
+  const catLookup = (id: string) => dishMap[id]?.catId
 
-  const total = subTotal(cart, voucher)
+  const total = subTotal(cart, voucher, catLookup)
   const walletSufficient = walletBalance >= total
 
   // Filter hardcoded catalog by the admin-configured visibility map (WEC-255).

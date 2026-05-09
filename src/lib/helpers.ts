@@ -16,19 +16,104 @@ export const effPrice = (price: number, discountPct?: number): number =>
 export const dayAmt = (cart: Record<number, CartItem[]>, dayIndex: number): number =>
   (cart[dayIndex] ?? []).reduce((s, i) => s + i.price * i.qty, 0)
 
+/**
+ * Cart-wide raw total (no voucher, no discount). Sum of every item's
+ * line total across all days.
+ */
+export const cartRaw = (cart: Record<number, CartItem[]>): number =>
+  Object.values(cart).reduce(
+    (s, items) => s + items.reduce((ss, i) => ss + i.price * i.qty, 0),
+    0,
+  )
+
+/**
+ * Eligible subtotal under a voucher. For unscoped vouchers this equals
+ * cartRaw. For scoped vouchers (WEC-262) it's the sum of items whose
+ * dish is in the voucher's applicable categories. Returns 0 if the cart
+ * has no eligible items — caller should treat that as voucher-not-applicable.
+ *
+ * `dishCatLookup` is `(dishId) => categoryId | undefined`. The customer
+ * passes a closure over `useMenuStore.dishMap`. If omitted (e.g. raw
+ * helpers called somewhere without the menu store), we return cartRaw —
+ * the server's submit-order guard is still authoritative.
+ */
+export const eligibleSubtotal = (
+  cart: Record<number, CartItem[]>,
+  voucher?: VoucherState,
+  dishCatLookup?: (dishId: string) => string | undefined,
+): number => {
+  const raw = cartRaw(cart)
+  const cats = voucher?.applicableCategoryIds
+  if (!voucher?.applied || !cats || cats.length === 0 || !dishCatLookup) return raw
+  let s = 0
+  for (const items of Object.values(cart)) {
+    for (const i of items) {
+      const cat = dishCatLookup(i.dishId)
+      if (cat && cats.includes(cat)) s += i.price * i.qty
+    }
+  }
+  return +s.toFixed(2)
+}
+
+/**
+ * Voucher discount in euros. WEC-262: applied to the eligible subtotal,
+ * not the full raw total. Caller must pass `dishCatLookup` if they want
+ * scope-aware discounting; without it, scoped vouchers fall back to the
+ * raw cart total (over-discounts in UI, but the server's submit-order
+ * still computes the correct number for the actual order).
+ */
+export const voucherDiscount = (
+  cart: Record<number, CartItem[]>,
+  voucher?: VoucherState,
+  dishCatLookup?: (dishId: string) => string | undefined,
+): number => {
+  if (!voucher?.applied || !voucher.value) return 0
+  const base = eligibleSubtotal(cart, voucher, dishCatLookup)
+  if (base <= 0) return 0
+  if (voucher.type === 'pct')   return +(base * voucher.value / 100).toFixed(2)
+  if (voucher.type === 'fixed') return Math.min(voucher.value, base)
+  return 0
+}
+
+/**
+ * Per-item discount allocation (WEC-262). For a scoped voucher, the
+ * total discount is split proportionally across eligible items in the
+ * cart so each cart row can show its individual "−€X". Returns 0 for
+ * items not in the voucher's category scope.
+ *
+ * For UNSCOPED vouchers (cats empty) this still allocates proportionally
+ * across all items, so the cart can show a per-item line if you want it.
+ * Pass dishCatLookup so we can identify eligible items for scoped cases.
+ */
+export const itemVoucherDiscount = (
+  item: CartItem,
+  cart: Record<number, CartItem[]>,
+  voucher?: VoucherState,
+  dishCatLookup?: (dishId: string) => string | undefined,
+): number => {
+  const totalDiscount = voucherDiscount(cart, voucher, dishCatLookup)
+  if (totalDiscount <= 0) return 0
+  const cats = voucher?.applicableCategoryIds ?? []
+  // Determine if this item is in scope.
+  if (cats.length > 0 && dishCatLookup) {
+    const cat = dishCatLookup(item.dishId)
+    if (!cat || !cats.includes(cat)) return 0
+  }
+  const eligible = eligibleSubtotal(cart, voucher, dishCatLookup)
+  if (eligible <= 0) return 0
+  const lineTotal = item.price * item.qty
+  return +(totalDiscount * (lineTotal / eligible)).toFixed(2)
+}
+
 /** Grand total across all days, with voucher applied */
 export const subTotal = (
   cart: Record<number, CartItem[]>,
   voucher?: VoucherState,
+  dishCatLookup?: (dishId: string) => string | undefined,
 ): number => {
-  const raw = Object.values(cart).reduce(
-    (s, items) => s + items.reduce((ss, i) => ss + i.price * i.qty, 0),
-    0,
-  )
-  if (!voucher?.applied || !voucher.value) return raw
-  if (voucher.type === 'pct')   return Math.max(0, +(raw * (1 - voucher.value / 100)).toFixed(2))
-  if (voucher.type === 'fixed') return Math.max(0, +(raw - voucher.value).toFixed(2))
-  return raw
+  const raw = cartRaw(cart)
+  const discount = voucherDiscount(cart, voucher, dishCatLookup)
+  return Math.max(0, +(raw - discount).toFixed(2))
 }
 
 /** Total item count across all days */

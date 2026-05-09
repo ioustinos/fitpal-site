@@ -20,9 +20,12 @@ export function OrderSummary() {
   const { voucher, code, setCode, error, setError, apply, remove, loading, rawTotal } = useVoucherWidget()
 
   const weeks = useMenuStore((s) => s.weeks)
+  const dishMap = useMenuStore((s) => s.dishMap)
+  // WEC-262: dish→category lookup for scope-aware voucher discount.
+  const catLookup = (id: string) => dishMap[id]?.catId
   const week = weeks[activeWeek] ?? weeks[0]
   const dayIdxs = activeDays(cart)
-  const total = subTotal(cart, voucher)
+  const total = subTotal(cart, voucher, catLookup)
 
   if (!dayIdxs.length) {
     return (

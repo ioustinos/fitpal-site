@@ -41,13 +41,17 @@ export function ConfirmationScreen({ orderNumber }: { orderNumber?: string }) {
   const [snapshot] = useState(() => {
     const { cart, delivery, payment, voucher } = useCartStore.getState()
     const weekData = weeks[activeWeek] ?? weeks[0]
+    // WEC-262: snapshot the dish→cat lookup at the moment of confirmation
+    // so the displayed total matches what was charged.
+    const dishMap = useMenuStore.getState().dishMap
+    const catLookup = (id: string) => dishMap[id]?.catId
     return {
       cart,
       delivery,
       payment,
       voucher,
       weekData,
-      total: subTotal(cart, voucher),
+      total: subTotal(cart, voucher, catLookup),
       activeDayIdxs: activeDays(cart),
     }
   })

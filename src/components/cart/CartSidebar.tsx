@@ -16,8 +16,12 @@ export function CartSidebar() {
 
   const weeks = useMenuStore((s) => s.weeks)
   const minOrder = useMenuStore((s) => s.settings.minOrder)
+  const dishMap = useMenuStore((s) => s.dishMap)
+  // WEC-262: scoped vouchers need the dish→category lookup to compute
+  // the correct eligible-only discount client-side.
+  const catLookup = (id: string) => dishMap[id]?.catId
   const week = weeks[activeWeek] ?? weeks[0]
-  const total = subTotal(cart, voucher)
+  const total = subTotal(cart, voucher, catLookup)
   const days = activeDays(cart)
   // rawTotal is the cart total BEFORE the voucher discount — needed to render
   // the subtotal row and the absolute discount amount when a voucher is

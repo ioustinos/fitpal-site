@@ -1,7 +1,7 @@
 import { useUIStore } from '../../store/useUIStore'
 import { useCartStore } from '../../store/useCartStore'
 import { useMenuStore } from '../../store/useMenuStore'
-import { dayAmt } from '../../lib/helpers'
+import { dayAmt, itemVoucherDiscount } from '../../lib/helpers'
 import { dayLabel } from '../../lib/datelabels'
 import { CartItemRow } from '../cart/CartItemRow'
 import { DayMacrosBlock } from './DayMacrosBlock'
@@ -25,8 +25,13 @@ export function DayOrderGroup({
 }: DayOrderGroupProps) {
   const lang = useUIStore((s) => s.lang)
   const cart = useCartStore((s) => s.cart)
+  const voucher = useCartStore((s) => s.voucher)
   const delivery = useCartStore((s) => s.delivery)
   const minOrder = useMenuStore((s) => s.settings.minOrder)
+  // WEC-262: dish→category lookup so per-item discount allocation can
+  // tell which items are in the voucher's scope.
+  const dishMap = useMenuStore((s) => s.dishMap)
+  const catLookup = (id: string) => dishMap[id]?.catId
 
   const items = cart[dayIndex] ?? []
   if (items.length === 0) return null
@@ -54,18 +59,33 @@ export function DayOrderGroup({
         ? items.map((item, j) => (
             <CartItemRow key={`${day.date}-${j}`} item={item} dayIndex={dayIndex} itemIndex={j} />
           ))
-        : items.map((item, j) => (
-            <div key={j} className="summary-item">
-              <span className="summary-item-name">
-                {lang === 'el' ? item.nameEl : item.nameEn}
-              </span>
-              <span className="summary-item-variant">
-                {lang === 'el' ? item.variantLabelEl : item.variantLabelEn}
-              </span>
-              <span className="summary-item-qty">×{item.qty}</span>
-              <span className="summary-item-price">€{(item.price * item.qty).toFixed(2)}</span>
-            </div>
-          ))}
+        : items.map((item, j) => {
+            // WEC-262: per-item discount allocation. Only renders for
+            // items inside the voucher's category scope (or all items
+            // for unscoped vouchers — but in that case we hide the
+            // per-line render to keep things calm; the totals already
+            // surface the voucher discount once at the bottom).
+            const perItemDisc = voucher.applied && (voucher.applicableCategoryIds?.length ?? 0) > 0
+              ? itemVoucherDiscount(item, cart, voucher, catLookup)
+              : 0
+            return (
+              <div key={j} className="summary-item">
+                <span className="summary-item-name">
+                  {lang === 'el' ? item.nameEl : item.nameEn}
+                </span>
+                <span className="summary-item-variant">
+                  {lang === 'el' ? item.variantLabelEl : item.variantLabelEn}
+                </span>
+                <span className="summary-item-qty">×{item.qty}</span>
+                <span className="summary-item-price">
+                  €{(item.price * item.qty).toFixed(2)}
+                  {perItemDisc > 0 && (
+                    <span className="summary-item-disc"> −€{perItemDisc.toFixed(2)}</span>
+                  )}
+                </span>
+              </div>
+            )
+          })}
 
       {/* WEC-141 / WEC-164 / WEC-165: per-day macro numbers (always) + goal
           progress bars (gated on showGoalProgress — see src/lib/goals.ts).

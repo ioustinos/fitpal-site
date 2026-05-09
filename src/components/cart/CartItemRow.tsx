@@ -1,5 +1,7 @@
 import { useCartStore } from '../../store/useCartStore'
 import { useUIStore } from '../../store/useUIStore'
+import { useMenuStore } from '../../store/useMenuStore'
+import { itemVoucherDiscount } from '../../lib/helpers'
 import type { CartItem } from '../../store/useCartStore'
 
 interface CartItemRowProps {
@@ -10,8 +12,16 @@ interface CartItemRowProps {
 
 export function CartItemRow({ item, dayIndex, itemIndex }: CartItemRowProps) {
   const lang = useUIStore((s) => s.lang)
+  const cart = useCartStore((s) => s.cart)
+  const voucher = useCartStore((s) => s.voucher)
   const updateItem = useCartStore((s) => s.updateItem)
   const removeItem = useCartStore((s) => s.removeItem)
+  // WEC-262: scoped voucher → show per-item discount allocation.
+  const dishMap = useMenuStore((s) => s.dishMap)
+  const catLookup = (id: string) => dishMap[id]?.catId
+  const perItemDisc = voucher.applied && (voucher.applicableCategoryIds?.length ?? 0) > 0
+    ? itemVoucherDiscount(item, cart, voucher, catLookup)
+    : 0
 
   const name = lang === 'el' ? item.nameEl : item.nameEn
   const variant = lang === 'el' ? item.variantLabelEl : item.variantLabelEn
@@ -56,6 +66,11 @@ export function CartItemRow({ item, dayIndex, itemIndex }: CartItemRowProps) {
           <div className="ci-price-was">€{(item.originalPrice * item.qty).toFixed(2)}</div>
         )}
         <div className="ci-price">€{(item.price * item.qty).toFixed(2)}</div>
+        {perItemDisc > 0 && (
+          <div className="ci-price-disc" title="Voucher discount on this item">
+            −€{perItemDisc.toFixed(2)}
+          </div>
+        )}
         <div className="qty-ctrl">
           <button
             className="qty-btn"
