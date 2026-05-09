@@ -1,31 +1,206 @@
+import { useEffect, useState } from 'react'
 import { NavLink } from 'react-router-dom'
 
-interface NavItem {
+/**
+ * Admin sidebar (WEC-256 polish).
+ *
+ * Reorganised into semantic groups with collapsible headers:
+ *
+ *   Dashboard
+ *   Orders
+ *   Customers
+ *   Catalogue       (Menu builder, Dishes, Categories, Tags, Ingredients,
+ *                    Allergies, Dish images, Import menu)
+ *   Promotions      (Vouchers, Wallet purchases, Wallet settings)
+ *   Settings        (Cutoff & time slots → /admin/settings,
+ *                    Delivery zones → /admin/zones — for now both leaves
+ *                    point at the existing single Settings page; a future
+ *                    ticket can split the Settings page itself.)
+ *
+ * Open/closed state per group persists in localStorage so the admin's
+ * preference survives reloads. Default: all groups expanded.
+ */
+
+type IconName =
+  | 'dashboard' | 'menus' | 'dishes' | 'categories' | 'tags' | 'ingredients'
+  | 'allergies' | 'images' | 'import' | 'orders' | 'settings' | 'zones'
+  | 'users' | 'vouchers' | 'wallet' | 'walletSettings'
+  | 'catalogue' | 'promotions' | 'customers'
+  | 'chevron'
+
+interface NavLeaf {
   path: string
   label: string
   icon: IconName
   end?: boolean
-  wec?: string
 }
 
-const items: NavItem[] = [
-  { path: '/admin',          label: 'Dashboard',   icon: 'dashboard', end: true, wec: 'WEC-112' },
-  { path: '/admin/menus',    label: 'Menu builder',icon: 'menus',                 wec: 'WEC-114' },
-  { path: '/admin/dishes',   label: 'Dishes',      icon: 'dishes',                wec: 'WEC-113' },
-  { path: '/admin/ingredients',   label: 'Ingredients',    icon: 'ingredients' },
-  { path: '/admin/allergies',     label: 'Allergies',      icon: 'allergies' },
-  { path: '/admin/import-menu',   label: 'Import menu',    icon: 'import' },
-  { path: '/admin/dish-images',   label: 'Dish images',    icon: 'images' },
-  { path: '/admin/orders',   label: 'Orders',      icon: 'orders',                wec: 'WEC-115' },
-  { path: '/admin/users',    label: 'Users',       icon: 'users' },
-  { path: '/admin/vouchers', label: 'Vouchers',    icon: 'vouchers' },
-  { path: '/admin/wallet-purchases', label: 'Wallet purchases', icon: 'wallet' },
-  { path: '/admin/wallet-settings',  label: 'Wallet settings',  icon: 'walletSettings' },
-  { path: '/admin/settings', label: 'Settings',    icon: 'settings',              wec: 'WEC-118' },
-  { path: '/admin/zones',    label: 'Delivery zones', icon: 'zones',              wec: 'WEC-119' },
+interface NavGroup {
+  /** Stable key for localStorage persistence. */
+  id: string
+  label: string
+  icon: IconName
+  items: NavLeaf[]
+}
+
+/**
+ * Top-level entries. A `string-keyed` group renders as a collapsible
+ * section; a single leaf renders as a standalone link (for Dashboard etc).
+ */
+type NavEntry = NavLeaf | NavGroup
+
+function isGroup(e: NavEntry): e is NavGroup {
+  return (e as NavGroup).items !== undefined
+}
+
+const NAV: NavEntry[] = [
+  // Dashboard — standalone, top
+  { path: '/admin', label: 'Dashboard', icon: 'dashboard', end: true },
+
+  // Orders — bumped to second per Ioustinos's reorg
+  {
+    id: 'orders',
+    label: 'Orders',
+    icon: 'orders',
+    items: [
+      { path: '/admin/orders', label: 'Orders', icon: 'orders' },
+    ],
+  },
+
+  // Customers
+  {
+    id: 'customers',
+    label: 'Customers',
+    icon: 'customers',
+    items: [
+      { path: '/admin/users', label: 'Users', icon: 'users' },
+    ],
+  },
+
+  // Catalogue — everything that describes the menu
+  {
+    id: 'catalogue',
+    label: 'Catalogue',
+    icon: 'catalogue',
+    items: [
+      { path: '/admin/menus',        label: 'Menu builder', icon: 'menus' },
+      { path: '/admin/dishes',       label: 'Dishes',       icon: 'dishes' },
+      { path: '/admin/categories',   label: 'Categories',   icon: 'categories' },
+      { path: '/admin/tags',         label: 'Tags',         icon: 'tags' },
+      { path: '/admin/ingredients',  label: 'Ingredients',  icon: 'ingredients' },
+      { path: '/admin/allergies',    label: 'Allergies',    icon: 'allergies' },
+      { path: '/admin/dish-images',  label: 'Dish images',  icon: 'images' },
+      { path: '/admin/import-menu',  label: 'Import menu',  icon: 'import' },
+    ],
+  },
+
+  // Promotions & Wallet
+  {
+    id: 'promotions',
+    label: 'Promotions & Wallet',
+    icon: 'promotions',
+    items: [
+      { path: '/admin/vouchers',         label: 'Vouchers',         icon: 'vouchers' },
+      { path: '/admin/wallet-purchases', label: 'Wallet purchases', icon: 'wallet' },
+      { path: '/admin/wallet-settings',  label: 'Wallet settings',  icon: 'walletSettings' },
+    ],
+  },
+
+  // Settings — Delivery zones bumped to slot 2 per the user's preference.
+  // Both leaves currently route to the existing single pages; the
+  // sub-categories of the Settings page itself are a future ticket.
+  {
+    id: 'settings',
+    label: 'Settings',
+    icon: 'settings',
+    items: [
+      { path: '/admin/settings', label: 'Cutoff & general', icon: 'settings' },
+      { path: '/admin/zones',    label: 'Delivery zones',    icon: 'zones' },
+    ],
+  },
 ]
 
-type IconName = 'dashboard' | 'menus' | 'dishes' | 'ingredients' | 'allergies' | 'images' | 'import' | 'orders' | 'settings' | 'zones' | 'users' | 'vouchers' | 'wallet' | 'walletSettings'
+const STORAGE_KEY = 'fitpal-admin-sidebar-groups-v1'
+
+function loadOpenState(): Record<string, boolean> {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY)
+    if (!raw) return {}
+    const parsed = JSON.parse(raw)
+    if (parsed && typeof parsed === 'object') return parsed as Record<string, boolean>
+  } catch { /* no-op */ }
+  return {}
+}
+
+export function Sidebar() {
+  // Default everything to expanded — admins discovering things matters more
+  // than chrome cleanliness on first load.
+  const [open, setOpen] = useState<Record<string, boolean>>(() => {
+    const saved = loadOpenState()
+    const out: Record<string, boolean> = {}
+    for (const e of NAV) if (isGroup(e)) out[e.id] = saved[e.id] ?? true
+    return out
+  })
+
+  useEffect(() => {
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(open)) } catch { /* no-op */ }
+  }, [open])
+
+  function toggle(id: string) {
+    setOpen((s) => ({ ...s, [id]: !s[id] }))
+  }
+
+  return (
+    <nav className="admin-sidebar">
+      {NAV.map((e) => {
+        if (!isGroup(e)) {
+          return (
+            <NavLink
+              key={e.path}
+              to={e.path}
+              end={e.end}
+              className={({ isActive }) => `admin-nav-item${isActive ? ' active' : ''}`}
+            >
+              <Icon name={e.icon} />
+              <span>{e.label}</span>
+            </NavLink>
+          )
+        }
+        const isOpen = !!open[e.id]
+        return (
+          <div key={e.id} className="admin-nav-group">
+            <button
+              type="button"
+              className={`admin-nav-group-hdr${isOpen ? ' open' : ''}`}
+              onClick={() => toggle(e.id)}
+              aria-expanded={isOpen}
+              aria-controls={`nav-group-${e.id}`}
+            >
+              <Icon name={e.icon} />
+              <span>{e.label}</span>
+              <span className="admin-nav-chevron"><Icon name="chevron" /></span>
+            </button>
+            {isOpen && (
+              <div className="admin-nav-group-body" id={`nav-group-${e.id}`}>
+                {e.items.map((it) => (
+                  <NavLink
+                    key={it.path}
+                    to={it.path}
+                    end={it.end}
+                    className={({ isActive }) => `admin-nav-item nested${isActive ? ' active' : ''}`}
+                  >
+                    <Icon name={it.icon} />
+                    <span>{it.label}</span>
+                  </NavLink>
+                ))}
+              </div>
+            )}
+          </div>
+        )
+      })}
+    </nav>
+  )
+}
 
 function Icon({ name }: { name: IconName }) {
   const p = {
@@ -56,6 +231,22 @@ function Icon({ name }: { name: IconName }) {
         <svg {...p}>
           <circle cx="12" cy="12" r="9" />
           <circle cx="12" cy="12" r="3" />
+        </svg>
+      )
+    case 'categories':
+      return (
+        <svg {...p}>
+          <rect x="3" y="3" width="7" height="7" />
+          <rect x="14" y="3" width="7" height="7" />
+          <rect x="3" y="14" width="7" height="7" />
+          <rect x="14" y="14" width="7" height="7" />
+        </svg>
+      )
+    case 'tags':
+      return (
+        <svg {...p}>
+          <path d="M20.59 13.41 11 23l-9-9V3h11l9.59 9.59a1 1 0 010 1.41z" />
+          <line x1="7" y1="7" x2="7.01" y2="7" />
         </svg>
       )
     case 'images':
@@ -143,23 +334,32 @@ function Icon({ name }: { name: IconName }) {
           <path d="M9 12a3 3 0 1 0 6 0 3 3 0 0 0-6 0z" />
         </svg>
       )
+    case 'catalogue':
+      return (
+        <svg {...p}>
+          <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z" />
+          <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z" />
+        </svg>
+      )
+    case 'promotions':
+      return (
+        <svg {...p}>
+          <path d="M12 2 15 9l7 1-5 5 1 7-6-3-6 3 1-7-5-5 7-1z" />
+        </svg>
+      )
+    case 'customers':
+      return (
+        <svg {...p}>
+          <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+          <circle cx="8.5" cy="7" r="4" />
+          <path d="M20 8v6M23 11h-6" />
+        </svg>
+      )
+    case 'chevron':
+      return (
+        <svg {...p}>
+          <polyline points="6 9 12 15 18 9" />
+        </svg>
+      )
   }
-}
-
-export function Sidebar() {
-  return (
-    <nav className="admin-sidebar">
-      {items.map((it) => (
-        <NavLink
-          key={it.path}
-          to={it.path}
-          end={it.end}
-          className={({ isActive }) => `admin-nav-item${isActive ? ' active' : ''}`}
-        >
-          <Icon name={it.icon} />
-          <span>{it.label}</span>
-        </NavLink>
-      ))}
-    </nav>
-  )
 }

@@ -4,6 +4,8 @@ import { AdminLayout } from './AdminLayout'
 import { Dashboard } from './pages/Dashboard'
 import { Menus } from './pages/Menus'
 import { Allergies } from './pages/Allergies'
+import { Categories } from './pages/Categories'
+import { Tags } from './pages/Tags'
 import { Dishes } from './pages/Dishes'
 import { ImportImages } from './pages/ImportImages'
 import { ImportMenu } from './pages/ImportMenu'
@@ -29,6 +31,8 @@ export default function AdminApp() {
           <Route index element={<Dashboard />} />
           <Route path="menus" element={<Menus />} />
           <Route path="dishes" element={<Dishes />} />
+          <Route path="categories" element={<Categories />} />
+          <Route path="tags" element={<Tags />} />
           <Route path="ingredients" element={<Ingredients />} />
           <Route path="allergies" element={<Allergies />} />
           <Route path="import-menu" element={<ImportMenu />} />

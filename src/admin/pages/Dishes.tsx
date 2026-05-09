@@ -901,7 +901,9 @@ function TagsModal({ tags, onClose, onChanged }: { tags: AdminTag[]; onClose: ()
   const [newEn, setNewEn] = useState('')
   const [newBg, setNewBg] = useState('#0a7b4a')
   const [newFg, setNewFg] = useState('#ffffff')
-  const [newPlacement, setNewPlacement] = useState<'top_left' | 'top_right' | 'bottom_left' | 'under_title'>('top_left')
+  // WEC-256 polish: most tags are descriptors (vegan/low-carb/high-pro), which
+  // are inline chips. Default to under_title so the common case is one click.
+  const [newPlacement, setNewPlacement] = useState<'top_left' | 'top_right' | 'bottom_left' | 'under_title'>('under_title')
   const [err, setErr] = useState<string | null>(null)
 
   async function add() {
