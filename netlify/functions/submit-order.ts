@@ -389,11 +389,11 @@ export default async (request: Request) => {
         .select('id, name_el, name_en, postcodes, active, zone_time_slots(time_from, time_to, active)')
         .eq('active', true),
 
-      // Cutoff + min-order + enabled-methods settings
+      // Cutoff + min-order + enabled-methods + bank IBANs (WEC-267) settings
       supabase
         .from('settings')
         .select('key, value')
-        .in('key', ['cutoff_hour', 'cutoff_weekday_overrides', 'cutoff_date_overrides', 'min_order', 'payment_methods_enabled']),
+        .in('key', ['cutoff_hour', 'cutoff_weekday_overrides', 'cutoff_date_overrides', 'min_order', 'payment_methods_enabled', 'bank_transfer_info']),
     ])
 
     if (variantsRes.error) return Response.json({ error: 'Failed to look up item prices' }, { status: 500 })
@@ -959,6 +959,25 @@ export default async (request: Request) => {
       }
     })
 
+    // WEC-267: parse the bank-IBAN settings into an array and pass it to
+    // the Klaviyo event so the order-confirmation template can render
+    // every configured IBAN. Accepts both shapes (legacy single object,
+    // new array per WEC-260). Empty array if the operator hasn't
+    // configured any IBANs — the template just renders nothing.
+    const rawBankInfos = (settingsRes.data ?? [] as { key: string; value: unknown }[])
+      .find((r: { key: string }) => r.key === 'bank_transfer_info')?.value
+    const bankList = Array.isArray(rawBankInfos)
+      ? (rawBankInfos as unknown[])
+      : (rawBankInfos && typeof rawBankInfos === 'object' ? [rawBankInfos] : [])
+    const bankTransferInfos = bankList
+      .filter((e): e is Record<string, unknown> => !!e && typeof e === 'object')
+      .map((o) => ({
+        iban: typeof o.iban === 'string' ? o.iban : '',
+        beneficiary: typeof o.beneficiary === 'string' ? o.beneficiary : '',
+        bankName: typeof o.bankName === 'string' ? o.bankName : null,
+      }))
+      .filter((e) => e.iban.length > 0)
+
     trackAsync('Order Placed', {
       email: body.customerEmail,
       firstName: body.customerName?.split(' ')[0],
@@ -977,6 +996,12 @@ export default async (request: Request) => {
       adminUserId: adminUserId ?? null,
       dayCount: body.days.length,
       itemCount: body.days.reduce((s, d) => s + d.items.reduce((ss, it) => ss + it.quantity, 0), 0),
+      // WEC-267: array of IBAN entries — template iterates with the
+      // {% for iban_entry in event.bank_transfer_infos %} loop.
+      bank_transfer_infos: bankTransferInfos,
+      // Back-compat: keep the singular field too in case the old template
+      // is still live in some environments. First IBAN, or empty object.
+      bank_transfer_info: bankTransferInfos[0] ?? null,
       // Order-wide macro totals (sum across all days).
       totalMacros: klaviyoDays.reduce((acc, d) => ({
         calories: acc.calories + d.macros.calories,
