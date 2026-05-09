@@ -73,7 +73,14 @@ export default function App() {
               })
             }
           } catch { /* non-fatal */ }
-        } else if (event === 'SIGNED_IN' && session.user) {
+        } else if ((event === 'SIGNED_IN' || event === 'PASSWORD_RECOVERY') && session.user) {
+          // WEC-272: PASSWORD_RECOVERY is fired when verifyOtp({type:'recovery'})
+          // succeeds. On this Supabase project, signInWithOtp for an existing
+          // confirmed user routes the token into the recovery_token slot
+          // (because there's no magiclink_token enum value), so a successful
+          // OTP login surfaces as PASSWORD_RECOVERY rather than SIGNED_IN.
+          // We treat both events as 'user just authenticated' — there's no
+          // password reset UI here for the recovery semantic to bind to.
           // Self-heal mismatch: if the impersonation banner says we're
           // impersonating user X but the session that just signed in
           // isn't X, the impersonation state is stale (e.g. tab refresh

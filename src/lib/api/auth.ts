@@ -208,41 +208,57 @@ export async function verifyEmailOtp(
   email: string,
   token: string,
 ): Promise<{ ok: boolean; error?: string }> {
-  // Supabase stores tokens for signInWithOtp under different slots depending
-  // on whether the user is new or existing/confirmed. The `type` parameter
-  // can be either 'email' or 'magiclink' for OTP-by-email flows. Some
-  // project configs (and some Supabase versions) require 'magiclink' for
-  // existing confirmed users where the token lives in the recovery_token
-  // slot, while 'email' is the modern unified type.
+  // WEC-272: This project's Supabase auth schema does NOT have a 'magiclink'
+  // token-type enum value (verified by querying the one_time_token_type
+  // enum directly — only confirmation_token / recovery_token / etc. exist).
+  // signInWithOtp for an EXISTING confirmed user routes the token into the
+  // recovery_token slot. signInWithOtp for a NEW user creates a
+  // confirmation_token. So the right verify-type depends on user state.
   //
-  // Try 'email' first (the recommended path), fall back to 'magiclink'
-  // if Supabase says the token isn't valid for that type. Token consumption
-  // is atomic so the fallback is safe — only one path will succeed.
+  // Strategy: try every plausible type unconditionally. Token consumption
+  // is atomic at the DB level so trying 4 types in series is safe — only
+  // the matching slot will succeed. We DON'T bail early on error message —
+  // the previous regex gate (/token|expired|invalid|otp/i) sometimes
+  // mis-classified the error string and skipped the type that would've
+  // worked. Only true terminal errors (rate-limit, 5xx) abort early.
+  //
+  // After a successful 'recovery' verify, Supabase fires a
+  // 'PASSWORD_RECOVERY' event (not 'SIGNED_IN'). App.tsx's
+  // onAuthStateChange now treats that as a sign-in too, so the user
+  // lands in the app properly.
 
-  const tryTypes: Array<'email' | 'magiclink' | 'recovery'> = ['email', 'magiclink', 'recovery']
+  const tryTypes: Array<'email' | 'magiclink' | 'recovery' | 'signup'> = [
+    'email', 'recovery', 'magiclink', 'signup',
+  ]
   let lastError: string | undefined
+  let lastStatus: number | undefined
 
   for (const type of tryTypes) {
     const { data, error } = await supabase.auth.verifyOtp({ email, token, type })
     if (error) {
       lastError = error.message
-      // Console-log so we can see in DevTools which types Supabase rejects.
-      // Helps diagnose project-config quirks without server-log access.
+      lastStatus = error.status
       // eslint-disable-next-line no-console
       console.warn('[verifyEmailOtp] type=%s rejected:', type, error.message, 'status=', error.status, 'code=', (error as { code?: string }).code)
-      // Only fall through on token/type errors. Other errors (rate limit,
-      // network, etc.) should bubble up immediately.
-      const isTokenError = /token|expired|invalid|otp/i.test(error.message ?? '')
-      if (!isTokenError) return { ok: false, error: error.message }
+      // 429 rate-limit / 5xx server errors won't fix themselves on retry —
+      // bail rather than burning attempts.
+      if (error.status === 429 || (error.status && error.status >= 500)) {
+        return { ok: false, error: error.message }
+      }
       continue
     }
-    if (!data.session) return { ok: false, error: 'Verification succeeded but no session returned' }
+    if (!data.session) {
+      // Some flows return user without session — keep trying.
+      // eslint-disable-next-line no-console
+      console.warn('[verifyEmailOtp] type=%s returned no session, continuing', type)
+      continue
+    }
     // eslint-disable-next-line no-console
     console.info('[verifyEmailOtp] succeeded with type=%s', type)
     return { ok: true }
   }
 
-  return { ok: false, error: lastError ?? 'Could not verify code' }
+  return { ok: false, error: lastError ?? `Could not verify code${lastStatus ? ` (status=${lastStatus})` : ''}` }
 }
 
 /**
