@@ -16,12 +16,14 @@ import { supabase } from '../../lib/supabase'
  * later. See OTP-everywhere epic.
  *
  * WEC-272: OTP length is configured server-side in Supabase Dashboard →
- * Authentication → Email → "OTP length". Our project is set to 8 digits.
- * Keep this constant in sync with that setting. We also accept paste input
- * up to OTP_MAX_LENGTH defensively so a future config bump to 10 doesn't
- * silently truncate the user's input and trigger "otp_expired" mismatches.
+ * Authentication → Email → "OTP length". Our project is set to 6 digits
+ * (chosen over 8 for easier mobile readability — users memorise + retype
+ * 6 digits comfortably without tab-switching). Keep this constant in sync
+ * with that setting. We accept paste input up to OTP_MAX_LENGTH defensively
+ * so a future config bump (e.g. to 8 or 10) doesn't silently truncate the
+ * pasted code and trigger "otp_expired" mismatches at the verify step.
  */
-const OTP_LENGTH = 8
+const OTP_LENGTH = 6
 const OTP_MAX_LENGTH = 10
 type LoginMode = 'password' | 'otp'
 type OtpStep = 'enterEmail' | 'enterCode'
