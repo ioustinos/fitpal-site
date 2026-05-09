@@ -261,6 +261,121 @@ export async function fetchUserOrders(userId: string): Promise<{
   return { data: result, error: null }
 }
 
+/**
+ * Fetch a single order with everything needed to render the confirmation
+ * screen. Used by OrderReturn (Viva card-payment landing page) so the
+ * post-payment confirmation looks identical to the cash-payment confirmation.
+ *
+ * Accepts either the order's UUID (`id`) or its public `order_number`.
+ */
+export interface ConfirmationOrderItem {
+  qty: number
+  nameEl: string
+  nameEn: string
+  variantLabelEl: string
+  variantLabelEn: string
+  totalPrice: number    // euros
+}
+
+export interface ConfirmationOrderDay {
+  dateISO: string
+  dayLabelEl: string
+  dayLabelEn: string
+  timeSlot: string
+  street: string
+  area: string
+  zip: string | null
+  items: ConfirmationOrderItem[]
+  dayTotal: number      // euros
+}
+
+export interface ConfirmationOrder {
+  orderId: string
+  orderNumber: string
+  total: number          // euros
+  notes: string | null
+  paymentMethod: string  // raw enum
+  days: ConfirmationOrderDay[]
+}
+
+export async function fetchOrderForConfirmation(
+  orderIdOrNumber: string,
+): Promise<{ data: ConfirmationOrder | null; error: string | null }> {
+  // 1. Order by id OR order_number
+  const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(orderIdOrNumber)
+  const { data: rawOrder, error: oErr } = await supabase
+    .from('orders')
+    .select('*')
+    .eq(isUuid ? 'id' : 'order_number', orderIdOrNumber)
+    .maybeSingle()
+
+  if (oErr) return { data: null, error: oErr.message }
+  if (!rawOrder) return { data: null, error: 'Order not found' }
+  const o = rawOrder as DbOrder
+
+  // 2. Children
+  const { data: rawChildren, error: cErr } = await supabase
+    .from('child_orders')
+    .select('*')
+    .eq('order_id', o.id)
+    .order('delivery_date')
+  if (cErr) return { data: null, error: cErr.message }
+  const children = (rawChildren ?? []) as DbChildOrder[]
+
+  // 3. Items
+  const childIds = children.map((c) => c.id)
+  let items: DbOrderItem[] = []
+  if (childIds.length > 0) {
+    const { data: rawItems, error: iErr } = await supabase
+      .from('order_items')
+      .select('*')
+      .in('child_order_id', childIds)
+    if (iErr) return { data: null, error: iErr.message }
+    items = (rawItems ?? []) as DbOrderItem[]
+  }
+
+  const itemsByChild = new Map<string, DbOrderItem[]>()
+  for (const it of items) {
+    const list = itemsByChild.get(it.child_order_id) ?? []
+    list.push(it)
+    itemsByChild.set(it.child_order_id, list)
+  }
+
+  const days: ConfirmationOrderDay[] = children.map((ch) => {
+    const chItems = itemsByChild.get(ch.id) ?? []
+    return {
+      dateISO: ch.delivery_date,
+      dayLabelEl: fmtDayLabel(ch.delivery_date, 'el'),
+      dayLabelEn: fmtDayLabel(ch.delivery_date, 'en'),
+      timeSlot: fmtTimeSlot(ch.time_from, ch.time_to),
+      street: ch.address_street,
+      area: ch.address_area,
+      zip: ch.address_zip,
+      items: chItems.map((it) => ({
+        qty: it.quantity,
+        nameEl: it.name_el,
+        nameEn: it.name_en,
+        variantLabelEl: it.variant_label_el ?? '',
+        variantLabelEn: it.variant_label_en ?? '',
+        totalPrice: centsToEuros(it.total_price),
+      })),
+      dayTotal: centsToEuros(chItems.reduce((s, it) => s + it.total_price, 0)),
+    }
+  })
+
+  return {
+    data: {
+      orderId: o.id,
+      orderNumber: o.order_number,
+      total: centsToEuros(o.total),
+      notes: o.notes,
+      paymentMethod: o.payment_method,
+      days,
+    },
+    error: null,
+  }
+}
+
 // ─── Order submission types ──────────────────────────────────────────────────
 
 export interface SubmitOrderPayload {
