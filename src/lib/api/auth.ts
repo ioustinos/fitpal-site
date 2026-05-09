@@ -192,6 +192,18 @@ export async function sendEmailOtp(
 ): Promise<{ ok: boolean; error?: string }> {
   const emailRedirectTo = typeof window !== 'undefined' ? window.location.origin : undefined
 
+  // WEC-272: log the exact request shape so we can correlate the browser
+  // request with what Supabase auth logs say (the auth-log `action` value
+  // — `user_recovery_requested` vs `user_signup_invitation_sent` etc. —
+  // tells us which email template Supabase will fire for this user).
+  // eslint-disable-next-line no-console
+  console.info('[sendEmailOtp] requesting', {
+    email,
+    hasName: !!name,
+    emailRedirectTo,
+    ts: new Date().toISOString(),
+  })
+
   const { error } = await supabase.auth.signInWithOtp({
     email,
     options: {
@@ -200,7 +212,18 @@ export async function sendEmailOtp(
       emailRedirectTo,
     },
   })
-  if (error) return { ok: false, error: error.message }
+  if (error) {
+    // eslint-disable-next-line no-console
+    console.warn('[sendEmailOtp] failed', {
+      email,
+      message: error.message,
+      status: error.status,
+      code: (error as { code?: string }).code,
+    })
+    return { ok: false, error: error.message }
+  }
+  // eslint-disable-next-line no-console
+  console.info('[sendEmailOtp] sent OK — check Supabase auth logs for the `action` value to confirm which template fired')
   return { ok: true }
 }
 
@@ -226,6 +249,22 @@ export async function verifyEmailOtp(
   // 'PASSWORD_RECOVERY' event (not 'SIGNED_IN'). App.tsx's
   // onAuthStateChange now treats that as a sign-in too, so the user
   // lands in the app properly.
+
+  // Log the exact request shape — token length, prefix, email, timestamp.
+  // The "type" of token can usually be guessed from length alone:
+  //   - 6 digits  → the Supabase `{{ .Token }}` field (what we want)
+  //   - 56-char hex hash → the `{{ .TokenHash }}` field (PKCE / link flows)
+  //   - long URL-safe string → `{{ .ConfirmationURL }}` (a clickable link)
+  // If the user is pasting anything other than 6 digits, the email
+  // template is wrong (delivering the link/hash variant instead of the code).
+  // eslint-disable-next-line no-console
+  console.info('[verifyEmailOtp] verifying', {
+    email,
+    tokenLen: token.length,
+    tokenPrefix: token.slice(0, 6),
+    tokenIsAllDigits: /^\d+$/.test(token),
+    ts: new Date().toISOString(),
+  })
 
   const tryTypes: Array<'email' | 'magiclink' | 'recovery' | 'signup'> = [
     'email', 'recovery', 'magiclink', 'signup',
@@ -257,6 +296,17 @@ export async function verifyEmailOtp(
     console.info('[verifyEmailOtp] succeeded with type=%s', type)
     return { ok: true }
   }
+
+  // eslint-disable-next-line no-console
+  console.error('[verifyEmailOtp] all 4 types rejected', {
+    email,
+    tokenLen: token.length,
+    lastError,
+    lastStatus,
+    hint: token.length === 6
+      ? 'Token shape looks correct (6 digits). Likely cause: email template for this user state delivered the LINK, not the code — server consumed the token when the link was prefetched, so the code is dead on arrival.'
+      : 'Token shape WRONG — expected 6 digits but got ' + token.length + ' chars. The email template is rendering {{ .TokenHash }} or {{ .ConfirmationURL }} instead of {{ .Token }}.',
+  })
 
   return { ok: false, error: lastError ?? `Could not verify code${lastStatus ? ` (status=${lastStatus})` : ''}` }
 }
