@@ -6,3 +6,19 @@ dist
 
 # Local Netlify folder
 .netlify
+
+# Test artifacts (Lighthouse / Playwright / screenshots)
+test-screenshots/
+
+# Skill bundles + plugin scaffolds — built artifacts, not source
+*.plugin
+skills/
+
+# Working / scratch docs that stay out of the repo
+OVERNIGHT_REVIEW.md
+Fitpal-Employee-Testing-Guide.md
+docs/marketing-tracking-*.md
+
+# Local-only ops scripts (push helpers, data scratchpads)
+scripts/push-overnight.sh
+scripts/pilot.sql
