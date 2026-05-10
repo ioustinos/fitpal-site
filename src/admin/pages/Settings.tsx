@@ -83,6 +83,7 @@ export function Settings() {
           <TimeSlotsSection value={(byKey.get('time_slots') as string[]) ?? []} onSave={(v) => save('time_slots', v)} />
           <PaymentMethodsSection value={parseVisibility(byKey.get('payment_methods_enabled'))} onSave={(v) => save('payment_methods_enabled', v)} />
           <MacrosDisplaySection value={(byKey.get('macros_display') === 'dots' ? 'dots' : 'numbers')} onSave={(v) => save('macros_display', v)} />
+          <VariantPillThresholdSection value={Number(byKey.get('variant_pill_threshold') ?? 4)} onSave={(v) => save('variant_pill_threshold', v)} />
           <ContactInfoSection value={(byKey.get('contact') as ContactInfo) ?? {}} onSave={(v) => save('contact', v)} />
           <BankTransferInfoSection value={parseBankInfos(byKey.get('bank_transfer_info'))} onSave={(v) => save('bank_transfer_info', v)} />
           <RawJsonSection rows={all} onSaved={refresh} />
@@ -355,6 +356,38 @@ function MacrosDisplaySection({ value, onSave }: { value: 'numbers' | 'dots'; on
           <span>Dots (legacy)</span>
         </label>
         <button className="admin-btn-primary" disabled={v === value} onClick={() => onSave(v)}>Save</button>
+      </div>
+    </SectionCard>
+  )
+}
+
+function VariantPillThresholdSection({ value, onSave }: { value: number; onSave: (v: number) => void }) {
+  const [v, setV] = useState(value)
+  useEffect(() => setV(value), [value])
+  const clamped = Math.max(2, Math.min(20, v))
+  return (
+    <SectionCard
+      title="Variant picker threshold"
+      desc="A dish with MORE THAN this many variants automatically renders the dropdown picker on the dish modal (per-ingredient gram pickers). At or below this number, it renders the pill rows. Per-dish admin overrides on /admin/dishes still win. Default 4. Range 2–20."
+    >
+      <div className="admin-inline-form">
+        <input
+          className="admin-input"
+          type="number"
+          min={2}
+          max={20}
+          value={v}
+          onChange={(e) => setV(Math.max(2, Math.min(20, parseInt(e.target.value, 10) || 0)))}
+          style={{ width: 110 }}
+        />
+        <span className="admin-text-muted">variants → switch to dropdowns above this</span>
+        <button
+          className="admin-btn-primary"
+          disabled={clamped === value}
+          onClick={() => onSave(clamped)}
+        >
+          Save
+        </button>
       </div>
     </SectionCard>
   )

@@ -113,6 +113,13 @@ export interface AppSettings {
   macrosDisplay: MacrosDisplay
   /** Pickup locations array (WEC-259). V1: 1 entry. */
   pickupLocations: PickupLocation[]
+  /**
+   * Variant picker UX threshold. When a dish has MORE THAN this many variants
+   * AND no admin override is set on the dish itself, the picker switches from
+   * pill rows to per-ingredient dropdowns. Default 4. Admins can tune this
+   * from /admin/menu-options (Settings split — WEC-274 child).
+   */
+  variantPillThreshold: number
 }
 
 const ALL_METHODS: PaymentMethodId[] = ['cash', 'card', 'link', 'transfer', 'wallet']
@@ -137,6 +144,7 @@ const DEFAULTS: AppSettings = {
   bankTransferInfos: [],
   macrosDisplay: 'numbers',
   pickupLocations: [],
+  variantPillThreshold: 4,
 }
 
 // ─── Query ──────────────────────────────────────────────────────────────────
@@ -272,6 +280,15 @@ export async function fetchSettings(): Promise<{ data: AppSettings; error: strin
     }
   }
 
+  // variant_pill_threshold — int, clamped to 2..20 so a typo can't break
+  // the menu page (1 would hide pills for every dish, 100 would force pills
+  // for dishes that genuinely need the dropdown picker).
+  const rawThreshold = map.variant_pill_threshold
+  const variantPillThreshold =
+    typeof rawThreshold === 'number' && Number.isInteger(rawThreshold)
+      ? Math.max(2, Math.min(20, rawThreshold))
+      : DEFAULTS.variantPillThreshold
+
   return {
     data: {
       minOrder: typeof map.min_order === 'number' ? map.min_order / 100 : DEFAULTS.minOrder,
@@ -284,6 +301,7 @@ export async function fetchSettings(): Promise<{ data: AppSettings; error: strin
       bankTransferInfos,
       macrosDisplay,
       pickupLocations,
+      variantPillThreshold,
     },
     error: null,
   }

@@ -107,6 +107,7 @@ export const useMenuStore = create<MenuStore>((set, get) => ({
     bankTransferInfos: [],
     macrosDisplay: 'numbers',
     pickupLocations: [],
+    variantPillThreshold: 4,
   },
   isLoading: false,
   error: null,

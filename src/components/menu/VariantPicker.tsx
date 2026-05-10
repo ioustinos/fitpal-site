@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { fetchDishRecipe, type DishRecipe } from '../../lib/api/dishRecipe'
 import { effPrice } from '../../lib/helpers'
+import { useMenuStore } from '../../store/useMenuStore'
 import type { Dish } from '../../data/menu'
 import { makeTr } from '../../lib/translations'
 
@@ -9,10 +10,15 @@ import { makeTr } from '../../lib/translations'
  *
  * Two modes:
  *   - Pills: classic variant rows (radio-pill UX, full label visible). Used
- *     when the dish has ≤4 variants OR admin set variant_ux_mode='pills'.
+ *     when the dish has ≤ pillThreshold variants OR admin set
+ *     variant_ux_mode='pills'.
  *   - Dropdowns: one <select> per is_variant=true ingredient. Customer picks
  *     gram amounts; we match the resulting combination back to a variant.
- *     Used when the dish has 5+ variants OR admin set variant_ux_mode='dropdowns'.
+ *     Used when the dish has more than pillThreshold variants OR admin set
+ *     variant_ux_mode='dropdowns'.
+ *
+ * `pillThreshold` is read from `settings.variant_pill_threshold` (default 4).
+ * Admin tunes it from /admin/menu-options (per WEC-274 settings split).
  *
  * Pills is lossless and works for every dish. Dropdowns require the dish to
  * have structured recipe rows (dish_ingredients + dish_variant_ingredient_amounts);
@@ -27,17 +33,16 @@ interface Props {
   lang: 'el' | 'en'
 }
 
-const PILL_THRESHOLD = 4
-
 export function VariantPicker({ dish, selectedVariantId, onChange, lang }: Props) {
   const t = makeTr(lang)
   const mode = dish.variantUxMode ?? 'auto'
+  const pillThreshold = useMenuStore((s) => s.settings.variantPillThreshold)
 
   // Decide intended mode based on count + admin override
   const intendedMode: 'pills' | 'dropdowns' =
     mode === 'pills' ? 'pills'
     : mode === 'dropdowns' ? 'dropdowns'
-    : (dish.variants.length > PILL_THRESHOLD ? 'dropdowns' : 'pills')
+    : (dish.variants.length > pillThreshold ? 'dropdowns' : 'pills')
 
   if (intendedMode === 'dropdowns') {
     return (
