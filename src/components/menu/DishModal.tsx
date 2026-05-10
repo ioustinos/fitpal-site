@@ -24,6 +24,10 @@ export function DishModal() {
   const weeksMeta = useMenuStore((s) => s.weeksMeta)
   const settings = useMenuStore((s) => s.settings)
   const tagsCatalog = useMenuStore((s) => s.tags)
+  // WEC-250: diet-flag inputs read at the top so the hook order is stable
+  // (the early `if (!dish) return null` below disallows hooks after it).
+  const dietCatalog = useMenuStore((s) => s.dietCatalog)
+  const user = useAuthStore((s) => s.user)
   const toast = useToast((s) => s.show)
   const t = makeTr(lang)
 
@@ -98,9 +102,8 @@ export function DishModal() {
     closeModal()
   }
 
-  // WEC-250: diet flags for the signed-in user — null/empty for guests.
-  const user = useAuthStore((s) => s.user)
-  const dietCatalog = useMenuStore((s) => s.dietCatalog)
+  // WEC-250: derive diet flags from the hooks read at the top. Plain
+  // computations only — no hook calls, safe after the early return.
   const userAllergyIds = new Set(user?.diet?.allergyIds ?? [])
   const userAvoidedIngredientIds = new Set(user?.diet?.avoidedIngredientIds ?? [])
   const dietFlags = dishDietFlags(dish.id, dietCatalog, userAllergyIds, userAvoidedIngredientIds)
