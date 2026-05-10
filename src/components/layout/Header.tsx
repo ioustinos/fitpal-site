@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useUIStore } from '../../store/useUIStore'
 import { useAuthStore } from '../../store/useAuthStore'
+import { useMenuStore } from '../../store/useMenuStore'
 import { makeTr } from '../../lib/translations'
 
 export function Header() {
@@ -12,6 +13,13 @@ export function Header() {
   const goToAccount = useUIStore((s) => s.goToAccount)
   const goToMenu = useUIStore((s) => s.goToMenu)
   const { user, logout } = useAuthStore()
+
+  // WEC-297: hide the wallet pill when 'wallet' isn't in payment_methods_enabled.
+  // Surfacing a balance the customer can't actually spend at checkout is
+  // misleading. Same setting gates the checkout payment-method list, so this
+  // keeps the two surfaces consistent.
+  const paymentMethodsEnabled = useMenuStore((s) => s.settings.paymentMethodsEnabled)
+  const walletEnabled = !paymentMethodsEnabled || paymentMethodsEnabled.includes('wallet')
 
   // WEC-141: after sign out, always drop back to the menu. Sign-out can be
   // triggered from any overlay page (checkout, wallet, account, subscription);
@@ -54,22 +62,24 @@ export function Header() {
             className="hdr-admin-link"
             onClick={() => navigate('/admin')}
             title="Admin panel"
+            aria-label={lang === 'el' ? 'Πίνακας διαχείρισης' : 'Admin panel'}
           >
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" focusable="false">
               <path d="M12 2l8 4v6c0 5-3.5 9-8 10-4.5-1-8-5-8-10V6l8-4z"/>
             </svg>
             <span>Admin</span>
           </button>
         )}
 
-        {/* Wallet badge (only when logged in) */}
-        {user?.wallet?.active && (
+        {/* Wallet badge (only when logged in AND wallet payment is enabled — WEC-297) */}
+        {user?.wallet?.active && walletEnabled && (
           <button
             className="wallet-hdr-badge"
             onClick={openWalletModal}
             title="Fitpal Wallet"
+            aria-label={lang === 'el' ? `Άνοιγμα πορτοφολιού, υπόλοιπο ${user.wallet.balance.toFixed(2)} ευρώ` : `Open wallet, balance ${user.wallet.balance.toFixed(2)} euros`}
           >
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" focusable="false">
               <rect x="2" y="5" width="20" height="14" rx="2"/>
               <path d="M16 12h.01"/>
               <path d="M2 10h20"/>
@@ -112,27 +122,31 @@ export function Header() {
                     className="user-menu-item"
                     onClick={() => { setMenuOpen(false); goToAccount('orders') }}
                   >
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" focusable="false">
                       <path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="1"/><path d="M9 14l2 2 4-4"/>
                     </svg>
                     {lang === 'el' ? 'Οι Παραγγελίες μου' : 'My Orders'}
                   </button>
-                  <button
-                    className="user-menu-item"
-                    onClick={() => { setMenuOpen(false); goToAccount('wallet') }}
-                  >
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <rect x="2" y="5" width="20" height="14" rx="2"/><path d="M16 12h.01"/><path d="M2 10h20"/>
-                    </svg>
-                    {lang === 'el'
-                      ? `Πορτοφόλι • €${user.wallet.balance.toFixed(2)}`
-                      : `Wallet • €${user.wallet.balance.toFixed(2)}`}
-                  </button>
+                  {/* WEC-297: only show the wallet menu item when wallet
+                      is an enabled payment method site-wide. */}
+                  {walletEnabled && (
+                    <button
+                      className="user-menu-item"
+                      onClick={() => { setMenuOpen(false); goToAccount('wallet') }}
+                    >
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" focusable="false">
+                        <rect x="2" y="5" width="20" height="14" rx="2"/><path d="M16 12h.01"/><path d="M2 10h20"/>
+                      </svg>
+                      {lang === 'el'
+                        ? `Πορτοφόλι • €${user.wallet.balance.toFixed(2)}`
+                        : `Wallet • €${user.wallet.balance.toFixed(2)}`}
+                    </button>
+                  )}
                   <button
                     className="user-menu-item"
                     onClick={() => { setMenuOpen(false); goToAccount('addresses') }}
                   >
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" focusable="false">
                       <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/>
                     </svg>
                     {lang === 'el' ? 'Διευθύνσεις' : 'Addresses'}
@@ -141,7 +155,7 @@ export function Header() {
                     className="user-menu-item"
                     onClick={() => { setMenuOpen(false); goToAccount('profile') }}
                   >
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" focusable="false">
                       <circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/>
                     </svg>
                     {lang === 'el' ? 'Τα Στοιχεία μου' : 'My Profile'}
@@ -150,7 +164,7 @@ export function Header() {
                     className="user-menu-item"
                     onClick={() => { setMenuOpen(false); goToAccount('goals') }}
                   >
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" focusable="false">
                       <circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/>
                     </svg>
                     {lang === 'el' ? 'Στόχοι' : 'Goals'}
@@ -159,7 +173,7 @@ export function Header() {
                     className="user-menu-item"
                     onClick={() => { setMenuOpen(false); goToAccount('prefs') }}
                   >
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" focusable="false">
                       <circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
                     </svg>
                     {lang === 'el' ? 'Προτιμήσεις' : 'Preferences'}
@@ -169,7 +183,7 @@ export function Header() {
                     className="user-menu-item danger"
                     onClick={handleSignOut}
                   >
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" focusable="false">
                       <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/>
                     </svg>
                     {lang === 'el' ? 'Αποσύνδεση' : 'Sign Out'}

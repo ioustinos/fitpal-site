@@ -82,12 +82,19 @@ export function TimeSlotPicker({ dayIndex, inline = false }: TimeSlotPickerProps
         // If a zone is resolved, only that zone's slots are enabled; if no
         // zone resolved yet, all default slots stay enabled.
         const unavailable = zoneSlotSet !== null && !zoneSlotSet.has(slot)
+        const isSelected = selectedSlot === slot
         return (
           <button
             key={slot}
-            className={`tslot${selectedSlot === slot ? ' sel' : ''}${unavailable ? ' unavailable' : ''}`}
+            type="button"
+            className={`tslot${isSelected ? ' sel' : ''}${unavailable ? ' unavailable' : ''}`}
             onClick={() => !unavailable && handleSelect(slot)}
             disabled={unavailable}
+            // WEC-302: expose the selected state to assistive tech. Visual-only
+            // selection was a false negative for screen readers AND test
+            // automation alike. aria-pressed is the right pattern for buttons
+            // acting like toggles (vs aria-selected which is for listbox/tab).
+            aria-pressed={isSelected}
             title={unavailable ? (lang === 'el' ? 'Δεν είναι διαθέσιμο στη ζώνη σου' : 'Not available in your delivery zone') : undefined}
           >
             {slot}

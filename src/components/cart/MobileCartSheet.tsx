@@ -149,8 +149,12 @@ export function MobileCartSheet({ mode = 'menu' }: Props) {
         </button>
 
         {/* Expanded body. Mounted always (cheap) but hidden by CSS when
-            collapsed so the slide-down transition feels responsive. */}
-        <div className="mcs-body" id="mcs-body" role="region" aria-hidden={!expanded}>
+            collapsed so the slide-down transition feels responsive.
+            WEC-296: use `inert` instead of `aria-hidden` — the close button
+            inside this container would otherwise be both AT-hidden AND
+            focusable, which the browser correctly flags as broken. `inert`
+            blocks focus AND hides from AT in one shot. */}
+        <div className="mcs-body" id="mcs-body" role="region" inert={!expanded}>
           {/* Drag-handle and close — discoverable affordances at the top */}
           <div className="mcs-body-hdr">
             <span className="mcs-handle" aria-hidden="true" />

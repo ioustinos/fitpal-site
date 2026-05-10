@@ -15,7 +15,7 @@ const T = {
     cartEmptySub: 'Πρόσθεσε πιάτα από το μενού για να ξεκινήσεις',
     // Macros
     from: 'από',
-    kcal: 'Kcal',
+    kcal: 'kcal',
     pro: 'Πρωτ.',
     carb: 'Υδ/κες',
     fat: 'Λίπη',
@@ -188,7 +188,7 @@ const T = {
     cartEmpty: 'Your cart is empty',
     cartEmptySub: 'Add dishes from the menu to get started',
     from: 'from',
-    kcal: 'Kcal',
+    kcal: 'kcal',
     pro: 'Prot.',
     carb: 'Carbs',
     fat: 'Fat',

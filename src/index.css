@@ -92,11 +92,14 @@ header {
 .logo-sub { font-size: 9px; font-weight: 600; letter-spacing: 2px; color: rgba(255,255,255,0.35); /* uppercase removed — WEC-187 */ }
 .lang-wrap { display: flex; align-items: center; gap: 12px; position: relative; }
 .lang-toggle { display: flex; background: rgba(255,255,255,0.1); border-radius: 999px; padding: 3px; border: 1px solid rgba(255,255,255,0.15); }
-.lang-btn { padding: 5px 16px; border: none; background: transparent; border-radius: 999px; cursor: pointer; font-size: 12px; font-weight: 800; color: rgba(255,255,255,0.55); letter-spacing: 0.5px; transition: all 0.2s; }
+/* WEC-298: tap targets bumped to 44×44 (WCAG 2.5.5). Visible pill grows
+   slightly on desktop too — that's intentional, the previous 22px pill
+   was uncomfortable for any pointer larger than a mouse tip. */
+.lang-btn { min-height: 44px; min-width: 44px; padding: 5px 16px; border: none; background: transparent; border-radius: 999px; cursor: pointer; font-size: 12px; font-weight: 800; color: rgba(255,255,255,0.55); letter-spacing: 0.5px; transition: all 0.2s; display: inline-flex; align-items: center; justify-content: center; }
 .lang-btn.active { background: var(--green); color: var(--white); box-shadow: 0 2px 8px rgba(0,185,107,0.4); }
 .lang-btn:hover:not(.active) { color: white; }
 
-.hdr-auth-btn { padding: 7px 18px; border: 1.5px solid var(--green); border-radius: 999px; background: var(--green); color: var(--white); font-size: 13px; font-weight: 800; cursor: pointer; transition: all 0.18s; letter-spacing: 0.3px; }
+.hdr-auth-btn { min-height: 44px; padding: 7px 18px; border: 1.5px solid var(--green); border-radius: 999px; background: var(--green); color: var(--white); font-size: 13px; font-weight: 800; cursor: pointer; transition: all 0.18s; letter-spacing: 0.3px; display: inline-flex; align-items: center; justify-content: center; }
 .hdr-auth-btn:hover { background: var(--green-dark); border-color: var(--green-dark); }
 
 .user-dropdown-wrap { position: relative; }
@@ -112,13 +115,16 @@ header {
 .user-menu-item.danger:hover { background: #FEF2F2; }
 .user-menu-divider { height: 1px; background: var(--border); margin: 4px 0; }
 
-.wallet-hdr-badge { display: flex; align-items: center; gap: 6px; background: rgba(0,185,107,0.2); border: 1px solid rgba(0,185,107,0.35); border-radius: 999px; padding: 4px 12px 4px 8px; cursor: pointer; transition: all 0.18s; }
+/* WEC-298: ≥44 min-height. Padding kept compact so the visual chrome
+   stays at its original ~26px height while the hit area expands via
+   the inline-flex centring. */
+.wallet-hdr-badge { min-height: 44px; display: inline-flex; align-items: center; gap: 6px; background: rgba(0,185,107,0.2); border: 1px solid rgba(0,185,107,0.35); border-radius: 999px; padding: 4px 12px 4px 8px; cursor: pointer; transition: all 0.18s; }
 .wallet-hdr-badge:hover { background: rgba(0,185,107,0.3); }
 .wallet-hdr-badge svg { width: 16px; height: 16px; color: #7DFFBE; }
 .wallet-hdr-amt { font-size: 12px; font-weight: 900; color: #7DFFBE; }
 
 /* Admin link in customer header — only rendered when user.isAdmin */
-.hdr-admin-link { display: flex; align-items: center; gap: 6px; background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.18); border-radius: 999px; padding: 5px 12px 5px 10px; color: var(--white); font-size: 12px; font-weight: 700; letter-spacing: 0.3px; cursor: pointer; transition: all 0.18s; }
+.hdr-admin-link { min-height: 44px; display: inline-flex; align-items: center; gap: 6px; background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.18); border-radius: 999px; padding: 5px 12px 5px 10px; color: var(--white); font-size: 12px; font-weight: 700; letter-spacing: 0.3px; cursor: pointer; transition: all 0.18s; }
 .hdr-admin-link:hover { background: rgba(255,255,255,0.15); border-color: rgba(255,255,255,0.3); }
 .hdr-admin-link svg { color: var(--white); }
 
@@ -583,7 +589,11 @@ header {
 .macro.carb .macro-ico { color: #B8860B; }
 .macro.fat  .macro-ico { color: #C2703A; }
 .macro-v { font-size: 9px; font-weight: 800; color: var(--green-dark); line-height: 1.15; }
-.macro-l { font-size: 8px; font-weight: 700; color: var(--text-muted); /* uppercase removed — WEC-187 */ letter-spacing: 0.3px; margin-top: 1px; }
+/* WEC-299: macro labels were `var(--text-muted)` which lands ~3.5:1 on
+   cream — below WCAG AA's 4.5:1 minimum for normal text. Bump to the
+   primary text colour; the hierarchy is already clear from font-size +
+   weight + the bigger value below. */
+.macro-l { font-size: 8px; font-weight: 700; color: var(--text); letter-spacing: 0.3px; margin-top: 1px; }
 .macro-dots { display: flex; gap: 3px; margin-top: 2px; overflow: hidden; }
 .macro-dot { width: 5px; height: 5px; border-radius: 50%; background: var(--cream-dark); transition: background 0.2s; }
 .macro-dot.filled { background: var(--green); }
@@ -594,11 +604,16 @@ header {
 /* WEC-254: numeric values mode — same cell shape, dots replaced by the value.
    Slightly bigger value font than the dot variant; unit pinned with a thin gap. */
 .macro-val { font-size: 12px; font-weight: 900; color: var(--green-dark); line-height: 1.05; margin-top: 2px; letter-spacing: -0.2px; display: inline-flex; align-items: baseline; gap: 1px; }
-.macro-unit { font-size: 9px; font-weight: 800; color: var(--text-muted); letter-spacing: 0; }
-.macro.cal  .macro-val { color: #D97706; }
-.macro.prot .macro-val { color: #059669; }
-.macro.carb .macro-val { color: #B8860B; }
-.macro.fat  .macro-val { color: #C2703A; }
+/* WEC-299: unit was muted-text (~3.5:1). Use primary text. */
+.macro-unit { font-size: 9px; font-weight: 800; color: var(--text); letter-spacing: 0; }
+/* WEC-299: macro value colours pushed darker where the original tone
+   was below 4.5:1 against the cream pill background. cal (#D97706 / orange)
+   and prot (#059669 / green) already passed; carb and fat were borderline
+   and are now darker (still recognisably the same hue). */
+.macro.cal  .macro-val { color: #B45309; }
+.macro.prot .macro-val { color: #047857; }
+.macro.carb .macro-val { color: #8C6508; }
+.macro.fat  .macro-val { color: #8C5028; }
 .dish-footer { display: flex; align-items: center; justify-content: space-between; }
 .dish-price { font-size: 14px; font-weight: 900; color: var(--green-dark); }
 .dish-price .orig { font-size: 11px; color: var(--text-muted); text-decoration: line-through; margin-right: 4px; font-weight: 600; }
@@ -1340,7 +1355,8 @@ header {
   padding: 14px 16px; border: 1.5px dashed var(--border); border-radius: var(--radius-sm);
   font-size: 12.5px; font-weight: 600; color: var(--text-muted); background: var(--cream); line-height: 1.4;
 }
-.tslot { padding: 9px 4px; border: 2px solid var(--border); border-radius: var(--radius-sm); text-align: center; font-size: 11px; font-weight: 800; cursor: pointer; transition: all 0.18s; background: var(--white); color: var(--text); font-family: inherit; }
+/* WEC-298: ≥44 tap target on time-slot pills (WCAG 2.5.5). */
+.tslot { min-height: 44px; padding: 9px 4px; border: 2px solid var(--border); border-radius: var(--radius-sm); text-align: center; font-size: 11px; font-weight: 800; cursor: pointer; transition: all 0.18s; background: var(--white); color: var(--text); font-family: inherit; display: inline-flex; align-items: center; justify-content: center; }
 .tslot:hover, .tslot.sel { border-color: var(--green); background: var(--green-pale); color: var(--green-dark); }
 .tslot.unavailable { color: var(--text-muted); background: #f4f5f7; border-color: #e2e5ea; cursor: not-allowed; opacity: 0.6; text-decoration: line-through; }
 .tslot.unavailable:hover { border-color: #e2e5ea; background: #f4f5f7; color: var(--text-muted); }

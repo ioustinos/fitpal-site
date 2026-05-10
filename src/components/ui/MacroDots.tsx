@@ -10,23 +10,30 @@ function cssType(type: MacroKey): string {
 }
 
 // SVG icons matching MACRO_ICONS_SM from demo.html
+//
+// WEC-300: each icon ALWAYS appears next to a visible text label rendered in
+// `.macro-l` (e.g. "Θερμίδες" / "Calories"). The icon is therefore *redundant*
+// for assistive tech — adding aria-label here would make screen readers announce
+// the macro name twice. The correct treatment is `aria-hidden="true"` +
+// `focusable="false"`. If the icon ever gets used standalone (without the label
+// text), use the `label` prop on the wrapper instead — caller passes a description.
 export function MacroIcon({ type }: { type: MacroKey }) {
   switch (type) {
     case 'cal':
       return (
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" focusable="false">
           <path d="M12 22c-4 0-7-3-7-7.5 0-3 1.5-5.5 3.5-8C10.5 4 12 2 12 2s1.5 2 3.5 4.5c2 2.5 3.5 5 3.5 8C19 19 16 22 12 22z"/>
         </svg>
       )
     case 'carb':
       return (
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" focusable="false">
           <path d="M2 22L12 2l10 20H2z"/>
         </svg>
       )
     case 'pro':
       return (
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" focusable="false">
           <path d="M20 14v6M17 17h6"/>
           <circle cx="9" cy="7" r="4"/>
           <path d="M2 21v-2a5 5 0 015-5h4"/>
@@ -34,7 +41,7 @@ export function MacroIcon({ type }: { type: MacroKey }) {
       )
     case 'fat':
       return (
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" focusable="false">
           <ellipse cx="12" cy="12" rx="4" ry="7"/>
           <circle cx="12" cy="10" r="1" fill="currentColor" stroke="none"/>
         </svg>
