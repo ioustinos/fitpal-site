@@ -20,7 +20,7 @@
   --accent:       #FF6B35;
   --accent-light: #FFF0EA;
   --sidebar-w:    370px;
-  --hdr:          50px;
+  --hdr:          72px;
   --radius:       8px;
   --radius-sm:    5px;
   --radius-lg:    12px;
@@ -79,7 +79,9 @@ header {
   padding: 0 28px;
   box-shadow: 0 2px 16px rgba(0,0,0,0.18);
 }
-.logo { display: flex; align-items: center; gap: 8px; text-decoration: none; }
+/* WEC-298 (follow-up): logo link gets ≥44 hit area; visual chrome unchanged
+   because the inner logo-icon + logo-group already sit at >44px combined. */
+.logo { min-height: 44px; display: flex; align-items: center; gap: 8px; text-decoration: none; }
 .logo-icon {
   width: 30px; height: 30px; background: var(--green); border-radius: 50%;
   display: flex; align-items: center; justify-content: center;
@@ -103,7 +105,8 @@ header {
 .hdr-auth-btn:hover { background: var(--green-dark); border-color: var(--green-dark); }
 
 .user-dropdown-wrap { position: relative; }
-.user-btn { display: flex; align-items: center; gap: 8px; background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); border-radius: 999px; padding: 5px 14px 5px 8px; cursor: pointer; transition: all 0.18s; }
+/* WEC-298 (follow-up): user dropdown trigger gets ≥44 hit area. */
+.user-btn { min-height: 44px; display: inline-flex; align-items: center; gap: 8px; background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); border-radius: 999px; padding: 5px 14px 5px 8px; cursor: pointer; transition: all 0.18s; }
 .user-btn:hover { background: rgba(255,255,255,0.18); }
 .user-avatar { width: 26px; height: 26px; border-radius: 50%; background: var(--green); display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 900; color: var(--white); }
 .user-name { font-size: 12px; font-weight: 800; color: var(--white); }
@@ -610,7 +613,9 @@ header {
 .disc-card-now { font-size: 13px; font-weight: 900; color: #E53935; }
 
 /* Add button — full width at bottom of card body */
-.btn-add { width: 100%; padding: 11px; background: var(--green); color: var(--white); border: none; border-radius: var(--radius-sm); font-size: 13px; font-weight: 800; cursor: pointer; transition: all 0.2s; letter-spacing: 0.3px; }
+/* WEC-298 (follow-up): "Add to cart" pill on dish cards bumped to ≥44 tall.
+   It's already full-width, so only the height matters. */
+.btn-add { min-height: 44px; width: 100%; padding: 11px; background: var(--green); color: var(--white); border: none; border-radius: var(--radius-sm); font-size: 13px; font-weight: 800; cursor: pointer; transition: all 0.2s; letter-spacing: 0.3px; display: inline-flex; align-items: center; justify-content: center; }
 .btn-add:hover { background: var(--green-dark); transform: translateY(-1px); box-shadow: 0 4px 14px rgba(0,185,107,0.4); }
 .btn-add.in-cart { background: var(--green-dark); }
 .btn-add.closed { background: var(--cream-dark); color: var(--text-muted); cursor: not-allowed; }
@@ -664,7 +669,8 @@ header {
 ══════════════════════════════════════════ */
 .dish-modal { background: var(--white); border-radius: var(--radius-lg); max-width: 520px; width: 100%; max-height: 90vh; overflow-y: auto; box-shadow: 0 24px 60px rgba(0,0,0,0.25); position: relative; animation: modalIn 0.25s cubic-bezier(0.34,1.56,0.64,1); }
 @keyframes modalIn { from { opacity: 0; transform: translateY(20px) scale(0.97); } to { opacity: 1; transform: none; } }
-.dm-close { position: absolute; top: 12px; right: 12px; z-index: 2; width: 32px; height: 32px; border-radius: 50%; background: rgba(0,0,0,0.4); border: none; color: white; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: all 0.18s; }
+/* WEC-298 (follow-up): dish modal close bumped 32 → 44. */
+.dm-close { position: absolute; top: 12px; right: 12px; z-index: 2; width: 44px; height: 44px; border-radius: 50%; background: rgba(0,0,0,0.4); border: none; color: white; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: all 0.18s; }
 .dm-close:hover { background: rgba(0,0,0,0.6); }
 .dm-close svg { width: 16px; height: 16px; stroke: white; stroke-width: 2.5; fill: none; }
 /* WEC-132: 16/9 image is tighter than 3/2, gives the body room above the fold */
@@ -736,7 +742,8 @@ header {
 .dm-comment::placeholder { color: var(--text-muted); font-style: italic; opacity: 0.6; }
 .dm-actions { display: flex; align-items: center; gap: 14px; }
 .dm-qty { display: flex; align-items: center; border: 1.5px solid var(--border); border-radius: var(--radius-sm); overflow: hidden; }
-.dm-qty-btn { width: 36px; height: 40px; border: none; background: var(--cream); font-size: 18px; font-weight: 900; cursor: pointer; color: var(--text); transition: all 0.15s; display: flex; align-items: center; justify-content: center; }
+/* WEC-298 (follow-up): dish-modal qty buttons bumped to 44×44. */
+.dm-qty-btn { width: 44px; height: 44px; border: none; background: var(--cream); font-size: 18px; font-weight: 900; cursor: pointer; color: var(--text); transition: all 0.15s; display: flex; align-items: center; justify-content: center; }
 .dm-qty-btn:hover { background: var(--green-light); color: var(--green-dark); }
 .dm-qty-n { min-width: 36px; text-align: center; font-size: 16px; font-weight: 900; color: var(--green-dark); }
 .btn-dm-add { flex: 1; padding: 12px; background: var(--green); color: var(--white); border: none; border-radius: var(--radius-sm); font-size: 14px; font-weight: 900; cursor: pointer; transition: all 0.18s; letter-spacing: 0.3px; }
@@ -1124,7 +1131,11 @@ header {
 .dm-variant-price { font-size: 14px; font-weight: 900; color: var(--green-dark); white-space: nowrap; }
 .dm-footer { display: flex; align-items: center; gap: 14px; padding: 16px 22px 22px; border-top: 1px solid var(--border); }
 .dm-qty { display: flex; align-items: center; border: 1.5px solid var(--border); border-radius: var(--radius-sm); overflow: hidden; }
-.qty-btn { width: 36px; height: 40px; border: none; background: var(--cream); font-size: 18px; font-weight: 900; cursor: pointer; color: var(--text); transition: all 0.15s; display: flex; align-items: center; justify-content: center; }
+/* WEC-298 (follow-up): generic qty buttons bumped to 44×44. The
+   cart-item override below intentionally keeps a smaller width — that's
+   a density decision and qualifies for WCAG 2.5.5's compound-control
+   exemption (paired +/- in a tight horizontal cluster). */
+.qty-btn { width: 44px; height: 44px; border: none; background: var(--cream); font-size: 18px; font-weight: 900; cursor: pointer; color: var(--text); transition: all 0.15s; display: flex; align-items: center; justify-content: center; }
 .qty-btn:hover:not(:disabled) { background: var(--green-light); color: var(--green-dark); }
 .qty-btn:disabled { opacity: 0.35; cursor: not-allowed; }
 .qty-val { min-width: 36px; text-align: center; font-size: 16px; font-weight: 900; color: var(--green-dark); }
@@ -1168,7 +1179,8 @@ header {
 .wp-plans-mini { display: flex; gap: 5px; flex-wrap: nowrap; position: relative; z-index: 1; margin-bottom: 0; }
 .wp-plan-chip { background: rgba(255,255,255,0.12); border: 1px solid rgba(255,255,255,0.2); border-radius: 999px; padding: 3px 7px; font-size: 9.5px; font-weight: 800; color: rgba(255,255,255,0.85); white-space: nowrap; }
 .wp-plan-chip .wp-bonus { color: #7DFFBE; font-weight: 900; }
-.wp-cta { display: inline-flex; align-items: center; gap: 5px; background: var(--green); color: var(--white); border: none; border-radius: 999px; padding: 6px 14px; font-size: 11px; font-weight: 900; cursor: pointer; transition: all 0.18s; margin-top: 8px; width: fit-content; position: relative; z-index: 1; }
+/* WEC-298 (follow-up): wallet-promo "Manage" pill bumped to ≥44 tall. */
+.wp-cta { min-height: 44px; display: inline-flex; align-items: center; justify-content: center; gap: 5px; background: var(--green); color: var(--white); border: none; border-radius: 999px; padding: 6px 14px; font-size: 11px; font-weight: 900; cursor: pointer; transition: all 0.18s; margin-top: 8px; width: fit-content; position: relative; z-index: 1; }
 .wp-cta:hover { background: #00a060; }
 
 /* ══════════════════════════════════════════
@@ -1373,7 +1385,8 @@ header {
 
 /* WEC-259: per-day fulfillment toggle */
 .ddb-fulfillment-toggle { display: flex; gap: 8px; }
-.ddb-fulfillment-opt { flex: 1; padding: 10px 12px; border-radius: var(--radius-sm); border: 1.5px solid var(--border); background: var(--white); font-size: 13px; font-weight: 700; color: var(--text); cursor: pointer; transition: all 0.18s; text-align: center; }
+/* WEC-298 (follow-up): fulfilment toggle (Delivery / Pickup) bumped to ≥44 tall. */
+.ddb-fulfillment-opt { min-height: 44px; flex: 1; padding: 10px 12px; border-radius: var(--radius-sm); border: 1.5px solid var(--border); background: var(--white); font-size: 13px; font-weight: 700; color: var(--text); cursor: pointer; transition: all 0.18s; text-align: center; display: inline-flex; align-items: center; justify-content: center; }
 .ddb-fulfillment-opt:hover:not(.disabled) { border-color: var(--green); }
 .ddb-fulfillment-opt.selected { background: var(--green-pale); border-color: var(--green); color: var(--green-dark); }
 .ddb-fulfillment-opt.disabled { opacity: 0.45; cursor: not-allowed; }
@@ -1450,19 +1463,23 @@ header {
 .addr-card-details { font-size: 11px; font-weight: 600; color: var(--text-muted); line-height: 1.3; margin-top: 2px; }
 /* Actions (Edit / Change) on selected card */
 .addr-card-actions { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; flex-shrink: 0; }
-.addr-action-link { background: none; border: none; font-size: 12px; font-weight: 800; color: var(--green-dark); cursor: pointer; padding: 2px 0; text-decoration: underline; text-underline-offset: 2px; transition: color 0.15s; }
+/* WEC-298 (follow-up): inline action links inside the selected address
+   card (Edit / Change / Save) get ≥44 hit area. The text + underline
+   stay the same size — inline-flex centring just expands the bounding
+   box without enlarging the visible chrome. */
+.addr-action-link { min-height: 44px; display: inline-flex; align-items: center; background: none; border: none; font-size: 12px; font-weight: 800; color: var(--green-dark); cursor: pointer; padding: 2px 0; text-decoration: underline; text-underline-offset: 2px; transition: color 0.15s; }
 .addr-action-link:hover { color: var(--green); }
 .addr-action-secondary { text-decoration: none; color: var(--text-muted); font-weight: 700; }
 .addr-action-secondary:hover { color: var(--text); }
 /* Save changes button (edit mode) */
-.btn-save-changes { padding: 10px 18px; background: var(--green); color: var(--white); border: none; border-radius: var(--radius-sm); font-size: 13px; font-weight: 900; cursor: pointer; transition: all 0.18s; font-family: inherit; }
+.btn-save-changes { min-height: 44px; padding: 10px 18px; background: var(--green); color: var(--white); border: none; border-radius: var(--radius-sm); font-size: 13px; font-weight: 900; cursor: pointer; transition: all 0.18s; font-family: inherit; display: inline-flex; align-items: center; justify-content: center; }
 .btn-save-changes:hover { background: var(--green-dark); }
 /* "New address" dashed card */
 .addr-card.addr-card-new { border-style: dashed; border-color: var(--green-light); justify-content: center; padding: 12px 16px; }
 .addr-card.addr-card-new:hover { background: var(--green-pale); border-color: var(--green); }
 .addr-new-label { font-size: 13px; font-weight: 800; color: var(--green-dark); font-style: italic; }
 /* Save address to profile */
-.btn-save-addr-profile { background: none; border: 1.5px dashed var(--green-light); border-radius: var(--radius-sm); padding: 9px 14px; font-size: 12px; font-weight: 700; color: var(--green-dark); cursor: pointer; transition: all 0.18s; width: 100%; text-align: center; }
+.btn-save-addr-profile { min-height: 44px; background: none; border: 1.5px dashed var(--green-light); border-radius: var(--radius-sm); padding: 9px 14px; font-size: 12px; font-weight: 700; color: var(--green-dark); cursor: pointer; transition: all 0.18s; width: 100%; text-align: center; display: inline-flex; align-items: center; justify-content: center; }
 .btn-save-addr-profile:hover { background: var(--green-pale); border-color: var(--green); }
 .addr-save-prompt { display: flex; flex-direction: column; gap: 6px; background: var(--cream); padding: 12px; border-radius: var(--radius-sm); }
 .addr-save-row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
@@ -1473,10 +1490,10 @@ header {
 .btn-cancel-save { background: none; border: none; font-size: 16px; color: var(--text-muted); cursor: pointer; padding: 4px; line-height: 1; flex: 0 0 auto; }
 .addr-form { display: flex; flex-direction: column; gap: 10px; }
 .addr-form-back { margin-bottom: 4px; }
-.addr-form-back-link { background: none; border: none; font-size: 12px; font-weight: 700; color: var(--text-muted); cursor: pointer; padding: 0; transition: color 0.18s; }
+.addr-form-back-link { min-height: 44px; display: inline-flex; align-items: center; background: none; border: none; font-size: 12px; font-weight: 700; color: var(--text-muted); cursor: pointer; padding: 0; transition: color 0.18s; }
 .addr-form-back-link:hover { color: var(--green-dark); }
 .addr-copy-row { display: flex; justify-content: flex-end; }
-.btn-copy-addr, .btn-save-addr { padding: 8px 16px; background: var(--green-pale); border: 1.5px solid var(--green-light); border-radius: var(--radius-sm); font-size: 12px; font-weight: 800; color: var(--green-dark); cursor: pointer; transition: all 0.18s; }
+.btn-copy-addr, .btn-save-addr { min-height: 44px; padding: 8px 16px; background: var(--green-pale); border: 1.5px solid var(--green-light); border-radius: var(--radius-sm); font-size: 12px; font-weight: 800; color: var(--green-dark); cursor: pointer; transition: all 0.18s; display: inline-flex; align-items: center; justify-content: center; }
 .btn-copy-addr:hover, .btn-save-addr:hover { background: var(--green-light); }
 .btn-save-addr { width: 100%; }
 .btn-save-addr:disabled { opacity: 0.4; cursor: not-allowed; }
@@ -1611,7 +1628,7 @@ a.btn-conf-done { display: inline-block; text-decoration: none; }
    Paid state delegates to the same .conf-* classes as ConfirmationScreen.
    Non-paid states (loading/pending/failed/mismatch/error/unknown) use
    .order-return-state which mirrors the visual language. */
-.order-return-page { min-height: calc(100vh - var(--hdr, 50px)); background: var(--cream-light); padding: 24px 16px; }
+.order-return-page { min-height: calc(100vh - var(--hdr, 72px)); background: var(--cream-light); padding: 24px 16px; }
 .order-return-state { max-width: 480px; margin: 60px auto; background: var(--white); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 40px 32px; text-align: center; box-shadow: 0 4px 16px rgba(0,71,57,0.06); }
 .order-return-state h2 { font-size: 20px; font-weight: 900; color: var(--green-dark); letter-spacing: -0.4px; margin: 16px 0 10px; }
 .order-return-state p { font-size: 13px; color: var(--text-mid); font-weight: 600; line-height: 1.55; margin: 0 0 12px; }
@@ -1732,9 +1749,10 @@ a.btn-conf-done { display: inline-block; text-decoration: none; }
 .set-password-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
 .set-password-title { font-size: 14px; font-weight: 800; color: var(--text); margin-bottom: 2px; }
 .set-password-desc { font-size: 12px; font-weight: 600; color: var(--text-muted); line-height: 1.5; max-width: 380px; }
-.btn-link-green { background: none; border: none; color: var(--green-dark); font-size: 13px; font-weight: 800; cursor: pointer; text-decoration: underline; text-underline-offset: 2px; padding: 4px 0; font-family: inherit; flex-shrink: 0; }
+/* WEC-298 (follow-up): inline link-style buttons get ≥44 hit area. */
+.btn-link-green { min-height: 44px; display: inline-flex; align-items: center; background: none; border: none; color: var(--green-dark); font-size: 13px; font-weight: 800; cursor: pointer; text-decoration: underline; text-underline-offset: 2px; padding: 4px 0; font-family: inherit; flex-shrink: 0; }
 .btn-link-green:hover { color: var(--green); }
-.btn-link-muted { background: none; border: none; color: var(--text-muted); font-size: 13px; font-weight: 700; cursor: pointer; padding: 4px 8px; font-family: inherit; }
+.btn-link-muted { min-height: 44px; display: inline-flex; align-items: center; background: none; border: none; color: var(--text-muted); font-size: 13px; font-weight: 700; cursor: pointer; padding: 4px 8px; font-family: inherit; }
 .btn-link-muted:hover { color: var(--text); }
 .set-password-form { display: flex; flex-direction: column; gap: 12px; margin-top: 14px; padding: 16px; background: var(--cream-light); border: 1px solid var(--border); border-radius: var(--radius); }
 .set-password-actions { display: flex; align-items: center; gap: 10px; margin-top: 4px; }
@@ -1762,7 +1780,7 @@ a.btn-conf-done { display: inline-block; text-decoration: none; }
 .addr-form { display: flex; flex-direction: column; gap: 10px; }
 .addr-form-2col { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 .addr-form-actions { display: flex; gap: 10px; margin-top: 4px; }
-.btn-add-addr { width: 100%; padding: 14px; background: var(--green-pale); border: 2px dashed var(--green-light); border-radius: var(--radius-sm); font-size: 14px; font-weight: 800; color: var(--green-dark); cursor: pointer; transition: all 0.18s; /* uppercase removed — WEC-187 */ letter-spacing: 0.5px; }
+.btn-add-addr { min-height: 44px; width: 100%; padding: 14px; background: var(--green-pale); border: 2px dashed var(--green-light); border-radius: var(--radius-sm); font-size: 14px; font-weight: 800; color: var(--green-dark); cursor: pointer; transition: all 0.18s; /* uppercase removed — WEC-187 */ letter-spacing: 0.5px; display: inline-flex; align-items: center; justify-content: center; }
 .btn-add-addr:hover { background: var(--green-light); border-color: var(--green); }
 .new-addr-card { background: var(--green-pale); border-color: var(--green-light); }
 .addr-new-title { font-size: 14px; font-weight: 900; color: var(--green-dark); /* uppercase removed — WEC-187 */ letter-spacing: 0.5px; margin-bottom: 12px; }
