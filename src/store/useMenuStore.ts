@@ -56,13 +56,15 @@ interface MenuStore {
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-/** Build a placeholder WeekDef[] from meta — same length, empty dishIds. */
+/** Build a placeholder WeekDef[] from meta — same length, empty dishIds.
+ *  WEC-273: inactive flag flows through so the day-strip can render closed
+ *  days greyed out without waiting for full dish content to load. */
 function buildPlaceholderWeeks(meta: WeekMeta[]): WeekDef[] {
   return meta.map((m) => ({
     id: m.id,
     labelEl: m.labelEl,
     labelEn: m.labelEn,
-    days: m.days.map((d) => ({ date: d.date, dishIds: [] })),
+    days: m.days.map((d) => ({ date: d.date, dishIds: [], inactive: d.inactive })),
     categoryOrder: m.categoryOrder,
   }))
 }
@@ -192,13 +194,20 @@ export const useMenuStore = create<MenuStore>((set, get) => ({
       mergedLoading[id] = false
       if (res.error || !res.data) continue
 
-      // Find the week index by id and overwrite its days
+      // Find the week index by id; merge dish content into placeholder days.
+      // WEC-273: we walk the PLACEHOLDER days (which already carry `inactive`
+      // and the full list of dates), then fill in dishIds from the fetch
+      // result. fetchWeekDishes only returns dates that have assignments,
+      // so days with no dishes (closed, or just empty) keep their slot.
       const wi = mergedWeeks.findIndex((w) => w.id === id)
       if (wi >= 0) {
-        // Preserve the week's order from meta; overwrite days with real dishIds
+        const dishIdsByDate = new Map(res.data.days.map((d) => [d.date, d.dishIds]))
         mergedWeeks[wi] = {
           ...mergedWeeks[wi],
-          days: res.data.days,
+          days: mergedWeeks[wi].days.map((d) => ({
+            ...d,
+            dishIds: dishIdsByDate.get(d.date) ?? [],
+          })),
         }
       }
       for (const dish of res.data.dishes) mergedDishMap[dish.id] = dish
@@ -233,7 +242,17 @@ export const useMenuStore = create<MenuStore>((set, get) => ({
     const nextWeeks = [...cur.weeks]
     const wi = nextWeeks.findIndex((w) => w.id === menuId)
     if (wi >= 0) {
-      nextWeeks[wi] = { ...nextWeeks[wi], days: res.data.days }
+      // WEC-273: walk placeholder days (which carry `inactive` + the full
+      // date list); fill in dishIds from the fetch by date lookup. Closed
+      // days with no assignments still get a slot.
+      const dishIdsByDate = new Map(res.data.days.map((d) => [d.date, d.dishIds]))
+      nextWeeks[wi] = {
+        ...nextWeeks[wi],
+        days: nextWeeks[wi].days.map((d) => ({
+          ...d,
+          dishIds: dishIdsByDate.get(d.date) ?? [],
+        })),
+      }
     }
 
     const nextDishMap = { ...cur.dishMap }

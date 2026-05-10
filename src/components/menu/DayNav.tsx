@@ -66,20 +66,37 @@ export function DayNav() {
       {/* Day tabs */}
       {days.map((day, i) => {
         const count = totalCount(cart, i)
-        const unavailable = !isDayOrderable(day.date, settings)
+        const isClosed = !!day.inactive
+        const unavailable = isClosed || !isDayOrderable(day.date, settings)
         const cls =
           'day-tab' +
           (activeDay === i ? ' active' : '') +
-          (unavailable ? ' unavailable' : '')
+          (unavailable ? ' unavailable' : '') +
+          (isClosed ? ' closed' : '')
         return (
           <div
             key={day.date}
             className={cls}
-            onClick={() => setActiveDay(i)}
+            // WEC-273: closed days are non-clickable (the kitchen is shut,
+            // there's nothing to order). Past-cutoff days remain clickable
+            // so the customer can still see the menu / their existing cart.
+            onClick={isClosed ? undefined : () => setActiveDay(i)}
+            aria-disabled={isClosed || undefined}
+            title={isClosed ? (lang === 'el' ? 'Κλειστό' : 'Closed') : undefined}
           >
+            {/* WEC-273: red X badge in the corner of closed-day tabs */}
+            {isClosed && (
+              <span className="day-tab-x" aria-hidden="true">
+                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                  <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+                </svg>
+              </span>
+            )}
             <div className="dn">{dayLabel(day.date, lang, 'short')}</div>
             <div className="dd">{formatDate(day.date, lang)}</div>
-            {count > 0 && <div className="day-badge">{count}</div>}
+            {isClosed
+              ? <div className="day-tab-closed-note">{lang === 'el' ? 'Κλειστό' : 'Closed'}</div>
+              : (count > 0 && <div className="day-badge">{count}</div>)}
           </div>
         )
       })}

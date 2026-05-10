@@ -45,6 +45,8 @@ export interface Dish {
 export interface WeekDay {
   date: string
   dishIds: string[]
+  /** WEC-273: true when admin marked the date closed in `weekly_menus.inactive_dates`. */
+  inactive?: boolean
 }
 
 export interface WeekDef {

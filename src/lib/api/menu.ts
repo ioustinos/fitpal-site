@@ -171,7 +171,14 @@ export interface WeekMeta {
   id: string
   labelEl: string
   labelEn: string
-  days: { date: string }[]
+  /**
+   * One entry per delivery day in the menu, in chronological order. WEC-273:
+   * `inactive` is true when the admin marked the date closed in
+   * `weekly_menus.inactive_dates` — the day stays in the list so the
+   * customer-side day-strip can render it greyed out with a "closed"
+   * caption instead of silently disappearing.
+   */
+  days: { date: string; inactive?: boolean }[]
   /** Snapshot of category id ordering for this menu (WEC-253). */
   categoryOrder: string[]
 }
@@ -211,23 +218,31 @@ export async function fetchActiveWeeksMeta(): Promise<{
 
   if (dayErr) return { data: null, error: dayErr.message }
 
-  // Build a { menuId → Set<date> } map, preserving order by date.
-  // Skip any date marked closed via weekly_menus.inactive_dates.
+  // WEC-273: keep inactive dates in the day list so the customer day-nav
+  // can render them greyed out with a 'closed' note. Previously these were
+  // dropped entirely, leaving a confusing gap (Mon/Wed/Thu/Fri with no
+  // Tuesday). The `inactive` flag flows through WeekMeta → WeekDef so
+  // every consumer can render the closed state consistently.
   const dateMap = new Map<string, string[]>()
   for (const row of (dayRows ?? []) as { menu_id: string; date: string }[]) {
-    if (inactiveByMenu.get(row.menu_id)?.has(row.date)) continue
     const list = dateMap.get(row.menu_id) ?? []
     if (!list.includes(row.date)) list.push(row.date)
     dateMap.set(row.menu_id, list)
   }
 
-  const weeks: WeekMeta[] = menus.map((menu) => ({
-    id: menu.id,
-    labelEl: menu.name,
-    labelEn: menu.name,
-    days: (dateMap.get(menu.id) ?? []).map((date) => ({ date })),
-    categoryOrder: menu.category_order ?? [],
-  }))
+  const weeks: WeekMeta[] = menus.map((menu) => {
+    const inactiveSet = inactiveByMenu.get(menu.id) ?? new Set<string>()
+    return {
+      id: menu.id,
+      labelEl: menu.name,
+      labelEn: menu.name,
+      days: (dateMap.get(menu.id) ?? []).map((date) => ({
+        date,
+        inactive: inactiveSet.has(date),
+      })),
+      categoryOrder: menu.category_order ?? [],
+    }
+  })
 
   return { data: weeks, error: null }
 }
