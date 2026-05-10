@@ -3,6 +3,9 @@ import {
   fetchAllergies,
   saveAllergy,
   deleteAllergy,
+  fetchAllergyIngredients,
+  setAllergyIngredients,
+  fetchIngredientCatalog,
   type AdminAllergy,
   type SaveAllergyInput,
 } from '../../lib/api/adminAllergies'
@@ -29,6 +32,27 @@ export function Allergies() {
   const [editing, setEditing] = useState<SaveAllergyInput | null>(null)
   const [saving, setSaving] = useState(false)
 
+  // WEC-250: ingredient picker state for the edit modal — bidirectional with
+  // /admin/ingredients (which already exposes the allergy picker per ingredient).
+  // Catalog loads once on page mount; per-allergy ids load when the modal opens.
+  const [ingredientCatalog, setIngredientCatalog] = useState<Array<{ id: string; nameEl: string; nameEn: string | null }>>([])
+  const [editingIngredientIds, setEditingIngredientIds] = useState<string[]>([])
+  const [ingredientSearch, setIngredientSearch] = useState('')
+
+  useEffect(() => {
+    fetchIngredientCatalog().then((res) => setIngredientCatalog(res.data))
+  }, [])
+
+  // Whenever the edited allergy changes, refetch its current ingredient links.
+  useEffect(() => {
+    if (!editing?.id) {
+      setEditingIngredientIds([])
+      setIngredientSearch('')
+      return
+    }
+    fetchAllergyIngredients(editing.id).then((res) => setEditingIngredientIds(res.data))
+  }, [editing?.id])
+
   async function refresh() {
     setLoading(true); setError(null)
     const res = await fetchAllergies()
@@ -53,8 +77,15 @@ export function Allergies() {
     if (!editing) return
     setSaving(true); setError(null)
     const res = await saveAllergy(editing)
+    if (res.error) { setSaving(false); setError(res.error); return }
+    // WEC-250: persist the ingredient linkage in the same save flow so the
+    // admin doesn't have to remember a second action.
+    const allergyId = res.data?.id ?? editing.id
+    if (allergyId) {
+      const linkRes = await setAllergyIngredients(allergyId, editingIngredientIds)
+      if (linkRes.error) { setSaving(false); setError(linkRes.error); return }
+    }
     setSaving(false)
-    if (res.error) { setError(res.error); return }
     setEditing(null)
     await refresh()
   }
@@ -170,6 +201,109 @@ export function Allergies() {
                   onChange={(e) => setEditing({ ...editing, description: e.target.value })}
                   placeholder="Optional — shown to customers on hover or in the dish modal."
                 />
+              </div>
+
+              {/* WEC-250: bidirectional ingredient picker. Lists every active
+                  ingredient — selected ones first, then filtered by search. */}
+              <div className="admin-form-row">
+                <label className="admin-form-label">
+                  Linked ingredients ({editingIngredientIds.length})
+                </label>
+                <div style={{ fontSize: 12, color: 'var(--a-text-muted)', marginBottom: 6 }}>
+                  Every dish that uses any of these ingredients will surface this allergy as a warning to flagged customers.
+                </div>
+
+                {editingIngredientIds.length > 0 && (
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 8 }}>
+                    {editingIngredientIds.map((id) => {
+                      const ing = ingredientCatalog.find((x) => x.id === id)
+                      const label = ing ? ing.nameEl : id
+                      return (
+                        <button
+                          key={id}
+                          type="button"
+                          className="admin-btn admin-btn-sm"
+                          style={{
+                            background: '#FEE2E2',
+                            color: '#991B1B',
+                            border: '1px solid #FCA5A5',
+                          }}
+                          onClick={() => setEditingIngredientIds((curr) => curr.filter((x) => x !== id))}
+                          title="Remove"
+                        >
+                          {label} ×
+                        </button>
+                      )
+                    })}
+                  </div>
+                )}
+
+                <input
+                  className="admin-input"
+                  type="text"
+                  value={ingredientSearch}
+                  onChange={(e) => setIngredientSearch(e.target.value)}
+                  placeholder="Search for an ingredient to add…"
+                  style={{ marginBottom: 6 }}
+                />
+
+                {ingredientSearch.trim() && (
+                  <div style={{
+                    maxHeight: 220,
+                    overflowY: 'auto',
+                    border: '1px solid var(--a-border)',
+                    borderRadius: 6,
+                    background: 'var(--a-card, white)',
+                    padding: 4,
+                  }}>
+                    {(() => {
+                      const q = ingredientSearch.trim().toLowerCase()
+                      const selected = new Set(editingIngredientIds)
+                      const matches = ingredientCatalog
+                        .filter((i) => !selected.has(i.id))
+                        .filter((i) =>
+                          i.nameEl.toLowerCase().includes(q) ||
+                          (i.nameEn ?? '').toLowerCase().includes(q),
+                        )
+                        .slice(0, 30)
+                      if (matches.length === 0) {
+                        return (
+                          <div style={{ padding: 8, fontSize: 13, color: 'var(--a-text-muted)' }}>
+                            No matches.
+                          </div>
+                        )
+                      }
+                      return matches.map((i) => (
+                        <button
+                          key={i.id}
+                          type="button"
+                          onClick={() => {
+                            setEditingIngredientIds((curr) =>
+                              curr.includes(i.id) ? curr : [...curr, i.id],
+                            )
+                            setIngredientSearch('')
+                          }}
+                          style={{
+                            display: 'block',
+                            width: '100%',
+                            textAlign: 'left',
+                            padding: '6px 10px',
+                            background: 'transparent',
+                            border: 'none',
+                            fontSize: 13,
+                            cursor: 'pointer',
+                            borderRadius: 4,
+                          }}
+                          onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--a-row-hover, #f5f5f5)')}
+                          onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
+                        >
+                          + {i.nameEl}
+                          {i.nameEn && <span style={{ color: 'var(--a-text-muted)', marginLeft: 6 }}>· {i.nameEn}</span>}
+                        </button>
+                      ))
+                    })()}
+                  </div>
+                )}
               </div>
             </div>
             <footer className="admin-drawer-foot">

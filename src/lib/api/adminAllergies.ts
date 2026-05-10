@@ -94,6 +94,61 @@ export async function saveAllergy(input: SaveAllergyInput): Promise<{
   return { data: { id: data.id as string }, error: null }
 }
 
+/**
+ * WEC-250: bidirectional link surfaces.
+ *
+ * Fetch the ids of every ingredient currently linked to an allergy. Used by
+ * the allergy edit drawer to seed the multi-select picker.
+ */
+export async function fetchAllergyIngredients(allergyId: string): Promise<{
+  data: string[]
+  error: string | null
+}> {
+  const { data, error } = await supabase
+    .from('ingredient_allergies')
+    .select('ingredient_id')
+    .eq('allergy_id', allergyId)
+  if (error) return { data: [], error: error.message }
+  return { data: (data ?? []).map((r) => r.ingredient_id as string), error: null }
+}
+
+/**
+ * Replace-style save for the allergy → ingredients link list. We blow away
+ * existing rows for this allergy and re-insert. Junction has no other
+ * columns so the round-trip is safe.
+ */
+export async function setAllergyIngredients(
+  allergyId: string,
+  ingredientIds: string[],
+): Promise<{ error: string | null }> {
+  const del = await supabase
+    .from('ingredient_allergies')
+    .delete()
+    .eq('allergy_id', allergyId)
+  if (del.error) return { error: del.error.message }
+  if (ingredientIds.length === 0) return { error: null }
+  const rows = ingredientIds.map((id) => ({ allergy_id: allergyId, ingredient_id: id }))
+  const ins = await supabase.from('ingredient_allergies').insert(rows)
+  return { error: ins.error?.message ?? null }
+}
+
+/** Lightweight ingredient catalog for the admin allergy/ingredient pickers. */
+export async function fetchIngredientCatalog(): Promise<{
+  data: Array<{ id: string; nameEl: string; nameEn: string | null }>
+  error: string | null
+}> {
+  const { data, error } = await supabase
+    .from('ingredients')
+    .select('id, name_el, name_en')
+    .eq('active', true)
+    .order('name_el')
+  if (error) return { data: [], error: error.message }
+  return {
+    data: (data ?? []).map((r) => ({ id: r.id, nameEl: r.name_el, nameEn: r.name_en })),
+    error: null,
+  }
+}
+
 export async function deleteAllergy(id: string): Promise<{
   error: string | null
   blockedBy?: { ingredientCount: number; profileCount: number }
