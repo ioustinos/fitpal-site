@@ -50,6 +50,36 @@ function CustomerApp() {
 }
 
 export default function App() {
+  // WEC-303: keep <html lang> in sync with the UI language store so search
+  // engines + screen readers + the browser's hyphenation engine speak the
+  // right language. Customer toggle lives in the header; this subscriber
+  // is the single point that writes to the DOM.
+  useEffect(() => {
+    const apply = (l: 'el' | 'en') => { document.documentElement.lang = l }
+    apply(useUIStore.getState().lang)
+    const unsub = useUIStore.subscribe((state, prevState) => {
+      if (state.lang !== prevState.lang) apply(state.lang)
+    })
+    return () => unsub()
+  }, [])
+
+  // WEC-303: production-only indexing. The static <meta name="robots">
+  // in index.html defaults to noindex,nofollow so dev / preview / staging
+  // are excluded from search engines. On the production host we relax it
+  // to index,follow so Googlebot can pick the site up. Anything not
+  // matching the production host (Netlify previews, local dev, custom
+  // staging URLs) stays noindexed.
+  useEffect(() => {
+    const PROD_HOST = 'fitpal-order.netlify.app'
+    if (typeof window === 'undefined') return
+    const meta = document.querySelector('meta[name="robots"]')
+    if (!meta) return
+    meta.setAttribute(
+      'content',
+      window.location.host === PROD_HOST ? 'index,follow' : 'noindex,nofollow',
+    )
+  }, [])
+
   // Rehydrate session on mount + listen for auth state changes.
   // These effects run regardless of which route is active, so both
   // the customer site and /admin get a populated user when the app starts.

@@ -1,13 +1,86 @@
 <!doctype html>
-<html lang="en">
+<html lang="el">
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+    <!-- Primary SEO (WEC-303). Greek-first; the html[lang] attribute is
+         flipped reactively by useUIStore via the App-level effect when the
+         customer toggles language. -->
+    <title>Fitpal — Φρέσκα γεύματα με παράδοση σε Αθήνα | Fitpal Wallet</title>
+    <meta
+      name="description"
+      content="Φρέσκα γεύματα κάθε μέρα στην Αθήνα. Επίλεξε από εβδομαδιαίο μενού σαλατών, κυρίως πιάτων και επιδορπίων με αναλυτικές θερμίδες και μακρο-θρεπτικά. Πληρωμή με κάρτα, μετρητά, ή Fitpal Wallet."
+    />
+    <link rel="canonical" href="https://fitpal-order.netlify.app/" />
+
+    <!-- Robots: dev branches stay out of the index. The runtime hook in
+         src/main.tsx complements this for client-side soft-noindex; the
+         meta below is the static fallback search bots see on first fetch.
+         The src/App.tsx language-sync effect rewrites it to `index,follow`
+         when host === 'fitpal-order.netlify.app' to enable production. -->
+    <meta name="robots" content="noindex,nofollow" />
+
+    <!-- Open Graph (WEC-303) — what Slack / WhatsApp / Instagram / Facebook
+         render when someone pastes the URL. -->
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Fitpal" />
+    <meta property="og:locale" content="el_GR" />
+    <meta property="og:locale:alternate" content="en_US" />
+    <meta property="og:url" content="https://fitpal-order.netlify.app/" />
+    <meta property="og:title" content="Fitpal — Φρέσκα γεύματα με παράδοση σε Αθήνα" />
+    <meta
+      property="og:description"
+      content="Επίλεξε από εβδομαδιαίο μενού σαλατών, κυρίως πιάτων και επιδορπίων με αναλυτικές θερμίδες και μακρο-θρεπτικά. Παράδοση και παραλαβή."
+    />
+    <meta property="og:image" content="https://fitpal-order.netlify.app/og-cover.jpg" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="Fitpal — fresh meals delivered in Athens" />
+
+    <!-- Twitter / X card (WEC-303). -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="Fitpal — Φρέσκα γεύματα με παράδοση σε Αθήνα" />
+    <meta
+      name="twitter:description"
+      content="Επίλεξε από εβδομαδιαίο μενού με αναλυτικές θερμίδες και μακρο-θρεπτικά. Παράδοση και παραλαβή."
+    />
+    <meta name="twitter:image" content="https://fitpal-order.netlify.app/og-cover.jpg" />
+    <meta name="twitter:image:alt" content="Fitpal — fresh meals delivered in Athens" />
+
+    <!-- JSON-LD structured data (WEC-303). Restaurant schema gives Google
+         enough hooks for the rich-result Knowledge Panel + map placement.
+         Address + contact details are placeholders pulled from CLAUDE.md
+         context — admin can refine via the upcoming settings UI; this
+         static copy works as a starting point. -->
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "Restaurant",
+        "name": "Fitpal",
+        "alternateName": "Fitpal Meals",
+        "description": "Φρέσκα γεύματα κάθε μέρα στην Αθήνα — εβδομαδιαίο μενού σαλατών, κυρίως πιάτων και επιδορπίων με αναλυτικές θερμίδες και μακρο-θρεπτικά.",
+        "url": "https://fitpal-order.netlify.app/",
+        "image": "https://fitpal-order.netlify.app/og-cover.jpg",
+        "servesCuisine": ["Mediterranean", "Healthy"],
+        "priceRange": "€€",
+        "address": {
+          "@type": "PostalAddress",
+          "addressLocality": "Athens",
+          "addressCountry": "GR"
+        },
+        "hasMenu": {
+          "@type": "Menu",
+          "name": "Weekly menu",
+          "description": "Salads, main dishes, breakfasts, and desserts updated weekly."
+        }
+      }
+    </script>
+
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" />
-    <title>fitpal-site</title>
   </head>
   <body>
     <div id="root"></div>

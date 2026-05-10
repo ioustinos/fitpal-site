@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemap.org/schemas/sitemap/0.9">
+  <!-- WEC-303: only the public-facing root for now. Customer routes
+       (/account, /checkout) are noindexed by intent — they require login
+       and aren't useful entry points from search. -->
+  <url>
+    <loc>https://fitpal-order.netlify.app/</loc>
+    <changefreq>weekly</changefreq>
+    <priority>1.0</priority>
+  </url>
+</urlset>

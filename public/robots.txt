@@ -1,0 +1,14 @@
+User-agent: *
+Allow: /
+
+# Admin routes are auth-gated but we also keep crawlers out by convention.
+Disallow: /admin
+Disallow: /admin/
+
+# Customer-only routes that wouldn't be useful in search results either.
+Disallow: /account
+Disallow: /account/
+Disallow: /checkout
+Disallow: /order/
+
+Sitemap: https://fitpal-order.netlify.app/sitemap.xml
