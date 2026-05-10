@@ -8,6 +8,7 @@ import {
 } from '../lib/api/menu'
 import { fetchZones, type DeliveryZone, type TimeSlot } from '../lib/api/zones'
 import { fetchSettings, type AppSettings } from '../lib/api/settings'
+import { fetchDietCatalog, type DietCatalog } from '../lib/api/diet'
 import { findLandingDay } from '../lib/helpers'
 import { useUIStore } from './useUIStore'
 import type { Dish, WeekDef, CategoryDef, TagDef } from '../data/menu'
@@ -38,6 +39,12 @@ interface MenuStore {
   zones: DeliveryZone[]
   timeSlots: TimeSlot[]
   settings: AppSettings
+  /**
+   * WEC-250: shared diet catalog — allergies + dish-allergy + dish-ingredient
+   * + ingredient-allergy maps. Loaded once with the menu and used for menu
+   * card / dish modal warning visuals. `null` while loading or on fetch fail.
+   */
+  dietCatalog: DietCatalog | null
 
   /** Initial-load flag — true while meta + first eager weeks are loading. */
   isLoading: boolean
@@ -109,6 +116,7 @@ export const useMenuStore = create<MenuStore>((set, get) => ({
     pickupLocations: [],
     variantPillThreshold: 4,
   },
+  dietCatalog: null,
   isLoading: false,
   error: null,
   hasFetched: false,
@@ -121,13 +129,14 @@ export const useMenuStore = create<MenuStore>((set, get) => ({
   reload: async () => {
     set({ isLoading: true, error: null })
 
-    // Phase 1: parallel fetch for meta + categories + tags + zones + settings
-    const [metaRes, catsRes, tagsRes, zonesRes, settingsRes] = await Promise.all([
+    // Phase 1: parallel fetch for meta + categories + tags + zones + settings + diet catalog
+    const [metaRes, catsRes, tagsRes, zonesRes, settingsRes, dietRes] = await Promise.all([
       fetchActiveWeeksMeta(),
       fetchCategories(),
       fetchTags(),
       fetchZones(),
       fetchSettings(),
+      fetchDietCatalog(),
     ])
 
     if (metaRes.error || !metaRes.data) {
@@ -165,6 +174,7 @@ export const useMenuStore = create<MenuStore>((set, get) => ({
       zones: zonesRes.data?.zones ?? [],
       timeSlots: zonesRes.data?.slots ?? [],
       settings,
+      dietCatalog: dietRes.error ? null : dietRes.data,
       isLoading: false, // meta loaded — the UI can now paint
       error: null,
       hasFetched: true,

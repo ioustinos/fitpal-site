@@ -2759,3 +2759,158 @@ body.is-impersonating { padding-top: 36px; }
 .dmb-status-ok    .dmb-fill { background: var(--green);  opacity: 1; }
 .dmb-status-below .dmb-fill { background: #E8A317;       opacity: 1; }
 .dmb-status-above .dmb-fill { background: #EF4444;       opacity: 1; }
+
+/* ══════════════════════════════════════════════════════════════════════════════
+   WEC-250: Diet warnings (menu card + dish modal) + Account → Diet tab
+   ══════════════════════════════════════════════════════════════════════════════ */
+
+/* Dish-card corner badge — small, attention-grabbing without screaming.
+   Sits top-left of the image area. The `.diet-flag` modifier on the card
+   itself is available for future use (e.g. softer image, dim macros). */
+.dish-card { position: relative; }
+.dish-diet-warn {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  z-index: 3;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: #FEE2E2;          /* light red */
+  color: #B91C1C;               /* dark red text */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1.5px solid #FCA5A5;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.12);
+  cursor: help;
+}
+.dish-card.diet-flag .dish-img { filter: saturate(0.85) brightness(0.95); }
+
+/* Dish modal warning banner — sits at the top of dm-body, before the tags. */
+.dm-diet-warn {
+  display: flex;
+  gap: 10px;
+  padding: 12px 14px;
+  margin-bottom: 14px;
+  background: #FEF2F2;
+  border: 1px solid #FCA5A5;
+  border-radius: var(--radius-sm);
+  align-items: flex-start;
+}
+.dm-diet-warn-ico {
+  flex-shrink: 0;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: #FECACA;
+  color: #B91C1C;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.dm-diet-warn-body { flex: 1; min-width: 0; }
+.dm-diet-warn-head {
+  font-size: 13px;
+  font-weight: 900;
+  color: #991B1B;
+  margin-bottom: 4px;
+}
+.dm-diet-warn-line {
+  font-size: 12.5px;
+  color: #7F1D1D;
+  line-height: 1.4;
+}
+.dm-diet-warn-line strong { font-weight: 800; }
+.dm-diet-warn-hint { color: #B91C1C; opacity: 0.75; font-size: 11.5px; }
+
+/* Diet tab on /account. */
+.diet-section { margin: 18px 0 24px; }
+.diet-section h3 {
+  font-size: 15px;
+  font-weight: 900;
+  color: var(--green-dark);
+  margin: 0 0 4px;
+}
+.diet-section-sub {
+  font-size: 12.5px;
+  color: var(--text-muted);
+  margin: 0 0 12px;
+  line-height: 1.4;
+}
+.diet-empty {
+  font-size: 13px;
+  color: var(--text-muted);
+  padding: 14px;
+  background: var(--cream);
+  border-radius: var(--radius-sm);
+  text-align: center;
+}
+.diet-allergy-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 8px;
+}
+.diet-allergy-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  background: var(--white);
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text);
+  transition: all 0.15s;
+  min-height: 44px;
+}
+.diet-allergy-chip:hover { border-color: var(--green); }
+.diet-allergy-chip.on {
+  background: #FEF2F2;
+  border-color: #FCA5A5;
+  color: #991B1B;
+}
+.diet-allergy-chip input { accent-color: #B91C1C; }
+
+.diet-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.diet-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 6px 10px 6px 12px;
+  background: #FEF2F2;
+  border: 1px solid #FCA5A5;
+  border-radius: 999px;
+  color: #991B1B;
+  font-size: 12.5px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.diet-chip:hover { background: #FECACA; }
+
+.diet-suggestions {
+  margin-top: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-height: 280px;
+  overflow-y: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--white);
+  padding: 4px;
+}
+.diet-suggestion {
+  text-align: left;
+  padding: 8px 12px;
+  background: transparent;
+  border: none;
+  font-size: 13px;
+  color: var(--text);
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+  transition: background 0.12s;
+}
+.diet-suggestion:hover { background: var(--green-pale); color: var(--green-dark); }

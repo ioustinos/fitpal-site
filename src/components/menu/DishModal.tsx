@@ -4,8 +4,10 @@ import { MacroBoxes } from '../ui/MacroDots'
 import { useUIStore } from '../../store/useUIStore'
 import { useCartStore } from '../../store/useCartStore'
 import { useMenuStore } from '../../store/useMenuStore'
+import { useAuthStore } from '../../store/useAuthStore'
 import { useToast } from '../ui/Toast'
 import { effPrice, isDayOrderable } from '../../lib/helpers'
+import { dishDietFlags } from '../../lib/api/diet'
 import { makeTr } from '../../lib/translations'
 import { RecipePanel } from './RecipePanel'
 import { VariantPicker } from './VariantPicker'
@@ -96,6 +98,13 @@ export function DishModal() {
     closeModal()
   }
 
+  // WEC-250: diet flags for the signed-in user — null/empty for guests.
+  const user = useAuthStore((s) => s.user)
+  const dietCatalog = useMenuStore((s) => s.dietCatalog)
+  const userAllergyIds = new Set(user?.diet?.allergyIds ?? [])
+  const userAvoidedIngredientIds = new Set(user?.diet?.avoidedIngredientIds ?? [])
+  const dietFlags = dishDietFlags(dish.id, dietCatalog, userAllergyIds, userAvoidedIngredientIds)
+
   return (
     <Modal open={isOpen} onClose={closeModal} innerClass="dish-modal">
       {/* Close button */}
@@ -121,6 +130,46 @@ export function DishModal() {
 
       {/* Body */}
       <div className="dm-body">
+        {/* WEC-250: diet warning banner — visible only when the signed-in
+            user has flagged allergies / avoided ingredients that this dish
+            contains. Spells out exactly which ones so the customer knows
+            WHY they're being warned. */}
+        {dietFlags.any && (
+          <div className="dm-diet-warn" role="alert">
+            <span className="dm-diet-warn-ico" aria-hidden="true">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+                <line x1="12" y1="9" x2="12" y2="13"/>
+                <line x1="12" y1="17" x2="12.01" y2="17"/>
+              </svg>
+            </span>
+            <div className="dm-diet-warn-body">
+              <div className="dm-diet-warn-head">
+                {lang === 'el' ? 'Με βάση τη διατροφή σου:' : 'Based on your diet:'}
+              </div>
+              {dietFlags.matchedAllergies.length > 0 && (
+                <div className="dm-diet-warn-line">
+                  {lang === 'el' ? 'Αλλεργιογόνα: ' : 'Allergens: '}
+                  <strong>
+                    {dietFlags.matchedAllergies
+                      .map((a) => (lang === 'el' ? a.nameEl : (a.nameEn ?? a.nameEl)))
+                      .join(', ')}
+                  </strong>
+                </div>
+              )}
+              {dietFlags.matchedAvoidedIngredientIds.length > 0 && (
+                <div className="dm-diet-warn-line">
+                  {lang === 'el' ? 'Συστατικά προς αποφυγή: ' : 'Ingredients you avoid: '}
+                  <strong>{dietFlags.matchedAvoidedIngredientIds.length}</strong>
+                  {' '}
+                  <span className="dm-diet-warn-hint">
+                    {lang === 'el' ? '(δες τη συνταγή πιο κάτω)' : '(see the recipe below)'}
+                  </span>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
         {/* Tags — WEC-256 dynamic placement. The modal flattens all tags into
             a single under-title chip row regardless of placement, since the
             modal already has its own image area with corner overlays. */}

@@ -9,6 +9,7 @@ import {
 import { fetchWallet } from '../lib/api/wallet'
 import { fetchUserOrders, type OrderHistoryItem } from '../lib/api/orders'
 import { fetchAdminStatus, type AdminRole } from '../lib/api/admin'
+import { fetchProfileDiet, type ProfileDiet } from '../lib/api/diet'
 
 // ─── Domain types ─────────────────────────────────────────────────────────────
 
@@ -97,6 +98,12 @@ export interface FitpalUser {
   isAdmin: boolean
   /** The admin role when isAdmin is true, otherwise null. */
   adminRole: AdminRole | null
+  /**
+   * WEC-250: signed-in customer diet — allergies they want flagged + ingredients
+   * they want to avoid. Empty arrays = nothing to flag (treated like "no diet
+   * prefs set"). Loaded via fetchProfileDiet on user hydrate.
+   */
+  diet: ProfileDiet
 }
 
 // ─── Store interface ───────────────────────────────────────────────────────────
@@ -122,17 +129,20 @@ interface AuthStore {
   updatePrefs: (prefs: Partial<UserPrefs>) => void
   updateGoals: (goals: UserGoals) => void
   updateWallet: (wallet: Partial<UserWallet>) => void
+  /** WEC-250: replace the user's diet prefs in-memory after a save. */
+  updateDiet: (diet: ProfileDiet) => void
 }
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
 async function buildFullUser(userId: string, email: string): Promise<FitpalUser | null> {
-  // Fetch profile + wallet + orders + admin status in parallel
-  const [userRes, walletRes, ordersRes, adminRes] = await Promise.all([
+  // Fetch profile + wallet + orders + admin status + diet in parallel
+  const [userRes, walletRes, ordersRes, adminRes, dietRes] = await Promise.all([
     fetchFullUser(userId),
     fetchWallet(userId),
     fetchUserOrders(userId),
     fetchAdminStatus(userId),
+    fetchProfileDiet(userId),
   ])
 
   if (!userRes.data) return null
@@ -150,6 +160,7 @@ async function buildFullUser(userId: string, email: string): Promise<FitpalUser 
     orders: ordersRes.data ?? [],
     isAdmin: adminRes.data.isAdmin,
     adminRole: adminRes.data.role,
+    diet: dietRes.data,
   }
 }
 
@@ -263,4 +274,7 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
     set((state) =>
       state.user ? { user: { ...state.user, wallet: { ...state.user.wallet, ...wallet } } } : state
     ),
+
+  updateDiet: (diet) =>
+    set((state) => (state.user ? { user: { ...state.user, diet } } : state)),
 }))

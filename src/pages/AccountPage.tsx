@@ -17,12 +17,18 @@ import { DateRangeFilter } from '../components/shared/DateRangeFilter'
 import { Pagination } from '../components/shared/Pagination'
 import { PlacesAutocomplete } from '../components/ui/PlacesAutocomplete'
 import { googleMapsAvailable } from '../lib/googleMaps'
+import {
+  fetchIngredientOptions,
+  saveProfileAllergies,
+  saveProfileAvoidedIngredients,
+  type IngredientOption,
+} from '../lib/api/diet'
 
 /** WEC-169: orders list shows 50 per page; the pagination bar hides itself
  *  when the filtered list fits on one page. */
 const ORDERS_PAGE_SIZE = 50
 
-type AccountTab = 'orders' | 'wallet' | 'addresses' | 'goals' | 'prefs' | 'profile'
+type AccountTab = 'orders' | 'wallet' | 'addresses' | 'goals' | 'diet' | 'prefs' | 'profile'
 
 /* ─── SVG icon helpers ──────────────────────────────────────────────────────── */
 
@@ -45,6 +51,13 @@ const icons: Record<AccountTab | 'logout', React.ReactElement> = {
   goals: (
     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
       <circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/>
+    </svg>
+  ),
+  diet: (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+      <line x1="12" y1="9" x2="12" y2="13"/>
+      <line x1="12" y1="17" x2="12.01" y2="17"/>
     </svg>
   ),
   prefs: (
@@ -101,6 +114,7 @@ export function AccountPage() {
     wallet:    { el: 'Πορτοφόλι', en: 'Wallet' },
     addresses: { el: 'Διευθύνσεις', en: 'Addresses' },
     goals:     { el: 'Στόχοι', en: 'Goals' },
+    diet:      { el: 'Διατροφή', en: 'Diet' },
     prefs:     { el: 'Προτιμήσεις', en: 'Preferences' },
     profile:   { el: 'Στοιχεία', en: 'Details' },
   }
@@ -153,6 +167,7 @@ export function AccountPage() {
           {tab === 'wallet' && <WalletTab user={user} lang={lang} />}
           {tab === 'addresses' && <AddressesTab user={user} lang={lang} updateAddresses={updateAddresses} />}
           {tab === 'goals' && <GoalsTab user={user} lang={lang} updateGoals={updateGoals} />}
+          {tab === 'diet' && <DietTab user={user} lang={lang} />}
           {tab === 'prefs' && <PrefsTab user={user} lang={lang} updatePrefs={updatePrefs} />}
           {tab === 'profile' && <ProfileTab user={user} lang={lang} />}
         </div>
@@ -1441,6 +1456,210 @@ function OrdersTab({ user, lang }: any) {
           <Pagination page={clampedPage} pageCount={pageCount} onChange={setPage} />
         </>
       )}
+    </div>
+  )
+}
+
+/* ─── Diet tab (WEC-250) ────────────────────────────────────────────────────
+ * Allergies + avoided ingredients. The dish modal + menu cards highlight
+ * matches against this user-defined set when the customer is signed in.
+ * Allergies fan out through ingredient_allergies — i.e. flagging "Milk"
+ * marks every dish whose recipe contains a milk-bearing ingredient.
+ * Avoided ingredients are direct (no allergy indirection): a literal
+ * "don't show me dishes with X" list.
+ */
+function DietTab({ user, lang }: { user: any; lang: 'el' | 'en' }) {
+  const isEl = lang === 'el'
+  const dietCatalog = useMenuStore((s) => s.dietCatalog)
+  const updateDiet = useAuthStore((s) => s.updateDiet)
+
+  // Local mirror of the user's diet so the form is editable without round-tripping.
+  const initialAllergies: string[] = user.diet?.allergyIds ?? []
+  const initialAvoided: string[] = user.diet?.avoidedIngredientIds ?? []
+  const [allergyIds, setAllergyIds] = useState<string[]>(initialAllergies)
+  const [avoidedIds, setAvoidedIds] = useState<string[]>(initialAvoided)
+  useEffect(() => { setAllergyIds(user.diet?.allergyIds ?? []) }, [user.diet?.allergyIds])
+  useEffect(() => { setAvoidedIds(user.diet?.avoidedIngredientIds ?? []) }, [user.diet?.avoidedIngredientIds])
+
+  const [ingredientOptions, setIngredientOptions] = useState<IngredientOption[]>([])
+  const [optionsLoading, setOptionsLoading] = useState(true)
+  useEffect(() => {
+    fetchIngredientOptions().then((res) => {
+      setIngredientOptions(res.data)
+      setOptionsLoading(false)
+    })
+  }, [])
+
+  const [search, setSearch] = useState('')
+  const [savingMsg, setSavingMsg] = useState<string | null>(null)
+  const [err, setErr] = useState<string | null>(null)
+
+  const dirty =
+    JSON.stringify([...allergyIds].sort()) !== JSON.stringify([...initialAllergies].sort()) ||
+    JSON.stringify([...avoidedIds].sort()) !== JSON.stringify([...initialAvoided].sort())
+
+  const allergies = dietCatalog?.allergies ?? []
+  const avoidedSet = new Set(avoidedIds)
+
+  // Filter ingredient suggestions on the search input. Only show 20 to keep
+  // the list manageable; the user can refine the query if they don't see
+  // what they want.
+  const ingredientMatches = useMemo(() => {
+    const q = search.trim().toLowerCase()
+    if (!q) return []
+    return ingredientOptions
+      .filter((i) => !avoidedSet.has(i.id))
+      .filter((i) =>
+        i.nameEl.toLowerCase().includes(q) ||
+        (i.nameEn ?? '').toLowerCase().includes(q),
+      )
+      .slice(0, 20)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [search, ingredientOptions, avoidedIds.length])
+
+  function toggleAllergy(id: string) {
+    setAllergyIds((curr) =>
+      curr.includes(id) ? curr.filter((x) => x !== id) : [...curr, id],
+    )
+  }
+  function addAvoided(id: string) {
+    setAvoidedIds((curr) => (curr.includes(id) ? curr : [...curr, id]))
+    setSearch('')
+  }
+  function removeAvoided(id: string) {
+    setAvoidedIds((curr) => curr.filter((x) => x !== id))
+  }
+
+  async function save() {
+    setSavingMsg(null); setErr(null)
+    const [a, b] = await Promise.all([
+      saveProfileAllergies(user.id, allergyIds),
+      saveProfileAvoidedIngredients(user.id, avoidedIds),
+    ])
+    if (a.error || b.error) { setErr(a.error ?? b.error ?? 'Save failed'); return }
+    updateDiet({ allergyIds: [...allergyIds], avoidedIngredientIds: [...avoidedIds] })
+    setSavingMsg(isEl ? 'Αποθηκεύτηκε.' : 'Saved.')
+    setTimeout(() => setSavingMsg(null), 1800)
+  }
+
+  const ingredientNameById = useMemo(() => {
+    const m = new Map<string, IngredientOption>()
+    for (const i of ingredientOptions) m.set(i.id, i)
+    return m
+  }, [ingredientOptions])
+
+  return (
+    <div className="tab-pane">
+      <div className="tab-head">
+        <h2>{isEl ? 'Διατροφή & αλλεργίες' : 'Diet & allergies'}</h2>
+        <p className="tab-sub">
+          {isEl
+            ? 'Επίλεξε τις αλλεργίες σου και συγκεκριμένα συστατικά που δεν θέλεις να καταναλώνεις. Θα σου επισημαίνουμε διακριτικά τα πιάτα που σε αφορούν.'
+            : 'Pick your allergies and any ingredients you want to avoid. We will flag matching dishes for you discreetly.'}
+        </p>
+      </div>
+
+      {err && <div className="acc-error-banner">{err}</div>}
+      {savingMsg && <div className="acc-info-banner">{savingMsg}</div>}
+
+      {/* Allergies */}
+      <section className="diet-section">
+        <h3>{isEl ? 'Αλλεργίες' : 'Allergies'}</h3>
+        <p className="diet-section-sub">
+          {isEl
+            ? 'Οι αλλεργίες συνδέονται με συστατικά — όταν διαλέξεις μια αλλεργία, επισημαίνουμε κάθε πιάτο που περιέχει συστατικά αυτής της κατηγορίας.'
+            : 'Allergies are tied to ingredients — picking one flags every dish whose recipe contains matching ingredients.'}
+        </p>
+        {allergies.length === 0 ? (
+          <div className="diet-empty">
+            {isEl
+              ? 'Δεν υπάρχουν διαθέσιμες αλλεργίες ακόμα.'
+              : 'No allergies configured yet.'}
+          </div>
+        ) : (
+          <div className="diet-allergy-grid">
+            {allergies.map((a) => {
+              const checked = allergyIds.includes(a.id)
+              return (
+                <label key={a.id} className={`diet-allergy-chip${checked ? ' on' : ''}`}>
+                  <input
+                    type="checkbox"
+                    checked={checked}
+                    onChange={() => toggleAllergy(a.id)}
+                  />
+                  <span>{isEl ? a.nameEl : (a.nameEn ?? a.nameEl)}</span>
+                </label>
+              )
+            })}
+          </div>
+        )}
+      </section>
+
+      {/* Avoided ingredients */}
+      <section className="diet-section">
+        <h3>{isEl ? 'Συστατικά προς αποφυγή' : 'Ingredients to avoid'}</h3>
+        <p className="diet-section-sub">
+          {isEl
+            ? 'Συγκεκριμένα συστατικά που δεν θέλεις στο πιάτο σου (γεύση, θρησκευτικοί λόγοι, ό,τι άλλο).'
+            : 'Specific ingredients you do not want on your plate (taste, religious reasons, anything else).'}
+        </p>
+
+        {avoidedIds.length > 0 && (
+          <div className="diet-chips" style={{ marginBottom: 10 }}>
+            {avoidedIds.map((id) => {
+              const i = ingredientNameById.get(id)
+              const label = i ? (isEl ? i.nameEl : (i.nameEn ?? i.nameEl)) : id
+              return (
+                <button
+                  key={id}
+                  type="button"
+                  className="diet-chip"
+                  onClick={() => removeAvoided(id)}
+                  title={isEl ? 'Αφαίρεση' : 'Remove'}
+                >
+                  {label}
+                  <span aria-hidden="true" style={{ marginLeft: 6 }}>×</span>
+                </button>
+              )
+            })}
+          </div>
+        )}
+
+        <input
+          className="form-input"
+          type="text"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder={isEl ? 'Αναζήτησε συστατικό…' : 'Search for an ingredient…'}
+          disabled={optionsLoading}
+        />
+        {search.trim() && (
+          <div className="diet-suggestions">
+            {ingredientMatches.length === 0 ? (
+              <div className="diet-empty" style={{ marginTop: 8 }}>
+                {isEl ? 'Δεν βρέθηκε κανένα συστατικό.' : 'No ingredients matched.'}
+              </div>
+            ) : (
+              ingredientMatches.map((i) => (
+                <button
+                  key={i.id}
+                  type="button"
+                  className="diet-suggestion"
+                  onClick={() => addAvoided(i.id)}
+                >
+                  + {isEl ? i.nameEl : (i.nameEn ?? i.nameEl)}
+                </button>
+              ))
+            )}
+          </div>
+        )}
+      </section>
+
+      <div className="tab-actions">
+        <button className="btn-save" disabled={!dirty} onClick={save}>
+          {isEl ? 'Αποθήκευση' : 'Save'}
+        </button>
+      </div>
     </div>
   )
 }

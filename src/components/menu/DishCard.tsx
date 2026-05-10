@@ -1,8 +1,10 @@
 import { useUIStore } from '../../store/useUIStore'
 import { useCartStore } from '../../store/useCartStore'
 import { useMenuStore } from '../../store/useMenuStore'
+import { useAuthStore } from '../../store/useAuthStore'
 import { effPrice, isDayOrderable } from '../../lib/helpers'
 import { MacroDotsRow, MacroValuesRow } from '../ui/MacroDots'
+import { dishDietFlags } from '../../lib/api/diet'
 import { makeTr } from '../../lib/translations'
 import type { Dish } from '../../data/menu'
 
@@ -27,6 +29,20 @@ export function DishCard({ dish, dayIndex }: DishCardProps) {
 
   const dayItems = cart[dayIndex] ?? []
   const inCart = dayItems.filter((ci) => ci.dishId === dish.id).reduce((s, ci) => s + ci.qty, 0)
+
+  // WEC-250: diet flags for the signed-in user. We compute lazily — the
+  // catalog is loaded with the menu so this is just a Map+Set lookup.
+  // For guests (no user) the flags are all-empty and no badge renders.
+  const user = useAuthStore((s) => s.user)
+  const dietCatalog = useMenuStore((s) => s.dietCatalog)
+  const userAllergyIds = new Set(user?.diet?.allergyIds ?? [])
+  const userAvoidedIngredientIds = new Set(user?.diet?.avoidedIngredientIds ?? [])
+  const dietFlags = dishDietFlags(dish.id, dietCatalog, userAllergyIds, userAvoidedIngredientIds)
+  const dietWarningLabel = dietFlags.any
+    ? (lang === 'el'
+        ? `Προσοχή: ${dietFlags.matchedAllergies.length > 0 ? 'περιέχει αλλεργιογόνα' : 'περιέχει συστατικό προς αποφυγή'}`
+        : `Heads up: ${dietFlags.matchedAllergies.length > 0 ? 'contains an allergen' : 'contains an ingredient you avoid'}`)
+    : ''
 
   // WEC-256: tag catalog from the store, look up each dish.tag id to render
   // it in the correct slot (top_left / top_right / bottom_left / under_title).
@@ -100,9 +116,25 @@ export function DishCard({ dish, dayIndex }: DishCardProps) {
 
   return (
     <div
-      className={`dish-card${inCart > 0 ? ' in-cart' : ''}`}
+      className={`dish-card${inCart > 0 ? ' in-cart' : ''}${dietFlags.any ? ' diet-flag' : ''}`}
       onClick={() => openDishModal(dish, dayIndex)}
     >
+      {/* WEC-250: subtle ⚠ badge anchored top-left when the dish triggers
+          the customer's allergy/avoidance prefs. Doesn't fight with the
+          existing top_left admin tag — admin tags layer above. */}
+      {dietFlags.any && (
+        <span
+          className="dish-diet-warn"
+          title={dietWarningLabel}
+          aria-label={dietWarningLabel}
+        >
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" focusable="false">
+            <path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+            <line x1="12" y1="9" x2="12" y2="13"/>
+            <line x1="12" y1="17" x2="12.01" y2="17"/>
+          </svg>
+        </span>
+      )}
       {/* Image area — 3:2 ratio */}
       <div className="dish-img-wrap">
         {dish.img ? (
