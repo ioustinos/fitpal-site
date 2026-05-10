@@ -46,6 +46,10 @@ export interface ContactInfo {
   supportPhone?: string
   instagramUrl?: string
   facebookUrl?: string
+  /** TikTok profile URL — customer-facing, shown in footer + emails. */
+  tiktokUrl?: string
+  /** YouTube channel / profile URL — customer-facing. */
+  youtubeUrl?: string
 }
 
 export interface BankTransferInfo {
@@ -224,6 +228,8 @@ export async function fetchSettings(): Promise<{ data: AppSettings; error: strin
   if (typeof rawContact.supportPhone === 'string') contact.supportPhone = rawContact.supportPhone
   if (typeof rawContact.instagramUrl === 'string') contact.instagramUrl = rawContact.instagramUrl
   if (typeof rawContact.facebookUrl === 'string') contact.facebookUrl = rawContact.facebookUrl
+  if (typeof rawContact.tiktokUrl === 'string') contact.tiktokUrl = rawContact.tiktokUrl
+  if (typeof rawContact.youtubeUrl === 'string') contact.youtubeUrl = rawContact.youtubeUrl
 
   // bank_transfer_info — accepts two shapes (WEC-260):
   //   1. Legacy single object {iban, beneficiary, bankName?}

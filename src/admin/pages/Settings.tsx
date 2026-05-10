@@ -28,6 +28,8 @@ interface ContactInfo {
   supportPhone?: string
   instagramUrl?: string
   facebookUrl?: string
+  tiktokUrl?: string
+  youtubeUrl?: string
 }
 
 interface BankTransferInfo {
@@ -36,8 +38,25 @@ interface BankTransferInfo {
   bankName?: string
 }
 
+/** Pickup location entry (WEC-259 / WEC-276 follow-up). Mirrored from
+ *  `src/lib/api/settings.ts` — kept local so this admin module owns its
+ *  payload shapes. Field names use snake_case to match what we persist
+ *  in `settings.pickup_locations` jsonb. */
+interface PickupLocation {
+  id: string
+  name_el: string
+  name_en: string
+  address: string
+  /** ISO weekday numbers 1=Mon..7=Sun where pickup is offered. */
+  available_weekdays: number[]
+  hours_note_el?: string
+  hours_note_en?: string
+}
+
 /** WEC-260: hard cap on the number of IBAN rows the admin can configure. */
 const MAX_BANK_IBANS = 5
+/** Hard cap on pickup-location rows. 10 is plenty for a single-city op. */
+const MAX_PICKUP_LOCATIONS = 10
 
 export function Settings() {
   const [all, setAll] = useState<SettingRow[]>([])
@@ -421,6 +440,14 @@ export function ContactInfoSection({ value, onSave }: { value: ContactInfo; onSa
           <label className="admin-form-label">Facebook URL</label>
           <input className="admin-input" type="url" value={form.facebookUrl ?? ''} onChange={(e) => patch('facebookUrl', e.target.value)} placeholder="https://facebook.com/…" />
         </div>
+        <div>
+          <label className="admin-form-label">TikTok URL</label>
+          <input className="admin-input" type="url" value={form.tiktokUrl ?? ''} onChange={(e) => patch('tiktokUrl', e.target.value)} placeholder="https://tiktok.com/@…" />
+        </div>
+        <div>
+          <label className="admin-form-label">YouTube URL</label>
+          <input className="admin-input" type="url" value={form.youtubeUrl ?? ''} onChange={(e) => patch('youtubeUrl', e.target.value)} placeholder="https://youtube.com/@…" />
+        </div>
       </div>
       <div className="admin-inline-form" style={{ marginTop: 12 }}>
         <button className="admin-btn-primary" disabled={!dirty} onClick={() => onSave(form)}>Save</button>
@@ -506,6 +533,210 @@ export function BankTransferInfoSection({ value, onSave }: { value: BankTransfer
           + Add IBAN ({rows.length}/{MAX_BANK_IBANS})
         </button>
         <button className="admin-btn-primary" disabled={!dirty} onClick={() => onSave(cleaned)}>Save</button>
+      </div>
+    </SectionCard>
+  )
+}
+
+/**
+ * WEC-276 follow-up: parse settings.pickup_locations into an array.
+ * Mirrors the customer-side parser in `src/lib/api/settings.ts` — but here
+ * we keep the snake_case shape (what's persisted in jsonb) for the admin UI
+ * so save round-trips work cleanly.
+ */
+export function parsePickupLocations(raw: unknown): PickupLocation[] {
+  if (!Array.isArray(raw)) return []
+  const out: PickupLocation[] = []
+  for (const e of raw as unknown[]) {
+    if (out.length >= MAX_PICKUP_LOCATIONS) break
+    if (!e || typeof e !== 'object') continue
+    const o = e as Record<string, unknown>
+    const id = typeof o.id === 'string' ? o.id : ''
+    if (!id) continue
+    const weekdays = Array.isArray(o.available_weekdays)
+      ? (o.available_weekdays as unknown[]).filter((v): v is number =>
+          typeof v === 'number' && Number.isInteger(v) && v >= 1 && v <= 7,
+        )
+      : []
+    out.push({
+      id,
+      name_el: typeof o.name_el === 'string' ? o.name_el : '',
+      name_en: typeof o.name_en === 'string' ? o.name_en : '',
+      address: typeof o.address === 'string' ? o.address : '',
+      available_weekdays: weekdays,
+      hours_note_el: typeof o.hours_note_el === 'string' ? o.hours_note_el : undefined,
+      hours_note_en: typeof o.hours_note_en === 'string' ? o.hours_note_en : undefined,
+    })
+  }
+  return out
+}
+
+const WEEKDAY_LABELS_SHORT = ['', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
+
+export function PickupLocationsSection({
+  value,
+  onSave,
+}: {
+  value: PickupLocation[]
+  onSave: (v: PickupLocation[]) => void
+}) {
+  // Match the BankTransferInfoSection pattern — always show at least one
+  // editable row so a fresh install isn't blank. The synthetic empty row
+  // is filtered out at save time.
+  function blank(): PickupLocation {
+    return {
+      id: typeof crypto !== 'undefined' && 'randomUUID' in crypto
+        ? crypto.randomUUID()
+        : `pickup-${Math.random().toString(36).slice(2, 10)}`,
+      name_el: '',
+      name_en: '',
+      address: '',
+      available_weekdays: [1, 2, 3, 4, 5],
+    }
+  }
+
+  const [rows, setRows] = useState<PickupLocation[]>(value.length > 0 ? value : [blank()])
+  useEffect(() => {
+    setRows(value.length > 0 ? value : [blank()])
+  }, [value])
+
+  // A row is "real" if it has at least a name or an address. Empty rows
+  // get dropped on save.
+  const cleaned = rows.filter(
+    (r) => (r.name_el ?? '').trim().length > 0 || (r.name_en ?? '').trim().length > 0 || (r.address ?? '').trim().length > 0,
+  )
+  const dirty = JSON.stringify(cleaned) !== JSON.stringify(value)
+
+  function patch<K extends keyof PickupLocation>(i: number, k: K, v: PickupLocation[K]) {
+    setRows((rs) => rs.map((r, j) => (j === i ? { ...r, [k]: v } : r)))
+  }
+  function toggleWeekday(i: number, dow: number) {
+    setRows((rs) =>
+      rs.map((r, j) => {
+        if (j !== i) return r
+        const has = r.available_weekdays.includes(dow)
+        const next = has
+          ? r.available_weekdays.filter((d) => d !== dow)
+          : [...r.available_weekdays, dow].sort((a, b) => a - b)
+        return { ...r, available_weekdays: next }
+      }),
+    )
+  }
+  function add() {
+    if (rows.length >= MAX_PICKUP_LOCATIONS) return
+    setRows([...rows, blank()])
+  }
+  function remove(i: number) {
+    setRows((rs) => (rs.length === 1 ? [blank()] : rs.filter((_, j) => j !== i)))
+  }
+
+  return (
+    <SectionCard
+      title="Pickup locations"
+      desc={`Where customers can collect orders instead of having them delivered. Up to ${MAX_PICKUP_LOCATIONS}. Empty rows are dropped on save. Customers see these at checkout when the fulfilment toggle is set to Pickup.`}
+    >
+      {rows.map((r, i) => (
+        <div
+          key={r.id}
+          className="admin-grid-2"
+          style={{
+            marginBottom: 12,
+            paddingBottom: 12,
+            borderBottom: i < rows.length - 1 ? '1px dashed var(--a-border)' : 'none',
+          }}
+        >
+          <div
+            style={{
+              gridColumn: '1 / -1',
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              marginBottom: 4,
+            }}
+          >
+            <strong style={{ fontSize: 12, color: 'var(--a-text-muted)' }}>Location #{i + 1}</strong>
+            <button className="admin-row-btn danger" onClick={() => remove(i)}>
+              Remove
+            </button>
+          </div>
+          <div>
+            <label className="admin-form-label">Name (EL)</label>
+            <input
+              className="admin-input"
+              type="text"
+              value={r.name_el ?? ''}
+              onChange={(e) => patch(i, 'name_el', e.target.value)}
+              placeholder="π.χ. Καφέ Κολωνάκι"
+            />
+          </div>
+          <div>
+            <label className="admin-form-label">Name (EN)</label>
+            <input
+              className="admin-input"
+              type="text"
+              value={r.name_en ?? ''}
+              onChange={(e) => patch(i, 'name_en', e.target.value)}
+              placeholder="e.g. Kolonaki Cafe"
+            />
+          </div>
+          <div style={{ gridColumn: '1 / -1' }}>
+            <label className="admin-form-label">Address</label>
+            <input
+              className="admin-input"
+              type="text"
+              value={r.address ?? ''}
+              onChange={(e) => patch(i, 'address', e.target.value)}
+              placeholder="Πλατεία Κολωνακίου 5, Αθήνα 10676"
+            />
+          </div>
+          <div style={{ gridColumn: '1 / -1' }}>
+            <label className="admin-form-label">Available days</label>
+            <div className="admin-inline-form" style={{ flexWrap: 'wrap' }}>
+              {[1, 2, 3, 4, 5, 6, 7].map((dow) => (
+                <label
+                  key={dow}
+                  className="admin-form-checkbox"
+                  style={{ minWidth: 60 }}
+                >
+                  <input
+                    type="checkbox"
+                    checked={r.available_weekdays.includes(dow)}
+                    onChange={() => toggleWeekday(i, dow)}
+                  />
+                  <span>{WEEKDAY_LABELS_SHORT[dow]}</span>
+                </label>
+              ))}
+            </div>
+          </div>
+          <div>
+            <label className="admin-form-label">Hours note (EL, optional)</label>
+            <input
+              className="admin-input"
+              type="text"
+              value={r.hours_note_el ?? ''}
+              onChange={(e) => patch(i, 'hours_note_el', e.target.value)}
+              placeholder="π.χ. 12:00–18:00"
+            />
+          </div>
+          <div>
+            <label className="admin-form-label">Hours note (EN, optional)</label>
+            <input
+              className="admin-input"
+              type="text"
+              value={r.hours_note_en ?? ''}
+              onChange={(e) => patch(i, 'hours_note_en', e.target.value)}
+              placeholder="e.g. 12:00–18:00"
+            />
+          </div>
+        </div>
+      ))}
+      <div className="admin-inline-form" style={{ marginTop: 4 }}>
+        <button className="admin-btn-ghost" onClick={add} disabled={rows.length >= MAX_PICKUP_LOCATIONS}>
+          + Add location ({rows.length}/{MAX_PICKUP_LOCATIONS})
+        </button>
+        <button className="admin-btn-primary" disabled={!dirty} onClick={() => onSave(cleaned)}>
+          Save
+        </button>
       </div>
     </SectionCard>
   )
