@@ -106,16 +106,20 @@ const NAV: NavEntry[] = [
     ],
   },
 
-  // Settings — Delivery zones bumped to slot 2 per the user's preference.
-  // Both leaves currently route to the existing single pages; the
-  // sub-categories of the Settings page itself are a future ticket.
+  // Settings — split into typed-per-domain pages (WEC-274).
+  // Order matches the parent epic spec; Site Details first because that's
+  // the most "starting point" page when an admin first opens the section.
   {
     id: 'settings',
     label: 'Settings',
     icon: 'settings',
     items: [
-      { path: '/admin/settings', label: 'Cutoff & general', icon: 'settings' },
-      { path: '/admin/zones',    label: 'Delivery zones',    icon: 'zones' },
+      { path: '/admin/site-details',     label: 'Site Details',             icon: 'settings' },
+      { path: '/admin/cutoff-schedules', label: 'Cutoff Times & Schedules', icon: 'settings' },
+      { path: '/admin/payments',         label: 'Payments',                 icon: 'wallet' },
+      { path: '/admin/menu-options',     label: 'Menu Options',             icon: 'dishes' },
+      { path: '/admin/zones',            label: 'Delivery Zones',           icon: 'zones' },
+      { path: '/admin/advanced',         label: 'Advanced',                 icon: 'settings' },
     ],
   },
 ]

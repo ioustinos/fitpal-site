@@ -1,4 +1,4 @@
-import { Routes, Route } from 'react-router-dom'
+import { Routes, Route, Navigate } from 'react-router-dom'
 import { AdminGuard } from './AdminGuard'
 import { AdminLayout } from './AdminLayout'
 import { Dashboard } from './pages/Dashboard'
@@ -11,7 +11,14 @@ import { ImportImages } from './pages/ImportImages'
 import { ImportMenu } from './pages/ImportMenu'
 import { Ingredients } from './pages/Ingredients'
 import { Orders } from './pages/Orders'
-import { Settings } from './pages/Settings'
+// WEC-274 split: 5 per-domain pages replace the legacy single Settings page.
+// The legacy `Settings.tsx` is kept temporarily because the new pages re-use
+// its exported section components — to be deleted once the split settles.
+import { SiteDetails } from './pages/SiteDetails'
+import { CutoffSchedules } from './pages/CutoffSchedules'
+import { Payments as SettingsPayments } from './pages/Payments'
+import { MenuOptions } from './pages/MenuOptions'
+import { Advanced } from './pages/Advanced'
 import { Zones } from './pages/Zones'
 import { Vouchers } from './pages/Vouchers'
 import { Users } from './pages/Users'
@@ -42,7 +49,18 @@ export default function AdminApp() {
           <Route path="vouchers" element={<Vouchers />} />
           <Route path="wallet-purchases" element={<WalletPurchases />} />
           <Route path="wallet-settings"  element={<WalletSettings />} />
-          <Route path="settings" element={<Settings />} />
+
+          {/* WEC-274 split — typed-per-domain settings pages */}
+          <Route path="site-details" element={<SiteDetails />} />
+          <Route path="cutoff-schedules" element={<CutoffSchedules />} />
+          <Route path="payments" element={<SettingsPayments />} />
+          <Route path="menu-options" element={<MenuOptions />} />
+          <Route path="advanced" element={<Advanced />} />
+
+          {/* Legacy /admin/settings redirects to the first settings-group
+              page so old bookmarks still land somewhere sensible. */}
+          <Route path="settings" element={<Navigate to="/admin/site-details" replace />} />
+
           <Route path="zones" element={<Zones />} />
         </Route>
       </Routes>

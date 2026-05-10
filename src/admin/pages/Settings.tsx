@@ -95,7 +95,7 @@ export function Settings() {
 
 // ─── Sections ───────────────────────────────────────────────────────────────
 
-function SectionCard({ title, desc, children }: { title: string; desc?: string; children: React.ReactNode }) {
+export function SectionCard({ title, desc, children }: { title: string; desc?: string; children: React.ReactNode }) {
   return (
     <section className="admin-setting-card">
       <div className="admin-setting-head">
@@ -107,7 +107,7 @@ function SectionCard({ title, desc, children }: { title: string; desc?: string; 
   )
 }
 
-function CutoffHourSection({ value, onSave }: { value: number; onSave: (v: number) => void }) {
+export function CutoffHourSection({ value, onSave }: { value: number; onSave: (v: number) => void }) {
   const [h, setH] = useState(value)
   useEffect(() => setH(value), [value])
   return (
@@ -121,7 +121,7 @@ function CutoffHourSection({ value, onSave }: { value: number; onSave: (v: numbe
   )
 }
 
-function WeekdayOverridesSection({ value, onSave }: { value: WeekdayOverrides; onSave: (v: WeekdayOverrides) => void }) {
+export function WeekdayOverridesSection({ value, onSave }: { value: WeekdayOverrides; onSave: (v: WeekdayOverrides) => void }) {
   const [entries, setEntries] = useState(Object.entries(value).map(([k, v]) => ({ deliveryDow: +k, cutoffDow: v.dow, hour: v.hour })))
   useEffect(() => setEntries(Object.entries(value).map(([k, v]) => ({ deliveryDow: +k, cutoffDow: v.dow, hour: v.hour }))), [value])
 
@@ -161,7 +161,7 @@ function WeekdayOverridesSection({ value, onSave }: { value: WeekdayOverrides; o
   )
 }
 
-function DateOverridesSection({ value, onSave }: { value: DateOverrides; onSave: (v: DateOverrides) => void }) {
+export function DateOverridesSection({ value, onSave }: { value: DateOverrides; onSave: (v: DateOverrides) => void }) {
   const [entries, setEntries] = useState(Object.entries(value).map(([k, v]) => ({ deliveryDate: k, cutoffDate: v.cutoffDate, hour: v.hour })))
   useEffect(() => setEntries(Object.entries(value).map(([k, v]) => ({ deliveryDate: k, cutoffDate: v.cutoffDate, hour: v.hour }))), [value])
 
@@ -205,7 +205,7 @@ function DateOverridesSection({ value, onSave }: { value: DateOverrides; onSave:
   )
 }
 
-function MinOrderSection({ value, onSave }: { value: number; onSave: (v: number) => void }) {
+export function MinOrderSection({ value, onSave }: { value: number; onSave: (v: number) => void }) {
   const [v, setV] = useState(value)
   useEffect(() => setV(value), [value])
   const euros = (v / 100).toFixed(2)
@@ -226,7 +226,7 @@ function MinOrderSection({ value, onSave }: { value: number; onSave: (v: number)
   )
 }
 
-function TimeSlotsSection({ value, onSave }: { value: string[]; onSave: (v: string[]) => void }) {
+export function TimeSlotsSection({ value, onSave }: { value: string[]; onSave: (v: string[]) => void }) {
   const [slots, setSlots] = useState(value)
   useEffect(() => setSlots(value), [value])
   const dirty = JSON.stringify(slots) !== JSON.stringify(value)
@@ -253,7 +253,7 @@ function TimeSlotsSection({ value, onSave }: { value: string[]; onSave: (v: stri
  *   - legacy array of method strings → those public, all admin
  *   - new object map → validated entry-by-entry
  */
-function parseVisibility(raw: unknown): PaymentMethodVisibilityMap {
+export function parseVisibility(raw: unknown): PaymentMethodVisibilityMap {
   const out: PaymentMethodVisibilityMap = {
     cash:     { public: true, admin: true },
     card:     { public: true, admin: true },
@@ -283,7 +283,7 @@ function parseVisibility(raw: unknown): PaymentMethodVisibilityMap {
   return out
 }
 
-function PaymentMethodsSection({ value, onSave }: { value: PaymentMethodVisibilityMap; onSave: (v: PaymentMethodVisibilityMap) => void }) {
+export function PaymentMethodsSection({ value, onSave }: { value: PaymentMethodVisibilityMap; onSave: (v: PaymentMethodVisibilityMap) => void }) {
   const [vis, setVis] = useState<PaymentMethodVisibilityMap>(value)
   useEffect(() => setVis(value), [value])
   const dirty = JSON.stringify(vis) !== JSON.stringify(value)
@@ -338,7 +338,7 @@ function PaymentMethodsSection({ value, onSave }: { value: PaymentMethodVisibili
   )
 }
 
-function MacrosDisplaySection({ value, onSave }: { value: 'numbers' | 'dots'; onSave: (v: 'numbers' | 'dots') => void }) {
+export function MacrosDisplaySection({ value, onSave }: { value: 'numbers' | 'dots'; onSave: (v: 'numbers' | 'dots') => void }) {
   const [v, setV] = useState<'numbers' | 'dots'>(value)
   useEffect(() => setV(value), [value])
   return (
@@ -361,7 +361,7 @@ function MacrosDisplaySection({ value, onSave }: { value: 'numbers' | 'dots'; on
   )
 }
 
-function VariantPillThresholdSection({ value, onSave }: { value: number; onSave: (v: number) => void }) {
+export function VariantPillThresholdSection({ value, onSave }: { value: number; onSave: (v: number) => void }) {
   const [v, setV] = useState(value)
   useEffect(() => setV(value), [value])
   const clamped = Math.max(2, Math.min(20, v))
@@ -393,7 +393,7 @@ function VariantPillThresholdSection({ value, onSave }: { value: number; onSave:
   )
 }
 
-function ContactInfoSection({ value, onSave }: { value: ContactInfo; onSave: (v: ContactInfo) => void }) {
+export function ContactInfoSection({ value, onSave }: { value: ContactInfo; onSave: (v: ContactInfo) => void }) {
   const [form, setForm] = useState<ContactInfo>(value)
   useEffect(() => setForm(value), [value])
   const dirty = JSON.stringify(form) !== JSON.stringify(value)
@@ -435,7 +435,7 @@ function ContactInfoSection({ value, onSave }: { value: ContactInfo; onSave: (v:
  * - legacy single object → wrapped in [obj]
  * - array → returned as-is, capped at MAX_BANK_IBANS
  */
-function parseBankInfos(raw: unknown): BankTransferInfo[] {
+export function parseBankInfos(raw: unknown): BankTransferInfo[] {
   if (!raw) return []
   const list = Array.isArray(raw) ? raw : [raw]
   const out: BankTransferInfo[] = []
@@ -452,7 +452,7 @@ function parseBankInfos(raw: unknown): BankTransferInfo[] {
   return out
 }
 
-function BankTransferInfoSection({ value, onSave }: { value: BankTransferInfo[]; onSave: (v: BankTransferInfo[]) => void }) {
+export function BankTransferInfoSection({ value, onSave }: { value: BankTransferInfo[]; onSave: (v: BankTransferInfo[]) => void }) {
   // Always show at least one editable row so a fresh install isn't blank.
   const [rows, setRows] = useState<BankTransferInfo[]>(value.length > 0 ? value : [{ iban: '', beneficiary: '', bankName: '' }])
   useEffect(() => {
@@ -511,7 +511,7 @@ function BankTransferInfoSection({ value, onSave }: { value: BankTransferInfo[];
   )
 }
 
-function RawJsonSection({ rows, onSaved }: { rows: SettingRow[]; onSaved: () => void }) {
+export function RawJsonSection({ rows, onSaved }: { rows: SettingRow[]; onSaved: () => void }) {
   const [open, setOpen] = useState(false)
   const [editing, setEditing] = useState<string | null>(null)
   const [text, setText] = useState('')

@@ -22,3 +22,6 @@ docs/marketing-tracking-*.md
 # Local-only ops scripts (push helpers, data scratchpads)
 scripts/push-overnight.sh
 scripts/pilot.sql
+
+# sed backups (mac sed -i requires .bak; leave on disk, never commit)
+*.bak
