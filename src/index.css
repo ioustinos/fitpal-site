@@ -506,11 +506,36 @@ header {
   .gh-bar-val { font-size: 10px; min-width: 30px; }
 }
 
-/* WEC-80 revised: intake-only daily row — reuses MacroValuesRow's `.macros`
-   grid for visual parity with the menu dish cards. Reset the bottom margin
-   the menu card carries by default; here the surrounding `.goals-history-list`
-   already handles spacing between rows. */
-.gh-row.intake-only .macros { margin-bottom: 0; width: 100%; }
+/* WEC-80 revised: daily row uses MacroValuesRow's `.macros` grid as the
+   primary readout in BOTH goal-on and goal-off modes — visual parity with
+   the dish-card macros on the menu. The goal bars (when enabled) sit
+   underneath each pill, aligned to the same 4-column grid. */
+.gh-row.intake-primary .day-intake { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.gh-row.intake-primary .macros { margin-bottom: 0; width: 100%; }
+
+/* day-intake-bars: 4-column track row underneath the pills. Grid columns
+   mirror `.macros` so each track sits centred under its macro pill.
+   Status-driven fill colours match the existing .gh-ok / .gh-below /
+   .gh-above palette so cart, checkout, and account stay in sync. */
+.day-intake-bars { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 5px; padding: 0 2px; }
+.dib-bar { display: flex; align-items: center; padding: 0 4px; }
+.dib-bar-track {
+  width: 100%;
+  height: 4px;
+  background: var(--border);
+  border-radius: 999px;
+  overflow: hidden;
+}
+.dib-bar-fill {
+  height: 100%;
+  border-radius: 999px;
+  background: var(--text-muted);
+  opacity: 0.35;
+  transition: width 0.3s ease;
+}
+.dib-ok    .dib-bar-fill { background: var(--green); opacity: 1; }
+.dib-below .dib-bar-fill { background: #E8A317;      opacity: 1; }
+.dib-above .dib-bar-fill { background: #EF4444;      opacity: 1; }
 
 /* ══════════════════════════════════════════
    CATEGORY NAV — sticky underline tabs matching demo.html

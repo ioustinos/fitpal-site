@@ -1223,7 +1223,7 @@ function GoalsHistory({ user, goals, lang, t }: { user: any; goals: any; lang: '
               { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' },
             )
             return (
-              <div key={b.date} className={`gh-row${b.forecast ? ' forecast' : ''}${showGoalBars ? '' : ' intake-only'}`}>
+              <div key={b.date} className={`gh-row${b.forecast ? ' forecast' : ''} intake-primary`}>
                 <div className="gh-day">
                   <span className="gh-day-date">{dateLabel}</span>
                   {b.forecast && (
@@ -1232,30 +1232,11 @@ function GoalsHistory({ user, goals, lang, t }: { user: any; goals: any; lang: '
                     </span>
                   )}
                 </div>
-                {showGoalBars ? (
-                  // Goal-tracking layout: each macro shows icon + progress
-                  // bar coloured by status + numeric value. Per-day progress
-                  // visible at a glance.
-                  <div className="gh-bars">
-                    {macroBars.map((mb) => {
-                      const v = b.macros[mb.k]
-                      const s = goalStatus(mb.k, v, goals)
-                      const pct = goalPct(mb.k, v, goals)
-                      return (
-                        <div key={mb.k} className={`gh-bar gh-${s}`}>
-                          <span className="gh-bar-icon">{mb.icon}</span>
-                          <div className="gh-bar-track">
-                            <div className="gh-bar-fill" style={{ width: `${Math.min(100, pct)}%` }} />
-                          </div>
-                          <span className="gh-bar-val">{v}{mb.k === 'cal' ? '' : 'g'}</span>
-                        </div>
-                      )
-                    })}
-                  </div>
-                ) : (
-                  // WEC-80 revised: intake-only — dish-card style macro
-                  // pills. Reuses MacroValuesRow so the cell shape matches
-                  // exactly what customers see on the menu, no surprise.
+                {/* WEC-80 revised: the macro pills are now the primary
+                    readout in both modes. Dish-card style. The optional
+                    bars row sits underneath the pills, aligned to the same
+                    4-column grid, only when showGoalBars is on. */}
+                <div className="day-intake">
                   <MacroValuesRow
                     cal={b.macros.cal}
                     pro={b.macros.protein}
@@ -1268,7 +1249,23 @@ function GoalsHistory({ user, goals, lang, t }: { user: any; goals: any; lang: '
                       fat:  lang === 'el' ? 'Λιπαρά'   : 'Fat',
                     }}
                   />
-                )}
+                  {showGoalBars && (
+                    <div className="day-intake-bars">
+                      {macroBars.map((mb) => {
+                        const v = b.macros[mb.k]
+                        const s = goalStatus(mb.k, v, goals)
+                        const pct = goalPct(mb.k, v, goals)
+                        return (
+                          <div key={mb.k} className={`dib-bar dib-${s}`}>
+                            <div className="dib-bar-track">
+                              <div className="dib-bar-fill" style={{ width: `${Math.min(100, pct)}%` }} />
+                            </div>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  )}
+                </div>
               </div>
             )
           })}
