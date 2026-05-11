@@ -8,7 +8,7 @@ import { makeTr } from '../lib/translations'
 import { formatSlots } from '../lib/helpers'
 import { useMenuStore } from '../store/useMenuStore'
 import { Toggle } from '../components/ui/Toggle'
-import { MacroIcon } from '../components/ui/MacroDots'
+import { MacroIcon, MacroValuesRow } from '../components/ui/MacroDots'
 import { WALLET_PLANS } from '../data/menu'
 import { COUNTRIES, DEFAULT_COUNTRY, isValidPhone, phoneLabels } from '../lib/phone'
 import { showGoalProgress, goalStatus, goalPct } from '../lib/goals'
@@ -1020,8 +1020,13 @@ function GoalsTab({ user, lang, updateGoals }: any) {
         {saving ? '...' : saved ? (lang === 'el' ? '✓ Αποθηκεύτηκαν' : '✓ Saved') : (lang === 'el' ? 'Αποθήκευση' : 'Save')}
       </button>
 
-      {/* ── Goals history — daily intakes, aggregates, forecast (WEC-168) ── */}
-      {goals.enabled && user.orders && user.orders.length > 0 && (
+      {/* ── Intake history — always visible for users with orders (WEC-80
+            revised). Goal progress bars render INSIDE GoalsHistory only when
+            both prefs.goalTracking and goals.enabled are true. Without those,
+            the same daily breakdown shows as intake-only (dish-card style
+            macros, no bars). The bare intake view is useful on its own —
+            users who haven't defined goals still want to see what they ate. */}
+      {user.orders && user.orders.length > 0 && (
         <GoalsHistory user={user} goals={goals} lang={lang} t={t as (k: string) => string} />
       )}
     </div>
@@ -1072,6 +1077,13 @@ function bucketChildOrdersByDay(orders: any[], todayIso: string): DayBucket[] {
 
 function GoalsHistory({ user, goals, lang, t }: { user: any; goals: any; lang: 'el' | 'en'; t: (k: string) => string }) {
   const orders = user.orders ?? []
+
+  // WEC-80 revised: goal progress visualization is the *secondary* layer.
+  // It only shows when the user has opted into goal tracking (prefs flag)
+  // AND has enabled goals with actual min/max values defined. Either flag
+  // off means we strip the bars and render intake-only — same data, lighter
+  // visual weight, no goal coloring.
+  const showGoalBars: boolean = !!(user.prefs?.goalTracking && goals?.enabled)
 
   const [rangePreset, setRangePreset] = useState<RangePreset>('this_month')
   const [customFrom, setCustomFrom] = useState('')
@@ -1140,7 +1152,11 @@ function GoalsHistory({ user, goals, lang, t }: { user: any; goals: any; lang: '
 
   return (
     <div className="goals-history" style={{ marginTop: 32 }}>
-      <h3 className="tab-subtitle">{t('goalIntakeHistory')}</h3>
+      <h3 className="tab-subtitle">
+        {showGoalBars
+          ? t('goalIntakeHistory')
+          : (lang === 'el' ? 'Διατροφική πρόσληψη' : 'Nutritional intake')}
+      </h3>
 
       <DateRangeFilter
         preset={rangePreset}
@@ -1165,21 +1181,28 @@ function GoalsHistory({ user, goals, lang, t }: { user: any; goals: any; lang: '
           <div className="order-macros-row">
             {macroBars.map(({ k, icon }) => {
               const val = pastAvg[k]
-              const s = goalStatus(k, val, goals)
-              const pct = goalPct(k, val, goals)
+              // WEC-80 revised: status + pct only drive UI when bars are on.
+              const s = showGoalBars ? goalStatus(k, val, goals) : undefined
+              const pct = showGoalBars ? goalPct(k, val, goals) : 0
               const label = lang === 'el'
                 ? { cal: 'Θερμίδες', protein: 'Πρωτεΐνη', carbs: 'Υδατάνθρακες', fat: 'Λιπαρά' }[k]
                 : { cal: 'Calories', protein: 'Protein',  carbs: 'Carbs',       fat: 'Fat'    }[k]
               const unit = k === 'cal' ? '' : 'g'
               const cls = k === 'cal' ? 'cal' : k === 'protein' ? 'protein' : k === 'carbs' ? 'carbs' : 'fat'
               return (
-                <div key={k} className={`order-macro-card ${cls}`} data-goal-status={s}>
+                <div
+                  key={k}
+                  className={`order-macro-card ${cls}`}
+                  {...(s ? { 'data-goal-status': s } : {})}
+                >
                   <div className={`order-macro-icon ${cls}`}>{icon}</div>
                   <span className="order-macro-label">{label}</span>
                   <span className="order-macro-val">{val}{unit && <small>{unit}</small>}</span>
-                  <div className="order-macro-bar">
-                    <div className="order-macro-bar-fill" style={{ width: `${Math.min(100, pct)}%` }} />
-                  </div>
+                  {showGoalBars && (
+                    <div className="order-macro-bar">
+                      <div className="order-macro-bar-fill" style={{ width: `${Math.min(100, pct)}%` }} />
+                    </div>
+                  )}
                 </div>
               )
             })}
@@ -1200,7 +1223,7 @@ function GoalsHistory({ user, goals, lang, t }: { user: any; goals: any; lang: '
               { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' },
             )
             return (
-              <div key={b.date} className={`gh-row${b.forecast ? ' forecast' : ''}`}>
+              <div key={b.date} className={`gh-row${b.forecast ? ' forecast' : ''}${showGoalBars ? '' : ' intake-only'}`}>
                 <div className="gh-day">
                   <span className="gh-day-date">{dateLabel}</span>
                   {b.forecast && (
@@ -1209,22 +1232,43 @@ function GoalsHistory({ user, goals, lang, t }: { user: any; goals: any; lang: '
                     </span>
                   )}
                 </div>
-                <div className="gh-bars">
-                  {macroBars.map((mb) => {
-                    const v = b.macros[mb.k]
-                    const s = goalStatus(mb.k, v, goals)
-                    const pct = goalPct(mb.k, v, goals)
-                    return (
-                      <div key={mb.k} className={`gh-bar gh-${s}`}>
-                        <span className="gh-bar-icon">{mb.icon}</span>
-                        <div className="gh-bar-track">
-                          <div className="gh-bar-fill" style={{ width: `${Math.min(100, pct)}%` }} />
+                {showGoalBars ? (
+                  // Goal-tracking layout: each macro shows icon + progress
+                  // bar coloured by status + numeric value. Per-day progress
+                  // visible at a glance.
+                  <div className="gh-bars">
+                    {macroBars.map((mb) => {
+                      const v = b.macros[mb.k]
+                      const s = goalStatus(mb.k, v, goals)
+                      const pct = goalPct(mb.k, v, goals)
+                      return (
+                        <div key={mb.k} className={`gh-bar gh-${s}`}>
+                          <span className="gh-bar-icon">{mb.icon}</span>
+                          <div className="gh-bar-track">
+                            <div className="gh-bar-fill" style={{ width: `${Math.min(100, pct)}%` }} />
+                          </div>
+                          <span className="gh-bar-val">{v}{mb.k === 'cal' ? '' : 'g'}</span>
                         </div>
-                        <span className="gh-bar-val">{v}{mb.k === 'cal' ? '' : 'g'}</span>
-                      </div>
-                    )
-                  })}
-                </div>
+                      )
+                    })}
+                  </div>
+                ) : (
+                  // WEC-80 revised: intake-only — dish-card style macro
+                  // pills. Reuses MacroValuesRow so the cell shape matches
+                  // exactly what customers see on the menu, no surprise.
+                  <MacroValuesRow
+                    cal={b.macros.cal}
+                    pro={b.macros.protein}
+                    carb={b.macros.carbs}
+                    fat={b.macros.fat}
+                    labels={{
+                      kcal: lang === 'el' ? 'Θερμίδες' : 'Calories',
+                      pro:  lang === 'el' ? 'Πρωτ.'    : 'Protein',
+                      carb: lang === 'el' ? 'Υδατ.'    : 'Carbs',
+                      fat:  lang === 'el' ? 'Λιπαρά'   : 'Fat',
+                    }}
+                  />
+                )}
               </div>
             )
           })}

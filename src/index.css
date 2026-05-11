@@ -506,6 +506,12 @@ header {
   .gh-bar-val { font-size: 10px; min-width: 30px; }
 }
 
+/* WEC-80 revised: intake-only daily row — reuses MacroValuesRow's `.macros`
+   grid for visual parity with the menu dish cards. Reset the bottom margin
+   the menu card carries by default; here the surrounding `.goals-history-list`
+   already handles spacing between rows. */
+.gh-row.intake-only .macros { margin-bottom: 0; width: 100%; }
+
 /* ══════════════════════════════════════════
    CATEGORY NAV — sticky underline tabs matching demo.html
 ══════════════════════════════════════════ */
