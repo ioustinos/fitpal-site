@@ -10,6 +10,9 @@ import { CheckoutPage } from './pages/CheckoutPage'
 import { AccountPage } from './pages/AccountPage'
 import { WalletPage } from './pages/WalletPage'
 import { OrderReturn } from './pages/OrderReturn'
+import { AuthCallback } from './pages/AuthCallback'
+import { PrivacyPage } from './pages/PrivacyPage'
+import { TermsPage } from './pages/TermsPage'
 import { DishModal } from './components/menu/DishModal'
 import { AuthModal } from './components/layout/AuthModal'
 import { WalletModal } from './components/wallet/WalletModal'
@@ -177,6 +180,14 @@ export default function App() {
             customer shell because they need URL + query-param access. */}
         <Route path="/order/pending/success" element={<OrderReturn mode="success" />} />
         <Route path="/order/pending/failure" element={<OrderReturn mode="failure" />} />
+        {/* WEC-322 / WEC-323 — Google + Facebook OAuth post-redirect handler.
+            Outside CustomerApp because it has its own minimal loading shell
+            and never renders the modal/cart/header chrome. */}
+        <Route path="/auth/callback" element={<AuthCallback />} />
+        {/* Public legal pages — linked from Facebook App config, footer,
+            and OAuth consent screens. */}
+        <Route path="/privacy" element={<PrivacyPage />} />
+        <Route path="/terms" element={<TermsPage />} />
         <Route path="*" element={<CustomerApp />} />
       </Routes>
     </>

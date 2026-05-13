@@ -3,7 +3,12 @@ import { useNavigate } from 'react-router-dom'
 import { Modal } from '../ui/Modal'
 import { useUIStore } from '../../store/useUIStore'
 import { useAuthStore } from '../../store/useAuthStore'
-import { sendEmailOtp, verifyEmailOtp } from '../../lib/api/auth'
+import {
+  sendEmailOtp,
+  verifyEmailOtp,
+  signInWithOAuth,
+  type OAuthProvider,
+} from '../../lib/api/auth'
 import { supabase } from '../../lib/supabase'
 
 /**
@@ -53,6 +58,27 @@ export function AuthModal() {
 
   /* ── Async ───────────────────────────────────────────────────── */
   const [busy, setBusy] = useState(false)
+
+  /* ── OAuth (Google + Facebook) ──────────────────────────────────
+   * Both signup and signin map to the same Supabase `signInWithOAuth`
+   * call — the provider creates the user on first contact. After the
+   * helper kicks off the redirect we typically never reach the post-
+   * await code; only an early error (e.g. provider not configured,
+   * popup blocked, network error) lands here.
+   */
+  async function handleOAuth(provider: OAuthProvider) {
+    setError(null); setBusy(true)
+    const { ok, error } = await signInWithOAuth(provider)
+    if (!ok) {
+      setError(
+        error ??
+          (isEl
+            ? 'Δεν ήταν δυνατή η σύνδεση'
+            : 'Could not start sign-in'),
+      )
+      setBusy(false)
+    }
+  }
 
   function resetAll() {
     setLoginMode('password')
@@ -131,6 +157,47 @@ export function AuthModal() {
     await postAuthRedirect()
   }
 
+  /* ── OAuth row (Google + Facebook, WEC-322/323) ─────────────────
+   * Rendered on every tab/step that lands on an email-collection
+   * step (login password, login OTP enter-email, register enter-email).
+   * Hidden on intermediate code-entry steps to avoid letting the user
+   * abandon the flow they're already mid-way through.
+   */
+  const oauthRow = (
+    <>
+      <div className="auth-oauth-row">
+        <button
+          type="button"
+          className="btn-oauth btn-oauth-google"
+          onClick={() => handleOAuth('google')}
+          disabled={busy}
+          aria-label={isEl ? 'Συνέχισε με Google' : 'Continue with Google'}
+        >
+          <svg className="oauth-icon" viewBox="0 0 18 18" aria-hidden="true">
+            <path fill="#4285F4" d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844a4.14 4.14 0 0 1-1.796 2.716v2.259h2.908c1.702-1.567 2.684-3.875 2.684-6.615z"/>
+            <path fill="#34A853" d="M9 18c2.43 0 4.467-.806 5.956-2.184l-2.908-2.259c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332A8.997 8.997 0 0 0 9 18z"/>
+            <path fill="#FBBC05" d="M3.964 10.706A5.41 5.41 0 0 1 3.682 9c0-.593.102-1.17.282-1.706V4.962H.957A8.997 8.997 0 0 0 0 9c0 1.452.348 2.827.957 4.038l3.007-2.332z"/>
+            <path fill="#EA4335" d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0A8.997 8.997 0 0 0 .957 4.962L3.964 7.294C4.672 5.167 6.656 3.58 9 3.58z"/>
+          </svg>
+          <span>{isEl ? 'Συνέχισε με Google' : 'Continue with Google'}</span>
+        </button>
+        <button
+          type="button"
+          className="btn-oauth btn-oauth-facebook"
+          onClick={() => handleOAuth('facebook')}
+          disabled={busy}
+          aria-label={isEl ? 'Συνέχισε με Facebook' : 'Continue with Facebook'}
+        >
+          <svg className="oauth-icon" viewBox="0 0 24 24" aria-hidden="true">
+            <path fill="#1877F2" d="M24 12.073C24 5.405 18.627 0 12 0S0 5.405 0 12.073C0 18.1 4.388 23.094 10.125 24v-8.437H7.078v-3.49h3.047V9.413c0-3.025 1.792-4.695 4.533-4.695 1.313 0 2.686.236 2.686.236v2.97h-1.513c-1.49 0-1.955.93-1.955 1.886v2.264h3.328l-.532 3.49h-2.796V24C19.612 23.094 24 18.1 24 12.073z"/>
+          </svg>
+          <span>{isEl ? 'Συνέχισε με Facebook' : 'Continue with Facebook'}</span>
+        </button>
+      </div>
+      <div className="auth-divider"><span>{isEl ? 'ή' : 'or'}</span></div>
+    </>
+  )
+
   /* ── Render ──────────────────────────────────────────────────── */
   return (
     <Modal open={isOpen} onClose={closeModal} innerClass="auth-box" overlayClass="auth-open">
@@ -153,6 +220,8 @@ export function AuthModal() {
 
       {/* ─── LOGIN TAB ─────────────────────────────────────────── */}
       {authTab === 'login' && loginMode === 'password' && (
+        <>
+        {oauthRow}
         <form className="auth-form" onSubmit={handlePasswordLogin}>
           <div className="form-row">
             <label className="form-label">Email</label>
@@ -195,9 +264,12 @@ export function AuthModal() {
             <span onClick={() => switchTab('register')}>{isEl ? 'Εγγραφή' : 'Register'}</span>
           </div>
         </form>
+        </>
       )}
 
       {authTab === 'login' && loginMode === 'otp' && loginOtpStep === 'enterEmail' && (
+        <>
+        {oauthRow}
         <form className="auth-form" onSubmit={handleLoginOtpSend}>
           <div className="form-row">
             <label className="form-label">Email</label>
@@ -224,6 +296,7 @@ export function AuthModal() {
             </button>
           </div>
         </form>
+        </>
       )}
 
       {authTab === 'login' && loginMode === 'otp' && loginOtpStep === 'enterCode' && (
@@ -259,6 +332,8 @@ export function AuthModal() {
 
       {/* ─── SIGNUP TAB (OTP-only) ─────────────────────────────── */}
       {authTab === 'register' && regOtpStep === 'enterEmail' && (
+        <>
+        {oauthRow}
         <form className="auth-form" onSubmit={handleRegOtpSend}>
           <div className="form-row">
             <label className="form-label">{isEl ? 'Ονοματεπώνυμο' : 'Full Name'}</label>
@@ -297,6 +372,7 @@ export function AuthModal() {
             <span onClick={() => switchTab('login')}>{isEl ? 'Σύνδεση' : 'Sign In'}</span>
           </div>
         </form>
+        </>
       )}
 
       {authTab === 'register' && regOtpStep === 'enterCode' && (

@@ -2452,6 +2452,79 @@ a.btn-conf-done { display: inline-block; text-decoration: none; }
 .auth-coming-soon { font-size: 14px; color: var(--text-muted); font-weight: 600; text-align: center; padding: 20px 0; }
 
 /* ══════════════════════════════════════════
+   OAUTH (Google + Facebook) — WEC-322 / WEC-323
+══════════════════════════════════════════ */
+.auth-oauth-row { display: flex; flex-direction: column; gap: 10px; margin-bottom: 4px; }
+.btn-oauth {
+  width: 100%;
+  padding: 11px 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  border-radius: var(--radius);
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.18s;
+  border: 1px solid #d6d9df;
+  background: #ffffff;
+  color: #1f2937;
+}
+.btn-oauth:hover { background: #f6f7f9; box-shadow: 0 2px 8px rgba(0,0,0,0.06); }
+.btn-oauth:disabled { opacity: 0.55; cursor: not-allowed; }
+.btn-oauth .oauth-icon { width: 18px; height: 18px; flex-shrink: 0; }
+.btn-oauth-facebook { background: #1877F2; color: #ffffff; border-color: #1877F2; }
+.btn-oauth-facebook:hover { background: #166fe0; box-shadow: 0 4px 12px rgba(24,119,242,0.32); }
+.btn-oauth-facebook .oauth-icon path { fill: #ffffff; }
+
+.auth-divider {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 14px 0;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+.auth-divider::before,
+.auth-divider::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: #e5e7eb;
+}
+.auth-divider span { padding: 0 4px; }
+
+/* ══════════════════════════════════════════
+   LEGAL PAGES (Privacy + Terms) — WEC-322 / WEC-323
+══════════════════════════════════════════ */
+.legal-page {
+  min-height: 100vh;
+  padding: 48px 20px 80px;
+  background: #ffffff;
+  color: #1f2937;
+}
+.legal-container { max-width: 760px; margin: 0 auto; }
+.legal-header { margin-bottom: 32px; }
+.legal-back {
+  display: inline-block;
+  margin-bottom: 16px;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--green-dark);
+  text-decoration: none;
+}
+.legal-back:hover { text-decoration: underline; }
+.legal-header h1 { font-size: 30px; font-weight: 900; margin: 0 0 8px; }
+.legal-updated { font-size: 13px; color: var(--text-muted); margin: 0; }
+.legal-page section { margin-top: 28px; }
+.legal-page section h2 { font-size: 18px; font-weight: 800; margin: 0 0 10px; }
+.legal-page section p { font-size: 15px; line-height: 1.6; color: #374151; margin: 0 0 10px; }
+
+/* ══════════════════════════════════════════
    MOBILE CART BUTTON
 ══════════════════════════════════════════ */
 .mobile-cart-btn-wrap { display: none; position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); z-index: 90; }

@@ -177,6 +177,50 @@ export async function signOut(): Promise<{ error: string | null }> {
   return { error: error?.message ?? null }
 }
 
+// ─── OAuth (Google + Facebook, WEC-322 / WEC-323) ────────────────────────────
+//
+// One helper for both providers — Supabase abstracts the flow. We hand over
+// to the provider via a full-page redirect, with `redirectTo` pointing at
+// our `/auth/callback` page on the same origin. Supabase then redirects
+// the user back to that origin with the session tokens in the URL fragment
+// (implicit flow — pinned in src/lib/supabase.ts). The supabase client
+// auto-detects the tokens on next page load and fires `SIGNED_IN`, which
+// App.tsx's onAuthStateChange picks up to hydrate `useAuthStore`.
+//
+// Provider setup (must be done before this works):
+//   - Google: Google Cloud Console → OAuth 2.0 Client → Supabase Auth →
+//     Providers → Google → paste Client ID + Secret. Authorized redirect
+//     URI on Google side must include:
+//     https://rhwetztxwjxfstffalwl.supabase.co/auth/v1/callback
+//   - Facebook: developers.facebook.com → App → Facebook Login → Valid
+//     OAuth Redirect URIs must include the same Supabase callback URL.
+//     App must be in Live mode for non-test users.
+//   - Supabase Auth → URL Configuration → Redirect URLs must include
+//     localhost:8888, dev--fitpal-order.netlify.app, fitpal-order.netlify.app
+//     (with /** wildcard) so the per-env redirectTo we send here is allowed.
+//
+// See skills/setup-auth/SKILL.md for the full playbook.
+
+export type OAuthProvider = 'google' | 'facebook'
+
+export async function signInWithOAuth(
+  provider: OAuthProvider,
+): Promise<{ ok: boolean; error?: string }> {
+  const redirectTo =
+    typeof window !== 'undefined' ? `${window.location.origin}/auth/callback` : undefined
+
+  const { error } = await supabase.auth.signInWithOAuth({
+    provider,
+    options: { redirectTo },
+  })
+
+  // Note: when this returns successfully, the browser is about to navigate
+  // away to the provider's auth page — so any code after the await rarely
+  // executes (unless `error` is set or the navigation was blocked).
+  if (error) return { ok: false, error: error.message }
+  return { ok: true }
+}
+
 // ─── OTP (passwordless email auth) ───────────────────────────────────────────
 //
 // Used by AuthModal (regular signup + optional login) and WalletPage (wallet
