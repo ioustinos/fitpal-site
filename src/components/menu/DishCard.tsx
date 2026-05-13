@@ -24,10 +24,11 @@ export function DishCard({ dish, dayIndex }: DishCardProps) {
   const t = makeTr(lang)
 
   // Is this day still orderable?
+  // WEC-336: resolve dayIndex → date once here; the cart is keyed by date.
   const dayDate = weeksMeta[activeWeek]?.days[dayIndex]?.date
   const unavailable = dayDate ? !isDayOrderable(dayDate, settings) : false
 
-  const dayItems = cart[dayIndex] ?? []
+  const dayItems = dayDate ? (cart[dayDate] ?? []) : []
   const inCart = dayItems.filter((ci) => ci.dishId === dish.id).reduce((s, ci) => s + ci.qty, 0)
 
   // WEC-250: diet flags for the signed-in user. We compute lazily — the
@@ -99,7 +100,14 @@ export function DishCard({ dish, dayIndex }: DishCardProps) {
     }
     // Only reached for single-variant dishes (the if above sends >1 to the
     // modal). For 1-variant dishes the preselected variant IS the only one.
-    addItem(dayIndex, {
+    // WEC-336: defensive guard — if we somehow can't resolve a date for
+    // this dayIndex (week not yet loaded?), open the modal instead of
+    // silently dropping the click.
+    if (!dayDate) {
+      openDishModal(dish, dayIndex)
+      return
+    }
+    addItem(dayDate, {
       dishId: dish.id,
       variantId: preselectedVariant.id,
       nameEl: dish.nameEl,

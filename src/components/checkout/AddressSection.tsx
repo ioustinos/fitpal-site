@@ -10,7 +10,8 @@ import { PlacesAutocomplete } from '../ui/PlacesAutocomplete'
 import { googleMapsAvailable, type ParsedPlace } from '../../lib/googleMaps'
 
 interface AddressSectionProps {
-  dayIndex: number
+  /** WEC-336: ISO delivery date this section is editing the address for. */
+  dayDate: string
 }
 
 /**
@@ -33,7 +34,7 @@ function addrIcon(addr: Address, _lang: 'el' | 'en'): string {
   return ADDR_ICONS[addr.labelEn] || ADDR_ICONS[addr.labelEl] || '📍'
 }
 
-export function AddressSection({ dayIndex }: AddressSectionProps) {
+export function AddressSection({ dayDate }: AddressSectionProps) {
   const lang = useUIStore((s) => s.lang)
   const user = useAuthStore((s) => s.user)
   const updateAddresses = useAuthStore((s) => s.updateAddresses)
@@ -46,9 +47,10 @@ export function AddressSection({ dayIndex }: AddressSectionProps) {
 
   const zones = useMenuStore((s) => s.zones)
 
-  const current = delivery[dayIndex]
+  const current = delivery[dayDate]
   const savedAddresses = (user?.addresses ?? []) as Address[]
-  const activeDayCount = Object.keys(cart).filter((k) => (cart[Number(k)]?.length ?? 0) > 0).length
+  // WEC-336: cart is keyed by ISO date string now — drop the Number() cast.
+  const activeDayCount = Object.keys(cart).filter((k) => (cart[k]?.length ?? 0) > 0).length
 
   // Find the saved address object that matches the current delivery's addrId
   const selectedAddr = current?.addrId
@@ -116,7 +118,7 @@ export function AddressSection({ dayIndex }: AddressSectionProps) {
     if (!form.street || !form.area || !form.zip) return
     if (!zipInZone(form.zip, zones)) return
 
-    setDelivery(dayIndex, {
+    setDelivery(dayDate, {
       street: form.street,
       area: form.area,
       zip: form.zip || '',
@@ -124,7 +126,7 @@ export function AddressSection({ dayIndex }: AddressSectionProps) {
       doorbell: form.doorbell || '',
       notes: form.notes || '',
     })
-  }, [mode, form, dayIndex, setDelivery])
+  }, [mode, form, dayDate, setDelivery])
 
   useEffect(() => {
     autoApplyForm()
@@ -161,7 +163,7 @@ export function AddressSection({ dayIndex }: AddressSectionProps) {
 
   // Select a saved address from picker
   function handleSelectAddress(addr: Address) {
-    setDelivery(dayIndex, {
+    setDelivery(dayDate, {
       street: addr.street,
       area: addr.area,
       zip: addr.zip ?? '',
@@ -242,7 +244,7 @@ export function AddressSection({ dayIndex }: AddressSectionProps) {
       a.id === selectedAddr.id ? updatedAddr : a
     )
     updateAddresses(newAddresses)
-    setDelivery(dayIndex, {
+    setDelivery(dayDate, {
       street: form.street,
       area: form.area,
       zip: form.zip || '',
@@ -258,7 +260,7 @@ export function AddressSection({ dayIndex }: AddressSectionProps) {
   // Enter form mode for a new address (clear form)
   function handleNewAddress() {
     setForm({ street: '', area: '', zip: '', floor: '', doorbell: '', notes: '' })
-    setDelivery(dayIndex, { street: '', area: '', zip: '', floor: '', doorbell: '', notes: '' })
+    setDelivery(dayDate, { street: '', area: '', zip: '', floor: '', doorbell: '', notes: '' })
     setZoneStatus(null)
     setMode('form')
   }
@@ -277,7 +279,7 @@ export function AddressSection({ dayIndex }: AddressSectionProps) {
 
   // "Use for all days"
   function handleCopyToAll() {
-    copyDeliveryToAll(dayIndex)
+    copyDeliveryToAll(dayDate)
     toast(lang === 'el' ? 'Διεύθυνση αντιγράφηκε σε όλες τις ημέρες' : 'Address copied to all days')
   }
 
@@ -311,7 +313,7 @@ export function AddressSection({ dayIndex }: AddressSectionProps) {
     }
     updateAddresses([...savedAddresses, data])
     // Select the newly saved address (Supabase-issued UUID)
-    setDelivery(dayIndex, {
+    setDelivery(dayDate, {
       street: form.street,
       area: form.area,
       zip: form.zip || '',

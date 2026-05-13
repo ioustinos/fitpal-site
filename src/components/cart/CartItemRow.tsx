@@ -6,11 +6,13 @@ import type { CartItem } from '../../store/useCartStore'
 
 interface CartItemRowProps {
   item: CartItem
-  dayIndex: number
+  /** WEC-336: delivery date (YYYY-MM-DD) the item belongs to. Replaces the
+   *  old dayIndex prop — cart is keyed by date now. */
+  dayDate: string
   itemIndex: number
 }
 
-export function CartItemRow({ item, dayIndex, itemIndex }: CartItemRowProps) {
+export function CartItemRow({ item, dayDate, itemIndex }: CartItemRowProps) {
   const lang = useUIStore((s) => s.lang)
   const cart = useCartStore((s) => s.cart)
   const voucher = useCartStore((s) => s.voucher)
@@ -76,14 +78,14 @@ export function CartItemRow({ item, dayIndex, itemIndex }: CartItemRowProps) {
             className="qty-btn"
             onClick={() =>
               item.qty <= 1
-                ? removeItem(dayIndex, itemIndex)
-                : updateItem(dayIndex, itemIndex, { qty: item.qty - 1 })
+                ? removeItem(dayDate, itemIndex)
+                : updateItem(dayDate, itemIndex, { qty: item.qty - 1 })
             }
           >−</button>
           <span className="qty-n">{item.qty}</span>
           <button
             className="qty-btn"
-            onClick={() => updateItem(dayIndex, itemIndex, { qty: item.qty + 1 })}
+            onClick={() => updateItem(dayDate, itemIndex, { qty: item.qty + 1 })}
           >+</button>
         </div>
       </div>

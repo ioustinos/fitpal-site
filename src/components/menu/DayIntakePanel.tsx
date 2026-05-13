@@ -1,6 +1,7 @@
 import { useAuthStore } from '../../store/useAuthStore'
 import { useCartStore, type CartItem } from '../../store/useCartStore'
 import { useUIStore } from '../../store/useUIStore'
+import { useMenuStore } from '../../store/useMenuStore'
 import { showGoalProgress, goalStatus, goalPct, type MacroKey } from '../../lib/goals'
 import { MacroIcon } from '../ui/MacroDots'
 
@@ -45,10 +46,15 @@ function sumDay(items: CartItem[]) {
 export function DayIntakePanel() {
   const lang = useUIStore((s) => s.lang)
   const activeDay = useUIStore((s) => s.activeDay)
+  const activeWeek = useUIStore((s) => s.activeWeek)
   const cart = useCartStore((s) => s.cart)
   const user = useAuthStore((s) => s.user)
+  // WEC-336: cart is keyed by date — resolve the active (week, day) tuple
+  // to its date via weeksMeta before looking up items.
+  const weeksMeta = useMenuStore((s) => s.weeksMeta)
+  const dayDate = weeksMeta[activeWeek]?.days[activeDay]?.date
 
-  const items = cart[activeDay] ?? []
+  const items = dayDate ? (cart[dayDate] ?? []) : []
   const m = sumDay(items)
   const withBars = showGoalProgress(user)
 

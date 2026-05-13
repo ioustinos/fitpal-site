@@ -49,7 +49,6 @@ function writeGuestContact(info: ContactInfo) {
 export function CheckoutPage() {
   const lang = useUIStore((s) => s.lang)
   const closeCheckout = useUIStore((s) => s.closeCheckout)
-  const activeWeek = useUIStore((s) => s.activeWeek)
   const cart = useCartStore((s) => s.cart)
   const delivery = useCartStore((s) => s.delivery)
   const payment = useCartStore((s) => s.payment)
@@ -79,18 +78,16 @@ export function CheckoutPage() {
   const paymentRef = useRef<HTMLDivElement>(null)
   const extrasRef = useRef<HTMLDivElement>(null)
 
-  const weeks = useMenuStore((s) => s.weeks)
   const zones = useMenuStore((s) => s.zones)
   const minOrder = useMenuStore((s) => s.settings.minOrder)
   const pickupLocations = useMenuStore((s) => s.settings.pickupLocations)
-  const week = weeks[activeWeek] ?? weeks[0]
-  const days = week?.days ?? []
-  // Resolve the long weekday label for day-index `i` via the real ISO date
-  // (WEC-137). Falls back to empty when a day is missing — should only happen
-  // mid-hydration before the menu finishes loading.
-  const dayLabelFor = (i: number) =>
-    days[i] ? dayLabel(days[i].date, lang, 'long') : ''
-  const activeDayIdxs = useMemo(() => activeDays(cart), [cart])
+  // WEC-336: resolve the long weekday label for an ISO date. Always
+  // computes from getDay() of the actual date — never from list index
+  // (which was the WEC-122 trap). No longer dependent on the currently-
+  // active week's day strip.
+  const dayLabelForDate = (date: string) => dayLabel(date, lang, 'long')
+  // Active *dates* with items, sorted (lexical YYYY-MM-DD = calendar order).
+  const activeDates = useMemo(() => activeDays(cart), [cart])
 
   // ─── Per-day + overall validation ─────────────────────────────────────────────
 
@@ -127,10 +124,10 @@ export function CheckoutPage() {
     )
   }
 
-  activeDayIdxs.forEach((i) => {
-    const del = delivery[i]
-    const label = dayLabelFor(i)
-    const amt = dayAmt(cart, i)
+  activeDates.forEach((dDate) => {
+    const del = delivery[dDate]
+    const label = dayLabelForDate(dDate)
+    const amt = dayAmt(cart, dDate)
 
     if (!del?.street || !del?.area) {
       validationIssues.push(
@@ -200,9 +197,9 @@ export function CheckoutPage() {
     )
   }
 
-  const deliveryOk = activeDayIdxs.every((i) => {
-    const del = delivery[i]
-    const amt = dayAmt(cart, i)
+  const deliveryOk = activeDates.every((dDate) => {
+    const del = delivery[dDate]
+    const amt = dayAmt(cart, dDate)
     return del?.street && del?.area && del?.zip && del?.timeSlot && zipInZone(del.zip, zones) && amt >= minOrder
   })
 
@@ -268,20 +265,28 @@ export function CheckoutPage() {
       setPayment({ method: user.prefs.paymentMethod as 'cash' | 'card' | 'link' | 'transfer' | 'wallet' })
     }
 
-    // Prepopulate delivery preferences (slots and saved addresses)
-    const dayIdxs = activeDays(cart)
-    for (const dayIdx of dayIdxs) {
-      // Prepopulate time slot if available
-      if (user.prefs.slots?.[dayIdx]) {
-        setDelivery(dayIdx, { timeSlot: user.prefs.slots[dayIdx] })
+    // Prepopulate delivery preferences (slots and saved addresses).
+    // WEC-336: user.prefs.slots / dayAddress are keyed by day-of-week index
+    // (0..4 for Mon..Fri, stored in `user_day_prefs` server-side). We resolve
+    // the index → date by looking up each cart date's `getDay()` value.
+    // Sunday-as-7 conversion: getDay() returns 0..6 with 0=Sun. Our index
+    // is 0..4 for Mon..Fri, so prefIdx = getDay()-1 (Mon=0..Fri=4).
+    const dates = activeDays(cart)
+    for (const dDate of dates) {
+      const jsDow = new Date(dDate + 'T12:00:00').getDay()
+      const prefIdx = jsDow === 0 ? 6 : jsDow - 1  // 0..6 for Mon..Sun
+      if (prefIdx > 4) continue  // Sat/Sun — no per-weekday pref slots
+
+      if (user.prefs.slots?.[prefIdx]) {
+        setDelivery(dDate, { timeSlot: user.prefs.slots[prefIdx] })
       }
 
       // Prepopulate address if saved
-      if (user.prefs.dayAddress?.[dayIdx]) {
-        const addrId = user.prefs.dayAddress[dayIdx]
+      if (user.prefs.dayAddress?.[prefIdx]) {
+        const addrId = user.prefs.dayAddress[prefIdx]
         const addr = user.addresses.find((a) => a.id === addrId)
         if (addr) {
-          setDelivery(dayIdx, {
+          setDelivery(dDate, {
             addrId,
             street: addr.street,
             area: addr.area,
@@ -328,16 +333,20 @@ export function CheckoutPage() {
       return { from: parts[0]?.trim() ?? '', to: parts[1]?.trim() ?? '' }
     }
 
-    const dayPayloads = activeDayIdxs.map((i) => {
-      const del = delivery[i]
-      const items = cart[i] ?? []
-      const dayDate = days[i]?.date ?? ''
+    // WEC-336: dates are the cart's own ISO date keys — no longer
+    // dependent on `days[index]?.date` from whichever week happens to be
+    // active. This is the structural fix for the cross-week leakage bug:
+    // the date that ends up on the child_order ROW is the same date the
+    // customer added the item under.
+    const dayPayloads = activeDates.map((dDate) => {
+      const del = delivery[dDate]
+      const items = cart[dDate] ?? []
       const { from, to } = parseSlot(del?.timeSlot ?? '')
-      const ftype = fulfillment[i] ?? 'delivery'
+      const ftype = fulfillment[dDate] ?? 'delivery'
       const pickupLoc = pickupLocations[0]
 
       return {
-        deliveryDate: dayDate,
+        deliveryDate: dDate,
         timeFrom: from,
         timeTo: to,
         // WEC-259: pickup days don't carry an address — server skips zone check.
@@ -383,12 +392,25 @@ export function CheckoutPage() {
     if (error) {
       // Flatten server-side validationErrors into the red block. Keep a
       // matching toast so the user notices scrolling back to the list.
+      //
+      // WEC-336 / WEC-122 family bug fix: the server returns errors keyed
+      // by `day_<index>`, where the index is the POSITION of the day inside
+      // the submitted payload (0..N-1). The old code mapped that index
+      // through `dayLabelFor(+m[1])`, which used the currently-active
+      // week's day-of-week list — so day_0 in a payload that started on
+      // Thursday rendered as "Δευτέρα" because Mon is index 0 in that
+      // week's strip. Fix: resolve the index back to the cart-submission
+      // date and compute the label from the actual date's getDay().
       if (validationErrors) {
         const flat: string[] = []
         for (const [key, msgs] of Object.entries(validationErrors)) {
-          // Prefix day-scoped errors with the day label for clarity
           const m = /^day_(\d+)$/.exec(key)
-          const prefix = m ? `${dayLabelFor(+m[1])}: ` : ''
+          let prefix = ''
+          if (m) {
+            const idx = +m[1]
+            const dDate = dayPayloads[idx]?.deliveryDate
+            if (dDate) prefix = `${dayLabelForDate(dDate)}: `
+          }
           for (const msg of msgs) flat.push(prefix + msg)
         }
         setServerIssues(flat)
@@ -540,10 +562,9 @@ export function CheckoutPage() {
             <h2 className="co-section-title">
               {lang === 'el' ? 'ΣΤΟΙΧΕΙΑ ΠΑΡΑΔΟΣΗΣ' : 'DELIVERY DETAILS'}
             </h2>
-            {activeDayIdxs.map((i) => {
-              const day = days[i]
-              const label = dayLabelFor(i)
-              const ftype = fulfillment[i] ?? 'delivery'
+            {activeDates.map((dDate) => {
+              const label = dayLabelForDate(dDate)
+              const ftype = fulfillment[dDate] ?? 'delivery'
               // WEC-259 redesign: pickup matches the delivery schedule
               // exactly. As long as a pickup location is configured, the
               // toggle is offered on every day block (the weekday gate
@@ -551,9 +572,9 @@ export function CheckoutPage() {
               const pickupLoc = pickupLocations[0]
               const pickupAvailable = !!pickupLoc
               return (
-                <div key={day.date} className="day-deliv-block">
+                <div key={dDate} className="day-deliv-block">
                   <div className="ddb-title">
-                    {label} — {formatDate(day.date, lang)}
+                    {label} — {formatDate(dDate, lang)}
                   </div>
 
                   {/* WEC-259: Fulfillment toggle. Shown only when at least one
@@ -571,7 +592,7 @@ export function CheckoutPage() {
                           role="radio"
                           aria-checked={ftype === 'delivery'}
                           className={`ddb-fulfillment-opt${ftype === 'delivery' ? ' selected' : ''}`}
-                          onClick={() => setFulfillment(i, 'delivery')}
+                          onClick={() => setFulfillment(dDate, 'delivery')}
                         >
                           {lang === 'el' ? 'Παράδοση στο σπίτι' : 'Home delivery'}
                         </button>
@@ -581,7 +602,7 @@ export function CheckoutPage() {
                           aria-checked={ftype === 'pickup'}
                           disabled={!pickupAvailable}
                           className={`ddb-fulfillment-opt${ftype === 'pickup' ? ' selected' : ''}${!pickupAvailable ? ' disabled' : ''}`}
-                          onClick={() => pickupAvailable && setFulfillment(i, 'pickup')}
+                          onClick={() => pickupAvailable && setFulfillment(dDate, 'pickup')}
                           title={!pickupAvailable
                             ? (lang === 'el' ? 'Παραλαβή μη διαθέσιμη αυτή την ημέρα' : 'Pickup not available on this day')
                             : undefined}
@@ -604,7 +625,7 @@ export function CheckoutPage() {
                         ? (lang === 'el' ? 'ΠΑΡΑΘΥΡΟ ΠΑΡΑΛΑΒΗΣ' : 'PICKUP WINDOW')
                         : (lang === 'el' ? 'ΠΑΡΑΘΥΡΟ ΠΑΡΑΔΟΣΗΣ' : 'DELIVERY WINDOW')}
                     </div>
-                    <TimeSlotPicker dayIndex={i} inline />
+                    <TimeSlotPicker dayDate={dDate} inline />
                   </div>
 
                   {/* Address (delivery) OR pickup-location info — never both. */}
@@ -636,7 +657,7 @@ export function CheckoutPage() {
                         </span>
                         {lang === 'el' ? 'ΔΙΕΥΘΥΝΣΗ' : 'ADDRESS'}
                       </div>
-                      <AddressSection dayIndex={i} />
+                      <AddressSection dayDate={dDate} />
                     </div>
                   )}
                 </div>

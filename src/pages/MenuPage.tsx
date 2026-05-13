@@ -1,6 +1,6 @@
 import { useEffect } from 'react'
 import { useUIStore } from '../store/useUIStore'
-import { useCartStore, reconcileCartAgainstMenu } from '../store/useCartStore'
+import { useCartStore, reconcileCartAgainstMenu, reconcileCartAgeAndDates } from '../store/useCartStore'
 import { useAuthStore } from '../store/useAuthStore'
 import { useMenuStore } from '../store/useMenuStore'
 import { DayNav } from '../components/menu/DayNav'
@@ -54,6 +54,18 @@ export function MenuPage() {
 
   // Resolve dish IDs → full Dish objects (active day only — for the menu grid)
   const allDishes = dishIds.map((id) => dishMap[id]).filter(Boolean)
+
+  // WEC-199 + WEC-336: prune persisted carts that are stale by time.
+  //   1. 24h TTL — wipe everything if last touch was > 24h ago.
+  //   2. Past-day pruning — drop entries whose delivery date < today.
+  //
+  // Runs BEFORE reconcileCartAgainstMenu — order matters. We drop stale
+  // dates first, then the menu reconcile prunes missing dishes from what
+  // survives. WEC-336 made the cart date-keyed, so this no longer needs
+  // weeksMeta — it can run on first mount.
+  useEffect(() => {
+    reconcileCartAgeAndDates()
+  }, [])
 
   // WEC-180: prune any persisted cart items that reference dishes no
   // longer in the live menu. Runs after the menu loads.

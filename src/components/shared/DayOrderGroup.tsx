@@ -9,7 +9,8 @@ import type { WeekDay } from '../../data/menu'
 import type { DeliveryInfo } from '../../store/useCartStore'
 
 interface DayOrderGroupProps {
-  dayIndex: number
+  /** WEC-336: the day this block represents. The cart store is now keyed
+   *  by `day.date` so we no longer need a separate dayIndex prop. */
   day: WeekDay
   /** true = cart (qty controls visible), false = read-only order summary */
   editable?: boolean
@@ -18,7 +19,6 @@ interface DayOrderGroupProps {
 }
 
 export function DayOrderGroup({
-  dayIndex,
   day,
   editable = false,
   showDelivery = false,
@@ -33,13 +33,15 @@ export function DayOrderGroup({
   const dishMap = useMenuStore((s) => s.dishMap)
   const catLookup = (id: string) => dishMap[id]?.catId
 
-  const items = cart[dayIndex] ?? []
+  // WEC-336: cart is now keyed by ISO date string, not by day-of-week index.
+  const dayDate = day.date
+  const items = cart[dayDate] ?? []
   if (items.length === 0) return null
 
-  const amt = dayAmt(cart, dayIndex)
-  const del: DeliveryInfo | undefined = delivery[dayIndex]
-  const label = dayLabel(day.date, lang, 'long')
-  const dateStr = formatDate(day.date, lang)
+  const amt = dayAmt(cart, dayDate)
+  const del: DeliveryInfo | undefined = delivery[dayDate]
+  const label = dayLabel(dayDate, lang, 'long')
+  const dateStr = formatDate(dayDate, lang)
   return (
     <div className="cart-day-block">
       {/* Day header */}
@@ -57,7 +59,7 @@ export function DayOrderGroup({
       {/* Items */}
       {editable
         ? items.map((item, j) => (
-            <CartItemRow key={`${day.date}-${j}`} item={item} dayIndex={dayIndex} itemIndex={j} />
+            <CartItemRow key={`${dayDate}-${j}`} item={item} dayDate={dayDate} itemIndex={j} />
           ))
         : items.map((item, j) => {
             // WEC-262: per-item discount allocation. Only renders for
@@ -90,7 +92,7 @@ export function DayOrderGroup({
       {/* WEC-141 / WEC-164 / WEC-165: per-day macro numbers (always) + goal
           progress bars (gated on showGoalProgress — see src/lib/goals.ts).
           Shared with checkout's OrderSummary. Cart view only here. */}
-      {editable && <DayMacrosBlock dayIndex={dayIndex} />}
+      {editable && <DayMacrosBlock dayDate={dayDate} />}
 
       {/* Delivery info (order summary only) */}
       {showDelivery && del?.street && (

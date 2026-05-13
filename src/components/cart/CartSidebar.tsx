@@ -8,7 +8,6 @@ import { useMenuStore } from '../../store/useMenuStore'
 
 export function CartSidebar() {
   const lang = useUIStore((s) => s.lang)
-  const activeWeek = useUIStore((s) => s.activeWeek)
   const goToCheckout = useUIStore((s) => s.goToCheckout)
   const cart = useCartStore((s) => s.cart)
   const voucher = useCartStore((s) => s.voucher)
@@ -20,15 +19,15 @@ export function CartSidebar() {
   // WEC-262: scoped vouchers need the dish→category lookup to compute
   // the correct eligible-only discount client-side.
   const catLookup = (id: string) => dishMap[id]?.catId
-  const week = weeks[activeWeek] ?? weeks[0]
   const total = subTotal(cart, voucher, catLookup)
-  const days = activeDays(cart)
+  // WEC-336: activeDays now returns date strings (YYYY-MM-DD).
+  const dates = activeDays(cart)
   // rawTotal is the cart total BEFORE the voucher discount — needed to render
   // the subtotal row and the absolute discount amount when a voucher is
   // applied. Matches OrderSummary.tsx so both surfaces show the same numbers.
-  const rawTotal = days.reduce((sum, i) => sum + dayAmt(cart, i), 0)
-  const hasItems = days.length > 0
-  const canCheckout = days.every((d) => {
+  const rawTotal = dates.reduce((sum, d) => sum + dayAmt(cart, d), 0)
+  const hasItems = dates.length > 0
+  const canCheckout = dates.every((d) => {
     const amt = (cart[d] ?? []).reduce((s, i) => s + i.price * i.qty, 0)
     return amt >= minOrder
   })
@@ -58,11 +57,25 @@ export function CartSidebar() {
           </div>
         ) : (
           <>
-            {/* Scrollable items */}
+            {/* Scrollable items.
+                WEC-336: render one block per date that actually has items
+                (across any loaded week), rather than per day-of-week of
+                the currently-active week. That was the cross-week cart
+                leakage root cause — cart[3] would render under both
+                week-1 Thursday and week-2 Thursday depending on activeWeek.
+                We resolve each date to a `WeekDay` by scanning all loaded
+                weeks; if a cart date doesn't match any loaded week (week
+                rolled past), we fall back to a minimal {date} stub so the
+                customer can still see + edit the items. */}
             <div className="cart-scroll">
-              {(week?.days ?? []).map((day, i) => (
-                <DayOrderGroup key={day.date} dayIndex={i} day={day} editable />
-              ))}
+              {dates.map((dDate) => {
+                const matchedDay =
+                  weeks.flatMap((w) => w?.days ?? []).find((wd) => wd.date === dDate)
+                  ?? { date: dDate }
+                return (
+                  <DayOrderGroup key={dDate} day={matchedDay} editable />
+                )
+              })}
             </div>
 
             {/* Sticky footer */}

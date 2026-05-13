@@ -8,7 +8,6 @@ import { useVoucherWidget } from '../cart/useVoucherWidget'
 
 export function OrderSummary() {
   const lang = useUIStore((s) => s.lang)
-  const activeWeek = useUIStore((s) => s.activeWeek)
   const closeCheckout = useUIStore((s) => s.closeCheckout)
   const cart = useCartStore((s) => s.cart)
   const t = makeTr(lang)
@@ -23,11 +22,11 @@ export function OrderSummary() {
   const dishMap = useMenuStore((s) => s.dishMap)
   // WEC-262: dish→category lookup for scope-aware voucher discount.
   const catLookup = (id: string) => dishMap[id]?.catId
-  const week = weeks[activeWeek] ?? weeks[0]
-  const dayIdxs = activeDays(cart)
+  // WEC-336: activeDays returns date strings (YYYY-MM-DD), iterated below.
+  const dates = activeDays(cart)
   const total = subTotal(cart, voucher, catLookup)
 
-  if (!dayIdxs.length) {
+  if (!dates.length) {
     return (
       <div className="co-summary-card">
         <div className="sidebar-hdr">
@@ -52,14 +51,17 @@ export function OrderSummary() {
       {/* Scrollable items — WEC-189: shared DayOrderGroup with editable=true,
           identical to the cart sidebar. Eliminates the inline cart-item +
           qty-ctrl markup that previously duplicated CartItemRow. */}
+      {/* WEC-336: iterate cart dates and match each to a loaded WeekDay
+          across all weeks (not just the active one). Falls back to a stub
+          {date} if no matching day is loaded so the row still renders. */}
       <div className="cart-scroll">
-        {dayIdxs.map((i) => {
-          const day = week?.days[i]
-          if (!day) return null
+        {dates.map((dDate) => {
+          const day =
+            weeks.flatMap((w) => w?.days ?? []).find((wd) => wd.date === dDate)
+            ?? { date: dDate }
           return (
             <DayOrderGroup
-              key={day.date}
-              dayIndex={i}
+              key={dDate}
               day={day}
               editable
             />

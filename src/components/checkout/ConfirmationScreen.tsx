@@ -32,15 +32,17 @@ function formatDate(iso: string, lang: 'el' | 'en') {
 export function ConfirmationScreen({ orderNumber }: { orderNumber?: string }) {
   const lang = useUIStore((s) => s.lang)
   const closeCheckout = useUIStore((s) => s.closeCheckout)
-  const activeWeek = useUIStore((s) => s.activeWeek)
   const weeks = useMenuStore((s) => s.weeks)
   const clearAll = useCartStore((s) => s.clearAll)
 
   // Snapshot everything we need for the summary ONCE, on mount. After
   // snapshotting we clear the cart so the sidebar doesn't show stale items.
+  //
+  // WEC-336: cart is keyed by ISO date now, so we don't need the active
+  // week — we resolve each cart date against ALL loaded weeks' days. That
+  // also means a confirmation for items spanning two weeks renders correctly.
   const [snapshot] = useState(() => {
     const { cart, delivery, payment, voucher } = useCartStore.getState()
-    const weekData = weeks[activeWeek] ?? weeks[0]
     // WEC-262: snapshot the dish→cat lookup at the moment of confirmation
     // so the displayed total matches what was charged.
     const dishMap = useMenuStore.getState().dishMap
@@ -50,9 +52,9 @@ export function ConfirmationScreen({ orderNumber }: { orderNumber?: string }) {
       delivery,
       payment,
       voucher,
-      weekData,
       total: subTotal(cart, voucher, catLookup),
-      activeDayIdxs: activeDays(cart),
+      // Date strings (YYYY-MM-DD) for every day that had items.
+      activeDates: activeDays(cart),
     }
   })
 
@@ -94,19 +96,18 @@ export function ConfirmationScreen({ orderNumber }: { orderNumber?: string }) {
       </p>
 
       <div className="conf-summary">
-        {snapshot.activeDayIdxs.map((dayIdx) => {
-          const dateISO = snapshot.weekData?.days[dayIdx]?.date ?? ''
-          const dayName = dateISO ? dayLabel(dateISO, lang, 'long') : ''
+        {snapshot.activeDates.map((dateISO) => {
+          const dayName = dayLabel(dateISO, lang, 'long')
           const formattedDate = formatDate(dateISO, lang)
-          const delivInfo = snapshot.delivery[dayIdx]
+          const delivInfo = snapshot.delivery[dateISO]
           const timeSlot = delivInfo?.timeSlot || ''
           const street = delivInfo?.street || ''
           const area = delivInfo?.area || ''
-          const items = snapshot.cart[dayIdx] || []
-          const dayTotal = dayAmt(snapshot.cart, dayIdx)
+          const items = snapshot.cart[dateISO] || []
+          const dayTotal = dayAmt(snapshot.cart, dateISO)
 
           return (
-            <div className="conf-day" key={dayIdx}>
+            <div className="conf-day" key={dateISO}>
               <div className="conf-day-name">
                 {dayName} {formattedDate}
               </div>

@@ -11,16 +11,20 @@ export const effPrice = (price: number, discountPct?: number): number =>
   discountPct ? +(price * (1 - discountPct / 100)).toFixed(2) : price
 
 // ─── Cart totals ──────────────────────────────────────────────────────────────
+//
+// WEC-336: cart is now keyed by delivery date (YYYY-MM-DD), not dayIndex.
+// All helpers that look up a single day take a `dayDate: string` instead of
+// a `dayIndex: number`. activeDays() returns sorted date strings.
 
-/** Sum of items for a single day */
-export const dayAmt = (cart: Record<number, CartItem[]>, dayIndex: number): number =>
-  (cart[dayIndex] ?? []).reduce((s, i) => s + i.price * i.qty, 0)
+/** Sum of items for a single delivery date */
+export const dayAmt = (cart: Record<string, CartItem[]>, dayDate: string): number =>
+  (cart[dayDate] ?? []).reduce((s, i) => s + i.price * i.qty, 0)
 
 /**
  * Cart-wide raw total (no voucher, no discount). Sum of every item's
- * line total across all days.
+ * line total across all dates.
  */
-export const cartRaw = (cart: Record<number, CartItem[]>): number =>
+export const cartRaw = (cart: Record<string, CartItem[]>): number =>
   Object.values(cart).reduce(
     (s, items) => s + items.reduce((ss, i) => ss + i.price * i.qty, 0),
     0,
@@ -38,7 +42,7 @@ export const cartRaw = (cart: Record<number, CartItem[]>): number =>
  * the server's submit-order guard is still authoritative.
  */
 export const eligibleSubtotal = (
-  cart: Record<number, CartItem[]>,
+  cart: Record<string, CartItem[]>,
   voucher?: VoucherState,
   dishCatLookup?: (dishId: string) => string | undefined,
 ): number => {
@@ -63,7 +67,7 @@ export const eligibleSubtotal = (
  * still computes the correct number for the actual order).
  */
 export const voucherDiscount = (
-  cart: Record<number, CartItem[]>,
+  cart: Record<string, CartItem[]>,
   voucher?: VoucherState,
   dishCatLookup?: (dishId: string) => string | undefined,
 ): number => {
@@ -87,7 +91,7 @@ export const voucherDiscount = (
  */
 export const itemVoucherDiscount = (
   item: CartItem,
-  cart: Record<number, CartItem[]>,
+  cart: Record<string, CartItem[]>,
   voucher?: VoucherState,
   dishCatLookup?: (dishId: string) => string | undefined,
 ): number => {
@@ -105,9 +109,9 @@ export const itemVoucherDiscount = (
   return +(totalDiscount * (lineTotal / eligible)).toFixed(2)
 }
 
-/** Grand total across all days, with voucher applied */
+/** Grand total across all dates, with voucher applied */
 export const subTotal = (
-  cart: Record<number, CartItem[]>,
+  cart: Record<string, CartItem[]>,
   voucher?: VoucherState,
   dishCatLookup?: (dishId: string) => string | undefined,
 ): number => {
@@ -116,18 +120,20 @@ export const subTotal = (
   return Math.max(0, +(raw - discount).toFixed(2))
 }
 
-/** Total item count across all days */
-export const totalCount = (cart: Record<number, CartItem[]>, dayIndex?: number): number => {
-  if (dayIndex !== undefined) return (cart[dayIndex] ?? []).reduce((s, i) => s + i.qty, 0)
+/** Total item count across all dates (or for a single date when given) */
+export const totalCount = (cart: Record<string, CartItem[]>, dayDate?: string): number => {
+  if (dayDate !== undefined) return (cart[dayDate] ?? []).reduce((s, i) => s + i.qty, 0)
   return Object.values(cart).flat().reduce((s, i) => s + i.qty, 0)
 }
 
-/** Array of day indices that have items */
-export const activeDays = (cart: Record<number, CartItem[]>): number[] =>
+/**
+ * Array of delivery dates (YYYY-MM-DD) that have items, sorted lexically
+ * (which matches calendar order for ISO date strings — by design).
+ */
+export const activeDays = (cart: Record<string, CartItem[]>): string[] =>
   Object.keys(cart)
-    .filter((d) => (cart[+d] ?? []).length > 0)
-    .map(Number)
-    .sort((a, b) => a - b)
+    .filter((d) => (cart[d] ?? []).length > 0)
+    .sort()
 
 // ─── Delivery zones (loaded from Supabase via useMenuStore) ───────────────────
 

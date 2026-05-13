@@ -65,7 +65,11 @@ export function DayNav() {
 
       {/* Day tabs */}
       {days.map((day, i) => {
-        const count = totalCount(cart, i)
+        // WEC-336: cart is keyed by ISO date now — read the count for
+        // this day via its `day.date`, not its position-in-week index.
+        // Before this fix the badge silently disappeared because
+        // `totalCount(cart, 0)` looked for cart["0"] which never existed.
+        const count = totalCount(cart, day.date)
         const isClosed = !!day.inactive
         const unavailable = isClosed || !isDayOrderable(day.date, settings)
         const cls =

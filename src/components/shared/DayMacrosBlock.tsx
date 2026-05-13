@@ -51,12 +51,13 @@ function sumDay(items: CartItem[]) {
   )
 }
 
-export function DayMacrosBlock({ dayIndex }: { dayIndex: number }) {
+export function DayMacrosBlock({ dayDate }: { dayDate: string }) {
   const user = useAuthStore((s) => s.user)
   const lang = useUIStore((s) => s.lang)
   const cart = useCartStore((s) => s.cart)
 
-  const items = cart[dayIndex] ?? []
+  // WEC-336: cart is keyed by date (YYYY-MM-DD), not by day-index.
+  const items = cart[dayDate] ?? []
   if (items.length === 0) return null
 
   const showBars = showGoalProgress(user)

@@ -40,7 +40,6 @@ interface Props {
 
 export function MobileCartSheet({ mode = 'menu' }: Props) {
   const lang = useUIStore((s) => s.lang)
-  const activeWeek = useUIStore((s) => s.activeWeek)
   const goToCheckout = useUIStore((s) => s.goToCheckout)
   // WEC-264 v2: hide the cart sheet whenever any modal is open. Without
   // this, the bottom bar renders on top of the auth/wallet/dish modal
@@ -56,7 +55,6 @@ export function MobileCartSheet({ mode = 'menu' }: Props) {
   const minOrder = useMenuStore((s) => s.settings.minOrder)
   const dishMap = useMenuStore((s) => s.dishMap)
   const catLookup = (id: string) => dishMap[id]?.catId
-  const week = weeks[activeWeek] ?? weeks[0]
 
   const [expanded, setExpanded] = useState(false)
   function collapse() { setExpanded(false) }
@@ -82,11 +80,12 @@ export function MobileCartSheet({ mode = 'menu' }: Props) {
   }, [expanded])
 
   const total = subTotal(cart, voucher, catLookup)
-  const days = activeDays(cart)
-  const rawTotal = days.reduce((sum, i) => sum + dayAmt(cart, i), 0)
-  const hasItems = days.length > 0
+  // WEC-336: activeDays now returns date strings (YYYY-MM-DD).
+  const dates = activeDays(cart)
+  const rawTotal = dates.reduce((sum, d) => sum + dayAmt(cart, d), 0)
+  const hasItems = dates.length > 0
   const cartCount = totalCount(cart)
-  const canCheckout = hasItems && days.every((d) => {
+  const canCheckout = hasItems && dates.every((d) => {
     const amt = (cart[d] ?? []).reduce((s, i) => s + i.price * i.qty, 0)
     return amt >= minOrder
   })
@@ -168,16 +167,25 @@ export function MobileCartSheet({ mode = 'menu' }: Props) {
             </div>
           ) : (
             <>
+              {/* WEC-336: iterate over the cart's actual dates rather than
+                  the active week's day strip, so items that belong to a
+                  non-active week still render correctly (and don't ghost
+                  onto the wrong week's days). Match each date to a WeekDay
+                  if one is loaded; otherwise stub with just {date}. */}
               <div className="mcs-scroll">
-                {(week?.days ?? []).map((day, i) => (
-                  <DayOrderGroup
-                    key={day.date}
-                    dayIndex={i}
-                    day={day}
-                    editable={mode === 'menu'}
-                    showDelivery={mode === 'checkout'}
-                  />
-                ))}
+                {dates.map((dDate) => {
+                  const matchedDay =
+                    weeks.flatMap((w) => w?.days ?? []).find((wd) => wd.date === dDate)
+                    ?? { date: dDate }
+                  return (
+                    <DayOrderGroup
+                      key={dDate}
+                      day={matchedDay}
+                      editable={mode === 'menu'}
+                      showDelivery={mode === 'checkout'}
+                    />
+                  )
+                })}
               </div>
 
               <div className="mcs-foot">

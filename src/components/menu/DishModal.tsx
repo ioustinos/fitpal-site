@@ -73,9 +73,12 @@ export function DishModal() {
   // for the selected day, show the current qty so the user knows they're
   // adding ON TOP of an existing entry (addItem stacks on the matching
   // dishId+variantId in useCartStore).
+  //
+  // WEC-336: cart is keyed by date. We already have dayDate computed above
+  // from the selectedDayIndex + activeWeek mapping.
   const existingInCart = (() => {
-    if (selectedDayIndex == null) return 0
-    const items = cart[selectedDayIndex] ?? []
+    if (!dayDate) return 0
+    const items = cart[dayDate] ?? []
     const row = items.find(
       (i) => i.dishId === dish.id && i.variantId === variant.id,
     )
@@ -84,7 +87,9 @@ export function DishModal() {
 
   function handleAdd() {
     if (unavailable) return
-    addItem(selectedDayIndex!, {
+    // WEC-336: defensive — without a resolvable date we can't safely add.
+    if (!dayDate) return
+    addItem(dayDate, {
       dishId: dish!.id,
       variantId: variant.id,
       nameEl: dish!.nameEl,

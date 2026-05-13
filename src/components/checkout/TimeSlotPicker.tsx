@@ -6,12 +6,13 @@ import { formatSlots, resolveZone } from '../../lib/helpers'
 import { makeTr } from '../../lib/translations'
 
 interface TimeSlotPickerProps {
-  dayIndex: number
+  /** WEC-336: ISO delivery date this picker controls slots for. */
+  dayDate: string
   /** When true, renders just the slot grid without wrapper/label (parent provides those) */
   inline?: boolean
 }
 
-export function TimeSlotPicker({ dayIndex, inline = false }: TimeSlotPickerProps) {
+export function TimeSlotPicker({ dayDate, inline = false }: TimeSlotPickerProps) {
   const lang = useUIStore((s) => s.lang)
   const delivery = useCartStore((s) => s.delivery)
   const setDelivery = useCartStore((s) => s.setDelivery)
@@ -19,7 +20,7 @@ export function TimeSlotPicker({ dayIndex, inline = false }: TimeSlotPickerProps
   const zones = useMenuStore((s) => s.zones)
   const t = makeTr(lang)
 
-  const current = delivery[dayIndex]
+  const current = delivery[dayDate]
   const selectedSlot = current?.timeSlot ?? ''
 
   // Resolve zone from this day's postcode (only). Area names on zones are for
@@ -54,7 +55,7 @@ export function TimeSlotPicker({ dayIndex, inline = false }: TimeSlotPickerProps
   }, [timeSlots, currentZone])
 
   function handleSelect(slot: string) {
-    setDelivery(dayIndex, { ...current, timeSlot: slot })
+    setDelivery(dayDate, { ...current, timeSlot: slot })
   }
 
   // WEC-138 empty state: we can hit this in two cases:
