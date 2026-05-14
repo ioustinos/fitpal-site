@@ -8,6 +8,7 @@ import { PaymentSection } from '../components/checkout/PaymentSection'
 import { ExtrasSection } from '../components/checkout/ExtrasSection'
 import { OrderSummary } from '../components/checkout/OrderSummary'
 import { MobileCartSheet } from '../components/cart/MobileCartSheet'
+import { CartDietWarning } from '../components/cart/CartDietWarning'
 import { ConfirmationScreen } from '../components/checkout/ConfirmationScreen'
 import { ContactSection, type ContactInfo } from '../components/checkout/ContactSection'
 import { activeDays, dayAmt, zipInZone } from '../lib/helpers'
@@ -680,6 +681,12 @@ export function CheckoutPage() {
             </h2>
             <ExtrasSection attempted={contactAttempted} />
           </div>
+
+          {/* WEC-345: diet warning above the Place-order button. Last-
+              chance defence before the customer submits — same
+              CartDietWarning component used in the sidebar and order
+              summary so the copy stays in lockstep. */}
+          <CartDietWarning />
 
           {/* Footer with action buttons */}
           <div className="checkout-footer">

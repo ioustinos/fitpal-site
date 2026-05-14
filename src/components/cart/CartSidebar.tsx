@@ -2,6 +2,7 @@ import { useCartStore } from '../../store/useCartStore'
 import { useUIStore } from '../../store/useUIStore'
 import { DayOrderGroup } from '../shared/DayOrderGroup'
 import { VoucherInput } from './VoucherInput'
+import { CartDietWarning } from './CartDietWarning'
 import { makeTr } from '../../lib/translations'
 import { subTotal, activeDays, dayAmt, fmt } from '../../lib/helpers'
 import { useMenuStore } from '../../store/useMenuStore'
@@ -80,6 +81,11 @@ export function CartSidebar() {
 
             {/* Sticky footer */}
             <div className="cart-ftr">
+              {/* WEC-345: allergy / avoided-ingredient warning. Renders
+                  nothing for guests, users with no diet prefs, or carts
+                  with no triggered flags. */}
+              <CartDietWarning />
+
               <VoucherInput />
 
               {/* Subtotal + absolute-amount discount when voucher is applied.

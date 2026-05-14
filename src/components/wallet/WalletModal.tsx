@@ -81,7 +81,7 @@ export function WalletModal() {
         <div className="wm-topup">
           <p className="wm-topup-intro">
             {lang === 'el'
-              ? 'Επέλεξε ένα πακέτο και απόλαυσε bonus credits.'
+              ? 'Επίλεξε ένα πακέτο και απόλαυσε bonus credits.'
               : 'Choose a package to get bonus credits.'}
           </p>
           <div className="wallet-plans">

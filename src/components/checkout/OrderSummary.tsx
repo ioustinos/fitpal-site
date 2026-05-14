@@ -4,6 +4,7 @@ import { makeTr } from '../../lib/translations'
 import { activeDays, subTotal, fmt } from '../../lib/helpers'
 import { useMenuStore } from '../../store/useMenuStore'
 import { DayOrderGroup } from '../shared/DayOrderGroup'
+import { CartDietWarning } from '../cart/CartDietWarning'
 import { useVoucherWidget } from '../cart/useVoucherWidget'
 
 export function OrderSummary() {
@@ -71,6 +72,9 @@ export function OrderSummary() {
 
       {/* Footer: voucher + total + back */}
       <div className="cart-ftr">
+        {/* WEC-345: allergy / avoided-ingredient warning above the totals. */}
+        <CartDietWarning />
+
         {/* Voucher widget */}
         {voucher.applied ? (
           <>

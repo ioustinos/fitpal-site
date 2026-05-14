@@ -1,8 +1,10 @@
 import { useCartStore } from '../../store/useCartStore'
 import { useUIStore } from '../../store/useUIStore'
 import { useMenuStore } from '../../store/useMenuStore'
+import { useAuthStore } from '../../store/useAuthStore'
 import { useToast } from '../ui/Toast'
 import { itemVoucherDiscount } from '../../lib/helpers'
+import { dishDietFlags } from '../../lib/api/diet'
 import type { CartItem } from '../../store/useCartStore'
 
 interface CartItemRowProps {
@@ -22,12 +24,30 @@ export function CartItemRow({ item, dayDate, itemIndex }: CartItemRowProps) {
   // WEC-340: click → open DishModal in edit mode for this line.
   const openDishModalForEdit = useUIStore((s) => s.openDishModalForEdit)
   const dishMap = useMenuStore((s) => s.dishMap)
+  const dietCatalog = useMenuStore((s) => s.dietCatalog)
+  const user = useAuthStore((s) => s.user)
   const toast = useToast((s) => s.show)
   // WEC-262: scoped voucher → show per-item discount allocation.
   const catLookup = (id: string) => dishMap[id]?.catId
   const perItemDisc = voucher.applied && (voucher.applicableCategoryIds?.length ?? 0) > 0
     ? itemVoucherDiscount(item, cart, voucher, catLookup)
     : 0
+
+  // WEC-345: per-row allergy / avoided-ingredient flag. Renders a small
+  // ⚠ next to the dish name + a soft red-tinted left border so the
+  // customer can spot the at-risk lines at a glance. Lazy: only computes
+  // when a signed-in user has diet prefs.
+  const dietFlags = dishDietFlags(
+    item.dishId,
+    dietCatalog,
+    new Set(user?.diet?.allergyIds ?? []),
+    new Set(user?.diet?.avoidedIngredientIds ?? []),
+  )
+  const dietWarnTitle = dietFlags.any
+    ? (lang === 'el'
+        ? `Προσοχή: ${dietFlags.matchedAllergies.length > 0 ? 'περιέχει αλλεργιογόνα που έχεις δηλώσει' : 'περιέχει συστατικό προς αποφυγή'}`
+        : `Heads up: ${dietFlags.matchedAllergies.length > 0 ? 'contains an allergen you flagged' : 'contains an avoided ingredient'}`)
+    : ''
 
   const name = lang === 'el' ? item.nameEl : item.nameEn
   const variant = lang === 'el' ? item.variantLabelEl : item.variantLabelEn
@@ -50,7 +70,7 @@ export function CartItemRow({ item, dayDate, itemIndex }: CartItemRowProps) {
 
   return (
     <div
-      className="cart-item cart-item-clickable"
+      className={`cart-item cart-item-clickable${dietFlags.any ? ' cart-item--diet-flag' : ''}`}
       onClick={handleOpenEdit}
       role="button"
       tabIndex={0}
@@ -62,8 +82,8 @@ export function CartItemRow({ item, dayDate, itemIndex }: CartItemRowProps) {
       }}
       aria-label={
         lang === 'el'
-          ? `Επεξεργασία: ${name}${variant ? ', ' + variant : ''}`
-          : `Edit: ${name}${variant ? ', ' + variant : ''}`
+          ? `Επεξεργασία: ${name}${variant ? ', ' + variant : ''}${dietFlags.any ? ' (περιέχει αλλεργιογόνα)' : ''}`
+          : `Edit: ${name}${variant ? ', ' + variant : ''}${dietFlags.any ? ' (contains allergens)' : ''}`
       }
     >
       {/* Thumbnail */}
@@ -93,7 +113,26 @@ export function CartItemRow({ item, dayDate, itemIndex }: CartItemRowProps) {
 
       {/* Info */}
       <div className="ci-info">
-        <div className="ci-name">{name}</div>
+        <div className="ci-name">
+          {/* WEC-345: ⚠ before the name when this dish triggers any of
+              the signed-in customer's diet flags. Title gives the
+              category (allergen vs avoided ingredient) — full details
+              show inside the edit modal. */}
+          {dietFlags.any && (
+            <span
+              className="ci-diet-warn-ico"
+              title={dietWarnTitle}
+              aria-label={dietWarnTitle}
+            >
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+                <line x1="12" y1="9" x2="12" y2="13"/>
+                <line x1="12" y1="17" x2="12.01" y2="17"/>
+              </svg>
+            </span>
+          )}
+          {name}
+        </div>
         {variant && <div className="ci-var">{variant}</div>}
         {item.comment && <div className="ci-comment">"{item.comment}"</div>}
       </div>

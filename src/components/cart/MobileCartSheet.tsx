@@ -4,6 +4,7 @@ import { useUIStore } from '../../store/useUIStore'
 import { useMenuStore } from '../../store/useMenuStore'
 import { DayOrderGroup } from '../shared/DayOrderGroup'
 import { VoucherInput } from './VoucherInput'
+import { CartDietWarning } from './CartDietWarning'
 import { makeTr } from '../../lib/translations'
 import { subTotal, activeDays, dayAmt, fmt, totalCount } from '../../lib/helpers'
 
@@ -181,7 +182,15 @@ export function MobileCartSheet({ mode = 'menu' }: Props) {
                     <DayOrderGroup
                       key={dDate}
                       day={matchedDay}
-                      editable={mode === 'menu'}
+                      // WEC-343: render the editable CartItemRow layout in
+                      // BOTH menu + checkout modes. The previous
+                      // `editable={mode === 'menu'}` dropped checkout mode
+                      // into the compact `.summary-item` row which truncates
+                      // titles + variants badly on mobile widths AND
+                      // bypasses WEC-340's click-to-edit. Both modes now
+                      // share the same vertical row with thumbnail + full
+                      // title + variant + qty stepper + tap-to-edit.
+                      editable
                       showDelivery={mode === 'checkout'}
                     />
                   )
@@ -189,6 +198,10 @@ export function MobileCartSheet({ mode = 'menu' }: Props) {
               </div>
 
               <div className="mcs-foot">
+                {/* WEC-345: allergy / avoided-ingredient warning. Same
+                    behaviour in both menu and checkout modes. */}
+                <CartDietWarning />
+
                 {/* Voucher input only on menu — checkout has its own surface. */}
                 {mode === 'menu' && <VoucherInput />}
 

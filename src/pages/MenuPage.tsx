@@ -9,7 +9,10 @@ import { CutoffBar } from '../components/menu/CutoffBar'
 import { MenuSection } from '../components/menu/MenuSection'
 import { CartSidebar } from '../components/cart/CartSidebar'
 import { MobileCartSheet } from '../components/cart/MobileCartSheet'
-import { WALLET_PLANS } from '../data/menu'
+import { BackToTopButton } from '../components/menu/BackToTopButton'
+// WEC-338: WALLET_PLANS no longer referenced — banner now sells the new
+// profile-driven plan rather than the deprecated 3-tier model.
+// import { WALLET_PLANS } from '../data/menu'
 import { makeTr } from '../lib/translations'
 import FpLoader from '../components/ui/FpLoader'
 
@@ -154,58 +157,96 @@ export function MenuPage() {
               </div>
             </div>
 
-            {/* Wallet promo — matches demo layout */}
-            <div className="wallet-promo" onClick={walletActive ? openWalletModal : goToWalletPage}>
-              <div className="wp-badge">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                  <rect x="2" y="5" width="20" height="14" rx="2"/>
-                  <path d="M16 12h.01"/>
-                  <path d="M2 10h20"/>
-                </svg>
-                <span>FITPAL WALLET</span>
-              </div>
+            {/* WEC-338 — subscription banner v2 (editorial).
+                Total rewrite: the old green-gradient promo card was legacy
+                from the deprecated 3-tier wallet model. New card lives in
+                its own visual language: cream paper feel, editorial
+                headline, single ribbon accent (NEW), one decorative SVG
+                glyph in the corner, action-oriented CTA. Splits the
+                banner row 50/50 with the menu banner.
+
+                Active-wallet state keeps the original tone but in the
+                new shape — balance + Manage CTA, no promo copy. */}
+            <div
+              className={`sub-promo${walletActive ? ' has-wallet' : ''}`}
+              onClick={walletActive ? openWalletModal : goToWalletPage}
+              role="button"
+              tabIndex={0}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault()
+                  walletActive ? openWalletModal() : goToWalletPage()
+                }
+              }}
+            >
+              {/* Decorative bowl/leaf glyph — pure SVG, scales cleanly. */}
+              <svg
+                className="sub-promo-glyph"
+                viewBox="0 0 120 120"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                aria-hidden="true"
+              >
+                <path d="M20 62a40 40 0 0080 0" />
+                <path d="M16 62h88" />
+                <path d="M60 36c-6-6-6-14 0-20 6 6 6 14 0 20z" />
+                <path d="M48 42c-8-2-12-8-10-16 8 2 12 8 10 16z" />
+                <path d="M72 42c8-2 12-8 10-16-8 2-12 8-10 16z" />
+              </svg>
+
               {walletActive ? (
-                <>
-                  <div className="wp-title">
-                    {lang === 'el'
-                      ? <>Υπόλοιπο: <span>€{walletBalance.toFixed(2)}</span></>
-                      : <>Balance: <span>€{walletBalance.toFixed(2)}</span></>}
+                <div className="sub-promo-inner">
+                  <div className="sub-promo-eyebrow">
+                    {lang === 'el' ? 'Fitpal Wallet' : 'Fitpal Wallet'}
                   </div>
-                  <div className="wp-desc">
-                    {lang === 'el'
-                      ? `+${user?.wallet?.bonusPct ?? 0}% bonus credits`
-                      : `+${user?.wallet?.bonusPct ?? 0}% bonus credits`}
+                  <h3 className="sub-promo-headline">
+                    €{walletBalance.toFixed(2)}
+                  </h3>
+                  <div className="sub-promo-sub">
+                    {lang === 'el' ? 'διαθέσιμο υπόλοιπο' : 'available balance'}
                   </div>
-                </>
+                  <button
+                    className="sub-promo-cta"
+                    onClick={(e) => { e.stopPropagation(); openWalletModal() }}
+                  >
+                    {lang === 'el' ? 'Διαχείριση' : 'Manage'}
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" width="12" height="12" aria-hidden="true">
+                      <line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/>
+                    </svg>
+                  </button>
+                </div>
               ) : (
-                <>
-                  <div className="wp-title">
+                <div className="sub-promo-inner">
+                  <div className="sub-promo-eyebrow">
+                    <span className="sub-promo-dot" aria-hidden="true" />
+                    {lang === 'el' ? 'ΣΥΝΔΡΟΜΗ FITPAL' : 'FITPAL SUBSCRIPTION'}
+                  </div>
+                  <h3 className="sub-promo-headline">
+                    {lang === 'el' ? (
+                      <>Φάγε για τον<br /><em>στόχο σου</em>.</>
+                    ) : (
+                      <>Eat for your<br /><em>goal</em>.</>
+                    )}
+                  </h3>
+                  <div className="sub-promo-sub">
                     {lang === 'el'
-                      ? <>Πλήρωσε λιγότερα, <span>φάε περισσότερα</span></>
-                      : <>Pay less, <span>eat more</span></>}
+                      ? 'Εξατομικευμένο πλάνο διατροφής. Έκπτωση έως 18%.'
+                      : 'A meal plan made for you. Save up to 18%.'}
                   </div>
-                  <div className="wp-desc">
-                    {lang === 'el'
-                      ? <>Μηνιαία συνδρομή με bonus credits έως +{Math.max(...WALLET_PLANS.map(p => p.bonusPct))}%</>
-                      : <>Monthly subscription with bonus credits up to +{Math.max(...WALLET_PLANS.map(p => p.bonusPct))}%</>}
-                  </div>
-                  <div className="wp-plans-mini">
-                    {WALLET_PLANS.map((plan) => (
-                      <div key={plan.id} className="wp-plan-chip">
-                        €{plan.price} <span className="wp-arrow">→</span> <span className="wp-bonus">€{plan.credits}</span>
-                      </div>
-                    ))}
-                  </div>
-                </>
+                  <button
+                    className="sub-promo-cta"
+                    onClick={(e) => { e.stopPropagation(); goToWalletPage() }}
+                  >
+                    {lang === 'el' ? 'Φτιάξε το πλάνο μου' : 'Build my plan'}
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" width="12" height="12" aria-hidden="true">
+                      <line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/>
+                    </svg>
+                  </button>
+                </div>
               )}
-              <button className="wp-cta" onClick={(e) => { e.stopPropagation(); walletActive ? openWalletModal() : goToWalletPage() }}>
-                {walletActive
-                  ? (lang === 'el' ? 'Διαχείριση' : 'Manage')
-                  : (lang === 'el' ? 'Μάθε περισσότερα' : 'Learn more')}
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" width="12" height="12">
-                  <polyline points="9 18 15 12 9 6"/>
-                </svg>
-              </button>
             </div>
           </div>
 
@@ -252,6 +293,12 @@ export function MenuPage() {
           straight to checkout. CSS hides this on desktop and the desktop
           sidebar above on mobile. */}
       <MobileCartSheet mode="menu" />
+
+      {/* WEC-342: desktop-only floating Back-to-top pill. Renders inside
+          the page tree but uses position:fixed so it floats over content.
+          Hidden via CSS at ≤768px viewport so it doesn't fight with the
+          MobileCartSheet bar at the bottom of mobile screens. */}
+      <BackToTopButton />
     </div>
   )
 }

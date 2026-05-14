@@ -148,6 +148,79 @@ export async function fetchIngredientOptions(): Promise<{
   }
 }
 
+// ─── Combined diet autocomplete (WEC-338) ─────────────────────────────────
+
+/**
+ * A single hit from the diet autocomplete — either an allergy or an
+ * ingredient. The shape is intentionally flat (same fields for both kinds)
+ * so the dropdown can render them uniformly with a type badge.
+ */
+export interface DietSearchHit {
+  kind: 'allergy' | 'ingredient'
+  id: string
+  nameEl: string
+  nameEn: string | null
+}
+
+/**
+ * Server-side typeahead over BOTH allergies (15 rows) and ingredients (~380
+ * rows). Used by the subscription page's diet-avoidance section.
+ *
+ * Why server-side instead of preloading: we have hundreds of ingredients, so
+ * we don't want to ship the full list on page load. Postgres ilike on a
+ * 400-row table with an index on lower(name_el) is well under 50ms.
+ *
+ * Allergies are queried in the same trip — they're surfaced FIRST so they
+ * rank above ingredient matches in the dropdown. Caller decides ordering.
+ *
+ * `q` should already be trimmed; empty `q` returns `[]` without hitting the DB.
+ */
+export async function searchDietTerms(
+  q: string,
+  limit = 12,
+): Promise<{ data: DietSearchHit[]; error: string | null }> {
+  const trimmed = q.trim()
+  if (!trimmed) return { data: [], error: null }
+
+  // Postgres ilike escape — keep it simple, we only need to neutralise the
+  // wildcard characters that could leak into the pattern.
+  const pat = `%${trimmed.replace(/[%_]/g, (m) => '\\' + m)}%`
+
+  const [allergyRes, ingRes] = await Promise.all([
+    supabase
+      .from('allergies')
+      .select('id, name_el, name_en')
+      .or(`name_el.ilike.${pat},name_en.ilike.${pat}`)
+      .limit(limit),
+    supabase
+      .from('ingredients')
+      .select('id, name_el, name_en')
+      .eq('active', true)
+      .or(`name_el.ilike.${pat},name_en.ilike.${pat}`)
+      .limit(limit),
+  ])
+
+  if (allergyRes.error) return { data: [], error: allergyRes.error.message }
+  if (ingRes.error)     return { data: [], error: ingRes.error.message }
+
+  const hits: DietSearchHit[] = [
+    ...(allergyRes.data ?? []).map((r) => ({
+      kind: 'allergy' as const,
+      id: r.id as string,
+      nameEl: r.name_el as string,
+      nameEn: (r.name_en as string | null) ?? null,
+    })),
+    ...(ingRes.data ?? []).map((r) => ({
+      kind: 'ingredient' as const,
+      id: r.id as string,
+      nameEl: r.name_el as string,
+      nameEn: (r.name_en as string | null) ?? null,
+    })),
+  ].slice(0, limit)
+
+  return { data: hits, error: null }
+}
+
 /** Read the signed-in user's diet prefs (allergies + avoided ingredients). */
 export async function fetchProfileDiet(userId: string): Promise<{
   data: ProfileDiet
@@ -255,5 +328,71 @@ export function dishDietFlags(
     matchedAllergies,
     matchedAvoidedIngredientIds,
     any: matchedAllergies.length > 0 || matchedAvoidedIngredientIds.length > 0,
+  }
+}
+
+// ─── Cart-level aggregate diet summary (WEC-345) ──────────────────────────
+
+export interface CartDietSummary {
+  /** Number of cart line items whose dish triggers any flag. */
+  flaggedCount: number
+  /** Distinct allergy defs that any cart item triggers (sorted by nameEl). */
+  matchedAllergies: AllergyDef[]
+  /** Total count of distinct avoided ingredients across the cart. */
+  matchedIngredientCount: number
+}
+
+/**
+ * Aggregate the per-dish diet flags across every line item in the cart.
+ * Used by `CartSidebar`, `OrderSummary`, and `CheckoutPage` to surface a
+ * single banner above the checkout CTA when a customer's allergies / avoided
+ * ingredients are in their cart — defending against the "skim past the menu
+ * warning, hit Place Order" failure mode (WEC-345).
+ *
+ * Returns a zero-summary (no flags) when:
+ *   - the catalog isn't loaded yet (race on first paint)
+ *   - the user has no diet prefs (e.g. guest checkout)
+ *   - the cart contains no dishes matching any of the prefs
+ *
+ * Callers should render the banner only when `flaggedCount > 0`.
+ */
+export function cartDietSummary(
+  cart: Record<string, { dishId: string }[]>,
+  catalog: DietCatalog | null,
+  userAllergyIds: Set<string>,
+  userAvoidedIngredientIds: Set<string>,
+): CartDietSummary {
+  const zero: CartDietSummary = {
+    flaggedCount: 0,
+    matchedAllergies: [],
+    matchedIngredientCount: 0,
+  }
+  if (!catalog) return zero
+  if (userAllergyIds.size === 0 && userAvoidedIngredientIds.size === 0) return zero
+
+  let flaggedCount = 0
+  const allergyMap = new Map<string, AllergyDef>()  // dedupe by id
+  const ingredientIds = new Set<string>()
+
+  for (const items of Object.values(cart)) {
+    for (const it of items) {
+      const flags = dishDietFlags(it.dishId, catalog, userAllergyIds, userAvoidedIngredientIds)
+      if (!flags.any) continue
+      flaggedCount += 1
+      for (const a of flags.matchedAllergies) {
+        if (!allergyMap.has(a.id)) allergyMap.set(a.id, a)
+      }
+      for (const ingId of flags.matchedAvoidedIngredientIds) {
+        ingredientIds.add(ingId)
+      }
+    }
+  }
+
+  return {
+    flaggedCount,
+    matchedAllergies: Array.from(allergyMap.values()).sort((a, b) =>
+      a.nameEl.localeCompare(b.nameEl, 'el'),
+    ),
+    matchedIngredientCount: ingredientIds.size,
   }
 }

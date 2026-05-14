@@ -1697,9 +1697,18 @@ function DietTab({ user, lang }: { user: any; lang: 'el' | 'en' }) {
       </section>
 
       <div className="tab-actions">
-        <button className="btn-save" disabled={!dirty} onClick={save}>
-          {isEl ? 'Αποθήκευση' : 'Save'}
+        {/* WEC-344: was `.btn-save` — a small grey/transparent pill that
+            looked disabled. The other tabs (Profile, Preferences, Goals)
+            use `.btn-save-green` for their primary save action. Bringing
+            this in line so customers immediately recognise it as the
+            CTA. The disabled state at !dirty inherits the same grey
+            treatment from .btn-save-green's :disabled selector. */}
+        <button className="btn-save-green" disabled={!dirty} onClick={save}>
+          {savingMsg
+            ? '...'
+            : (isEl ? 'Αποθήκευση' : 'Save')}
         </button>
+        {err && <div className="tab-err" role="alert">{err}</div>}
       </div>
     </div>
   )
