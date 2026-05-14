@@ -7,17 +7,33 @@ import { dayLabel } from '../../lib/datelabels'
 /**
  * Weekly day navigation.
  *
- * Small horizontally-scrollable pill tabs (`.day-nav` / `.day-tab`) — the
- * original compact layout the user prefers. Each tab shows the weekday
- * short label and the date, with a green cart-count badge when the day has
- * items and a dimmed state when the day is past cutoff.
+ * Each tab shows the weekday + date, with a green cart-count badge when
+ * the day has items and a dimmed state when the day is past cutoff.
  *
  * Prev/next-week toggles (`.week-toggle`) sit at the ends of the strip and
  * kick a lazy fetch for the target week when clicked.
  *
  * The cutoff countdown is rendered separately below this strip by the
  * parent (see MenuPage).
+ *
+ * **Day-tab visual style** — two options coexist behind a flag:
+ *   - `card`: the new vertically-stacked card matching the subscription
+ *     page's StartDatePicker (DOW / day-number / month abbrev). Cleaner,
+ *     more visual emphasis on the date number.
+ *   - `pill`: the original compact pill layout (weekday + date inline).
+ *
+ * Flip `DAY_TAB_STYLE` below to revert. We intentionally kept BOTH CSS
+ * class trees (.day-tab / .day-card) so you can A/B without code churn.
  */
+const DAY_TAB_STYLE: 'card' | 'pill' = 'card'
+
+// 2-letter, uppercase weekday abbreviations to match the subscription
+// page's StartDatePicker. Indexed by JS Date.getDay() (0=Sun..6=Sat).
+const DOW_EL_2 = ['ΚΥ', 'ΔΕ', 'ΤΡ', 'ΤΕ', 'ΠΕ', 'ΠΑ', 'ΣΑ']
+const DOW_EN_2 = ['SU', 'MO', 'TU', 'WE', 'TH', 'FR', 'SA']
+const MONTH_EL_3 = ['ΙΑΝ', 'ΦΕΒ', 'ΜΑΡ', 'ΑΠΡ', 'ΜΑΪ', 'ΙΟΥΝ', 'ΙΟΥΛ', 'ΑΥΓ', 'ΣΕΠ', 'ΟΚΤ', 'ΝΟΕ', 'ΔΕΚ']
+const MONTH_EN_3 = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC']
+
 export function DayNav() {
   const lang = useUIStore((s) => s.lang)
   const activeDay = useUIStore((s) => s.activeDay)
@@ -63,44 +79,73 @@ export function DayNav() {
         </div>
       )}
 
-      {/* Day tabs */}
+      {/* Day tabs — render either the card or pill style based on
+          DAY_TAB_STYLE. Both styles preserve the same states: active,
+          unavailable (past cutoff, click-through OK), closed (kitchen
+          shut, non-clickable), and the green cart-count badge. */}
       {days.map((day, i) => {
         // WEC-336: cart is keyed by ISO date now — read the count for
         // this day via its `day.date`, not its position-in-week index.
-        // Before this fix the badge silently disappeared because
-        // `totalCount(cart, 0)` looked for cart["0"] which never existed.
         const count = totalCount(cart, day.date)
         const isClosed = !!day.inactive
         const unavailable = isClosed || !isDayOrderable(day.date, settings)
+        const isActive = activeDay === i
+        const baseCls = DAY_TAB_STYLE === 'card' ? 'day-card' : 'day-tab'
         const cls =
-          'day-tab' +
-          (activeDay === i ? ' active' : '') +
+          baseCls +
+          (isActive ? ' active' : '') +
           (unavailable ? ' unavailable' : '') +
           (isClosed ? ' closed' : '')
+
+        // Date parts — used by both styles, formatted differently.
+        const dObj = new Date(day.date + 'T12:00:00')
+        const isEl = lang === 'el'
+        const dow2 = (isEl ? DOW_EL_2 : DOW_EN_2)[dObj.getDay()]
+        const dom = dObj.getDate()
+        const mon3 = (isEl ? MONTH_EL_3 : MONTH_EN_3)[dObj.getMonth()]
+
         return (
           <div
             key={day.date}
             className={cls}
-            // WEC-273: closed days are non-clickable (the kitchen is shut,
-            // there's nothing to order). Past-cutoff days remain clickable
-            // so the customer can still see the menu / their existing cart.
+            // WEC-273: closed days are non-clickable (kitchen shut).
+            // Past-cutoff days remain clickable so customers can browse.
             onClick={isClosed ? undefined : () => setActiveDay(i)}
             aria-disabled={isClosed || undefined}
             title={isClosed ? (lang === 'el' ? 'Κλειστό' : 'Closed') : undefined}
           >
-            {/* WEC-273: red X badge in the corner of closed-day tabs */}
+            {/* X badge in the corner of closed-day tabs (WEC-273) — same
+                concept in both styles, dedicated class per style for
+                positioning. */}
             {isClosed && (
-              <span className="day-tab-x" aria-hidden="true">
+              <span
+                className={DAY_TAB_STYLE === 'card' ? 'day-card-x' : 'day-tab-x'}
+                aria-hidden="true"
+              >
                 <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
                   <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
                 </svg>
               </span>
             )}
-            <div className="dn">{dayLabel(day.date, lang, 'short')}</div>
-            <div className="dd">{formatDate(day.date, lang)}</div>
-            {isClosed
-              ? <div className="day-tab-closed-note">{lang === 'el' ? 'Κλειστό' : 'Closed'}</div>
-              : (count > 0 && <div className="day-badge">{count}</div>)}
+
+            {DAY_TAB_STYLE === 'card' ? (
+              <>
+                <span className="day-card-dow">{dow2}</span>
+                <span className="day-card-dom">{dom}</span>
+                <span className="day-card-mon">{mon3}</span>
+                {isClosed
+                  ? <span className="day-card-closed-note">{isEl ? 'Κλειστό' : 'Closed'}</span>
+                  : (count > 0 && <span className="day-card-badge" aria-label={isEl ? `${count} επιλεγμένα` : `${count} selected`}>{count}</span>)}
+              </>
+            ) : (
+              <>
+                <div className="dn">{dayLabel(day.date, lang, 'short')}</div>
+                <div className="dd">{formatDate(day.date, lang)}</div>
+                {isClosed
+                  ? <div className="day-tab-closed-note">{isEl ? 'Κλειστό' : 'Closed'}</div>
+                  : (count > 0 && <div className="day-badge">{count}</div>)}
+              </>
+            )}
           </div>
         )
       })}
