@@ -31,8 +31,9 @@ export function MenuPage() {
   const lang = useUIStore((s) => s.lang)
   const activeDay = useUIStore((s) => s.activeDay)
   const activeWeek = useUIStore((s) => s.activeWeek)
-  const openWalletModal = useUIStore((s) => s.openWalletModal)
   const goToWalletPage = useUIStore((s) => s.goToWalletPage)
+  // WEC-348: subscribers tap the beige card → Account → Goals tab.
+  const goToAccount = useUIStore((s) => s.goToAccount)
   const goToCheckout = useUIStore((s) => s.goToCheckout)
   const cart = useCartStore((s) => s.cart)
   const user = useAuthStore((s) => s.user)
@@ -139,137 +140,136 @@ export function MenuPage() {
       <div className="layout">
         <div className="main">
 
-          {/* Banner row.
-              WEC-347 + WEC-348: walletActive is the ONE switch.
-              - Non-subscribers (guests + signed-in-no-wallet) see the
-                2-col grid: menu banner + the "ΦΑΓΕ ΓΙΑ ΤΟΝ ΣΤΟΧΟ ΣΟΥ"
-                pitch (primary acquisition CTA — restored after WEC-347
-                over-removed it).
-              - Subscribers see the menu banner full-width with a small
-                "Οι Στόχοι μου" pill next to the info pills.
-              The wallet-replaces-banner pattern stays gone, per WEC-347's
-              actual intent — only the pitch state of .sub-promo lives on.
+          {/* Banner row — WEC-347 + WEC-348 (final design).
+              The 2-col grid is ALWAYS rendered. The left column is the
+              menu banner (heading + info pills). The right column is
+              the beige .sub-promo card. The card's CONTENT swaps based
+              on a single signal — has the customer purchased a
+              subscription plan — NOT login state, NOT wallet balance.
+              The shell (size, cream paper, glyph) is identical in both
+              states so the row keeps a consistent visual rhythm.
+
+              SUBSCRIPTION PROXY — see WEC-348 description for TODO.
+              We don't have a dedicated `user.subscription.active` flag
+              yet; the closest signal is `user.wallet.active` from the
+              Wallet v2 model (project_wallet_v2). Swap this proxy when
+              we get a definitive subscription field on the user object.
           */}
-          {walletActive ? (
-            <div className="page-banner">
-              <div className="banner-top">
-                <div className="banner-heading">
-                  {lang === 'el'
-                    ? <>Εβδομαδιαίο <span>Μενού</span></>
-                    : <>Weekly <span>Menu</span></>}
+          {(() => {
+            const subscribed = !!walletActive
+            const cardCta = subscribed
+              ? () => goToAccount('goals')
+              : () => goToWalletPage()
+            return (
+              <div className="banner-row">
+                <div className="page-banner">
+                  <div className="banner-top">
+                    <div className="banner-heading">
+                      {lang === 'el'
+                        ? <>Εβδομαδιαίο <span>Μενού</span></>
+                        : <>Weekly <span>Menu</span></>}
+                    </div>
+                    <div className="banner-sub">{t('sub')}</div>
+                  </div>
+                  <div className="banner-pills">
+                    <div className="banner-pill">{weekWord} {dateRange}</div>
+                    <div className="banner-pill green">{t('pillMin')}</div>
+                    <div className="banner-pill">{t('pillDelivery')}</div>
+                  </div>
                 </div>
-                <div className="banner-sub">{t('sub')}</div>
-              </div>
-              <div className="banner-pills">
-                <div className="banner-pill">{weekWord} {dateRange}</div>
-                <div className="banner-pill green">{t('pillMin')}</div>
-                <div className="banner-pill">{t('pillDelivery')}</div>
-                <button
-                  type="button"
-                  className="banner-pill banner-pill-goals"
-                  onClick={goToWalletPage}
-                  aria-label={lang === 'el' ? 'Δες τους στόχους σου' : 'View your goals'}
+
+                <div
+                  className="sub-promo"
+                  onClick={cardCta}
+                  role="button"
+                  tabIndex={0}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault()
+                      cardCta()
+                    }
+                  }}
                 >
-                  {lang === 'el' ? 'Οι Στόχοι μου' : 'My Goals'}
                   <svg
-                    viewBox="0 0 24 24"
+                    className="sub-promo-glyph"
+                    viewBox="0 0 120 120"
                     fill="none"
                     stroke="currentColor"
-                    strokeWidth="2.5"
+                    strokeWidth="1.5"
                     strokeLinecap="round"
                     strokeLinejoin="round"
-                    width="11"
-                    height="11"
                     aria-hidden="true"
                   >
-                    <line x1="5" y1="12" x2="19" y2="12" />
-                    <polyline points="12 5 19 12 12 19" />
+                    <path d="M20 62a40 40 0 0080 0" />
+                    <path d="M16 62h88" />
+                    <path d="M60 36c-6-6-6-14 0-20 6 6 6 14 0 20z" />
+                    <path d="M48 42c-8-2-12-8-10-16 8 2 12 8 10 16z" />
+                    <path d="M72 42c8-2 12-8 10-16-8 2-12 8-10 16z" />
                   </svg>
-                </button>
-              </div>
-            </div>
-          ) : (
-            <div className="banner-row">
-              <div className="page-banner">
-                <div className="banner-top">
-                  <div className="banner-heading">
-                    {lang === 'el'
-                      ? <>Εβδομαδιαίο <span>Μενού</span></>
-                      : <>Weekly <span>Menu</span></>}
-                  </div>
-                  <div className="banner-sub">{t('sub')}</div>
-                </div>
-                <div className="banner-pills">
-                  <div className="banner-pill">{weekWord} {dateRange}</div>
-                  <div className="banner-pill green">{t('pillMin')}</div>
-                  <div className="banner-pill">{t('pillDelivery')}</div>
-                </div>
-              </div>
 
-              {/* WEC-338 / WEC-348: subscription pitch card. Editorial
-                  cream-paper card with the "Eat for your goal" headline +
-                  decorative bowl/leaf glyph. Primary acquisition CTA —
-                  routes to the subscription signup page. */}
-              <div
-                className="sub-promo"
-                onClick={goToWalletPage}
-                role="button"
-                tabIndex={0}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' || e.key === ' ') {
-                    e.preventDefault()
-                    goToWalletPage()
-                  }
-                }}
-              >
-                <svg
-                  className="sub-promo-glyph"
-                  viewBox="0 0 120 120"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="1.5"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  aria-hidden="true"
-                >
-                  <path d="M20 62a40 40 0 0080 0" />
-                  <path d="M16 62h88" />
-                  <path d="M60 36c-6-6-6-14 0-20 6 6 6 14 0 20z" />
-                  <path d="M48 42c-8-2-12-8-10-16 8 2 12 8 10 16z" />
-                  <path d="M72 42c8-2 12-8 10-16-8 2-12 8-10 16z" />
-                </svg>
-
-                <div className="sub-promo-inner">
-                  <div className="sub-promo-eyebrow">
-                    <span className="sub-promo-dot" aria-hidden="true" />
-                    {lang === 'el' ? 'ΣΥΝΔΡΟΜΗ FITPAL' : 'FITPAL SUBSCRIPTION'}
-                  </div>
-                  <h3 className="sub-promo-headline">
-                    {lang === 'el' ? (
-                      <>Φάγε για τον<br /><em>στόχο σου</em>.</>
-                    ) : (
-                      <>Eat for your<br /><em>goal</em>.</>
-                    )}
-                  </h3>
-                  <div className="sub-promo-sub">
-                    {lang === 'el'
-                      ? 'Εξατομικευμένο πλάνο διατροφής. Έκπτωση έως 18%.'
-                      : 'A meal plan made for you. Save up to 18%.'}
-                  </div>
-                  <button
-                    type="button"
-                    className="sub-promo-cta"
-                    onClick={(e) => { e.stopPropagation(); goToWalletPage() }}
-                  >
-                    {lang === 'el' ? 'Φτιάξε το πλάνο μου' : 'Build my plan'}
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" width="12" height="12" aria-hidden="true">
-                      <line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/>
-                    </svg>
-                  </button>
+                  {subscribed ? (
+                    <div className="sub-promo-inner">
+                      <div className="sub-promo-eyebrow">
+                        <span className="sub-promo-dot" aria-hidden="true" />
+                        {lang === 'el' ? 'FITPAL ΣΤΟΧΟΙ' : 'FITPAL GOALS'}
+                      </div>
+                      <h3 className="sub-promo-headline">
+                        {lang === 'el' ? (
+                          <>Οι <em>Στόχοι</em><br />μου.</>
+                        ) : (
+                          <>My <em>Goals</em>.</>
+                        )}
+                      </h3>
+                      <div className="sub-promo-sub">
+                        {lang === 'el'
+                          ? 'Δες τη συνδρομή σου, την πρόοδό σου και τα γεύματα που σου ταιριάζουν.'
+                          : 'Track your plan, your progress, and the meals that fit you.'}
+                      </div>
+                      <button
+                        type="button"
+                        className="sub-promo-cta"
+                        onClick={(e) => { e.stopPropagation(); goToAccount('goals') }}
+                      >
+                        {lang === 'el' ? 'Δες τους στόχους μου' : 'View my goals'}
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" width="12" height="12" aria-hidden="true">
+                          <line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/>
+                        </svg>
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="sub-promo-inner">
+                      <div className="sub-promo-eyebrow">
+                        <span className="sub-promo-dot" aria-hidden="true" />
+                        {lang === 'el' ? 'ΣΥΝΔΡΟΜΗ FITPAL' : 'FITPAL SUBSCRIPTION'}
+                      </div>
+                      <h3 className="sub-promo-headline">
+                        {lang === 'el' ? (
+                          <>Φάγε για τον<br /><em>στόχο σου</em>.</>
+                        ) : (
+                          <>Eat for your<br /><em>goal</em>.</>
+                        )}
+                      </h3>
+                      <div className="sub-promo-sub">
+                        {lang === 'el'
+                          ? 'Εξατομικευμένο πλάνο διατροφής. Έκπτωση έως 18%.'
+                          : 'A meal plan made for you. Save up to 18%.'}
+                      </div>
+                      <button
+                        type="button"
+                        className="sub-promo-cta"
+                        onClick={(e) => { e.stopPropagation(); goToWalletPage() }}
+                      >
+                        {lang === 'el' ? 'Φτιάξε το πλάνο μου' : 'Build my plan'}
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" width="12" height="12" aria-hidden="true">
+                          <line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/>
+                        </svg>
+                      </button>
+                    </div>
+                  )}
                 </div>
               </div>
-            </div>
-          )}
+            )
+          })()}
 
           {/* Day navigation — compact horizontally-scrollable day strip with
               the cutoff countdown stacked just underneath. Reverted from the
