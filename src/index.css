@@ -137,7 +137,8 @@ header {
 .page-banner { background: var(--green-dark); border-radius: var(--radius-lg); padding: 18px 24px; margin-bottom: 22px; position: relative; overflow: hidden; }
 .page-banner::after { content: ''; position: absolute; right: -40px; top: -40px; width: 200px; height: 200px; background: var(--green); border-radius: 50%; opacity: 0.12; }
 .page-banner::before { content: ''; position: absolute; right: 60px; bottom: -60px; width: 140px; height: 140px; background: var(--green); border-radius: 50%; opacity: 0.08; }
-.banner-row { display: grid; grid-template-columns: 1fr 320px; gap: 16px; margin-bottom: 22px; }
+/* WEC-338 — banner row now splits 50/50; both cards carry equal visual weight. */
+.banner-row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 22px; }
 .banner-row .page-banner { margin-bottom: 0; }
 .banner-top { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; position: relative; z-index: 1; }
 .banner-heading { font-size: 22px; font-weight: 900; color: var(--white); letter-spacing: -0.5px; }
@@ -206,17 +207,53 @@ header {
 .day-tab.unavailable.active:hover { border-color: var(--green-dark); background: var(--green-dark); }
 .day-badge { position: absolute; top: -6px; right: -6px; background: var(--green); color: var(--white); border-radius: 50%; width: 18px; height: 18px; font-size: 9px; font-weight: 900; display: flex; align-items: center; justify-content: center; border: 2px solid var(--cream-light); }
 .day-tab.active .day-badge { border-color: var(--green-dark); }
-.week-toggle { flex: 0 0 auto; min-width: 70px; background: var(--cream); border: 1.5px solid var(--cream-dark); border-radius: var(--radius-sm); padding: 8px 12px; cursor: pointer; text-align: center; transition: all 0.18s; display: flex; flex-direction: column; align-items: center; gap: 2px; }
-.week-toggle:hover { border-color: var(--green); background: var(--green-pale); }
+/* WEC-338 — week-toggle now mirrors the day-card aesthetic: same white
+   surface, same 1.5px border, same hover lift. Just narrower in width
+   and stacked arrow + range label. Reads as a "navigation chip" next
+   to the day chips rather than a foreign UI element. */
+.week-toggle {
+  flex: 0 0 auto;
+  width: 76px;
+  padding: 10px 6px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  background: var(--white);
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  text-align: center;
+  transition: all 0.18s;
+  min-height: 76px;
+  box-sizing: border-box;
+}
+.week-toggle:hover { border-color: var(--green); transform: translateY(-1px); }
 .week-toggle.loading { opacity: 0.7; pointer-events: none; }
 .week-toggle.loading .wt-arrow { animation: wt-spin 0.8s linear infinite; color: var(--green); display: inline-block; }
+.wt-arrow {
+  font-size: 18px;
+  font-weight: 800;
+  color: var(--text-muted);
+  line-height: 1;
+}
+.week-toggle:hover .wt-arrow { color: var(--green-dark); }
+.wt-label {
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--text-muted);
+  letter-spacing: 0.3px;
+  line-height: 1.2;
+  text-transform: uppercase;
+}
 /* WEC-257: disabled "Coming soon" placeholder when no next week exists yet.
    Same shape as the regular toggle so the strip's right edge stays anchored. */
 .week-toggle.coming-soon { cursor: default; opacity: 0.5; pointer-events: none; }
 .week-toggle.coming-soon .wt-arrow { color: var(--text-muted); }
 @keyframes wt-spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
-.wt-arrow { font-size: 14px; color: var(--text-muted); line-height: 1; }
-.wt-label { font-size: 9px; font-weight: 700; color: var(--text-muted); }
+/* WEC-338: stale .wt-arrow / .wt-label overrides removed — the styles above
+   (matching .day-card aesthetic) are now the source of truth. */
 
 /* ── WEC-339 · Card-style day tabs (alternative to .day-tab) ───
    Adopted from the subscription page's StartDatePicker (WEC-338) so the
@@ -274,7 +311,6 @@ header {
 .day-card.unavailable.active { opacity: 0.85; }
 .day-card.unavailable.active:hover { border-color: var(--green-dark); background: var(--green-pale); }
 .day-card.closed {
-  opacity: 0.55;
   cursor: not-allowed;
   background: var(--cream);
   border-color: var(--cream-dark);
@@ -283,6 +319,27 @@ header {
   border-color: var(--cream-dark);
   background: var(--cream);
   transform: none;
+}
+/* Closed-day chip dims the DOW + DOM, but keeps both fully readable. */
+.day-card.closed .day-card-dow,
+.day-card.closed .day-card-dom {
+  color: var(--text-muted);
+}
+/* WEC-338 — closed-day tag. Sits in the month-abbreviation slot so the
+   chip height stays identical to other days at every breakpoint. The X
+   corner badge and the date number are NOT obscured. */
+.day-card-closed-tag {
+  font-size: 9px;
+  font-weight: 900;
+  letter-spacing: 0.6px;
+  color: #B91C1C;
+  background: rgba(185, 28, 28, 0.10);
+  border-radius: 999px;
+  padding: 2px 7px;
+  text-transform: uppercase;
+  line-height: 1.1;
+  margin-top: 1px;
+  white-space: nowrap;
 }
 .day-card-x {
   position: absolute;
@@ -299,14 +356,9 @@ header {
   border: 2px solid var(--cream-light);
   box-shadow: 0 1px 3px rgba(0,0,0,0.12);
 }
-.day-card-closed-note {
-  font-size: 8.5px;
-  font-weight: 800;
-  color: #DC2626;
-  letter-spacing: 0.4px;
-  margin-top: 3px;
-  text-transform: uppercase;
-}
+/* .day-card-closed-note — DEPRECATED, replaced by .day-card-closed-overlay
+   above. Kept here as a no-op so any stray reference still parses. */
+.day-card-closed-note { display: none; }
 .day-card-badge {
   position: absolute;
   top: -6px;
@@ -894,6 +946,25 @@ header {
 .btn-dm-add:disabled { opacity: 0.5; cursor: not-allowed; }
 .btn-dm-add.closed { background: var(--cream-dark); color: var(--text-muted); }
 .btn-dm-add.closed:hover { background: var(--cream-dark); box-shadow: none; }
+/* WEC-340: secondary "Remove from cart" link, shown only in edit mode.
+   Plain-link styling with a danger tint on hover so destructive intent
+   stays visible without competing with the primary save CTA above. */
+.btn-dm-remove {
+  display: block;
+  width: 100%;
+  margin-top: 10px;
+  padding: 8px 10px;
+  background: transparent;
+  color: var(--text-muted);
+  border: none;
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  text-align: center;
+  transition: all 0.15s;
+}
+.btn-dm-remove:hover { color: #DC2626; background: rgba(220, 38, 38, 0.08); }
 
 /* ══════════════════════════════════════════
    CART SIDEBAR
@@ -915,6 +986,17 @@ header {
 .wsb-amt { font-size: 15px; font-weight: 900; color: #7DFFBE; }
 .wsb-topup { padding: 4px 12px; background: rgba(0,185,107,0.3); border: 1px solid rgba(0,185,107,0.5); border-radius: 999px; font-size: 10px; font-weight: 800; color: #7DFFBE; cursor: pointer; transition: all 0.18s; }
 .wsb-topup:hover { background: var(--green); color: var(--white); }
+
+/* WEC-340: clickable cart-item rows — clicking the row opens the dish
+   modal in edit mode so the customer can swap variant or update the
+   comment. Hover lift + a soft fitpal-cream background nudge signal
+   interactivity; the qty controls inside stop propagation so they keep
+   their own click semantics. */
+.cart-item-clickable { cursor: pointer; transition: background 0.15s, transform 0.12s; outline: none; }
+.cart-item-clickable:hover { background: var(--cream-light); }
+.cart-item-clickable:active { transform: translateY(0.5px); }
+.cart-item-clickable:focus-visible { background: var(--cream-light); box-shadow: inset 0 0 0 2px var(--green); }
+.cart-item-clickable .qty-ctrl { cursor: default; }
 
 .cart-empty { padding: 40px 22px; text-align: center; }
 .cart-empty-icon { font-size: 36px; margin-bottom: 10px; }
@@ -1322,9 +1404,143 @@ header {
 .wp-plans-mini { display: flex; gap: 5px; flex-wrap: nowrap; position: relative; z-index: 1; margin-bottom: 0; }
 .wp-plan-chip { background: rgba(255,255,255,0.12); border: 1px solid rgba(255,255,255,0.2); border-radius: 999px; padding: 3px 7px; font-size: 9.5px; font-weight: 800; color: rgba(255,255,255,0.85); white-space: nowrap; }
 .wp-plan-chip .wp-bonus { color: #7DFFBE; font-weight: 900; }
+/* WEC-338 — benefit chips that replaced the deprecated 3 plan chips. Each
+   chip carries a tiny icon + 1-3 word label. Wraps to a second line on
+   narrow widths so the card never overflows. */
+.wp-benefits { display: flex; flex-wrap: wrap; gap: 4px 5px; position: relative; z-index: 1; margin-bottom: 0; }
+.wp-benefit { display: inline-flex; align-items: center; gap: 4px; background: rgba(255,255,255,0.12); border: 1px solid rgba(255,255,255,0.22); border-radius: 999px; padding: 3px 8px; font-size: 9.5px; font-weight: 800; color: rgba(255,255,255,0.92); white-space: nowrap; }
+.wp-benefit svg { width: 10px; height: 10px; color: #7DFFBE; flex-shrink: 0; }
 /* WEC-298 (follow-up): wallet-promo "Manage" pill bumped to ≥44 tall. */
 .wp-cta { min-height: 44px; display: inline-flex; align-items: center; justify-content: center; gap: 5px; background: var(--green); color: var(--white); border: none; border-radius: 999px; padding: 6px 14px; font-size: 11px; font-weight: 900; cursor: pointer; transition: all 0.18s; margin-top: 8px; width: fit-content; position: relative; z-index: 1; }
 .wp-cta:hover { background: #00a060; }
+
+/* ══════════════════════════════════════════
+   WEC-338 — SUBSCRIPTION PROMO v2 (editorial)
+   Replaces the old green-gradient .wallet-promo. Cream paper feel, an
+   oversized editorial headline with an italic accent word, one
+   decorative bowl glyph in the corner, and an action-oriented CTA pill.
+   Splits the banner row 50/50 with the menu banner.
+══════════════════════════════════════════ */
+.sub-promo {
+  position: relative;
+  overflow: hidden;
+  background:
+    radial-gradient(900px 240px at 0% 0%, rgba(0, 71, 57, 0.06), transparent 60%),
+    linear-gradient(180deg, #FAF6EE 0%, #F2EAD9 100%);
+  border: 1px solid rgba(0, 71, 57, 0.10);
+  border-radius: var(--radius-lg);
+  padding: 22px 24px;
+  cursor: pointer;
+  transition: transform 0.22s ease, box-shadow 0.22s ease, border-color 0.22s ease;
+  min-height: 156px;
+  display: flex;
+  align-items: stretch;
+}
+.sub-promo:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 12px 28px rgba(0, 71, 57, 0.10);
+  border-color: rgba(0, 71, 57, 0.22);
+}
+.sub-promo:focus-visible {
+  outline: 2px solid var(--green-dark);
+  outline-offset: 3px;
+}
+.sub-promo-glyph {
+  position: absolute;
+  right: -8px;
+  bottom: -8px;
+  width: 150px;
+  height: 150px;
+  color: rgba(0, 71, 57, 0.08);
+  pointer-events: none;
+  transition: color 0.22s ease, transform 0.5s ease;
+}
+.sub-promo:hover .sub-promo-glyph {
+  color: rgba(0, 71, 57, 0.14);
+  transform: translateY(-2px) rotate(-2deg);
+}
+.sub-promo-inner {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-width: 88%;
+}
+.sub-promo-eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 1.4px;
+  color: var(--green-dark);
+  text-transform: uppercase;
+  width: fit-content;
+}
+.sub-promo-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--green);
+  box-shadow: 0 0 0 3px rgba(0, 185, 107, 0.18);
+  display: inline-block;
+}
+.sub-promo-headline {
+  font-size: 30px;
+  font-weight: 800;
+  line-height: 1.05;
+  letter-spacing: -0.8px;
+  color: var(--green-dark);
+  margin: 4px 0 2px;
+}
+.sub-promo-headline em {
+  font-style: italic;
+  font-weight: 800;
+  color: var(--green);
+  font-family: Georgia, 'Times New Roman', serif;
+  letter-spacing: -0.5px;
+}
+.sub-promo-sub {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-muted);
+  line-height: 1.5;
+  max-width: 30ch;
+}
+.sub-promo-cta {
+  margin-top: auto;
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--green-dark);
+  color: var(--white);
+  border: none;
+  border-radius: 999px;
+  padding: 10px 18px;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.2px;
+  font-family: inherit;
+  cursor: pointer;
+  transition: background 0.18s ease, transform 0.18s ease;
+}
+.sub-promo-cta:hover { background: #003528; transform: translateX(2px); }
+.sub-promo-cta svg { transition: transform 0.18s ease; }
+.sub-promo-cta:hover svg { transform: translateX(3px); }
+
+/* Active-wallet variant — same shell, balance instead of promo copy. */
+.sub-promo.has-wallet .sub-promo-headline {
+  font-size: 36px;
+  font-variant-numeric: tabular-nums;
+}
+
+@media (max-width: 720px) {
+  .sub-promo { padding: 18px 18px; min-height: 0; }
+  .sub-promo-headline { font-size: 26px; }
+  .sub-promo-glyph { width: 110px; height: 110px; }
+}
 
 /* ══════════════════════════════════════════
    CART SIDEBAR — matches demo.html .sidebar
@@ -2366,32 +2582,39 @@ a.btn-conf-done { display: inline-block; text-decoration: none; }
 
 /* Activity chips (5-up grid) */
 .wpv2-activity { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; }
-.wpv2-activity-opt { padding: 12px 8px; background: var(--fp-paper); border: 1.5px solid var(--fp-ink-200); border-radius: var(--fp-radius-sm); cursor: pointer; transition: all 0.15s; text-align: left; font-family: inherit; }
+.wpv2-activity-opt { padding: 12px 8px; background: var(--fp-paper); border: 1.5px solid var(--fp-ink-200); border-radius: var(--fp-radius-sm); cursor: pointer; transition: all 0.15s; text-align: left; font-family: inherit; display: flex; flex-direction: column; gap: 4px; }
 .wpv2-activity-opt:hover { border-color: var(--fp-green-300); }
 .wpv2-activity-opt.sel { border-color: var(--fp-green-600); background: var(--fp-green-50); }
+.wpv2-activity-ico { width: 20px; height: 20px; color: var(--fp-ink-500); display: flex; align-items: center; justify-content: center; margin-bottom: 2px; }
+.wpv2-activity-opt.sel .wpv2-activity-ico { color: var(--fp-green-700); }
 .wpv2-activity-name { font-size: 12px; font-weight: 700; color: var(--fp-ink-900); line-height: 1.25; margin-bottom: 3px; }
 .wpv2-activity-sub { font-size: 10px; font-weight: 500; color: var(--fp-ink-500); line-height: 1.35; }
 
 /* ── Macros (3 cream cards with colored bars) ─────────────────── */
-/* WEC-338 follow-up: kcal hero — the headline metric. */
-.wpv2-kcal-hero { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 22px 20px 20px; margin-bottom: 16px; background: linear-gradient(135deg, var(--fp-green-50) 0%, var(--fp-cream-200, var(--fp-cream-100)) 100%); border: 1.5px solid var(--fp-green-200, var(--fp-green-100)); border-radius: var(--fp-radius); text-align: center; }
-.wpv2-kcal-hero-label { font-size: 11px; font-weight: 800; color: var(--fp-green-700); letter-spacing: 0.8px; text-transform: uppercase; }
-.wpv2-kcal-hero-val { font-size: 56px; font-weight: 900; color: var(--fp-green-900); letter-spacing: -2px; line-height: 1; font-variant-numeric: tabular-nums; display: inline-flex; align-items: baseline; gap: 8px; }
-.wpv2-kcal-hero-val small { font-size: 14px; font-weight: 700; color: var(--fp-ink-500); letter-spacing: 0; }
-.wpv2-kcal-hero-hint { font-size: 12px; font-weight: 600; color: var(--fp-ink-600, var(--fp-ink-500)); line-height: 1.45; max-width: 380px; }
-
-/* Slightly smaller macros now that kcal is the headline. */
-.wpv2-macros { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
-.wpv2-macro { background: var(--fp-cream-300); border: 1px solid var(--fp-ink-100); border-radius: var(--fp-radius); padding: 14px 16px; }
-.wpv2-macro-label { font-size: 10px; font-weight: 800; color: var(--fp-ink-500); letter-spacing: 0.7px; text-transform: uppercase; margin-bottom: 8px; }
-.wpv2-macro-val { font-size: 24px; font-weight: 800; color: var(--fp-ink-900); letter-spacing: -0.7px; line-height: 1; margin-bottom: 10px; }
-.wpv2-macro-val small { font-size: 12px; font-weight: 600; color: var(--fp-ink-500); margin-left: 2px; }
-.wpv2-macro-bar { height: 5px; background: rgba(255,255,255,0.7); border-radius: 999px; overflow: hidden; }
-.wpv2-macro-bar-fill { height: 100%; border-radius: 999px; transition: width 0.3s ease; }
-.wpv2-macro.carbs   .wpv2-macro-bar-fill { background: var(--fp-accent-orange); }
-.wpv2-macro.protein .wpv2-macro-bar-fill { background: var(--fp-green-500); }
-.wpv2-macro.fat     .wpv2-macro-bar-fill { background: var(--fp-accent-yellow); }
-.wpv2-macro-grams { font-size: 10px; font-weight: 600; color: var(--fp-ink-500); margin-top: 6px; }
+/* WEC-338 follow-up — kcal + 3 macros in one row. kcal gets ~33% (1.5fr),
+   each macro ~22% (1fr). All four cards share the same vertical rhythm so
+   they line up; kcal just gets a green accent and a bigger value. */
+.wpv2-nutrition-row { display: grid; grid-template-columns: 1.5fr 1fr 1fr 1fr; gap: 8px; }
+.wpv2-nutri { background: var(--fp-cream-300); border: 1px solid var(--fp-ink-100); border-radius: var(--fp-radius); padding: 12px 12px 10px; display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.wpv2-nutri.kcal { background: var(--fp-green-50); border-color: var(--fp-green-200, var(--fp-green-100)); }
+.wpv2-nutri-ico { width: 22px; height: 22px; color: var(--fp-ink-500); display: flex; align-items: center; justify-content: center; }
+.wpv2-nutri-ico svg { width: 100%; height: 100%; }
+.wpv2-nutri.kcal     .wpv2-nutri-ico { color: var(--fp-green-700); }
+.wpv2-nutri.carbs    .wpv2-nutri-ico { color: var(--fp-accent-orange); }
+.wpv2-nutri.protein  .wpv2-nutri-ico { color: var(--fp-green-600); }
+.wpv2-nutri.fat      .wpv2-nutri-ico { color: var(--fp-accent-yellow); }
+.wpv2-nutri-label { font-size: 10px; font-weight: 800; color: var(--fp-ink-500); letter-spacing: 0.6px; text-transform: uppercase; }
+.wpv2-nutri.kcal .wpv2-nutri-label { color: var(--fp-green-700); }
+.wpv2-nutri-val { font-size: 22px; font-weight: 800; color: var(--fp-ink-900); letter-spacing: -0.6px; line-height: 1; display: inline-flex; align-items: baseline; gap: 2px; font-variant-numeric: tabular-nums; }
+.wpv2-nutri-val small { font-size: 11px; font-weight: 700; color: var(--fp-ink-500); letter-spacing: 0; }
+.wpv2-nutri.kcal .wpv2-nutri-val { font-size: 30px; color: var(--fp-green-900); letter-spacing: -1px; }
+.wpv2-nutri.kcal .wpv2-nutri-val small { font-size: 12px; color: var(--fp-green-700); }
+.wpv2-nutri-bar { height: 4px; background: rgba(255,255,255,0.7); border-radius: 999px; overflow: hidden; }
+.wpv2-nutri-bar-fill { height: 100%; border-radius: 999px; transition: width 0.3s ease; }
+.wpv2-nutri.carbs   .wpv2-nutri-bar-fill { background: var(--fp-accent-orange); }
+.wpv2-nutri.protein .wpv2-nutri-bar-fill { background: var(--fp-green-500); }
+.wpv2-nutri.fat     .wpv2-nutri-bar-fill { background: var(--fp-accent-yellow); }
+.wpv2-nutri-sub { font-size: 10px; font-weight: 600; color: var(--fp-ink-500); margin-top: auto; }
 
 /* ── Meal chips ───────────────────────────────────────────────── */
 .wpv2-meals { display: flex; flex-wrap: wrap; gap: 10px; }
@@ -2553,7 +2776,7 @@ a.btn-conf-done { display: inline-block; text-decoration: none; }
 .wpv2-addrgate-label { font-size: 11px; font-weight: 700; color: var(--fp-ink-500); letter-spacing: 0.4px; text-transform: uppercase; }
 .wpv2-addrgate-label small { font-weight: 600; color: var(--fp-ink-400); text-transform: none; letter-spacing: 0; }
 .wpv2-addrgate-label small.req { color: #d94d3a; font-weight: 800; margin-left: 2px; }
-.wpv2-addrgate-input { padding: 10px 12px; border: 1.5px solid var(--fp-ink-200); border-radius: var(--fp-radius-sm); font-size: 14px; font-weight: 600; color: var(--fp-ink-900); background: var(--fp-paper); font-family: inherit; box-sizing: border-box; transition: border-color 0.15s; }
+.wpv2-addrgate-input { width: 100%; padding: 14px 16px; border: 1.5px solid var(--fp-ink-200); border-radius: var(--fp-radius-sm); font-size: 15px; font-weight: 600; color: var(--fp-ink-900); background: var(--fp-paper); font-family: inherit; box-sizing: border-box; transition: border-color 0.15s; }
 .wpv2-addrgate-input::placeholder { color: var(--fp-ink-400); font-weight: 500; }
 .wpv2-addrgate-input:focus { outline: none; border-color: var(--fp-green-600); }
 .wpv2-addrgate-input.zip.ok { border-color: var(--fp-green-600); background: var(--fp-green-50); }
@@ -2606,7 +2829,8 @@ a.btn-conf-done { display: inline-block; text-decoration: none; }
   .wpv2-h-title { font-size: 24px; }
   .wpv2-section { padding: 18px 16px; }
   .wpv2-goals { grid-template-columns: 1fr; }
-  .wpv2-macros { grid-template-columns: 1fr; gap: 10px; }
+  .wpv2-nutrition-row { grid-template-columns: 1fr 1fr; gap: 8px; }
+  .wpv2-nutrition-row .wpv2-nutri.kcal { grid-column: 1 / -1; }
   .wpv2-profile-row.r3 { grid-template-columns: 1fr 1fr; }
   .wpv2-activity { grid-template-columns: repeat(2, 1fr); }
   .wpv2-freq { grid-template-columns: 1fr; }

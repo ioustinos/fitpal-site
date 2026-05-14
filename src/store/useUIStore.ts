@@ -4,6 +4,23 @@ import type { Dish } from '../data/menu'
 
 type Modal = 'auth' | 'dish' | 'wallet' | null
 
+/**
+ * WEC-340: when set, the DishModal is open in EDIT mode for an existing
+ * cart item — not in ADD mode for a fresh dish click. The modal reads
+ * this and:
+ *   - pre-fills variantId + qty + comment from `cart[dayDate][itemIndex]`
+ *   - resolves the dayDate directly from this context (not from
+ *     selectedDayIndex / activeWeek — those don't apply when the customer
+ *     navigated to a different week after adding the item)
+ *   - swaps the primary CTA from "Add to cart" → "Save changes"
+ *   - dispatches `updateItem` instead of `addItem` on submit
+ *   - offers a Remove-from-cart secondary action
+ */
+export interface CartItemEditCtx {
+  dayDate: string
+  itemIndex: number
+}
+
 interface UIStore {
   lang: Lang
   activeDay: number
@@ -11,7 +28,8 @@ interface UIStore {
   activeCat: string | null          // null = show all
   openModal: Modal
   selectedDish: Dish | null
-  selectedDayIndex: number | null   // day index for dish modal context
+  selectedDayIndex: number | null   // day index for dish modal context (ADD mode)
+  editingCartItem: CartItemEditCtx | null  // WEC-340: set in EDIT mode, null in ADD mode
   isCheckout: boolean
   isAccountPage: boolean
   accountTab: string
@@ -24,6 +42,8 @@ interface UIStore {
   setActiveWeekAndDay: (week: number, day: number) => void
   setActiveCat: (cat: string | null) => void
   openDishModal: (dish: Dish, dayIndex: number) => void
+  /** WEC-340: open DishModal in edit mode for an existing cart line. */
+  openDishModalForEdit: (dish: Dish, ctx: CartItemEditCtx) => void
   openAuthModal: () => void
   openWalletModal: () => void
   closeModal: () => void
@@ -47,6 +67,7 @@ export const useUIStore = create<UIStore>((set) => ({
   openModal: null,
   selectedDish: null,
   selectedDayIndex: null,
+  editingCartItem: null,
   isCheckout: false,
   isAccountPage: false,
   accountTab: 'orders',
@@ -62,10 +83,23 @@ export const useUIStore = create<UIStore>((set) => ({
   setActiveWeek: (activeWeek) => set({ activeWeek, activeDay: 0, activeCat: null }),
   setActiveWeekAndDay: (activeWeek, activeDay) => set({ activeWeek, activeDay, activeCat: null }),
   setActiveCat: (activeCat) => set({ activeCat }),
-  openDishModal: (dish, dayIndex) => set({ openModal: 'dish', selectedDish: dish, selectedDayIndex: dayIndex }),
+  openDishModal: (dish, dayIndex) => set({
+    openModal: 'dish',
+    selectedDish: dish,
+    selectedDayIndex: dayIndex,
+    editingCartItem: null,  // clear any stale edit context from a previous open
+  }),
+  // WEC-340: edit mode. The modal pulls dayDate/itemIndex/prefill from
+  // `editingCartItem` and routes the submit to updateItem.
+  openDishModalForEdit: (dish, ctx) => set({
+    openModal: 'dish',
+    selectedDish: dish,
+    selectedDayIndex: null,
+    editingCartItem: ctx,
+  }),
   openAuthModal: () => set({ openModal: 'auth' }),
   openWalletModal: () => set({ openModal: 'wallet' }),
-  closeModal: () => set({ openModal: null, selectedDish: null, selectedDayIndex: null }),
+  closeModal: () => set({ openModal: null, selectedDish: null, selectedDayIndex: null, editingCartItem: null }),
   goToCheckout: () => set({ isCheckout: true, isAccountPage: false, isWalletPage: false, isSubscriptionPage: false }),
   closeCheckout: () => set({ isCheckout: false }),
   goToAccount: (tab?: string) => set({ isAccountPage: true, accountTab: tab || 'orders', isCheckout: false, isWalletPage: false, isSubscriptionPage: false }),

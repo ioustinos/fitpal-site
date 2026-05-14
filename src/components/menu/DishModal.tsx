@@ -18,8 +18,11 @@ export function DishModal() {
   const openModal = useUIStore((s) => s.openModal)
   const selectedDish = useUIStore((s) => s.selectedDish)
   const selectedDayIndex = useUIStore((s) => s.selectedDayIndex)
+  const editingCartItem = useUIStore((s) => s.editingCartItem)
   const closeModal = useUIStore((s) => s.closeModal)
   const addItem = useCartStore((s) => s.addItem)
+  const updateItem = useCartStore((s) => s.updateItem)
+  const removeItem = useCartStore((s) => s.removeItem)
   const cart = useCartStore((s) => s.cart)
   const weeksMeta = useMenuStore((s) => s.weeksMeta)
   const settings = useMenuStore((s) => s.settings)
@@ -38,19 +41,35 @@ export function DishModal() {
 
   const dish = selectedDish
   const isOpen = openModal === 'dish' && dish != null
+  // WEC-340: edit mode is signalled by `editingCartItem`. Both ADD and
+  // EDIT use the same modal — only the prefill, the day-date resolution,
+  // and the primary action differ.
+  const isEdit = editingCartItem != null
 
+  // Pre-fill state on open. For ADD mode the defaults match how dishes
+  // were always added (admin default variant, qty 1, no comment). For
+  // EDIT mode we hydrate from the existing cart item so the customer
+  // sees their current selection.
   useEffect(() => {
-    if (dish) {
-      // Open with the admin-marked default variant if one is set; otherwise
-      // fall back to the first variant by sort_order. Defends against the
-      // (unlikely) case of multiple defaults — picks whichever sorts first.
-      const defaultV = dish.variants.find((v) => v.isDefault)
-      setVariantId(defaultV?.id ?? dish.variants[0]?.id ?? '')
-      setQty(1)
-      setComment('')
-      setImgError(false)
+    if (!dish) return
+    if (isEdit && editingCartItem) {
+      const items = useCartStore.getState().cart[editingCartItem.dayDate] ?? []
+      const row = items[editingCartItem.itemIndex]
+      if (row) {
+        setVariantId(row.variantId)
+        setQty(row.qty)
+        setComment(row.comment ?? '')
+        setImgError(false)
+        return
+      }
+      // Cart row vanished (concurrent delete?) — fall through to defaults.
     }
-  }, [dish])
+    const defaultV = dish.variants.find((v) => v.isDefault)
+    setVariantId(defaultV?.id ?? dish.variants[0]?.id ?? '')
+    setQty(1)
+    setComment('')
+    setImgError(false)
+  }, [dish, isEdit, editingCartItem])
 
   if (!dish) return null
 
@@ -64,9 +83,12 @@ export function DishModal() {
   const macros = variant.macros
 
   // Is the day this modal was opened in still orderable?
-  const dayDate = selectedDayIndex != null
-    ? weeksMeta[activeWeek]?.days[selectedDayIndex]?.date
-    : undefined
+  // WEC-340: in edit mode, the day-date comes straight from editingCartItem
+  // (which is anchored to the cart's own date key). In add mode, resolve
+  // from selectedDayIndex + activeWeek as before.
+  const dayDate = isEdit
+    ? editingCartItem!.dayDate
+    : (selectedDayIndex != null ? weeksMeta[activeWeek]?.days[selectedDayIndex]?.date : undefined)
   const unavailable = dayDate ? !isDayOrderable(dayDate, settings) : false
 
   // WEC-132 dynamic CTA: if this dish+variant combo is already in the cart
@@ -74,9 +96,11 @@ export function DishModal() {
   // adding ON TOP of an existing entry (addItem stacks on the matching
   // dishId+variantId in useCartStore).
   //
-  // WEC-336: cart is keyed by date. We already have dayDate computed above
-  // from the selectedDayIndex + activeWeek mapping.
+  // WEC-340: in edit mode we skip the "existing" count — the row we're
+  // editing IS the existing entry, so there's no "another one on top"
+  // semantic to convey.
   const existingInCart = (() => {
+    if (isEdit) return 0
     if (!dayDate) return 0
     const items = cart[dayDate] ?? []
     const row = items.find(
@@ -104,6 +128,40 @@ export function DishModal() {
       comment: comment.trim() || undefined,
     })
     toast(lang === 'el' ? `${name} προστέθηκε!` : `${name} added!`)
+    closeModal()
+  }
+
+  // WEC-340: save changes from edit mode. updateItem patches the existing
+  // row by index — variant, qty, comment, and the macros/price/label
+  // fields that depend on the variant choice. Doesn't merge with sibling
+  // rows of the same (dishId, variantId) — keeps the customer's mental
+  // model "I'm editing THIS line" intact.
+  function handleSaveEdit() {
+    if (!isEdit || !editingCartItem) return
+    if (qty < 1) {
+      // Treat zero qty as remove — matches the row's "−" button semantics.
+      removeItem(editingCartItem.dayDate, editingCartItem.itemIndex)
+      toast(lang === 'el' ? `${name} αφαιρέθηκε` : `${name} removed`)
+      closeModal()
+      return
+    }
+    updateItem(editingCartItem.dayDate, editingCartItem.itemIndex, {
+      variantId: variant.id,
+      variantLabelEl: variant.labelEl,
+      variantLabelEn: variant.labelEn,
+      price: finalPrice,
+      qty,
+      macros: variant.macros,
+      comment: comment.trim() || undefined,
+    })
+    toast(lang === 'el' ? 'Αποθηκεύτηκε!' : 'Saved!')
+    closeModal()
+  }
+
+  function handleRemoveFromCart() {
+    if (!isEdit || !editingCartItem) return
+    removeItem(editingCartItem.dayDate, editingCartItem.itemIndex)
+    toast(lang === 'el' ? `${name} αφαιρέθηκε` : `${name} removed`)
     closeModal()
   }
 
@@ -249,7 +307,10 @@ export function DishModal() {
           />
         </div>
 
-        {/* Actions — matches demo .dm-actions layout */}
+        {/* Actions — matches demo .dm-actions layout.
+            WEC-340: ADD mode shows the original add-to-cart CTA;
+            EDIT mode shows "Save changes" as the primary action and a
+            secondary "Remove from cart" link underneath. */}
         <div className="dm-actions">
           <div className="dm-qty">
             <button
@@ -263,24 +324,51 @@ export function DishModal() {
               onClick={() => setQty((q) => q + 1)}
             >+</button>
           </div>
-          <button
-            className={`btn-dm-add${unavailable ? ' closed' : ''}`}
-            onClick={handleAdd}
-            disabled={unavailable}
-          >
-            {unavailable
-              ? (lang === 'el' ? 'Οι παραγγελίες έχουν κλείσει' : 'Orders closed')
-              : existingInCart > 0
-                // WEC-141: when the dish is already in the cart for this day,
-                // framing matters — the user is knowingly adding *another one
-                // with a different setup* (different variant / comment). The
-                // price still trails behind a bullet so it's scannable.
-                ? (lang === 'el'
-                    ? `Προσθήκη με διαφορετική επιλογή • €${(finalPrice * qty).toFixed(2)}`
-                    : `Add another with a different setup • €${(finalPrice * qty).toFixed(2)}`)
-                : `${t('addToCart')} • €${(finalPrice * qty).toFixed(2)}`}
-          </button>
+          {isEdit ? (
+            <button
+              className={`btn-dm-add${unavailable ? ' closed' : ''}`}
+              onClick={handleSaveEdit}
+              disabled={unavailable}
+            >
+              {unavailable
+                ? (lang === 'el' ? 'Οι παραγγελίες έχουν κλείσει' : 'Orders closed')
+                : (lang === 'el'
+                    ? `Αποθήκευση αλλαγών • €${(finalPrice * qty).toFixed(2)}`
+                    : `Save changes • €${(finalPrice * qty).toFixed(2)}`)}
+            </button>
+          ) : (
+            <button
+              className={`btn-dm-add${unavailable ? ' closed' : ''}`}
+              onClick={handleAdd}
+              disabled={unavailable}
+            >
+              {unavailable
+                ? (lang === 'el' ? 'Οι παραγγελίες έχουν κλείσει' : 'Orders closed')
+                : existingInCart > 0
+                  // WEC-141: when the dish is already in the cart for this day,
+                  // framing matters — the user is knowingly adding *another one
+                  // with a different setup* (different variant / comment). The
+                  // price still trails behind a bullet so it's scannable.
+                  ? (lang === 'el'
+                      ? `Προσθήκη με διαφορετική επιλογή • €${(finalPrice * qty).toFixed(2)}`
+                      : `Add another with a different setup • €${(finalPrice * qty).toFixed(2)}`)
+                  : `${t('addToCart')} • €${(finalPrice * qty).toFixed(2)}`}
+            </button>
+          )}
         </div>
+
+        {/* WEC-340: secondary remove-from-cart action — only in edit mode.
+            Sits below the main actions row so it doesn't compete with the
+            primary CTA. Plain-text link styling, danger-red on hover. */}
+        {isEdit && (
+          <button
+            type="button"
+            className="btn-dm-remove"
+            onClick={handleRemoveFromCart}
+          >
+            {lang === 'el' ? 'Αφαίρεση από το καλάθι' : 'Remove from cart'}
+          </button>
+        )}
       </div>
     </Modal>
   )
