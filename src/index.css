@@ -147,6 +147,26 @@ header {
 .banner-pills { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; position: relative; z-index: 1; }
 .banner-pill { padding: 5px 14px; background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.15); border-radius: 999px; font-size: 11px; font-weight: 700; color: rgba(255,255,255,0.8); letter-spacing: 0.3px; }
 .banner-pill.green { background: rgba(0, 185, 107, 0.25); border-color: transparent; color: #7DFFBE; }
+/* WEC-347: subscriber-only "My Goals" CTA pill. Lives next to the info
+   pills but reads as a button — slightly brighter background + ▶ icon. */
+.banner-pill.banner-pill-goals {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(125, 255, 190, 0.18);
+  border-color: rgba(125, 255, 190, 0.4);
+  color: #7DFFBE;
+  font-weight: 800;
+  cursor: pointer;
+  transition: background 0.18s, border-color 0.18s, transform 0.18s;
+  font-family: inherit;
+}
+.banner-pill.banner-pill-goals:hover {
+  background: rgba(125, 255, 190, 0.28);
+  border-color: rgba(125, 255, 190, 0.55);
+  transform: translateY(-1px);
+}
+.banner-pill.banner-pill-goals svg { display: block; }
 
 /* ══════════════════════════════════════════
    DAY NAVIGATION

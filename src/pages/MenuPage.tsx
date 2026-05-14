@@ -139,116 +139,57 @@ export function MenuPage() {
       <div className="layout">
         <div className="main">
 
-          {/* Banner Row — menu info + wallet promo */}
-          <div className="banner-row">
-            <div className="page-banner">
-              <div className="banner-top">
-                <div className="banner-heading">
-                  {lang === 'el'
-                    ? <>Εβδομαδιαίο <span>Μενού</span></>
-                    : <>Weekly <span>Menu</span></>}
-                </div>
-                <div className="banner-sub">{t('sub')}</div>
+          {/* WEC-347: banner is ALWAYS visible at full width. The
+              previous .banner-row design split this 50/50 with a
+              wallet/subscription card on login, which felt like the
+              wallet was "replacing" the menu banner for signed-in users.
+              The subscription pitch + active-wallet card are removed
+              from here for now — we may bring something subscription-
+              aware back later in a different surface.
+
+              Subscribers see one extra small pill in .banner-pills that
+              links to "Οι Στόχοι μου" (placeholder until we design the
+              real goals UI).
+          */}
+          <div className="page-banner">
+            <div className="banner-top">
+              <div className="banner-heading">
+                {lang === 'el'
+                  ? <>Εβδομαδιαίο <span>Μενού</span></>
+                  : <>Weekly <span>Menu</span></>}
               </div>
-              <div className="banner-pills">
-                <div className="banner-pill">{weekWord} {dateRange}</div>
-                <div className="banner-pill green">{t('pillMin')}</div>
-                <div className="banner-pill">{t('pillDelivery')}</div>
-              </div>
+              <div className="banner-sub">{t('sub')}</div>
             </div>
-
-            {/* WEC-338 — subscription banner v2 (editorial).
-                Total rewrite: the old green-gradient promo card was legacy
-                from the deprecated 3-tier wallet model. New card lives in
-                its own visual language: cream paper feel, editorial
-                headline, single ribbon accent (NEW), one decorative SVG
-                glyph in the corner, action-oriented CTA. Splits the
-                banner row 50/50 with the menu banner.
-
-                Active-wallet state keeps the original tone but in the
-                new shape — balance + Manage CTA, no promo copy. */}
-            <div
-              className={`sub-promo${walletActive ? ' has-wallet' : ''}`}
-              onClick={walletActive ? openWalletModal : goToWalletPage}
-              role="button"
-              tabIndex={0}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' || e.key === ' ') {
-                  e.preventDefault()
-                  walletActive ? openWalletModal() : goToWalletPage()
-                }
-              }}
-            >
-              {/* Decorative bowl/leaf glyph — pure SVG, scales cleanly. */}
-              <svg
-                className="sub-promo-glyph"
-                viewBox="0 0 120 120"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="1.5"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                aria-hidden="true"
-              >
-                <path d="M20 62a40 40 0 0080 0" />
-                <path d="M16 62h88" />
-                <path d="M60 36c-6-6-6-14 0-20 6 6 6 14 0 20z" />
-                <path d="M48 42c-8-2-12-8-10-16 8 2 12 8 10 16z" />
-                <path d="M72 42c8-2 12-8 10-16-8 2-12 8-10 16z" />
-              </svg>
-
-              {walletActive ? (
-                <div className="sub-promo-inner">
-                  <div className="sub-promo-eyebrow">
-                    {lang === 'el' ? 'Fitpal Wallet' : 'Fitpal Wallet'}
-                  </div>
-                  <h3 className="sub-promo-headline">
-                    €{walletBalance.toFixed(2)}
-                  </h3>
-                  <div className="sub-promo-sub">
-                    {lang === 'el' ? 'διαθέσιμο υπόλοιπο' : 'available balance'}
-                  </div>
-                  <button
-                    className="sub-promo-cta"
-                    onClick={(e) => { e.stopPropagation(); openWalletModal() }}
+            <div className="banner-pills">
+              <div className="banner-pill">{weekWord} {dateRange}</div>
+              <div className="banner-pill green">{t('pillMin')}</div>
+              <div className="banner-pill">{t('pillDelivery')}</div>
+              {walletActive && (
+                <button
+                  type="button"
+                  className="banner-pill banner-pill-goals"
+                  onClick={goToWalletPage}
+                  aria-label={lang === 'el' ? 'Δες τους στόχους σου' : 'View your goals'}
+                >
+                  {lang === 'el' ? 'Οι Στόχοι μου' : 'My Goals'}
+                  <svg
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2.5"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    width="11"
+                    height="11"
+                    aria-hidden="true"
                   >
-                    {lang === 'el' ? 'Διαχείριση' : 'Manage'}
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" width="12" height="12" aria-hidden="true">
-                      <line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/>
-                    </svg>
-                  </button>
-                </div>
-              ) : (
-                <div className="sub-promo-inner">
-                  <div className="sub-promo-eyebrow">
-                    <span className="sub-promo-dot" aria-hidden="true" />
-                    {lang === 'el' ? 'ΣΥΝΔΡΟΜΗ FITPAL' : 'FITPAL SUBSCRIPTION'}
-                  </div>
-                  <h3 className="sub-promo-headline">
-                    {lang === 'el' ? (
-                      <>Φάγε για τον<br /><em>στόχο σου</em>.</>
-                    ) : (
-                      <>Eat for your<br /><em>goal</em>.</>
-                    )}
-                  </h3>
-                  <div className="sub-promo-sub">
-                    {lang === 'el'
-                      ? 'Εξατομικευμένο πλάνο διατροφής. Έκπτωση έως 18%.'
-                      : 'A meal plan made for you. Save up to 18%.'}
-                  </div>
-                  <button
-                    className="sub-promo-cta"
-                    onClick={(e) => { e.stopPropagation(); goToWalletPage() }}
-                  >
-                    {lang === 'el' ? 'Φτιάξε το πλάνο μου' : 'Build my plan'}
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" width="12" height="12" aria-hidden="true">
-                      <line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/>
-                    </svg>
-                  </button>
-                </div>
+                    <line x1="5" y1="12" x2="19" y2="12" />
+                    <polyline points="12 5 19 12 12 19" />
+                  </svg>
+                </button>
               )}
             </div>
-          </div>
+          </div>{/* /.page-banner — WEC-347 removed the .banner-row wrapper */}
 
           {/* Day navigation — compact horizontally-scrollable day strip with
               the cutoff countdown stacked just underneath. Reverted from the
