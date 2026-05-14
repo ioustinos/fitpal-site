@@ -1,10 +1,17 @@
-import { useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useUIStore } from '../store/useUIStore'
 import { useAuthStore } from '../store/useAuthStore'
 import { calculateWalletPlan } from '../lib/wallet/calculator'
 import { DEFAULT_WALLET_SETTINGS, ACTIVITY_LABELS, MEAL_LABELS } from '../lib/wallet/constants'
 import type { ActivityLevel, DaysPerWeek, Goal, MealsSelection, PaymentMethod, PlanLength, Sex, MealKey } from '../lib/wallet/types'
 import { purchaseWalletPlan, sendEmailOtp, verifyEmailOtp, savePhoneToProfile } from '../lib/api/walletPlan'
+import { DietPicker, type DietSelection } from '../components/wallet/DietPicker'
+import { StartDatePicker } from '../components/wallet/StartDatePicker'
+import { IndicativeAddressGate, type IndicativeAddress } from '../components/wallet/IndicativeAddressGate'
+import { saveProfileAllergies, saveProfileAvoidedIngredients } from '../lib/api/diet'
+import { useMenuStore } from '../store/useMenuStore'
+import { supabase } from '../lib/supabase'
+import { MacroIcon } from '../components/ui/MacroDots'
 
 /* ─────────────────────────────────────────────────────────────────
    Static content & display data
@@ -72,6 +79,62 @@ const PLAN_LENGTH_CARDS: Array<{
     daysLabel: { el: '90 ημέρες', en: '90 days' },
   },
 ]
+
+// WEC-338 follow-up — small inline SVG per activity level. Stroke-based so
+// they inherit the surrounding text colour and recolour on .sel state.
+function ActivityIcon({ level }: { level: ActivityLevel }) {
+  const props = {
+    width: 18, height: 18, viewBox: '0 0 24 24', fill: 'none',
+    stroke: 'currentColor', strokeWidth: 2, strokeLinecap: 'round' as const,
+    strokeLinejoin: 'round' as const, 'aria-hidden': true,
+  }
+  switch (level) {
+    case 'sedentary':
+      return (
+        <svg {...props}>
+          {/* armchair — desk-bound */}
+          <path d="M4 11V8a2 2 0 012-2h12a2 2 0 012 2v3" />
+          <path d="M2 13a2 2 0 012-2h16a2 2 0 012 2v4H2v-4z" />
+          <path d="M6 17v3M18 17v3" />
+        </svg>
+      )
+    case 'light':
+      return (
+        <svg {...props}>
+          {/* walking person */}
+          <circle cx="13" cy="4" r="2" />
+          <path d="M9 20l3-6 4 2v-5l-3-4-3 2-2 4" />
+        </svg>
+      )
+    case 'moderate':
+      return (
+        <svg {...props}>
+          {/* jogger */}
+          <circle cx="14" cy="4" r="2" />
+          <path d="M4 22l5-3 1-4-3-2 3-5 4 2 2 2 4 1" />
+          <path d="M14 14l1 6" />
+        </svg>
+      )
+    case 'active':
+      return (
+        <svg {...props}>
+          {/* cycling */}
+          <circle cx="5" cy="18" r="3" />
+          <circle cx="19" cy="18" r="3" />
+          <path d="M12 18l-2-6 4-2 3 4h2" />
+          <circle cx="16" cy="5" r="1.5" />
+        </svg>
+      )
+    case 'very_active':
+      return (
+        <svg {...props}>
+          {/* dumbbell */}
+          <path d="M6 8v8M3 10v4M18 8v8M21 10v4" />
+          <rect x="6" y="11" width="12" height="2" rx="0.5" />
+        </svg>
+      )
+  }
+}
 
 const FREQ_CARDS: Array<{ id: DaysPerWeek; nameEl: string; nameEn: string; subEl: string; subEn: string }> = [
   { id: 5, nameEl: '5 ημέρες', nameEn: '5 days', subEl: 'Δευ–Παρ',         subEn: 'Mon–Fri' },
@@ -152,12 +215,65 @@ export function WalletPage() {
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('card')
 
   /* ── Inline signup state ───────────────────────────────────── */
+  // WEC-338: collapsed from 3 steps to 2 — phone is collected on the
+  // identity screen alongside name + email, so the OTP-verify step is the
+  // final form action before purchase.
   const [signupOpen, setSignupOpen] = useState(false)
-  const [signupStep, setSignupStep] = useState<'identity' | 'verify' | 'phone'>('identity')
+  const [signupStep, setSignupStep] = useState<'identity' | 'verify'>('identity')
   const [suName, setSuName] = useState('')
   const [suEmail, setSuEmail] = useState('')
   const [suOtp, setSuOtp] = useState('')
   const [suPhone, setSuPhone] = useState('')
+
+  /* ── WEC-338: diet, start date, indicative address ──────────── */
+  const [diet, setDiet] = useState<DietSelection>({ allergies: {}, ingredients: {} })
+  const [startDate, setStartDate] = useState<string | null>(null)
+  const [indAddr, setIndAddr] = useState<IndicativeAddress>({ street: '', area: '', zip: '' })
+  const [indAddrInZone, setIndAddrInZone] = useState(false)
+
+  /* Memoise the validity callback so the gate doesn't fire onValidityChange
+     on every parent re-render. */
+  const handleAddrValidity = useCallback((v: boolean) => setIndAddrInZone(v), [])
+
+  /* Hydrate diet from the signed-in user's existing prefs (WEC-250 catalogue
+     gives us allergy labels; ingredient labels we look up on demand because
+     useMenuStore only ships the dish→ingredient maps, not the names). */
+  const dietCatalog = useMenuStore((s) => s.dietCatalog)
+  useEffect(() => {
+    if (!user || !dietCatalog) return
+    const allergyIds = user.diet?.allergyIds ?? []
+    const ingIds = user.diet?.avoidedIngredientIds ?? []
+    if (allergyIds.length === 0 && ingIds.length === 0) return
+
+    // Allergies: labels come straight from the catalogue.
+    const allergyMap: DietSelection['allergies'] = {}
+    for (const aId of allergyIds) {
+      const def = dietCatalog.allergies.find((a) => a.id === aId)
+      if (def) allergyMap[aId] = { nameEl: def.nameEl, nameEn: def.nameEn }
+    }
+
+    // Ingredient labels aren't pre-loaded; one round-trip is fine.
+    let cancelled = false
+    void (async () => {
+      let ingMap: DietSelection['ingredients'] = {}
+      if (ingIds.length > 0) {
+        const { data } = await supabase
+          .from('ingredients')
+          .select('id, name_el, name_en')
+          .in('id', ingIds)
+        if (!cancelled && data) {
+          ingMap = Object.fromEntries(
+            (data as Array<{ id: string; name_el: string; name_en: string | null }>).map((r) => [
+              r.id,
+              { nameEl: r.name_el, nameEn: r.name_en },
+            ]),
+          )
+        }
+      }
+      if (!cancelled) setDiet({ allergies: allergyMap, ingredients: ingMap })
+    })()
+    return () => { cancelled = true }
+  }, [user, dietCatalog])
 
   /* ── Async/error state ─────────────────────────────────────── */
   const [busy, setBusy] = useState(false)
@@ -183,11 +299,32 @@ export function WalletPage() {
     }
   }
 
+  /** Persist diet prefs (allergies + avoided ingredients) for the signed-in user.
+   *  Fire-and-forget — errors are non-fatal (user can re-save from Account → Preferences). */
+  async function persistDiet(userId: string) {
+    const allergyIds = Object.keys(diet.allergies)
+    const ingIds = Object.keys(diet.ingredients)
+    try {
+      await Promise.all([
+        saveProfileAllergies(userId, allergyIds),
+        saveProfileAvoidedIngredients(userId, ingIds),
+      ])
+    } catch {
+      // Non-fatal — purchase should still proceed.
+    }
+  }
+
   /** Fire the real /api/wallet-plan-purchase call. Assumes a session exists. */
   async function startPurchase() {
     setBusy(true)
     setErrMsg(null)
     try {
+      // Persist diet prefs in parallel with the purchase call so a slow
+      // diet write doesn't add user-visible latency.
+      const { data: sess } = await supabase.auth.getSession()
+      const uid = sess?.session?.user?.id
+      if (uid) void persistDiet(uid)
+
       const { data, error } = await purchaseWalletPlan({ ...buildInput(), paymentMethod })
       if (error || !data) { setErrMsg(error ?? 'Purchase failed'); return }
 
@@ -208,6 +345,7 @@ export function WalletPage() {
 
   function handleStartPlan() {
     if (result.selectedMealCount === 0) return
+    if (!indAddrInZone) return
     setErrMsg(null)
     if (!user) {
       setSignupOpen(true)
@@ -216,8 +354,10 @@ export function WalletPage() {
     void startPurchase()
   }
 
+  // WEC-338: identity step now also requires phone — we collect everything
+  // in one shot, then OTP-verify. Saves a step over the prior 3-step flow.
   async function handleSignupSendCode() {
-    if (!suEmail || !suName) return
+    if (!suEmail || !suName || !suPhone) return
     setBusy(true)
     setErrMsg(null)
     const { ok, error } = await sendEmailOtp(suEmail.trim(), suName.trim())
@@ -231,22 +371,22 @@ export function WalletPage() {
     setBusy(true)
     setErrMsg(null)
     const { ok, error } = await verifyEmailOtp(suEmail.trim(), suOtp)
-    setBusy(false)
-    if (!ok) { setErrMsg(error ?? 'Invalid code'); return }
-    setSignupStep('phone')
-  }
+    if (!ok) { setBusy(false); setErrMsg(error ?? 'Invalid code'); return }
 
-  async function handleSignupComplete() {
-    if (!suPhone) return
-    setBusy(true)
-    setErrMsg(null)
-    const { ok, error } = await savePhoneToProfile(suPhone.trim())
-    if (!ok) { setBusy(false); setErrMsg(error ?? 'Could not save phone'); return }
+    // OTP verified — write phone to profile, then refresh + purchase.
+    // savePhoneToProfile is idempotent; failure here shouldn't block the
+    // purchase (user can fix the phone later from Account → Profile).
+    const phoneRes = await savePhoneToProfile(suPhone.trim())
+    if (!phoneRes.ok) {
+      // eslint-disable-next-line no-console
+      console.warn('[wallet signup] phone save failed:', phoneRes.error)
+    }
 
-    // Refresh user so the auth-required purchase call sees us as logged in
-    const { data: { session } } = await (await import('../lib/supabase')).supabase.auth.getSession()
+    // Refresh user so the auth-required purchase call sees us as logged in.
+    const { data: { session } } = await supabase.auth.getSession()
     if (session?.user?.id) await refreshUser(session.user.id)
 
+    setBusy(false)
     setSignupOpen(false)
     void startPurchase()
   }
@@ -405,6 +545,7 @@ export function WalletPage() {
                       className={`wpv2-activity-opt${activity === a ? ' sel' : ''}`}
                       onClick={() => setActivity(a)}
                     >
+                      <div className="wpv2-activity-ico"><ActivityIcon level={a} /></div>
                       <div className="wpv2-activity-name">{ACTIVITY_LABELS[a][lang]}</div>
                       <div className="wpv2-activity-sub">{ACTIVITY_LABELS[a].sub[lang]}</div>
                     </button>
@@ -423,34 +564,48 @@ export function WalletPage() {
                   {isEl ? 'Το διατροφικό σου προφίλ' : 'Your nutrition profile'}
                 </div>
                 <div className="wpv2-section-sub">
-                  {result.dailyKcal} kcal / {isEl ? 'ημέρα' : 'day'} · {isEl ? 'υπολογίζεται από το προφίλ + στόχο σου' : 'derived from your profile + goal'}
+                  {isEl ? 'Υπολογίζεται αυτόματα από το προφίλ + τον στόχο σου.' : 'Calculated from your profile + goal.'}
                 </div>
               </div>
             </div>
-            <div className="wpv2-macros">
-              <div className="wpv2-macro carbs">
-                <div className="wpv2-macro-label">{isEl ? 'ΥΔΑΤΑΝΘΡΑΚΕΣ' : 'CARBS'}</div>
-                <div className="wpv2-macro-val">{result.macroSplitPct.c}<small>%</small></div>
-                <div className="wpv2-macro-bar">
-                  <div className="wpv2-macro-bar-fill" style={{ width: `${result.macroSplitPct.c}%` }} />
+
+            {/* WEC-338 follow-up: kcal + 3 macros now share a single row.
+                kcal gets ~33% of the width (1.5fr), each macro ~22% (1fr). */}
+            <div className="wpv2-nutrition-row">
+              <div className="wpv2-nutri kcal">
+                <div className="wpv2-nutri-ico"><MacroIcon type="cal" /></div>
+                <div className="wpv2-nutri-label">{isEl ? 'ΗΜΕΡΗΣΙΑ ΕΝΕΡΓΕΙΑ' : 'DAILY ENERGY'}</div>
+                <div className="wpv2-nutri-val">
+                  {result.dailyKcal}<small>kcal</small>
                 </div>
-                <div className="wpv2-macro-grams">{result.macroGramsPerDay.c} g / {isEl ? 'ημέρα' : 'day'}</div>
+                <div className="wpv2-nutri-sub">{isEl ? 'ανά ημέρα' : 'per day'}</div>
               </div>
-              <div className="wpv2-macro protein">
-                <div className="wpv2-macro-label">{isEl ? 'ΠΡΩΤΕΪΝΗ' : 'PROTEIN'}</div>
-                <div className="wpv2-macro-val">{result.macroSplitPct.p}<small>%</small></div>
-                <div className="wpv2-macro-bar">
-                  <div className="wpv2-macro-bar-fill" style={{ width: `${result.macroSplitPct.p}%` }} />
+              <div className="wpv2-nutri carbs">
+                <div className="wpv2-nutri-ico"><MacroIcon type="carb" /></div>
+                <div className="wpv2-nutri-label">{isEl ? 'ΥΔ/ΚΕΣ' : 'CARBS'}</div>
+                <div className="wpv2-nutri-val">{result.macroSplitPct.c}<small>%</small></div>
+                <div className="wpv2-nutri-bar">
+                  <div className="wpv2-nutri-bar-fill" style={{ width: `${result.macroSplitPct.c}%` }} />
                 </div>
-                <div className="wpv2-macro-grams">{result.macroGramsPerDay.p} g / {isEl ? 'ημέρα' : 'day'}</div>
+                <div className="wpv2-nutri-sub">{result.macroGramsPerDay.c} g</div>
               </div>
-              <div className="wpv2-macro fat">
-                <div className="wpv2-macro-label">{isEl ? 'ΛΙΠΑΡΑ' : 'FAT'}</div>
-                <div className="wpv2-macro-val">{result.macroSplitPct.f}<small>%</small></div>
-                <div className="wpv2-macro-bar">
-                  <div className="wpv2-macro-bar-fill" style={{ width: `${result.macroSplitPct.f}%` }} />
+              <div className="wpv2-nutri protein">
+                <div className="wpv2-nutri-ico"><MacroIcon type="pro" /></div>
+                <div className="wpv2-nutri-label">{isEl ? 'ΠΡΩΤ.' : 'PROTEIN'}</div>
+                <div className="wpv2-nutri-val">{result.macroSplitPct.p}<small>%</small></div>
+                <div className="wpv2-nutri-bar">
+                  <div className="wpv2-nutri-bar-fill" style={{ width: `${result.macroSplitPct.p}%` }} />
                 </div>
-                <div className="wpv2-macro-grams">{result.macroGramsPerDay.f} g / {isEl ? 'ημέρα' : 'day'}</div>
+                <div className="wpv2-nutri-sub">{result.macroGramsPerDay.p} g</div>
+              </div>
+              <div className="wpv2-nutri fat">
+                <div className="wpv2-nutri-ico"><MacroIcon type="fat" /></div>
+                <div className="wpv2-nutri-label">{isEl ? 'ΛΙΠΑΡΑ' : 'FAT'}</div>
+                <div className="wpv2-nutri-val">{result.macroSplitPct.f}<small>%</small></div>
+                <div className="wpv2-nutri-bar">
+                  <div className="wpv2-nutri-bar-fill" style={{ width: `${result.macroSplitPct.f}%` }} />
+                </div>
+                <div className="wpv2-nutri-sub">{result.macroGramsPerDay.f} g</div>
               </div>
             </div>
           </section>
@@ -569,24 +724,89 @@ export function WalletPage() {
             </div>
           </section>
 
-          {/* SECTION 7 · Services */}
+          {/* SECTION 7 · Allergies + disliked ingredients (WEC-338) */}
           <section className="wpv2-section">
             <div className="wpv2-section-head">
               <span className="wpv2-section-num">7</span>
               <div>
                 <div className="wpv2-section-title">
-                  {isEl ? 'Πρόσθεσε υπηρεσίες' : 'Add services'}
+                  {isEl ? 'Αλλεργίες & συστατικά που αποφεύγεις' : 'Allergies & ingredients to avoid'}
                 </div>
                 <div className="wpv2-section-sub">
-                  {isEl ? 'Προσαρμόσε το πλάνο σου με επιπλέον υπηρεσίες.' : 'Customize your plan with extra services.'}
+                  {isEl
+                    ? 'Όλα σε ένα πεδίο — γράψε ό,τι θες να αποφεύγεις και θα φιλτράρουμε τα γεύματα.'
+                    : 'All in one field — type whatever you want to avoid and we will filter your meals.'}
+                </div>
+              </div>
+            </div>
+            <DietPicker lang={lang} value={diet} onChange={setDiet} />
+          </section>
+
+          {/* SECTION 8 · When to start (WEC-338) */}
+          <section className="wpv2-section">
+            <div className="wpv2-section-head">
+              <span className="wpv2-section-num">8</span>
+              <div>
+                <div className="wpv2-section-title">
+                  {isEl ? 'Πότε θέλεις να ξεκινήσεις;' : 'When would you like to start?'}
+                </div>
+                <div className="wpv2-section-sub">
+                  {isEl
+                    ? 'Επίλεξε την πρώτη ημέρα που θα λάβεις τα γεύματά σου.'
+                    : 'Pick the first day you would like deliveries.'}
+                </div>
+              </div>
+            </div>
+            <StartDatePicker lang={lang} value={startDate} onChange={setStartDate} />
+          </section>
+
+          {/* SECTION 9 · Indicative delivery address (WEC-338) */}
+          <section className="wpv2-section">
+            <div className="wpv2-section-head">
+              <span className="wpv2-section-num">9</span>
+              <div>
+                <div className="wpv2-section-title">
+                  {isEl ? 'Ενδεικτική διεύθυνση παράδοσης' : 'Indicative delivery address'}
+                </div>
+                <div className="wpv2-section-sub">
+                  {isEl
+                    ? 'Χρειαζόμαστε τον Τ.Κ. σου για να επιβεβαιώσουμε ότι παραδίδουμε στην περιοχή σου.'
+                    : 'We need your postcode to confirm delivery is available in your area.'}
+                </div>
+              </div>
+            </div>
+            <IndicativeAddressGate
+              lang={lang}
+              value={indAddr}
+              onChange={setIndAddr}
+              onValidityChange={handleAddrValidity}
+            />
+          </section>
+
+          {/* SECTION 10 · Services (WEC-338 — moved last; dietician-managed
+              is currently mandatory, so the card is shown for visibility
+              but click is disabled and selection is forced on). */}
+          <section className="wpv2-section">
+            <div className="wpv2-section-head">
+              <span className="wpv2-section-num">10</span>
+              <div>
+                <div className="wpv2-section-title">
+                  {isEl ? 'Υπηρεσίες' : 'Services'}
+                </div>
+                <div className="wpv2-section-sub">
+                  {isEl
+                    ? 'Το πλάνο σου περιλαμβάνει τις παρακάτω υπηρεσίες χωρίς επιπλέον χρέωση.'
+                    : 'Your plan includes the following services at no extra charge.'}
                 </div>
               </div>
             </div>
             <div className="wpv2-services">
               <button
                 type="button"
-                className={`wpv2-service${dieticianManaged ? ' sel' : ''}`}
-                onClick={() => setDieticianManaged((v) => !v)}
+                className="wpv2-service sel locked"
+                disabled
+                aria-disabled="true"
+                title={isEl ? 'Περιλαμβάνεται στο πλάνο' : 'Included in your plan'}
               >
                 <span className="wpv2-service-cb">
                   <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round">
@@ -603,7 +823,11 @@ export function WalletPage() {
                       : 'Our dietician logs in each week and orders for you — zero effort.'}
                   </div>
                 </div>
-                <div className="wpv2-service-price">{isEl ? 'Δωρεάν' : 'Free'}</div>
+                <div className="wpv2-service-price">
+                  <span className="wpv2-service-included">
+                    {isEl ? 'Περιλαμβάνεται' : 'Included'}
+                  </span>
+                </div>
               </button>
             </div>
           </section>
@@ -734,7 +958,12 @@ export function WalletPage() {
             <button
               className="wpv2-aside-cta"
               onClick={handleStartPlan}
-              disabled={result.selectedMealCount === 0 || busy}
+              disabled={result.selectedMealCount === 0 || !indAddrInZone || busy}
+              title={
+                !indAddrInZone
+                  ? (isEl ? 'Συμπλήρωσε έναν Τ.Κ. εντός ζώνης παράδοσης' : 'Enter a postcode within our delivery zone')
+                  : undefined
+              }
             >
               {busy
                 ? (isEl ? 'Παρακαλώ περίμενε…' : 'Please wait…')
@@ -745,6 +974,13 @@ export function WalletPage() {
                 <line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/>
               </svg>
             </button>
+            {!indAddrInZone && (
+              <div className="wpv2-aside-hint">
+                {isEl
+                  ? 'Συμπλήρωσε έγκυρο Τ.Κ. στην ενότητα 10 για να συνεχίσεις.'
+                  : 'Add a valid postcode in section 10 to continue.'}
+              </div>
+            )}
 
             {signupOpen && !user && (
               <div className="wpv2-signup">
@@ -761,6 +997,7 @@ export function WalletPage() {
                         value={suName}
                         onChange={(e) => setSuName(e.target.value)}
                         placeholder={isEl ? 'Το όνομά σου' : 'Your name'}
+                        autoComplete="name"
                       />
                     </div>
                     <div className="wpv2-signup-field">
@@ -770,9 +1007,24 @@ export function WalletPage() {
                         value={suEmail}
                         onChange={(e) => setSuEmail(e.target.value)}
                         placeholder="you@example.com"
+                        autoComplete="email"
                       />
                     </div>
-                    <button className="wpv2-signup-btn" onClick={handleSignupSendCode} disabled={!suName || !suEmail || busy}>
+                    <div className="wpv2-signup-field">
+                      <label>{isEl ? 'Κινητό' : 'Mobile'}</label>
+                      <input
+                        type="tel"
+                        value={suPhone}
+                        onChange={(e) => setSuPhone(e.target.value)}
+                        placeholder="+30 69..."
+                        autoComplete="tel"
+                      />
+                    </div>
+                    <button
+                      className="wpv2-signup-btn"
+                      onClick={handleSignupSendCode}
+                      disabled={!suName || !suEmail || !suPhone || busy}
+                    >
                       {isEl ? 'Στείλε μου κωδικό' : 'Send me a code'}
                     </button>
                   </>
@@ -796,30 +1048,10 @@ export function WalletPage() {
                       />
                     </div>
                     <button className="wpv2-signup-btn" onClick={handleSignupVerify} disabled={suOtp.length !== 6 || busy}>
-                      {isEl ? 'Επαλήθευση' : 'Verify'}
+                      {isEl ? 'Επαλήθευση & πληρωμή' : 'Verify & continue'}
                     </button>
                     <button className="wpv2-signup-resend" type="button" onClick={() => setSignupStep('identity')}>
                       {isEl ? 'Στείλε ξανά' : 'Resend'}
-                    </button>
-                  </>
-                )}
-
-                {signupStep === 'phone' && (
-                  <>
-                    <div className="wpv2-signup-note">
-                      {isEl ? '✓ Email επιβεβαιωμένο. Πρόσθεσε κινητό για τον οδηγό μας.' : '✓ Email verified. Add a mobile for our delivery driver.'}
-                    </div>
-                    <div className="wpv2-signup-field">
-                      <label>{isEl ? 'Κινητό' : 'Mobile'}</label>
-                      <input
-                        type="tel"
-                        value={suPhone}
-                        onChange={(e) => setSuPhone(e.target.value)}
-                        placeholder="+30 69..."
-                      />
-                    </div>
-                    <button className="wpv2-signup-btn" onClick={handleSignupComplete} disabled={!suPhone || busy}>
-                      {isEl ? 'Συνέχεια στην πληρωμή' : 'Continue to payment'}
                     </button>
                   </>
                 )}

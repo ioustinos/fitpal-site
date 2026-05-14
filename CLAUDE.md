@@ -84,10 +84,12 @@ src/
 - Payment options: cash on delivery, card online, payment link sent later, bank transfer, wallet (deduct from Fitpal wallet balance)
 
 ## Cutoff model (WEC-101 family)
+Cutoff hours, weekday overrides and date overrides all live in `public.settings` (jsonb) — managed at `/admin/settings`. Do NOT hardcode values here; read them from the DB or the admin UI when you need the current state.
+
 `getCutoffDate(isoDate, settings)` resolves in this order (first match wins):
 1. `settings.cutoffDateOverrides[isoDate]` — ad-hoc per-date (holidays, long weekends). Key = delivery date YYYY-MM-DD. Value = `{ cutoffDate, hour }`.
-2. `settings.cutoffWeekdayOverrides[deliveryIsoDow]` — recurring weekday rule. Key = ISO weekday 1–7 (1=Mon..7=Sun). Value = `{ dow, hour }` meaning cutoff lands on weekday `dow` (most recent before delivery) at `hour`. Currently seeded: `{ "1": { "dow": 6, "hour": 18 } }` → **Monday deliveries close on Saturday 18:00**.
-3. Default — previous calendar day at `settings.cutoffHour` (currently 18).
+2. `settings.cutoffWeekdayOverrides[deliveryIsoDow]` — recurring weekday rule. Key = ISO weekday 1–7 (1=Mon..7=Sun). Value = `{ dow, hour }` meaning cutoff lands on weekday `dow` (most recent before delivery) at `hour`.
+3. Default — previous calendar day at `settings.cutoffHour`.
 
 All cutoff-related code flows through this one helper: `findLandingDay`, `isDayOrderable`, `CutoffBar`, and server-side `submit-order.ts` (WEC-106).
 
@@ -198,8 +200,8 @@ Schema decisions tracked in Linear: WEC-82
 - **`delivery_zones.min_order_amount int null`** (migration `admin_rls_policies_and_zone_min_order`, WEC-119) — per-zone minimum-order override in cents; null = falls back to `settings.min_order`.
 
 ### Settings keys (all jsonb, managed via `/admin/settings`)
-- `cutoff_hour` (int) — default cutoff hour on previous day.
-- `cutoff_weekday_overrides` ({deliveryDow: {dow, hour}}) — e.g. Mon → Sat 18:00.
+- `cutoff_hour` (int) — default cutoff hour on previous day. **Source of truth — never assume a value, read from DB.**
+- `cutoff_weekday_overrides` ({deliveryDow: {dow, hour}}) — recurring weekday rule (e.g. Monday deliveries closing on a different weekday).
 - `cutoff_date_overrides` ({deliveryDate: {cutoffDate, hour}}) — holiday overrides.
 - `min_order` (int, cents) — global minimum per day. Honoured on both customer and server (submit-order.ts reads it rather than hardcoded).
 - `time_slots` (string[]) — default delivery windows.

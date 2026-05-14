@@ -132,10 +132,24 @@ export function DayNav() {
               <>
                 <span className="day-card-dow">{dow2}</span>
                 <span className="day-card-dom">{dom}</span>
-                <span className="day-card-mon">{mon3}</span>
-                {isClosed
-                  ? <span className="day-card-closed-note">{isEl ? 'Κλειστό' : 'Closed'}</span>
-                  : (count > 0 && <span className="day-card-badge" aria-label={isEl ? `${count} επιλεγμένα` : `${count} selected`}>{count}</span>)}
+                {/* WEC-338: closed day → the month abbreviation slot is
+                    swapped for a small red "ΚΛΕΙΣΤΟ" pill. Same vertical
+                    space as the month line, so the chip height stays
+                    identical to other days at every breakpoint. The X
+                    corner badge and the date number remain fully visible. */}
+                {isClosed ? (
+                  <span className="day-card-closed-tag" aria-hidden="true">
+                    {isEl ? 'ΚΛΕΙΣΤΟ' : 'CLOSED'}
+                  </span>
+                ) : (
+                  <span className="day-card-mon">{mon3}</span>
+                )}
+                {!isClosed && count > 0 && (
+                  <span
+                    className="day-card-badge"
+                    aria-label={isEl ? `${count} επιλεγμένα` : `${count} selected`}
+                  >{count}</span>
+                )}
               </>
             ) : (
               <>
