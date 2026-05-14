@@ -30,6 +30,19 @@ import { supabase } from '../../lib/supabase'
  */
 const OTP_LENGTH = 6
 const OTP_MAX_LENGTH = 10
+
+/**
+ * WEC-323 hide-toggle. Set to `true` once the Facebook Developer app is
+ * created, switched to Live mode, and the App ID + App Secret are pasted
+ * into Supabase Auth → Providers → Facebook. Until then we keep the
+ * button out of the modal so customers don't click it and get a confusing
+ * "provider not enabled" error.
+ *
+ * The Facebook-side code path (handleOAuth('facebook'), AuthCallback's
+ * email-less FB edge case, etc.) stays in place — it's just the button
+ * that's gated.
+ */
+const ENABLE_FACEBOOK_OAUTH = false
 type LoginMode = 'password' | 'otp'
 type OtpStep = 'enterEmail' | 'enterCode'
 
@@ -181,18 +194,20 @@ export function AuthModal() {
           </svg>
           <span>{isEl ? 'Συνέχισε με Google' : 'Continue with Google'}</span>
         </button>
-        <button
-          type="button"
-          className="btn-oauth btn-oauth-facebook"
-          onClick={() => handleOAuth('facebook')}
-          disabled={busy}
-          aria-label={isEl ? 'Συνέχισε με Facebook' : 'Continue with Facebook'}
-        >
-          <svg className="oauth-icon" viewBox="0 0 24 24" aria-hidden="true">
-            <path fill="#1877F2" d="M24 12.073C24 5.405 18.627 0 12 0S0 5.405 0 12.073C0 18.1 4.388 23.094 10.125 24v-8.437H7.078v-3.49h3.047V9.413c0-3.025 1.792-4.695 4.533-4.695 1.313 0 2.686.236 2.686.236v2.97h-1.513c-1.49 0-1.955.93-1.955 1.886v2.264h3.328l-.532 3.49h-2.796V24C19.612 23.094 24 18.1 24 12.073z"/>
-          </svg>
-          <span>{isEl ? 'Συνέχισε με Facebook' : 'Continue with Facebook'}</span>
-        </button>
+        {ENABLE_FACEBOOK_OAUTH && (
+          <button
+            type="button"
+            className="btn-oauth btn-oauth-facebook"
+            onClick={() => handleOAuth('facebook')}
+            disabled={busy}
+            aria-label={isEl ? 'Συνέχισε με Facebook' : 'Continue with Facebook'}
+          >
+            <svg className="oauth-icon" viewBox="0 0 24 24" aria-hidden="true">
+              <path fill="#1877F2" d="M24 12.073C24 5.405 18.627 0 12 0S0 5.405 0 12.073C0 18.1 4.388 23.094 10.125 24v-8.437H7.078v-3.49h3.047V9.413c0-3.025 1.792-4.695 4.533-4.695 1.313 0 2.686.236 2.686.236v2.97h-1.513c-1.49 0-1.955.93-1.955 1.886v2.264h3.328l-.532 3.49h-2.796V24C19.612 23.094 24 18.1 24 12.073z"/>
+            </svg>
+            <span>{isEl ? 'Συνέχισε με Facebook' : 'Continue with Facebook'}</span>
+          </button>
+        )}
       </div>
       <div className="auth-divider"><span>{isEl ? 'ή' : 'or'}</span></div>
     </>
