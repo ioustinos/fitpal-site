@@ -882,22 +882,29 @@ header {
 /* ══════════════════════════════════════════
    DISH MODAL
 ══════════════════════════════════════════ */
-.dish-modal { background: var(--white); border-radius: var(--radius-lg); max-width: 520px; width: 100%; max-height: 90vh; overflow-y: auto; box-shadow: 0 24px 60px rgba(0,0,0,0.25); position: relative; animation: modalIn 0.25s cubic-bezier(0.34,1.56,0.64,1); }
+/* WEC-353: bumped from 520→540 to give the wider add-to-cart CTA more
+   breathing room on desktop. Stays at viewport width on mobile. */
+.dish-modal { background: var(--white); border-radius: var(--radius-lg); max-width: 540px; width: 100%; max-height: 90vh; overflow-y: auto; box-shadow: 0 24px 60px rgba(0,0,0,0.25); position: relative; animation: modalIn 0.25s cubic-bezier(0.34,1.56,0.64,1); }
 @keyframes modalIn { from { opacity: 0; transform: translateY(20px) scale(0.97); } to { opacity: 1; transform: none; } }
 /* WEC-298 (follow-up): dish modal close bumped 32 → 44. */
 .dm-close { position: absolute; top: 12px; right: 12px; z-index: 2; width: 44px; height: 44px; border-radius: 50%; background: rgba(0,0,0,0.4); border: none; color: white; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: all 0.18s; }
 .dm-close:hover { background: rgba(0,0,0,0.6); }
 .dm-close svg { width: 16px; height: 16px; stroke: white; stroke-width: 2.5; fill: none; }
-/* WEC-132: 16/9 image is tighter than 3/2, gives the body room above the fold */
-.dm-img-wrap { aspect-ratio: 16/9; overflow: hidden; background: var(--cream); }
+/* WEC-132: 16/9 image is tighter than 3/2, gives the body room above the fold.
+   WEC-353: switched to 2:1 to recover ~35px of vertical space (Nena's
+   feedback — sticky add button + shorter image so it stays visible on
+   shorter viewports). Image is still wide enough to read well. */
+.dm-img-wrap { aspect-ratio: 2/1; overflow: hidden; background: var(--cream); }
 .dm-img { width: 100%; height: 100%; object-fit: cover; }
 .dm-img-fallback { width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; font-size: 56px; }
 /* Tighter body padding — we had 24px all around, 20px top/bottom reads the same */
 .dm-body { padding: 20px 22px; }
 .dm-name { font-size: 20px; font-weight: 900; color: var(--text); letter-spacing: -0.3px; margin-bottom: 4px; }
 .dm-desc { font-size: 12.5px; color: var(--text-muted); font-weight: 600; line-height: 1.45; margin-bottom: 14px; }
-/* Macros in dish modal — WEC-132: shrunk from 16px padding to 11px, tighter gap, smaller numbers */
-.dm-macros { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; background: var(--cream); border-radius: 8px; padding: 11px; margin-bottom: 16px; }
+/* Macros in dish modal — WEC-132: shrunk from 16px padding to 11px, tighter gap, smaller numbers.
+   WEC-353: further tightened to recover ~10px vertical space (padding 11→8,
+   margin-bottom 16→10, value font 16→15). Still legible at glance distance. */
+.dm-macros { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; background: var(--cream); border-radius: 8px; padding: 8px; margin-bottom: 10px; }
 .dm-macro { text-align: center; display: flex; flex-direction: column; align-items: center; gap: 2px; background: transparent; border-radius: 0; padding: 0; border: none; }
 .dm-macro-ico { width: 15px; height: 15px; opacity: 0.85; }
 .dm-macro-ico svg { width: 100%; height: 100%; }
@@ -905,7 +912,7 @@ header {
 .dm-macro.prot .dm-macro-ico { color: #059669; }
 .dm-macro.carb .dm-macro-ico { color: #B8860B; }
 .dm-macro.fat  .dm-macro-ico { color: #C2703A; }
-.dm-macro-v { font-size: 16px; font-weight: 900; color: var(--green-dark); line-height: 1; }
+.dm-macro-v { font-size: 15px; font-weight: 900; color: var(--green-dark); line-height: 1; }
 .dm-macro-l { font-size: 9px; font-weight: 800; color: var(--text-muted); /* uppercase removed — WEC-187 */ letter-spacing: 0.4px; }
 .dm-section-title { font-size: 12px; font-weight: 900; color: var(--text); /* uppercase removed — WEC-187 */ letter-spacing: 0.5px; margin-bottom: 7px; }
 /* WEC-132: variant list no longer needs its own internal scroll — outer modal already scrolls */
@@ -985,6 +992,57 @@ header {
   transition: all 0.15s;
 }
 .btn-dm-remove:hover { color: #DC2626; background: rgba(220, 38, 38, 0.08); }
+
+/* WEC-353: sticky footer wrapping dm-actions + the optional edit-mode
+   remove link. Sticks to the bottom of the modal's scroll container so
+   customers don't have to scroll to find the Add/Save button. Negative
+   horizontal margin + matching padding lets the footer span the full
+   modal width edge-to-edge despite the .dm-body padding. */
+.dm-footer {
+  position: sticky;
+  bottom: 0;
+  background: var(--white);
+  margin: 4px -22px -20px;
+  padding: 12px 22px 16px;
+  border-top: 1px solid var(--border);
+  z-index: 1;
+}
+
+/* WEC-355: order-notes block — moved to top of ExtrasSection + restyled.
+   Tester (Nena) was associating the previous faded textarea with the
+   invoice block because of low contrast + below-invoice position. Now
+   reads with the same form-input contrast as address / phone inputs and
+   leads the section. */
+.order-notes {
+  margin-bottom: 14px;
+}
+.order-notes-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 800;
+  color: var(--text);
+  margin-bottom: 6px;
+}
+.order-notes-ico {
+  color: var(--green-dark);
+  flex-shrink: 0;
+}
+.order-notes-ta {
+  width: 100%;
+  resize: vertical;
+  min-height: 64px;
+  /* deliberately uses .form-input — same border + focus treatment as the
+     rest of the checkout form, NOT the faded .notes-ta variant. */
+}
+.order-notes-hint {
+  font-size: 11.5px;
+  color: var(--text-muted);
+  font-weight: 600;
+  margin-top: 5px;
+  line-height: 1.4;
+}
 
 /* ══════════════════════════════════════════
    CART SIDEBAR
@@ -2112,6 +2170,191 @@ a.btn-conf-done { display: inline-block; text-decoration: none; }
 .aw-tx-amt.credit { color: var(--green); }
 .aw-tx-amt.debit { color: var(--text); }
 .aw-empty-txns { padding: 20px; text-align: center; color: var(--text-muted); font-size: 13px; }
+
+/* ══════════════════════════════════════════
+   WEC-349 — SUBSCRIPTION TAB
+   Plan composition + pricing + dates + wallet summary. Distinct from
+   the Wallet tab's gradient money card — this one uses cream-paper
+   surfaces (same family as .sub-promo on the menu page) so the two
+   tabs read as related but separate.
+══════════════════════════════════════════ */
+
+.subs-hero {
+  background: linear-gradient(180deg, #FAF6EE 0%, #F2EAD9 100%);
+  border: 1px solid rgba(0, 71, 57, 0.10);
+  border-radius: var(--radius-lg);
+  padding: 22px 24px;
+  margin-bottom: 16px;
+}
+.subs-hero-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+  flex-wrap: wrap;
+}
+.subs-hero-name {
+  font-size: 22px;
+  font-weight: 900;
+  color: var(--green-dark);
+  letter-spacing: -0.3px;
+}
+.subs-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 12px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+}
+.subs-status-active {
+  background: rgba(0, 185, 107, 0.16);
+  color: var(--green-dark);
+}
+.subs-status-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--green);
+  display: inline-block;
+}
+.subs-hero-meta {
+  display: flex;
+  align-items: stretch;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+.subs-meta-item {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.subs-meta-label {
+  font-size: 10px;
+  font-weight: 800;
+  color: var(--text-muted);
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+}
+.subs-meta-value {
+  font-size: 14px;
+  font-weight: 800;
+  color: var(--text);
+}
+.subs-meta-divider {
+  width: 1px;
+  background: rgba(0, 71, 57, 0.12);
+}
+
+.subs-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+.subs-card {
+  background: var(--white);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 18px 20px;
+}
+.subs-card-title {
+  font-size: 11px;
+  font-weight: 900;
+  color: var(--green-dark);
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  margin-bottom: 12px;
+}
+.subs-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.subs-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.subs-row-key {
+  font-size: 13px;
+  color: var(--text-muted);
+  font-weight: 600;
+}
+.subs-row-val {
+  font-size: 14px;
+  font-weight: 800;
+  color: var(--text);
+}
+.subs-row-val.subs-emph { color: var(--green); }
+.subs-pill {
+  display: inline-block;
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 800;
+  background: var(--green-pale);
+  color: var(--green-dark);
+}
+.subs-pill.subs-pill-dim {
+  background: var(--cream);
+  color: var(--text-muted);
+}
+
+.subs-balance {
+  background: linear-gradient(135deg, #004739 0%, #006647 60%, #00B96B 100%);
+  color: #fff;
+  border-radius: var(--radius-lg);
+  padding: 18px 22px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 14px;
+  flex-wrap: wrap;
+}
+.subs-balance-left { display: flex; flex-direction: column; gap: 2px; }
+.subs-balance-label {
+  font-size: 11px;
+  font-weight: 800;
+  color: rgba(255,255,255,0.7);
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+}
+.subs-balance-amt {
+  font-size: 28px;
+  font-weight: 900;
+  letter-spacing: -0.5px;
+  line-height: 1.1;
+}
+.subs-balance-split {
+  font-size: 12px;
+  font-weight: 600;
+  color: rgba(255,255,255,0.78);
+}
+.subs-balance-actions { display: flex; gap: 8px; }
+
+.subs-help {
+  font-size: 12px;
+  color: var(--text-muted);
+  text-align: center;
+  padding: 6px 8px;
+}
+.subs-help a { color: var(--green-dark); font-weight: 700; text-decoration: underline; }
+
+@media (max-width: 640px) {
+  .subs-grid { grid-template-columns: 1fr; }
+  .subs-hero-meta { gap: 10px; }
+  .subs-meta-divider { display: none; }
+  .subs-balance { flex-direction: column; align-items: flex-start; }
+  .subs-balance-actions { width: 100%; }
+  .subs-balance-actions .aw-btn { width: 100%; }
+}
 
 /* ── Profile form ── */
 .profile-form { display: flex; flex-direction: column; gap: 14px; }

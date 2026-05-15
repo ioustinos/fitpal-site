@@ -28,7 +28,9 @@ import {
  *  when the filtered list fits on one page. */
 const ORDERS_PAGE_SIZE = 50
 
-type AccountTab = 'orders' | 'wallet' | 'addresses' | 'goals' | 'diet' | 'prefs' | 'profile'
+// WEC-349: 'subscription' tab — plan composition, discounts, and dates.
+// Distinct concern from 'wallet' which focuses on balance + transactions.
+type AccountTab = 'orders' | 'subscription' | 'wallet' | 'addresses' | 'goals' | 'diet' | 'prefs' | 'profile'
 
 /* ─── SVG icon helpers ──────────────────────────────────────────────────────── */
 
@@ -36,6 +38,13 @@ const icons: Record<AccountTab | 'logout', React.ReactElement> = {
   orders: (
     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
       <rect x="3" y="3" width="18" height="18" rx="2"/><path d="M8 7h8M8 12h8M8 17h5"/>
+    </svg>
+  ),
+  subscription: (
+    // WEC-349: rosette/ribbon glyph — distinct from .wallet's card icon so
+    // the nav reads "plan" vs "money" at a glance.
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="12" cy="8" r="6"/><polyline points="8.21 13.89 7 23 12 19 17 23 15.79 13.88"/>
     </svg>
   ),
   wallet: (
@@ -110,13 +119,16 @@ export function AccountPage() {
     .slice(0, 2) || '?'
 
   const tabLabels: Record<AccountTab, { el: string; en: string }> = {
-    orders:    { el: 'Παραγγελίες', en: 'Orders' },
-    wallet:    { el: 'Πορτοφόλι', en: 'Wallet' },
-    addresses: { el: 'Διευθύνσεις', en: 'Addresses' },
-    goals:     { el: 'Στόχοι', en: 'Goals' },
-    diet:      { el: 'Διατροφή', en: 'Diet' },
-    prefs:     { el: 'Προτιμήσεις', en: 'Preferences' },
-    profile:   { el: 'Στοιχεία', en: 'Details' },
+    orders:       { el: 'Παραγγελίες', en: 'Orders' },
+    // WEC-349: positioned right after Orders — it's the most consulted
+    // post-purchase summary for subscribers.
+    subscription: { el: 'Συνδρομή', en: 'Subscription' },
+    wallet:       { el: 'Πορτοφόλι', en: 'Wallet' },
+    addresses:    { el: 'Διευθύνσεις', en: 'Addresses' },
+    goals:        { el: 'Στόχοι', en: 'Goals' },
+    diet:         { el: 'Διατροφή', en: 'Diet' },
+    prefs:        { el: 'Προτιμήσεις', en: 'Preferences' },
+    profile:      { el: 'Στοιχεία', en: 'Details' },
   }
 
   return (
@@ -164,6 +176,7 @@ export function AccountPage() {
         {/* Content */}
         <div className="account-content">
           {tab === 'orders' && <OrdersTab user={user} lang={lang} />}
+          {tab === 'subscription' && <SubscriptionTab user={user} lang={lang} />}
           {tab === 'wallet' && <WalletTab user={user} lang={lang} />}
           {tab === 'addresses' && <AddressesTab user={user} lang={lang} updateAddresses={updateAddresses} />}
           {tab === 'goals' && <GoalsTab user={user} lang={lang} updateGoals={updateGoals} />}
@@ -1709,6 +1722,230 @@ function DietTab({ user, lang }: { user: any; lang: 'el' | 'en' }) {
             : (isEl ? 'Αποθήκευση' : 'Save')}
         </button>
         {err && <div className="tab-err" role="alert">{err}</div>}
+      </div>
+    </div>
+  )
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════════
+   WEC-349 — SUBSCRIPTION TAB
+   Plan composition, discounts, dates, and a wallet-balance summary that
+   links to the existing Wallet tab for the money side of things.
+
+   This tab is the "what plan did I buy" view. The Wallet tab next to it
+   is the "where is my money" view. Two distinct concerns, both kept.
+
+   Source-of-truth caveats (see WEC-349 description):
+   - user.wallet exposes: planId, planEl, planEn, balance, baseBalance,
+     bonusBalance, bonusPct, autoRenew, nextRenewal, monthlyAmount,
+     creditAmount, transactions, adminManaged.
+   - Not yet exposed from wallet_plans (rendered as "—" placeholders):
+     created_at (start date), bonus_expires_at, frequency enum,
+     people count, days_per_week, meal_breakfast/lunch/dinner flags,
+     bonus_amount (vs the percentage).
+   Followup: extend fetchWallet() to join wallet_plans → swap the
+   placeholders for real fields, one prop at a time. The placeholders
+   are explicitly "—" so the gap is visible during dogfooding.
+═══════════════════════════════════════════════════════════════════════════════ */
+
+function SubscriptionTab({ user, lang }: any) {
+  const wallet = user.wallet
+  const goToWalletPage = useUIStore((s) => s.goToWalletPage)
+  const closeAccount = useUIStore((s) => s.closeAccount)
+  const isEl = lang === 'el'
+
+  // Empty state — no active subscription. Mirrors WalletTab's empty
+  // pattern (same .aw-* classes) so guests see consistent treatment
+  // across both tabs.
+  //
+  // WEC-348/349 (2026-05-15): gate on `wallet.planId`, NOT `wallet.active`.
+  // A customer with a wallet but no purchased plan (e.g. after a top-up
+  // or refund credit) should see the empty state here, even though their
+  // wallet is live. `planId` is the FK to wallet_plans — null = no plan.
+  // TODO swap to a dedicated subscription flag when we have one.
+  if (!wallet?.planId) {
+    return (
+      <div className="tab-section">
+        <h2 className="tab-title">{isEl ? 'Η συνδρομή μου' : 'My subscription'}</h2>
+        <div className="aw-empty">
+          <div className="aw-empty-icon">🎯</div>
+          <div className="aw-empty-title">
+            {isEl ? 'Δεν έχεις συνδρομή ακόμα' : "You don't have a subscription yet"}
+          </div>
+          <div className="aw-empty-desc">
+            {isEl
+              ? 'Φτιάξε ένα εξατομικευμένο πλάνο και κέρδισε bonus credits σε κάθε ανανέωση.'
+              : 'Build a personalised plan and earn bonus credits on every renewal.'}
+          </div>
+          <button
+            className="aw-btn aw-btn-topup"
+            onClick={() => { closeAccount(); setTimeout(() => goToWalletPage(), 300) }}
+          >
+            {isEl ? 'Φτιάξε το πλάνο σου →' : 'Build your plan →'}
+          </button>
+        </div>
+      </div>
+    )
+  }
+
+  // Resolve fields. The legacy 3-tier WALLET_PLANS lookup gives us a
+  // human plan name fallback when wallet.planEl/planEn are missing.
+  const legacyPlan = WALLET_PLANS.find((p) => p.id === wallet.planId)
+  const planName =
+    (isEl ? wallet.planEl : wallet.planEn) ??
+    (legacyPlan ? (isEl ? legacyPlan.nameEl : legacyPlan.nameEn) : undefined) ??
+    wallet.planId ??
+    (isEl ? 'Συνδρομή' : 'Subscription')
+
+  // Date formatter — same shape WalletTab uses for parity.
+  const fmtDate = (iso?: string | null) => {
+    if (!iso) return null
+    return new Date(iso + 'T12:00:00').toLocaleDateString(
+      isEl ? 'el-GR' : 'en-GB',
+      { day: 'numeric', month: 'short', year: 'numeric' },
+    )
+  }
+  const renewDate = fmtDate(wallet.nextRenewal)
+
+  // Numeric formatters
+  const eur = (n: number | undefined | null) =>
+    typeof n === 'number' ? `€${n.toFixed(2)}` : '—'
+  const pct = (n: number | undefined | null) =>
+    typeof n === 'number' ? `+${n}%` : '—'
+
+  const baseBalance = wallet.baseBalance ?? wallet.balance
+  const bonusBalance = wallet.bonusBalance ?? 0
+  const bonusPctValue = wallet.bonusPct ?? (legacyPlan?.bonusPct ?? null)
+  const cycleCost = wallet.monthlyAmount ?? legacyPlan?.price ?? null
+  const cycleCredits = wallet.creditAmount ?? legacyPlan?.credits ?? null
+
+  // Placeholder dash for fields we don't yet fetch from wallet_plans.
+  const TODO_DASH = '—'
+
+  return (
+    <div className="tab-section">
+      <h2 className="tab-title">{isEl ? 'Η συνδρομή μου' : 'My subscription'}</h2>
+
+      {/* HERO — plan name + active badge + key dates inline */}
+      <div className="subs-hero">
+        <div className="subs-hero-top">
+          <div className="subs-hero-name">{planName}</div>
+          <span className="subs-status subs-status-active">
+            <span className="subs-status-dot" />
+            {isEl ? 'Ενεργή' : 'Active'}
+          </span>
+        </div>
+        <div className="subs-hero-meta">
+          <div className="subs-meta-item">
+            <span className="subs-meta-label">{isEl ? 'Έναρξη' : 'Start'}</span>
+            <span className="subs-meta-value">
+              {TODO_DASH}
+              {/* TODO WEC-349: wallet_plans.created_at not yet exposed in user.wallet. */}
+            </span>
+          </div>
+          <div className="subs-meta-divider" aria-hidden />
+          <div className="subs-meta-item">
+            <span className="subs-meta-label">{isEl ? 'Επόμενη ανανέωση' : 'Next renewal'}</span>
+            <span className="subs-meta-value">{renewDate ?? TODO_DASH}</span>
+          </div>
+          <div className="subs-meta-divider" aria-hidden />
+          <div className="subs-meta-item">
+            <span className="subs-meta-label">{isEl ? 'Bonus λήγει' : 'Bonus expires'}</span>
+            <span className="subs-meta-value">
+              {TODO_DASH}
+              {/* TODO WEC-349: wallet_plans.bonus_expires_at not yet exposed. */}
+            </span>
+          </div>
+        </div>
+      </div>
+
+      {/* TWO-COL GRID: composition + pricing */}
+      <div className="subs-grid">
+        <div className="subs-card">
+          <div className="subs-card-title">
+            {isEl ? 'Σύνθεση πλάνου' : 'Plan composition'}
+          </div>
+          <div className="subs-rows">
+            <div className="subs-row">
+              <span className="subs-row-key">{isEl ? 'Γεύματα' : 'Meals'}</span>
+              <span className="subs-row-val">
+                {/* TODO WEC-349: meal_breakfast/lunch/dinner flags not yet exposed. */}
+                <span className="subs-pill subs-pill-dim">{TODO_DASH}</span>
+              </span>
+            </div>
+            <div className="subs-row">
+              <span className="subs-row-key">{isEl ? 'Άτομα' : 'People'}</span>
+              <span className="subs-row-val">{TODO_DASH}</span>
+            </div>
+            <div className="subs-row">
+              <span className="subs-row-key">{isEl ? 'Μέρες/εβδομάδα' : 'Days/week'}</span>
+              <span className="subs-row-val">{TODO_DASH}</span>
+            </div>
+            <div className="subs-row">
+              <span className="subs-row-key">{isEl ? 'Συχνότητα' : 'Frequency'}</span>
+              <span className="subs-row-val">{TODO_DASH}</span>
+            </div>
+          </div>
+        </div>
+
+        <div className="subs-card">
+          <div className="subs-card-title">
+            {isEl ? 'Τιμή & Bonus' : 'Pricing & Bonus'}
+          </div>
+          <div className="subs-rows">
+            <div className="subs-row">
+              <span className="subs-row-key">{isEl ? 'Κόστος κύκλου' : 'Cycle cost'}</span>
+              <span className="subs-row-val">{eur(cycleCost)}</span>
+            </div>
+            <div className="subs-row">
+              <span className="subs-row-key">{isEl ? 'Bonus' : 'Bonus'}</span>
+              <span className="subs-row-val subs-emph">{pct(bonusPctValue)}</span>
+            </div>
+            <div className="subs-row">
+              <span className="subs-row-key">{isEl ? 'Σύνολο credits' : 'Total credits'}</span>
+              <span className="subs-row-val">{eur(cycleCredits)}</span>
+            </div>
+            <div className="subs-row">
+              <span className="subs-row-key">{isEl ? 'Αυτόματη ανανέωση' : 'Auto-renew'}</span>
+              <span className="subs-row-val">
+                {wallet.autoRenew
+                  ? (isEl ? 'Ναι' : 'Yes')
+                  : (isEl ? 'Όχι' : 'No')}
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Balance summary — small card linking to Wallet tab + topup CTA */}
+      <div className="subs-balance">
+        <div className="subs-balance-left">
+          <div className="subs-balance-label">
+            {isEl ? 'Υπόλοιπο πορτοφολιού' : 'Wallet balance'}
+          </div>
+          <div className="subs-balance-amt">{eur(wallet.balance)}</div>
+          <div className="subs-balance-split">
+            {isEl
+              ? `Βάση ${eur(baseBalance)} · Bonus ${eur(bonusBalance)}`
+              : `Base ${eur(baseBalance)} · Bonus ${eur(bonusBalance)}`}
+          </div>
+        </div>
+        <div className="subs-balance-actions">
+          <button
+            className="aw-btn aw-btn-topup"
+            onClick={() => { closeAccount(); setTimeout(() => goToWalletPage(), 300) }}
+          >
+            {isEl ? 'Αλλαγή πλάνου' : 'Change plan'}
+          </button>
+        </div>
+      </div>
+
+      {/* Help footer — no destructive actions in V1, just a note. */}
+      <div className="subs-help">
+        {isEl
+          ? 'Για ακυρώσεις ή αλλαγές κύκλου, επικοινώνησε στο '
+          : 'For cancellations or cycle changes, contact '}
+        <a href="mailto:support@fitpal.gr">support@fitpal.gr</a>.
       </div>
     </div>
   )
