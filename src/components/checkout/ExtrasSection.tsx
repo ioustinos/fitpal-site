@@ -57,11 +57,6 @@ export function ExtrasSection({ attempted = false }: ExtrasSectionProps) {
             ? 'π.χ. χτυπήστε δύο φορές το κουδούνι, αφήστε στη θυρωρό…'
             : 'e.g. ring the bell twice, leave with the doorman…'}
         />
-        <div className="order-notes-hint">
-          {isEl
-            ? 'Σημειώσεις για την παράδοση ή ειδικά αιτήματα — όχι για το τιμολόγιο.'
-            : 'For delivery instructions or special requests — not for invoice details.'}
-        </div>
       </div>
 
       {/* WEC-237: setPayment is a partial-merge (state.payment + info), so we

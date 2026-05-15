@@ -890,12 +890,16 @@ header {
 .dm-close { position: absolute; top: 12px; right: 12px; z-index: 2; width: 44px; height: 44px; border-radius: 50%; background: rgba(0,0,0,0.4); border: none; color: white; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: all 0.18s; }
 .dm-close:hover { background: rgba(0,0,0,0.6); }
 .dm-close svg { width: 16px; height: 16px; stroke: white; stroke-width: 2.5; fill: none; }
-/* WEC-132: 16/9 image is tighter than 3/2, gives the body room above the fold.
-   WEC-353: switched to 2:1 to recover ~35px of vertical space (Nena's
-   feedback — sticky add button + shorter image so it stays visible on
-   shorter viewports). Image is still wide enough to read well. */
-.dm-img-wrap { aspect-ratio: 2/1; overflow: hidden; background: var(--cream); }
-.dm-img { width: 100%; height: 100%; object-fit: cover; }
+/* WEC-353 v2: fixed pixel height (not aspect-ratio). The aspect-ratio
+   approach didn't actually steal much vertical space because the modal
+   itself got wider (520→540) — the gain cancelled out. Switching to a
+   fixed height lets us crop the image with object-position to genuinely
+   reclaim ~40px regardless of modal width. Object-position 'center'
+   keeps the food in the middle of the visible crop.
+
+   ~40px gain vs original (520-wide, 16:9 ≈ 292px tall): height 252px. */
+.dm-img-wrap { height: 252px; overflow: hidden; background: var(--cream); }
+.dm-img { width: 100%; height: 100%; object-fit: cover; object-position: center; }
 .dm-img-fallback { width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; font-size: 56px; }
 /* Tighter body padding — we had 24px all around, 20px top/bottom reads the same */
 .dm-body { padding: 20px 22px; }
@@ -962,12 +966,14 @@ header {
 .dm-comment { width: 100%; padding: 8px 10px; border: 1.5px solid var(--border); border-radius: var(--radius-sm); font-size: 13px; font-family: inherit; color: var(--text); background: var(--white); resize: vertical; min-height: 34px; max-height: 100px; transition: border-color 0.18s; box-sizing: border-box; }
 .dm-comment:focus { outline: none; border-color: var(--green); }
 .dm-comment::placeholder { color: var(--text-muted); font-style: italic; opacity: 0.6; }
-.dm-actions { display: flex; align-items: center; gap: 14px; }
-.dm-qty { display: flex; align-items: center; border: 1.5px solid var(--border); border-radius: var(--radius-sm); overflow: hidden; }
-/* WEC-298 (follow-up): dish-modal qty buttons bumped to 44×44. */
-.dm-qty-btn { width: 44px; height: 44px; border: none; background: var(--cream); font-size: 18px; font-weight: 900; cursor: pointer; color: var(--text); transition: all 0.15s; display: flex; align-items: center; justify-content: center; }
+/* WEC-353 v2: shrunk qty stepper + made .dm-actions explicitly full-width
+   so the primary CTA reclaims horizontal room. The previous stepper was
+   44×44 buttons + 36px number = ~124px; now 40×40 + 28px = ~108px. */
+.dm-actions { display: flex; align-items: center; gap: 12px; width: 100%; box-sizing: border-box; }
+.dm-qty { display: flex; align-items: center; border: 1.5px solid var(--border); border-radius: var(--radius-sm); overflow: hidden; flex-shrink: 0; }
+.dm-qty-btn { width: 40px; height: 40px; border: none; background: var(--cream); font-size: 17px; font-weight: 900; cursor: pointer; color: var(--text); transition: all 0.15s; display: flex; align-items: center; justify-content: center; }
 .dm-qty-btn:hover { background: var(--green-light); color: var(--green-dark); }
-.dm-qty-n { min-width: 36px; text-align: center; font-size: 16px; font-weight: 900; color: var(--green-dark); }
+.dm-qty-n { min-width: 28px; text-align: center; font-size: 15px; font-weight: 900; color: var(--green-dark); }
 .btn-dm-add { flex: 1; padding: 12px; background: var(--green); color: var(--white); border: none; border-radius: var(--radius-sm); font-size: 14px; font-weight: 900; cursor: pointer; transition: all 0.18s; letter-spacing: 0.3px; }
 .btn-dm-add:hover { background: var(--green-dark); box-shadow: 0 4px 16px rgba(0,185,107,0.4); }
 .btn-dm-add:disabled { opacity: 0.5; cursor: not-allowed; }
@@ -1035,13 +1041,6 @@ header {
   min-height: 64px;
   /* deliberately uses .form-input — same border + focus treatment as the
      rest of the checkout form, NOT the faded .notes-ta variant. */
-}
-.order-notes-hint {
-  font-size: 11.5px;
-  color: var(--text-muted);
-  font-weight: 600;
-  margin-top: 5px;
-  line-height: 1.4;
 }
 
 /* ══════════════════════════════════════════
