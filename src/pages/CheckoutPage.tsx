@@ -14,6 +14,7 @@ import { ContactSection, type ContactInfo } from '../components/checkout/Contact
 import { activeDays, dayAmt, zipInZone } from '../lib/helpers'
 import { dayLabel } from '../lib/datelabels'
 import { isValidPhone } from '../lib/phone'
+import { isValidGreekVat, vatDigits } from '../lib/vat'
 import { updateProfile } from '../lib/api/auth'
 import { useMenuStore } from '../store/useMenuStore'
 import { useToast } from '../components/ui/Toast'
@@ -175,10 +176,14 @@ export function CheckoutPage() {
     )
   }
 
-  // Invoice validation (WEC-138). Keep in sync with ExtrasSection's check.
-  const invoiceVatDigits = (payment.invoiceVat ?? '').replace(/\D/g, '')
+  // Invoice validation (WEC-138 + WEC-354). Keep in sync with ExtrasSection.
+  // WEC-354: VAT validation tightened from "≥ 5 digits" to "exactly 9 digits
+  // AND passes Greek ΑΦΜ checksum" (see src/lib/vat.ts).
+  const invoiceVatStripped = vatDigits(payment.invoiceVat ?? '')
+  const invoiceVatChecksumOk =
+    invoiceVatStripped.length === 9 && isValidGreekVat(invoiceVatStripped)
   const invoiceOk = !payment.invoice
-    || (!!payment.invoiceName?.trim() && invoiceVatDigits.length >= 5)
+    || (!!payment.invoiceName?.trim() && invoiceVatChecksumOk)
   if (payment.invoice && !payment.invoiceName?.trim()) {
     validationIssues.push(
       lang === 'el'
@@ -186,15 +191,21 @@ export function CheckoutPage() {
         : 'Invoice: company or name is missing'
     )
   }
-  if (payment.invoice && invoiceVatDigits.length === 0) {
+  if (payment.invoice && invoiceVatStripped.length === 0) {
     validationIssues.push(
       lang === 'el' ? 'Τιμολόγιο: λείπει το ΑΦΜ' : 'Invoice: VAT number is missing'
     )
-  } else if (payment.invoice && invoiceVatDigits.length > 0 && invoiceVatDigits.length < 5) {
+  } else if (payment.invoice && invoiceVatStripped.length !== 9) {
     validationIssues.push(
       lang === 'el'
-        ? 'Τιμολόγιο: το ΑΦΜ πρέπει να έχει τουλάχιστον 5 ψηφία'
-        : 'Invoice: VAT must be at least 5 digits'
+        ? 'Τιμολόγιο: το ΑΦΜ πρέπει να έχει 9 ψηφία'
+        : 'Invoice: VAT must be 9 digits'
+    )
+  } else if (payment.invoice && !invoiceVatChecksumOk) {
+    validationIssues.push(
+      lang === 'el'
+        ? 'Τιμολόγιο: μη έγκυρο ΑΦΜ — έλεγξε τα ψηφία'
+        : 'Invoice: invalid VAT — check the digits'
     )
   }
 

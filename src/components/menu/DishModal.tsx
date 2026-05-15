@@ -307,10 +307,14 @@ export function DishModal() {
           />
         </div>
 
-        {/* Actions — matches demo .dm-actions layout.
+        {/* Sticky footer (WEC-353) — qty stepper + primary CTA + optional
+            edit-mode remove link. Anchored to the bottom of the modal's
+            scroll container so customers never have to scroll to find
+            the Add / Save button on tall dishes.
             WEC-340: ADD mode shows the original add-to-cart CTA;
             EDIT mode shows "Save changes" as the primary action and a
             secondary "Remove from cart" link underneath. */}
+        <div className="dm-footer">
         <div className="dm-actions">
           <div className="dm-qty">
             <button
@@ -369,6 +373,7 @@ export function DishModal() {
             {lang === 'el' ? 'Αφαίρεση από το καλάθι' : 'Remove from cart'}
           </button>
         )}
+        </div>{/* /.dm-footer (WEC-353) */}
       </div>
     </Modal>
   )

@@ -2,6 +2,23 @@ import { createClient } from '@supabase/supabase-js'
 import { createVivaOrder } from '../lib/viva/createOrder'
 import { trackAsync } from '../lib/klaviyo'
 
+// ─── Greek ΑΦΜ checksum (WEC-354) ──────────────────────────────────────────
+// Duplicated from src/lib/vat.ts — cross-folder src/ ⇄ netlify/ imports
+// aren't set up in this project, so we keep two copies. They must stay in
+// sync. See the original for algorithm comments + rationale.
+function isValidGreekVatServer(input: string): boolean {
+  const digits = String(input ?? '').replace(/\D/g, '')
+  if (digits.length !== 9) return false
+  if (/^0+$/.test(digits)) return false
+  let sum = 0
+  for (let i = 0; i < 8; i++) {
+    sum += parseInt(digits[i], 10) * Math.pow(2, 8 - i)
+  }
+  let check = sum % 11
+  if (check === 10) check = 0
+  return check === parseInt(digits[8], 10)
+}
+
 // ─── Env ────────────────────────────────────────────────────────────────────
 
 const SUPABASE_URL = process.env.VITE_SUPABASE_URL ?? ''
@@ -231,16 +248,20 @@ function validatePayload(body: OrderPayload): Errors {
   if (!VALID_METHODS.includes(body.paymentMethod)) addError(errors, 'general', `Invalid payment method: ${body.paymentMethod}`)
   if (!body.days || body.days.length === 0) addError(errors, 'general', 'Order must have at least one day')
 
-  // Invoice (WEC-237) — if the toggle was on, the fields must be present.
-  // Client validates already; this is the server-side belt to the client braces.
+  // Invoice (WEC-237 + WEC-354) — if the toggle was on, the fields must be
+  // present AND the VAT must pass the Greek ΑΦΜ checksum. Client also
+  // validates; this is the server-side belt to the client braces, and the
+  // only line of defence against curl bypasses.
   if (body.invoiceType) {
     const invName = body.invoiceName?.trim() ?? ''
     const invVatDigits = (body.invoiceVat ?? '').replace(/\D/g, '')
     if (!invName) addError(errors, 'general', 'Invoice: company or name is required')
     if (invVatDigits.length === 0) {
       addError(errors, 'general', 'Invoice: VAT number is required')
-    } else if (invVatDigits.length < 5) {
-      addError(errors, 'general', 'Invoice: VAT must be at least 5 digits')
+    } else if (invVatDigits.length !== 9) {
+      addError(errors, 'general', 'Invoice: VAT must be 9 digits')
+    } else if (!isValidGreekVatServer(invVatDigits)) {
+      addError(errors, 'general', 'Invoice: invalid VAT — check the digits')
     }
   }
 
