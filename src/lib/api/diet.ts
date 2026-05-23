@@ -1,4 +1,5 @@
 import { supabase } from '../supabase'
+import { getCatalog, buildInitialDietCatalog } from './bootstrap'
 
 /**
  * Customer diet API (WEC-250).
@@ -63,64 +64,30 @@ export interface ProfileDiet {
 // ─── Fetchers ─────────────────────────────────────────────────────────────
 
 /**
- * Single roundtrip to build the shared catalog. Cheap enough to call on
- * app load and keep cached in the menu store.
+ * Build the INITIAL diet catalog. Since WEC-350 this only fetches the
+ * GLOBAL halves (allergies list + ingredient→allergy map). The per-dish
+ * halves (`dishAllergies` + `dishIngredients`) start empty and grow as
+ * the customer site loads each week via `getWeek` — the store calls
+ * `bootstrap.ts:extendDietCatalog()` after every successful week load
+ * to merge in that week's dishes' ingredient links.
+ *
+ * For a dish whose week hasn't loaded yet, `dishDietFlags()` returns
+ * "no flags" — but unloaded weeks' dishes aren't rendered anywhere
+ * either, so the only customer-visible flag is always correct.
  */
 export async function fetchDietCatalog(): Promise<{
   data: DietCatalog
   error: string | null
 }> {
-  const [allergiesRes, dishIngRes, ingAllRes] = await Promise.all([
-    supabase.from('allergies').select('id, name_el, name_en, description').order('name_el'),
-    supabase.from('dish_ingredients').select('dish_id, ingredient_id'),
-    supabase.from('ingredient_allergies').select('ingredient_id, allergy_id'),
-  ])
-
   const empty: DietCatalog = {
     allergies: [],
     dishAllergies: new Map(),
     dishIngredients: new Map(),
     ingredientAllergies: new Map(),
   }
-  if (allergiesRes.error) return { data: empty, error: allergiesRes.error.message }
-  if (dishIngRes.error) return { data: empty, error: dishIngRes.error.message }
-  if (ingAllRes.error) return { data: empty, error: ingAllRes.error.message }
-
-  const allergies: AllergyDef[] = (allergiesRes.data ?? []).map((r) => ({
-    id: r.id,
-    nameEl: r.name_el,
-    nameEn: r.name_en,
-    description: r.description,
-  }))
-
-  // Build ingredient → allergies map first; the dish → allergies map
-  // is computed from it + the dish_ingredients join.
-  const ingredientAllergies = new Map<string, Set<string>>()
-  for (const r of (ingAllRes.data ?? []) as { ingredient_id: string; allergy_id: string }[]) {
-    const set = ingredientAllergies.get(r.ingredient_id) ?? new Set<string>()
-    set.add(r.allergy_id)
-    ingredientAllergies.set(r.ingredient_id, set)
-  }
-
-  const dishIngredients = new Map<string, Set<string>>()
-  const dishAllergies = new Map<string, Set<string>>()
-  for (const r of (dishIngRes.data ?? []) as { dish_id: string; ingredient_id: string }[]) {
-    const ings = dishIngredients.get(r.dish_id) ?? new Set<string>()
-    ings.add(r.ingredient_id)
-    dishIngredients.set(r.dish_id, ings)
-
-    const allergies = ingredientAllergies.get(r.ingredient_id)
-    if (allergies && allergies.size > 0) {
-      const set = dishAllergies.get(r.dish_id) ?? new Set<string>()
-      for (const a of allergies) set.add(a)
-      dishAllergies.set(r.dish_id, set)
-    }
-  }
-
-  return {
-    data: { allergies, dishAllergies, dishIngredients, ingredientAllergies },
-    error: null,
-  }
+  const cat = await getCatalog()
+  if (!cat) return { data: empty, error: 'Failed to load menu catalog' }
+  return { data: buildInitialDietCatalog(cat), error: null }
 }
 
 /**

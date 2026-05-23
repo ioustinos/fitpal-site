@@ -9,6 +9,7 @@ import {
 import { fetchZones, type DeliveryZone, type TimeSlot } from '../lib/api/zones'
 import { fetchSettings, type AppSettings } from '../lib/api/settings'
 import { fetchDietCatalog, type DietCatalog } from '../lib/api/diet'
+import { resetAll as resetBootstrapCaches, extendDietCatalog } from '../lib/api/bootstrap'
 import { findLandingDay } from '../lib/helpers'
 import { useUIStore } from './useUIStore'
 import type { Dish, WeekDef, CategoryDef, TagDef } from '../data/menu'
@@ -129,7 +130,15 @@ export const useMenuStore = create<MenuStore>((set, get) => ({
   reload: async () => {
     set({ isLoading: true, error: null })
 
-    // Phase 1: parallel fetch for meta + categories + tags + zones + settings + diet catalog
+    // WEC-350: bust ALL in-tab caches (meta + catalog + every per-week)
+    // so a user-initiated reload really refetches. The Netlify edge cache
+    // still applies (5 min TTL + 24h SWR) so the network response may be
+    // served from a PoP — but we won't reuse a stale in-memory copy.
+    resetBootstrapCaches()
+
+    // Phase 1: parallel fetch for meta + categories + tags + zones + settings + diet catalog.
+    // Since WEC-350, the first five share one underlying `/api/menu/bootstrap`
+    // round-trip; `fetchZones` and `fetchSettings` go to their own endpoints.
     const [metaRes, catsRes, tagsRes, zonesRes, settingsRes, dietRes] = await Promise.all([
       fetchActiveWeeksMeta(),
       fetchCategories(),
@@ -192,12 +201,13 @@ export const useMenuStore = create<MenuStore>((set, get) => ({
       menuIdsToLoad.map((id) => fetchWeekDishes(id)),
     )
 
-    // Merge results into weeks + dishMap atomically
+    // Merge results into weeks + dishMap + dietCatalog atomically.
     const cur = get()
     const mergedWeeks = [...cur.weeks]
     const mergedDishMap = { ...cur.dishMap }
     const mergedLoaded = new Set(cur.loadedWeekIds)
     const mergedLoading = { ...cur.weekLoading }
+    let mergedDiet = cur.dietCatalog  // may be null if catalog fetch failed
 
     for (let k = 0; k < results.length; k++) {
       const res = results[k]
@@ -223,6 +233,13 @@ export const useMenuStore = create<MenuStore>((set, get) => ({
       }
       for (const dish of res.data.dishes) mergedDishMap[dish.id] = dish
       mergedLoaded.add(id)
+
+      // WEC-350: extend the diet catalog with this week's dishes' ingredient
+      // links. The catalog grows incrementally as weeks load — see
+      // `bootstrap.ts:extendDietCatalog` for the immutable Map-clone pattern.
+      if (mergedDiet) {
+        mergedDiet = extendDietCatalog(mergedDiet, res.data.wireDishes)
+      }
     }
 
     set({
@@ -230,6 +247,7 @@ export const useMenuStore = create<MenuStore>((set, get) => ({
       dishMap: mergedDishMap,
       loadedWeekIds: mergedLoaded,
       weekLoading: mergedLoading,
+      dietCatalog: mergedDiet,
     })
   },
 
@@ -272,11 +290,20 @@ export const useMenuStore = create<MenuStore>((set, get) => ({
     const nextLoaded = new Set(cur.loadedWeekIds)
     nextLoaded.add(menuId)
 
+    // WEC-350: extend the diet catalog with this week's dishes' ingredient
+    // links, same as Phase 3 of reload(). The catalog only knows about
+    // dishes from loaded weeks — but unloaded weeks aren't rendered, so
+    // `dishDietFlags()` is always correct for visible dishes.
+    const nextDiet = cur.dietCatalog
+      ? extendDietCatalog(cur.dietCatalog, res.data.wireDishes)
+      : cur.dietCatalog
+
     set({
       weeks: nextWeeks,
       dishMap: nextDishMap,
       loadedWeekIds: nextLoaded,
       weekLoading: nextLoading,
+      dietCatalog: nextDiet,
     })
   },
 }))

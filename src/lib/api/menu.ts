@@ -1,169 +1,44 @@
-import { supabase } from '../supabase'
-import type { Dish, Variant, Macros, CategoryDef, WeekDef, WeekDay, TagDef, TagPlacement } from '../../data/menu'
-
-// ─── DB row shapes (snake_case, money in cents) ──────────────────────────────
-
-interface DbDish {
-  id: string
-  category_id: string
-  name_el: string
-  name_en: string
-  desc_el: string | null
-  desc_en: string | null
-  image_url: string | null
-  emoji: string | null
-  discount_pct: number | null
-  active: boolean
-  preview_cal: number | null
-  preview_pro: number | null
-  preview_carb: number | null
-  preview_fat: number | null
-  variant_ux_mode: 'auto' | 'pills' | 'dropdowns' | null
-}
-
-interface DbVariant {
-  id: string
-  dish_id: string
-  label_el: string
-  label_en: string
-  price: number          // cents
-  calories: number | null
-  protein: number | null
-  carbs: number | null
-  fat: number | null
-  sort_order: number
-  is_default: boolean
-}
-
-interface DbCategory {
-  id: string
-  name_el: string
-  name_en: string
-  sort_order: number
-  active: boolean
-}
-
-interface DbTag {
-  id: string
-  label_el: string
-  label_en: string
-  bg_color: string | null
-  font_color: string | null
-  /** WEC-256: top_left | top_right | bottom_left | under_title. */
-  placement: string | null
-}
-
-interface DbMenuDayDish {
-  menu_id: string
-  date: string           // ISO date
-  dish_id: string
-  sort_order: number
-}
-
-interface DbWeeklyMenu {
-  id: string
-  name: string
-  from_date: string
-  to_date: string
-  active: boolean
-  category_order: string[]
-}
-
-// ─── Mappers ─────────────────────────────────────────────────────────────────
-
-const centsToEuros = (cents: number): number => +(cents / 100).toFixed(2)
-
-const toMacros = (row: Pick<DbVariant, 'calories' | 'protein' | 'carbs' | 'fat'>): Macros => ({
-  cal: row.calories ?? 0,
-  pro: row.protein ?? 0,
-  carb: row.carbs ?? 0,
-  fat: row.fat ?? 0,
-})
-
-const toVariant = (row: DbVariant): Variant => ({
-  id: row.id,
-  labelEl: row.label_el,
-  labelEn: row.label_en,
-  isDefault: row.is_default,
-  price: centsToEuros(row.price),
-  macros: toMacros(row),
-})
-
-const toDish = (
-  row: DbDish,
-  variants: DbVariant[],
-  tagIds: string[],
-): Dish => ({
-  id: row.id,
-  emoji: row.emoji ?? '🍽️',
-  img: row.image_url ?? undefined,
-  nameEl: row.name_el,
-  nameEn: row.name_en,
-  descEl: row.desc_el ?? undefined,
-  descEn: row.desc_en ?? undefined,
-  catId: row.category_id,
-  tags: tagIds.length > 0 ? tagIds : undefined,
-  discount: row.discount_pct ?? undefined,
-  variants: variants
-    .filter((v) => v.dish_id === row.id)
-    .sort((a, b) => a.sort_order - b.sort_order)
-    .map(toVariant),
-  previewCal: row.preview_cal ?? undefined,
-  previewPro: row.preview_pro ?? undefined,
-  previewCarb: row.preview_carb ?? undefined,
-  previewFat: row.preview_fat ?? undefined,
-  variantUxMode: row.variant_ux_mode ?? 'auto',
-})
-
-const toCategory = (row: DbCategory): CategoryDef => ({
-  id: row.id,
-  labelEl: row.name_el,
-  labelEn: row.name_en,
-})
-
-// ─── Queries ─────────────────────────────────────────────────────────────────
-
 /**
- * Fetch all active categories, sorted by sort_order.
+ * Customer menu read API.
+ *
+ * Since WEC-350: every function here delegates to one of the three
+ * memoized fetchers in `bootstrap.ts`. There are NO direct Supabase
+ * queries from this module.
+ *
+ * Endpoints:
+ *   - getMeta()       → /api/menu/meta        (5KB, once)
+ *   - getCatalog()    → /api/menu/catalog     (5KB, once)
+ *   - getWeek(menuId) → /api/menu/week        (25KB per week)
+ *
+ * Per-week loading: `fetchWeekDishes` is a REAL network call now. Each
+ * week response is edge-cached independently at Netlify, so historical
+ * weeks only hit Supabase on the very first visitor; everyone else
+ * gets it sub-50ms from the nearest PoP.
+ *
+ * Public surface (unchanged):
+ *   - fetchTags()              → TagDef[]
+ *   - fetchCategories()        → CategoryDef[]
+ *   - fetchActiveWeeksMeta()   → WeekMeta[]  (week list + day inactivity flags)
+ *   - fetchWeekDishes(menuId)  → { weekId, days, dishes } for one week
+ *   - fetchActiveMenu()        → deprecated — errors out (loading every week
+ *                                defeats the per-week eager pattern)
+ *   - fetchDishesForDay(date)  → Dish[] for one date
+ *
+ * The `dishIngredientMap` field on `fetchWeekDishes` results lets the
+ * store extend its diet catalog incrementally per-week (see
+ * `bootstrap.ts:extendDietCatalog`).
  */
-/**
- * Fetch the global tags catalog (WEC-256). Customer side reads this once
- * to resolve `Dish.tags[]` IDs into label / colour / placement triples.
- */
-export async function fetchTags(): Promise<{ data: TagDef[] | null; error: string | null }> {
-  const { data, error } = await supabase
-    .from('tags')
-    .select('id, label_el, label_en, bg_color, font_color, placement')
-    .order('sort_order')
 
-  if (error) return { data: null, error: error.message }
-  const out: TagDef[] = (data ?? []).map((t) => {
-    const r = t as DbTag
-    const p = r.placement
-    const placement: TagPlacement =
-      p === 'top_right' || p === 'bottom_left' || p === 'under_title' ? p : 'top_left'
-    return {
-      id: r.id,
-      labelEl: r.label_el,
-      labelEn: r.label_en ?? r.label_el,
-      bgColor: r.bg_color ?? '#e0e0e0',
-      fontColor: r.font_color ?? '#333333',
-      placement,
-    }
-  })
-  return { data: out, error: null }
-}
-
-export async function fetchCategories(): Promise<{ data: CategoryDef[] | null; error: string | null }> {
-  const { data, error } = await supabase
-    .from('categories')
-    .select('id, name_el, name_en, sort_order, active')
-    .eq('active', true)
-    .order('sort_order')
-
-  if (error) return { data: null, error: error.message }
-  return { data: (data as DbCategory[]).map(toCategory), error: null }
-}
+import {
+  getMeta,
+  getCatalog,
+  getWeek,
+  wireDishToDish,
+  wireCategoryToCategory,
+  wireTagToTag,
+  type WireDish,
+} from './bootstrap'
+import type { Dish, CategoryDef, WeekDef, TagDef } from '../../data/menu'
 
 // ─── WeekMeta type — lightweight week description for navigation/landing ─────
 
@@ -172,346 +47,179 @@ export interface WeekMeta {
   labelEl: string
   labelEn: string
   /**
-   * One entry per delivery day in the menu, in chronological order. WEC-273:
+   * One entry per delivery day in the menu, chronological order. WEC-273:
    * `inactive` is true when the admin marked the date closed in
-   * `weekly_menus.inactive_dates` — the day stays in the list so the
-   * customer-side day-strip can render it greyed out with a "closed"
-   * caption instead of silently disappearing.
+   * `weekly_menus.inactive_dates`. The day stays in the list so the
+   * customer day-strip can render it greyed out with a "closed" caption
+   * instead of silently disappearing.
    */
   days: { date: string; inactive?: boolean }[]
   /** Snapshot of category id ordering for this menu (WEC-253). */
   categoryOrder: string[]
 }
 
+// ─── Tags ────────────────────────────────────────────────────────────────────
+
 /**
- * Fetch lightweight metadata for all active weekly menus:
- * - id, name, from_date/to_date from `weekly_menus`
- * - distinct `date` list per menu from `menu_day_dishes`
- *
- * Used by the store to decide pivot week + enable week-toggle navigation
- * without pulling dish content for every active menu. Scales when N menus grows.
+ * Fetch the global tags catalog (WEC-256). Reads from /api/menu/catalog,
+ * which is shared with `fetchCategories` and `fetchDietCatalog` (one
+ * underlying round-trip on first call).
+ */
+export async function fetchTags(): Promise<{ data: TagDef[] | null; error: string | null }> {
+  const cat = await getCatalog()
+  if (!cat) return { data: null, error: 'Failed to load menu catalog' }
+  return { data: cat.tags.map(wireTagToTag), error: null }
+}
+
+// ─── Categories ──────────────────────────────────────────────────────────────
+
+export async function fetchCategories(): Promise<{ data: CategoryDef[] | null; error: string | null }> {
+  const cat = await getCatalog()
+  if (!cat) return { data: null, error: 'Failed to load menu catalog' }
+  return { data: cat.categories.map(wireCategoryToCategory), error: null }
+}
+
+// ─── Active weeks meta ──────────────────────────────────────────────────────
+
+/**
+ * Lightweight metadata for all active weekly menus. Drives the
+ * week-toggle nav and landing-day resolution before any dish content
+ * is needed.
  */
 export async function fetchActiveWeeksMeta(): Promise<{
   data: WeekMeta[] | null
   error: string | null
 }> {
-  const { data: menuRows, error: menuErr } = await supabase
-    .from('weekly_menus')
-    .select('id, name, from_date, to_date, active, inactive_dates, category_order')
-    .eq('active', true)
-    .order('from_date')
+  const meta = await getMeta()
+  if (!meta) return { data: null, error: 'Failed to load menu meta' }
+  if (meta.weeks.length === 0) return { data: null, error: 'No active menu found' }
 
-  if (menuErr) return { data: null, error: menuErr.message }
-  const menus = (menuRows ?? []) as Array<DbWeeklyMenu & { inactive_dates: string[] | null }>
-  if (menus.length === 0) return { data: null, error: 'No active menu found' }
-
-  const menuIds = menus.map((m) => m.id)
-  const inactiveByMenu = new Map<string, Set<string>>()
-  for (const m of menus) inactiveByMenu.set(m.id, new Set(m.inactive_dates ?? []))
-
-  // Distinct dates per menu (we don't need dish_ids for meta)
-  const { data: dayRows, error: dayErr } = await supabase
-    .from('menu_day_dishes')
-    .select('menu_id, date')
-    .in('menu_id', menuIds)
-    .order('date')
-
-  if (dayErr) return { data: null, error: dayErr.message }
-
-  // WEC-273: keep inactive dates in the day list so the customer day-nav
-  // can render them greyed out with a 'closed' note. Previously these were
-  // dropped entirely, leaving a confusing gap (Mon/Wed/Thu/Fri with no
-  // Tuesday). The `inactive` flag flows through WeekMeta → WeekDef so
-  // every consumer can render the closed state consistently.
-  const dateMap = new Map<string, string[]>()
-  for (const row of (dayRows ?? []) as { menu_id: string; date: string }[]) {
-    const list = dateMap.get(row.menu_id) ?? []
-    if (!list.includes(row.date)) list.push(row.date)
-    dateMap.set(row.menu_id, list)
-  }
-
-  const weeks: WeekMeta[] = menus.map((menu) => {
-    const inactiveSet = inactiveByMenu.get(menu.id) ?? new Set<string>()
-    return {
-      id: menu.id,
-      labelEl: menu.name,
-      labelEn: menu.name,
-      days: (dateMap.get(menu.id) ?? []).map((date) => ({
-        date,
-        inactive: inactiveSet.has(date),
-      })),
-      categoryOrder: menu.category_order ?? [],
-    }
-  })
-
+  const weeks: WeekMeta[] = meta.weeks.map((w) => ({
+    id: w.id,
+    labelEl: w.labelEl,
+    labelEn: w.labelEn,
+    days: w.days.map((d) => ({ date: d.date, inactive: d.inactive || undefined })),
+    categoryOrder: w.categoryOrder,
+  }))
   return { data: weeks, error: null }
 }
 
+// ─── Full week with dishes ───────────────────────────────────────────────────
+
 /**
- * Fetch full dish content for a single weekly menu.
- * Used for eager-loading the pivot/prev/next and lazy-loading on week navigation.
+ * Fetch full dish content for ONE weekly menu. Since WEC-350 this hits
+ * `/api/menu/week?menuId=...` — edge-cached at Netlify per menuId.
+ *
+ * Returns:
+ *   - `days`: `[{date, dishIds}]` in admin's sort_order
+ *   - `dishes`: deduplicated `Dish[]`
+ *   - `dishIngredientMap`: `Map<dish_id, ingredient_id[]>` — the store
+ *      uses this to extend the diet catalog with per-dish ingredient
+ *      links, so the dish→allergy join stays correct as weeks load.
+ *      Other callers can ignore it.
+ *   - `wireDishes`: raw wire-format dishes (same purpose as
+ *      dishIngredientMap; some callers prefer the structured form).
  */
 export async function fetchWeekDishes(menuId: string): Promise<{
-  data: { weekId: string; days: { date: string; dishIds: string[] }[]; dishes: Dish[] } | null
+  data: {
+    weekId: string
+    days: { date: string; dishIds: string[] }[]
+    dishes: Dish[]
+    dishIngredientMap: Map<string, string[]>
+    wireDishes: WireDish[]
+  } | null
   error: string | null
 }> {
-  // 1. menu_day_dishes for this menu
-  const { data: assignments, error: aErr } = await supabase
-    .from('menu_day_dishes')
-    .select('menu_id, date, dish_id, sort_order')
-    .eq('menu_id', menuId)
-    .order('date')
-    .order('sort_order')
+  const week = await getWeek(menuId)
+  if (!week) return { data: null, error: 'Failed to load week' }
 
-  if (aErr) return { data: null, error: aErr.message }
-  const rows = (assignments ?? []) as DbMenuDayDish[]
-  if (rows.length === 0) {
-    return { data: { weekId: menuId, days: [], dishes: [] }, error: null }
+  // Empty week is a clean result (not an error) — matches the legacy
+  // behaviour so callers don't need conditional handling.
+  if (week.dishes.length === 0 && week.days.length === 0) {
+    return {
+      data: {
+        weekId: menuId,
+        days: [],
+        dishes: [],
+        dishIngredientMap: new Map(),
+        wireDishes: [],
+      },
+      error: null,
+    }
   }
 
-  const dishIds = [...new Set(rows.map((r) => r.dish_id))]
+  const days = week.days.map((d) => ({ date: d.date, dishIds: d.dishIds }))
+  const dishes: Dish[] = week.dishes.map(wireDishToDish)
+  const dishIngredientMap = new Map<string, string[]>()
+  for (const d of week.dishes) dishIngredientMap.set(d.id, d.ingredientIds)
 
-  // 2. Dishes
-  const { data: rawDishes, error: dishErr } = await supabase
-    .from('dishes')
-    .select('id, category_id, name_el, name_en, desc_el, desc_en, image_url, emoji, discount_pct, active, preview_cal, preview_pro, preview_carb, preview_fat, variant_ux_mode')
-    .in('id', dishIds)
-    .eq('active', true)
-
-  if (dishErr) return { data: null, error: dishErr.message }
-
-  // 3. Variants
-  const { data: rawVariants, error: varErr } = await supabase
-    .from('dish_variants')
-    .select('id, dish_id, label_el, label_en, price, calories, protein, carbs, fat, sort_order, is_default')
-    .in('dish_id', dishIds)
-
-  if (varErr) return { data: null, error: varErr.message }
-
-  // 4. Tag junction + tags
-  const { data: rawDishTags, error: dtErr } = await supabase
-    .from('dish_tags')
-    .select('dish_id, tag_id')
-    .in('dish_id', dishIds)
-
-  if (dtErr) return { data: null, error: dtErr.message }
-
-  const dishTagMap: Record<string, string[]> = {}
-  for (const dt of rawDishTags ?? []) {
-    const { dish_id, tag_id } = dt as { dish_id: string; tag_id: string }
-    ;(dishTagMap[dish_id] ??= []).push(tag_id)
+  return {
+    data: {
+      weekId: menuId,
+      days,
+      dishes,
+      dishIngredientMap,
+      wireDishes: week.dishes,
+    },
+    error: null,
   }
-
-  // 5. Build WeekDay[]
-  const dayMap = new Map<string, string[]>()
-  for (const r of rows) {
-    const list = dayMap.get(r.date) ?? []
-    list.push(r.dish_id)
-    dayMap.set(r.date, list)
-  }
-  const days = [...dayMap.entries()].map(([date, ids]) => ({ date, dishIds: ids }))
-
-  // 6. Map dishes
-  const variants = (rawVariants ?? []) as DbVariant[]
-  const dishes: Dish[] = (rawDishes as DbDish[]).map((d) =>
-    toDish(d, variants, dishTagMap[d.id] ?? []),
-  )
-
-  return { data: { weekId: menuId, days, dishes }, error: null }
 }
 
+// ─── Active menu (deprecated — would defeat per-week eager pattern) ──────────
+
 /**
- * @deprecated Use `fetchActiveWeeksMeta` + `fetchWeekDishes` for scoped loading.
- * Kept for backwards compat. Fetches ALL active weeks with dish content in one go.
+ * @deprecated Loading every active week's dishes at once is exactly the
+ * anti-pattern WEC-350 corrected away from. Use `fetchActiveWeeksMeta`
+ * for navigation + `fetchWeekDishes(menuId)` for the weeks the customer
+ * is currently looking at. Kept as a stub to avoid silent breakage if
+ * an old caller still imports it.
  */
 export async function fetchActiveMenu(): Promise<{
   data: { weeks: WeekDef[]; dishes: Dish[]; categories: CategoryDef[] } | null
   error: string | null
 }> {
-  // 1. All active weekly menus
-  const { data: menuRows, error: menuErr } = await supabase
-    .from('weekly_menus')
-    .select('id, name, from_date, to_date, active, category_order')
-    .eq('active', true)
-    .order('from_date')
-
-  if (menuErr) return { data: null, error: menuErr.message }
-  const menus = (menuRows ?? []) as DbWeeklyMenu[]
-  if (menus.length === 0) {
-    return { data: null, error: 'No active menu found' }
+  return {
+    data: null,
+    error:
+      'fetchActiveMenu is deprecated (WEC-350): use fetchActiveWeeksMeta + fetchWeekDishes per week instead.',
   }
-
-  const menuIds = menus.map((m) => m.id)
-
-  // 2. Menu-day-dish assignments for ALL active menus
-  const { data: dayDishes, error: ddErr } = await supabase
-    .from('menu_day_dishes')
-    .select('menu_id, date, dish_id, sort_order')
-    .in('menu_id', menuIds)
-    .order('date')
-    .order('sort_order')
-
-  if (ddErr) return { data: null, error: ddErr.message }
-  const assignments = dayDishes as DbMenuDayDish[]
-
-  // Collect unique dish IDs across all menus
-  const dishIds = [...new Set(assignments.map((a) => a.dish_id))]
-  if (dishIds.length === 0) {
-    return { data: null, error: 'Active menus have no dishes assigned' }
-  }
-
-  // 3. Dishes
-  const { data: rawDishes, error: dishErr } = await supabase
-    .from('dishes')
-    .select('id, category_id, name_el, name_en, desc_el, desc_en, image_url, emoji, discount_pct, active, preview_cal, preview_pro, preview_carb, preview_fat, variant_ux_mode')
-    .in('id', dishIds)
-    .eq('active', true)
-
-  if (dishErr) return { data: null, error: dishErr.message }
-
-  // 4. Variants for those dishes
-  const { data: rawVariants, error: varErr } = await supabase
-    .from('dish_variants')
-    .select('id, dish_id, label_el, label_en, price, calories, protein, carbs, fat, sort_order, is_default')
-    .in('dish_id', dishIds)
-
-  if (varErr) return { data: null, error: varErr.message }
-
-  // 5. Tags junction + tag labels
-  const { data: rawDishTags, error: dtErr } = await supabase
-    .from('dish_tags')
-    .select('dish_id, tag_id')
-    .in('dish_id', dishIds)
-
-  if (dtErr) return { data: null, error: dtErr.message }
-
-  const tagIds = [...new Set((rawDishTags ?? []).map((dt: { dish_id: string; tag_id: string }) => dt.tag_id))]
-  // Fetch tag detail rows so any tags-table query errors are surfaced,
-  // even though `tagsMap` isn't read downstream (commented out for now).
-  // The cast to DbTag[] preserves typing in case the map is re-enabled.
-  if (tagIds.length > 0) {
-    const { data: rawTags } = await supabase
-      .from('tags')
-      .select('id, label_el, label_en, bg_color, font_color')
-      .in('id', tagIds)
-    if (rawTags) {
-      void (rawTags as DbTag[])
-    }
-  }
-
-  // Build dish-tag lookup: dishId → tag id[]
-  const dishTagMap: Record<string, string[]> = {}
-  for (const dt of rawDishTags ?? []) {
-    const { dish_id, tag_id } = dt as { dish_id: string; tag_id: string }
-    ;(dishTagMap[dish_id] ??= []).push(tag_id)
-  }
-
-  // 6. Categories
-  const { data: cats, error: catErr } = await fetchCategories()
-  if (catErr || !cats) return { data: null, error: catErr ?? 'Failed to load categories' }
-
-  // 7. Assemble dishes (deduplicated across menus)
-  const variants = rawVariants as DbVariant[]
-  const dishes: Dish[] = (rawDishes as DbDish[]).map((d) =>
-    toDish(d, variants, dishTagMap[d.id] ?? []),
-  )
-
-  // 8. Build WeekDef per menu
-  const weeks: WeekDef[] = menus.map((menu) => {
-    const menuAssignments = assignments.filter((a) => a.menu_id === menu.id)
-
-    const dayMap = new Map<string, string[]>()
-    for (const a of menuAssignments) {
-      const list = dayMap.get(a.date) ?? []
-      list.push(a.dish_id)
-      dayMap.set(a.date, list)
-    }
-
-    const days: WeekDay[] = [...dayMap.entries()].map(([date, ids]) => ({
-      date,
-      dishIds: ids,
-    }))
-
-    return {
-      id: menu.id,
-      labelEl: menu.name,
-      labelEn: menu.name,
-      days,
-      categoryOrder: menu.category_order ?? [],
-    }
-  })
-
-  return { data: { weeks, dishes, categories: cats }, error: null }
 }
 
+// Re-export an unused type so callers importing it from this module still compile.
+// (No-op — kept to preserve back-compat with `import { fetchActiveMenu } from './menu'`.)
+export type { WeekDef, WeekDay } from '../../data/menu'
+
+// ─── Dishes for a specific day ───────────────────────────────────────────────
+
 /**
- * Fetch dishes available on a specific date from the active menu.
+ * Resolve the dishes available on a specific delivery date. Uses meta
+ * to find which week covers that date, then loads (or reads from
+ * cache) that week's dishes. Two network round-trips first time
+ * (`/api/menu/meta` + `/api/menu/week`), zero on subsequent calls
+ * within the same week.
  */
 export async function fetchDishesForDay(date: string): Promise<{
   data: Dish[] | null
   error: string | null
 }> {
-  // Find active menu covering this date
-  const { data: menus, error: menuErr } = await supabase
-    .from('weekly_menus')
-    .select('id')
-    .eq('active', true)
-    .lte('from_date', date)
-    .gte('to_date', date)
-    .limit(1)
-    .single()
+  const meta = await getMeta()
+  if (!meta) return { data: null, error: 'Failed to load menu meta' }
 
-  if (menuErr || !menus) {
-    return { data: null, error: menuErr?.message ?? 'No menu covers this date' }
+  // Find the week containing this date. Weeks are date-ordered.
+  const week = meta.weeks.find((w) => w.days.some((d) => d.date === date))
+  if (!week) return { data: [], error: null }
+
+  const wRes = await getWeek(week.id)
+  if (!wRes) return { data: null, error: 'Failed to load week dishes' }
+
+  const day = wRes.days.find((d) => d.date === date)
+  if (!day || day.dishIds.length === 0) return { data: [], error: null }
+
+  const dishMap = new Map(wRes.dishes.map((d) => [d.id, d]))
+  const dishes: Dish[] = []
+  for (const id of day.dishIds) {
+    const wire = dishMap.get(id)
+    if (wire) dishes.push(wireDishToDish(wire))
   }
-
-  const { data: assignments, error: aErr } = await supabase
-    .from('menu_day_dishes')
-    .select('dish_id, sort_order')
-    .eq('menu_id', (menus as { id: string }).id)
-    .eq('date', date)
-    .order('sort_order')
-
-  if (aErr) return { data: null, error: aErr.message }
-
-  const dishIds = (assignments as { dish_id: string; sort_order: number }[]).map((a) => a.dish_id)
-  if (dishIds.length === 0) return { data: [], error: null }
-
-  // Fetch dishes + variants + tags
-  const { data: rawDishes, error: dErr } = await supabase
-    .from('dishes')
-    .select('id, category_id, name_el, name_en, desc_el, desc_en, image_url, emoji, discount_pct, active, preview_cal, preview_pro, preview_carb, preview_fat, variant_ux_mode')
-    .in('id', dishIds)
-    .eq('active', true)
-
-  if (dErr) return { data: null, error: dErr.message }
-
-  const { data: rawVariants, error: vErr } = await supabase
-    .from('dish_variants')
-    .select('id, dish_id, label_el, label_en, price, calories, protein, carbs, fat, sort_order, is_default')
-    .in('dish_id', dishIds)
-
-  if (vErr) return { data: null, error: vErr.message }
-
-  const { data: rawDishTags } = await supabase
-    .from('dish_tags')
-    .select('dish_id, tag_id')
-    .in('dish_id', dishIds)
-
-  const dishTagMap: Record<string, string[]> = {}
-  for (const dt of rawDishTags ?? []) {
-    const { dish_id, tag_id } = dt as { dish_id: string; tag_id: string }
-    ;(dishTagMap[dish_id] ??= []).push(tag_id)
-  }
-
-  const variants = (rawVariants ?? []) as DbVariant[]
-  const dishes = (rawDishes as DbDish[]).map((d) =>
-    toDish(d, variants, dishTagMap[d.id] ?? []),
-  )
-
-  // Sort in the order they appear in menu_day_dishes
-  const idOrder = new Map(dishIds.map((id, i) => [id, i]))
-  dishes.sort((a, b) => (idOrder.get(a.id) ?? 0) - (idOrder.get(b.id) ?? 0))
-
   return { data: dishes, error: null }
 }

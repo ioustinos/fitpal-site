@@ -1,4 +1,8 @@
-import { supabase } from '../supabase'
+// WEC-350: settings now sourced from the edge-cached /api/settings/public
+// endpoint instead of querying public.settings directly. The Netlify function
+// (netlify/functions/settings-public.ts) returns rows in the same `{ key, value }`
+// shape this parser already consumes, so only the data source line in
+// `fetchSettings` changes. All defensive JSONB parsing below is untouched.
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -154,14 +158,25 @@ const DEFAULTS: AppSettings = {
 // ─── Query ──────────────────────────────────────────────────────────────────
 
 export async function fetchSettings(): Promise<{ data: AppSettings; error: string | null }> {
-  const { data, error } = await supabase
-    .from('settings')
-    .select('key, value')
-
-  if (error) return { data: DEFAULTS, error: error.message }
+  // WEC-350: fetch from edge-cached endpoint instead of direct Supabase.
+  // Same `{ key, value }[]` shape as before; if the endpoint fails we
+  // return DEFAULTS — same defensive behaviour as the previous Supabase
+  // error path. Edge cache: 5 min TTL + 24h stale-while-revalidate.
+  let rows: { key: string; value: unknown }[] = []
+  try {
+    const res = await fetch('/api/settings-public', { headers: { Accept: 'application/json' } })
+    if (!res.ok) {
+      return { data: DEFAULTS, error: `settings-public: HTTP ${res.status}` }
+    }
+    const body = (await res.json()) as { rows: { key: string; value: unknown }[] }
+    rows = body.rows ?? []
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : 'unknown'
+    return { data: DEFAULTS, error: `settings-public: ${msg}` }
+  }
 
   const map: Record<string, unknown> = {}
-  for (const row of (data ?? []) as { key: string; value: unknown }[]) {
+  for (const row of rows) {
     map[row.key] = row.value
   }
 
