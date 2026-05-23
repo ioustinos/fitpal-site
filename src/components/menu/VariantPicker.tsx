@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { fetchDishRecipe, type DishRecipe } from '../../lib/api/dishRecipe'
+import { fetchDishRecipeCached, type DishRecipe } from '../../lib/api/dishRecipe'
 import { effPrice } from '../../lib/helpers'
 import { useMenuStore } from '../../store/useMenuStore'
 import type { Dish } from '../../data/menu'
@@ -101,7 +101,7 @@ function DropdownsPicker({ dish, selectedVariantId, onChange, lang }: Props) {
 
   useEffect(() => {
     let cancelled = false
-    fetchDishRecipe(dish.id).then((res) => {
+    fetchDishRecipeCached(dish.id).then((res) => {
       if (cancelled) return
       if (!res.data || res.data.ingredients.length === 0) {
         // No structured recipe — fall back to pills

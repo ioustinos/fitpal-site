@@ -98,6 +98,62 @@ export async function fetchDishRecipe(dishId: string): Promise<{
   }
 }
 
+// ─── Cached customer fetcher (WEC-387) ─────────────────────────────────────
+//
+// Customer-facing components (RecipePanel, VariantPicker) read recipes via
+// the edge-cached /api/dish-recipe endpoint instead of querying Supabase
+// directly. Same `{ data, error }` shape as `fetchDishRecipe`, so callers
+// only swap the function name. Admin keeps `fetchDishRecipe` (direct) — it's
+// low volume and must see un-stale data while editing.
+//
+// In-tab memoization per dishId (mirrors bootstrap.ts:getWeek). Cross-tab /
+// cross-user dedup is handled by the Netlify edge cache (5 min TTL + 24h SWR).
+
+const recipeCache = new Map<string, DishRecipe>()
+const recipeInFlight = new Map<string, Promise<{ data: DishRecipe | null; error: string | null }>>()
+
+export async function fetchDishRecipeCached(dishId: string): Promise<{
+  data: DishRecipe | null
+  error: string | null
+}> {
+  const cached = recipeCache.get(dishId)
+  if (cached) return { data: cached, error: null }
+  const flying = recipeInFlight.get(dishId)
+  if (flying) return flying
+
+  const p = (async (): Promise<{ data: DishRecipe | null; error: string | null }> => {
+    try {
+      const res = await fetch(`/api/dish-recipe?dishId=${encodeURIComponent(dishId)}`, {
+        headers: { Accept: 'application/json' },
+      })
+      if (!res.ok) {
+        recipeInFlight.delete(dishId)
+        return { data: null, error: `dish-recipe: HTTP ${res.status}` }
+      }
+      const body = (await res.json()) as DishRecipe
+      const data: DishRecipe = {
+        ingredients: body.ingredients ?? [],
+        variantAmounts: body.variantAmounts ?? [],
+      }
+      recipeCache.set(dishId, data)
+      recipeInFlight.delete(dishId)
+      return { data, error: null }
+    } catch (e) {
+      recipeInFlight.delete(dishId)
+      const msg = e instanceof Error ? e.message : 'unknown'
+      return { data: null, error: `dish-recipe: ${msg}` }
+    }
+  })()
+  recipeInFlight.set(dishId, p)
+  return p
+}
+
+/** Clear the in-tab recipe cache (e.g. on a forced menu reload). */
+export function resetDishRecipeCache() {
+  recipeCache.clear()
+  recipeInFlight.clear()
+}
+
 /**
  * Compute the effective ingredient list for a specific variant by merging
  * fixed and variant-scoped grams. Skips ingredients with grams === 0

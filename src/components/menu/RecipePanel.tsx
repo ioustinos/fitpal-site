@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { fetchDishRecipe, effectiveIngredients, type DishRecipe } from '../../lib/api/dishRecipe'
+import { fetchDishRecipeCached, effectiveIngredients, type DishRecipe } from '../../lib/api/dishRecipe'
 
 /**
  * Recipe panel on the dish modal (WEC-245).
@@ -33,7 +33,7 @@ export function RecipePanel({ dishId, variantId, lang }: Props) {
   useEffect(() => {
     let cancelled = false
     setLoading(true)
-    fetchDishRecipe(dishId).then((res) => {
+    fetchDishRecipeCached(dishId).then((res) => {
       if (cancelled) return
       setRecipe(res.data)
       setLoading(false)
