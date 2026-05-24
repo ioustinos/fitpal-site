@@ -332,9 +332,23 @@ export default async (request: Request) => {
       supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
     }
 
-    // Resolve userId from JWT if not provided
-    let userId = body.userId ?? null
-    if (token && !userId) {
+    // WEC-359 (Bucket B): privileged money-mutation RPCs must run as service-role
+    // so those SQL functions can be revoked from anon/authenticated. submit-order
+    // is their only caller (redeem_voucher_for_order, wallet_debit_for_order,
+    // unredeem_voucher_for_order). Falls back to `supabase` only when no service
+    // key is configured (local dev) so the flow still works there.
+    const svcRpc = SUPABASE_SERVICE_KEY
+      ? createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY, {
+          auth: { persistSession: false, autoRefreshToken: false },
+        })
+      : supabase
+
+    // WEC-143: derive userId ONLY from the verified JWT. We never trust
+    // body.userId — an attacker could omit the Authorization header (taking the
+    // service-role branch above) and send body.userId = "<victim>" to attribute
+    // the order to another user. Guests legitimately resolve to userId = null.
+    let userId: string | null = null
+    if (token) {
       const { data: { user } } = await supabase.auth.getUser()
       userId = user?.id ?? null
     }
@@ -807,7 +821,7 @@ export default async (request: Request) => {
     // ever created if the RPC raised.
 
     if (voucherId && discountAmount > 0) {
-      const { error: redeemErr } = await supabase.rpc('redeem_voucher_for_order', {
+      const { error: redeemErr } = await svcRpc.rpc('redeem_voucher_for_order', {
         p_voucher_id: voucherId,
         p_user_id: userId,
         p_order_id: orderId,
@@ -864,7 +878,7 @@ export default async (request: Request) => {
       // If the RPC raises P0002 (insufficient balance), delete the order
       // (cascade cleans child_orders + order_items + voucher_uses) and
       // surface a 402 so the user can pick another method.
-      const { error: debitErr } = await supabase.rpc('wallet_debit_for_order', {
+      const { error: debitErr } = await svcRpc.rpc('wallet_debit_for_order', {
         p_order_id: orderId,
         p_user_id: userId,
         p_amount_cents: orderTotal,
@@ -878,7 +892,7 @@ export default async (request: Request) => {
         // FK cascade on order delete would only remove the use row, leaving the
         // counters incremented (existing pre-WEC-211 bug, fixed here).
         if (voucherId) {
-          await supabase.rpc('unredeem_voucher_for_order', { p_order_id: orderId })
+          await svcRpc.rpc('unredeem_voucher_for_order', { p_order_id: orderId })
         }
         // Roll back the order row. Cascade cleans child_orders + order_items.
         await supabase.from('orders').delete().eq('id', orderId)
