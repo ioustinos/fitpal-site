@@ -63,7 +63,7 @@ const KEY_LABELS: Record<string, { title: string; desc: string }> = {
   },
   wallet_services_catalog: {
     title: 'Services catalog',
-    desc: 'Available add-on services at wallet checkout. V1 has just dietician-managed.',
+    desc: 'Available add-on services at wallet checkout. V1 has just dietitian-managed.',
   },
   wallet_min_amount_cents: {
     title: 'Minimum wallet purchase (cents)',
@@ -104,12 +104,12 @@ export function WalletSettings() {
     <div className="admin-page">
       <h1 className="admin-page-title">Wallet settings</h1>
       <p className="admin-page-sub">
-        Tune the wallet plan calculator. Diet parameters are for the dietician; pricing is for operations.
+        Tune the wallet plan calculator. Diet parameters are for the dietitian; pricing is for operations.
         See <code>docs/wallet-pricing-formula.md</code> for what each value does.
       </p>
 
       <div className="admin-tabs">
-        <button className={`admin-tab${tab === 'diet' ? ' active' : ''}`} onClick={() => setTab('diet')}>Diet (dietician)</button>
+        <button className={`admin-tab${tab === 'diet' ? ' active' : ''}`} onClick={() => setTab('diet')}>Diet (dietitian)</button>
         <button className={`admin-tab${tab === 'pricing' ? ' active' : ''}`} onClick={() => setTab('pricing')}>Pricing (operations)</button>
       </div>
 

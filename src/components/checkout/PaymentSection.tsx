@@ -56,10 +56,16 @@ export function PaymentSection() {
     const v = visibility[m.id]
     if (!v) return false
     if (!(isImpersonating ? v.admin : v.public)) return false
-    if (m.id === 'wallet') {
-      if (!isImpersonating && user?.wallet?.adminManaged) return false
-      if (!isImpersonating && (!walletActive || walletBalance <= 0)) return false
+    if (m.id === 'wallet' && !isImpersonating) {
+      // Customers: hide the wallet entirely unless it's spendable — cleaner
+      // than a disabled chip they can't act on.
+      if (user?.wallet?.adminManaged) return false
+      if (!walletActive || walletBalance <= 0) return false
     }
+    // WEC-362: while impersonating we ALWAYS keep the wallet visible so the
+    // admin can see the customer's wallet state — but it renders greyed +
+    // disabled below when the customer has no wallet (or can't cover the order)
+    // instead of looking like a usable option.
     return true
   })
 
@@ -70,34 +76,49 @@ export function PaymentSection() {
   return (
     <div className="payment-section">
       <div className="payment-methods">
-        {visibleMethods.map((m) => (
-          <button
-            key={m.id}
-            className={`payment-opt${payment.method === m.id ? ' active' : ''}${m.id === 'wallet' && walletActive && !walletSufficient ? ' insufficient' : ''}`}
-            onClick={() => setPayment({ ...payment, method: m.id })}
-            disabled={m.id === 'wallet' && walletActive && !walletSufficient}
-          >
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d={m.iconPath}/>
-            </svg>
-            <div className="payment-text">
-              <span className="payment-label">
-                {lang === 'el' ? m.labelEl : m.labelEn}
-                {m.id === 'wallet' && walletActive && (
-                  <span className={`wallet-bal-badge${!walletSufficient ? ' insufficient' : ''}`}>
-                    {!walletSufficient ? `€${walletBalance.toFixed(2)} — ${lang === 'el' ? 'Ανεπαρκές' : 'Insufficient'}` : `€${walletBalance.toFixed(2)}`}
-                  </span>
-                )}
-              </span>
-              <span className="payment-desc">{lang === 'el' ? m.descEl : m.descEn}</span>
-            </div>
-            {payment.method === m.id && (
-              <svg className="payment-check" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                <polyline points="20 6 9 17 4 12"/>
+        {visibleMethods.map((m) => {
+          const isWallet = m.id === 'wallet'
+          // No spendable wallet (none / inactive). For customers this case is
+          // already filtered out; under impersonation the button still shows
+          // but greyed + disabled (WEC-362).
+          const noWallet = isWallet && !walletActive
+          const walletInsufficient = isWallet && walletActive && !walletSufficient
+          const walletDisabled = noWallet || walletInsufficient
+          return (
+            <button
+              key={m.id}
+              className={`payment-opt${payment.method === m.id ? ' active' : ''}${walletDisabled ? ' insufficient' : ''}`}
+              onClick={() => setPayment({ ...payment, method: m.id })}
+              disabled={walletDisabled}
+              title={noWallet ? (lang === 'el' ? 'Ο πελάτης δεν έχει wallet' : 'Customer has no wallet') : undefined}
+            >
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d={m.iconPath}/>
               </svg>
-            )}
-          </button>
-        ))}
+              <div className="payment-text">
+                <span className="payment-label">
+                  {lang === 'el' ? m.labelEl : m.labelEn}
+                  {isWallet && walletActive && (
+                    <span className={`wallet-bal-badge${!walletSufficient ? ' insufficient' : ''}`}>
+                      {!walletSufficient ? `€${walletBalance.toFixed(2)} — ${lang === 'el' ? 'Ανεπαρκές' : 'Insufficient'}` : `€${walletBalance.toFixed(2)}`}
+                    </span>
+                  )}
+                  {isWallet && noWallet && (
+                    <span className="wallet-bal-badge insufficient">
+                      {lang === 'el' ? 'Χωρίς wallet' : 'No wallet'}
+                    </span>
+                  )}
+                </span>
+                <span className="payment-desc">{lang === 'el' ? m.descEl : m.descEn}</span>
+              </div>
+              {payment.method === m.id && (
+                <svg className="payment-check" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <polyline points="20 6 9 17 4 12"/>
+                </svg>
+              )}
+            </button>
+          )
+        })}
       </div>
 
       {payment.method === 'transfer' && bankInfos.length > 0 && (

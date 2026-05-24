@@ -175,7 +175,7 @@ function Drawer({ detail, loading, onClose, onRefunded }: DrawerProps) {
                 <KV k="Length" v={`${detail.planLength ?? '?'} (${detail.daysPerWeek ?? '?'} days/wk · ${detail.selectedMeals.join(' + ') || '—'})`} />
                 <KV k="Daily kcal" v={String(detail.dailyKcal ?? '—')} />
                 <KV k="Macro split" v={`P ${detail.macroSplit.p ?? 0}% / C ${detail.macroSplit.c ?? 0}% / F ${detail.macroSplit.f ?? 0}%`} />
-                <KV k="Dietician-managed" v={detail.services.dieticianManaged ? 'Yes' : 'No'} />
+                <KV k="Dietitian-managed" v={detail.services.dieticianManaged ? 'Yes' : 'No'} />
               </Section>
 
               <Section title="Profile snapshot (at purchase)">

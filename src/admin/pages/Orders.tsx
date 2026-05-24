@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useAuthStore } from '../../store/useAuthStore'
 import {
@@ -6,10 +6,15 @@ import {
   setOrderStatus, setOrderPaymentStatus,
   updateOrderItemQuantity, updateChildOrderAddress, updateChildOrderTime,
   refundOrder, regenerateVivaPaymentLink,
+  addOrderItem, fetchOnMenuDishIds,
+  updateOrderItemVariant, cancelChildOrder, restoreChildOrder, updateOrderNotes,
   ORDER_STATUS_VALUES, PAYMENT_STATUS_VALUES, VALID_NEXT_STATUS,
-  type AdminOrder, type OrderFilters, type OrderStatus, type PaymentStatus,
+  type AdminOrder, type AdminChildOrder, type AdminOrderItem,
+  type OrderFilters, type OrderStatus, type PaymentStatus,
   type RefundKind,
 } from '../../lib/api/adminOrders'
+import { fetchAdminDishes, type AdminDish } from '../../lib/api/adminDishes'
+import { foldGreek } from '../../lib/text'
 
 const STATUS_COLOURS: Record<OrderStatus, string> = {
   pending: '#f59e0b', confirmed: '#3b82f6', preparing: '#8b5cf6',
@@ -17,6 +22,34 @@ const STATUS_COLOURS: Record<OrderStatus, string> = {
 }
 const PAYMENT_COLOURS: Record<PaymentStatus, string> = {
   pending: '#f59e0b', paid: '#10b981', failed: '#ef4444', refunded: '#6b7280',
+}
+
+// WEC-370: only pending + confirmed are in active use for now. Cancel stays
+// available everywhere. The rest of the lifecycle (preparing/delivering/
+// delivered) stays defined in adminOrders.ts so it can be switched back on later.
+const ENABLED_STATUSES: OrderStatus[] = ['pending', 'confirmed', 'delivered']
+const STATUS_FILTER_VALUES: OrderStatus[] = ORDER_STATUS_VALUES.filter(
+  (s) => ENABLED_STATUSES.includes(s) || s === 'cancelled',
+)
+
+/** WEC-372/393: pending ⇄ confirmed plus deliver / cancel. Confirmed → Pending
+ *  lets an admin unlock an order to edit it; Confirmed → Delivered will also be
+ *  set in bulk later (bike-load script). Legacy statuses fall back to the map. */
+function offeredTransitions(status: OrderStatus): OrderStatus[] {
+  if (status === 'pending') return ['confirmed', 'cancelled']
+  if (status === 'confirmed') return ['pending', 'delivered', 'cancelled']
+  if (status === 'delivered') return ['confirmed', 'cancelled']
+  return VALID_NEXT_STATUS[status].filter((n) => ENABLED_STATUSES.includes(n) || n === 'cancelled')
+}
+
+// WEC-393: action-verb labels for status buttons (coloured by target status).
+const TRANSITION_LABEL: Record<OrderStatus, string> = {
+  pending: 'Make Pending',
+  confirmed: 'Confirm',
+  preparing: 'Mark Preparing',
+  delivering: 'Mark Delivering',
+  delivered: 'Mark Delivered',
+  cancelled: 'Cancel',
 }
 
 type Preset = 'all' | 'today' | 'pending-payment' | 'this-week'
@@ -111,7 +144,7 @@ export function Orders() {
         <details className="admin-filter-details">
           <summary className="admin-btn-ghost">Status ({filterStatus.length || 'any'})</summary>
           <div className="admin-filter-body">
-            {ORDER_STATUS_VALUES.map((s) => (
+            {STATUS_FILTER_VALUES.map((s) => (
               <label key={s} className="admin-form-checkbox">
                 <input
                   type="checkbox"
@@ -214,6 +247,33 @@ function PaymentBadge({ status }: { status: PaymentStatus }) {
   return <span className="admin-badge" style={{ background: `${PAYMENT_COLOURS[status]}22`, color: PAYMENT_COLOURS[status] }}>{status}</span>
 }
 
+// WEC-361 polish: small inline icon set for the order Details screen.
+const ICONS = {
+  user: <><circle cx="12" cy="8" r="4" /><path d="M5.5 21a7.5 7.5 0 0 1 13 0" /></>,
+  mail: <><rect x="2" y="4" width="20" height="16" rx="2" /><path d="m2 6 10 7L22 6" /></>,
+  phone: <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.13.96.37 1.9.72 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.91.35 1.85.59 2.81.72A2 2 0 0 1 22 16.92z" />,
+  card: <><rect x="2" y="5" width="20" height="14" rx="2" /><path d="M2 10h20" /></>,
+  receipt: <><path d="M4 2v20l2-1 2 1 2-1 2 1 2-1 2 1 2-1V2l-2 1-2-1-2 1-2-1-2 1-2-1z" /><path d="M8 8h8M8 12h8M8 16h5" /></>,
+  tag: <><path d="M3 3h8l9 9-8 8-9-9V3z" /><circle cx="7.5" cy="7.5" r="1.5" /></>,
+  info: <><circle cx="12" cy="12" r="10" /><path d="M12 16v-4M12 8h.01" /></>,
+  utensils: <path d="M4 3v7a2 2 0 0 0 4 0V3M6 11v10M18 3c-2 0-3 2-3 6s1 4 3 4v8" />,
+  doc: <><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><path d="M14 2v6h6M8 13h8M8 17h6" /></>,
+  note: <path d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z" />,
+  shield: <path d="M12 2 4 5v6c0 5 3.5 8 8 9 4.5-1 8-4 8-9V5l-8-3z" />,
+  box: <><path d="M21 8 12 3 3 8v8l9 5 9-5V8z" /><path d="m3 8 9 5 9-5M12 13v9" /></>,
+  truck: <><rect x="1" y="4" width="15" height="11" rx="1" /><path d="M16 8h4l3 3v4h-7z" /><circle cx="6" cy="18" r="2" /><circle cx="18" cy="18" r="2" /></>,
+  arrow: <path d="M5 12h14M13 6l6 6-6 6" />,
+  pin: <><path d="M12 21s-7-5.4-7-11a7 7 0 0 1 14 0c0 5.6-7 11-7 11z" /><circle cx="12" cy="10" r="2.5" /></>,
+  chevron: <path d="m6 9 6 6 6-6" />,
+}
+function Ico({ name, size = 15 }: { name: keyof typeof ICONS; size?: number }) {
+  return (
+    <svg className="admin-od-ico" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      {ICONS[name]}
+    </svg>
+  )
+}
+
 // ─── Order detail drawer ─────────────────────────────────────────────────
 
 function OrderDrawer({
@@ -226,7 +286,7 @@ function OrderDrawer({
   onClose: () => void
   onRefresh: () => void
 }) {
-  const [tab, setTab] = useState<'overview' | 'items' | 'delivery' | 'refund' | 'timeline'>('overview')
+  const [tab, setTab] = useState<'details' | 'refund' | 'timeline'>('details')
   const [err, setErr] = useState<string | null>(null)
   const [working, setWorking] = useState(false)
 
@@ -263,14 +323,20 @@ function OrderDrawer({
           <>
             {/* Status bar */}
             <div className="admin-order-status-bar">
-              <div>
-                <StatusBadge status={order.status} />
-                <PaymentBadge status={order.paymentStatus} />
+              <div className="admin-od-statusbar-badges">
+                <span className="admin-od-badgewrap"><span className="admin-od-badgecap">Order</span><StatusBadge status={order.status} /></span>
+                <span className="admin-od-badgewrap"><span className="admin-od-badgecap">Payment</span><PaymentBadge status={order.paymentStatus} /></span>
               </div>
               <div className="admin-status-actions">
-                {VALID_NEXT_STATUS[order.status].map((n) => (
-                  <button key={n} className={n === 'cancelled' ? 'admin-btn-danger' : 'admin-btn-primary'} disabled={working} onClick={() => changeStatus(n)}>
-                    {n === 'cancelled' ? 'Cancel' : `→ ${n}`}
+                {offeredTransitions(order.status).map((n) => (
+                  <button
+                    key={n}
+                    className={n === 'cancelled' ? 'admin-btn-danger' : 'admin-od-statusbtn'}
+                    style={n === 'cancelled' ? undefined : { background: `${STATUS_COLOURS[n]}1f`, borderColor: `${STATUS_COLOURS[n]}66`, color: STATUS_COLOURS[n] }}
+                    disabled={working}
+                    onClick={() => changeStatus(n)}
+                  >
+                    {TRANSITION_LABEL[n]}
                   </button>
                 ))}
                 <details className="admin-filter-details">
@@ -287,17 +353,22 @@ function OrderDrawer({
             </div>
 
             <nav className="admin-order-tabs">
-              {(['overview', 'items', 'delivery', 'refund', 'timeline'] as const).map((t) => (
+              {(['details', 'refund', 'timeline'] as const).map((t) => (
                 <button key={t} className={`admin-tab${tab === t ? ' active' : ''}`} onClick={() => setTab(t)}>
                   {t[0].toUpperCase() + t.slice(1)}
                 </button>
               ))}
             </nav>
 
+            {/* WEC-361: Overview + Items + Delivery are one scrollable screen.
+                Refund (destructive) and Timeline (audit) stay separate tabs. */}
             <div className="admin-drawer-body">
-              {tab === 'overview' && <OverviewTab order={order} onChanged={onRefresh} />}
-              {tab === 'items' && <ItemsTab order={order} adminUser={adminUser} onChanged={onRefresh} />}
-              {tab === 'delivery' && <DeliveryTab order={order} adminUser={adminUser} onChanged={onRefresh} />}
+              {tab === 'details' && (
+                <>
+                  <OverviewTab order={order} adminUser={adminUser} onChanged={onRefresh} />
+                  <DaysSection order={order} adminUser={adminUser} onChanged={onRefresh} />
+                </>
+              )}
               {tab === 'refund' && <RefundTab order={order} adminUser={adminUser} onChanged={onRefresh} />}
               {tab === 'timeline' && <TimelineTab order={order} />}
             </div>
@@ -308,149 +379,605 @@ function OrderDrawer({
   )
 }
 
-function OverviewTab({ order, onChanged }: { order: AdminOrder; onChanged: () => void }) {
+function OverviewTab({ order, adminUser, onChanged }: { order: AdminOrder; adminUser: string; onChanged: () => void }) {
+  const hasDiscount = order.voucherUses.length > 0 || order.discountAmount > 0
   return (
-    <div>
-      <section className="admin-form-section">
-        <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 8 }}>
-          <h3 className="admin-form-label" style={{ fontSize: 13 }}>Customer</h3>
-          {/* WEC-263: shortcut to the customer's profile in Users admin.
-              Hidden for guest checkouts (order.userId === null) — there's
-              no profile to land on. */}
-          {order.userId && (
-            <Link
-              to={`/admin/users?userId=${order.userId}`}
-              className="admin-row-btn"
-              style={{ textDecoration: 'none' }}
-              title="Open this customer's profile in the Users admin"
-            >
-              Go to customer →
-            </Link>
+    <div className="admin-od">
+      <div className="admin-od-grid">
+        {/* Customer — widest card, top-left */}
+        <div className="admin-od-card admin-od-col-4">
+          <div className="admin-od-card-head">
+            <span className="admin-od-card-title"><Ico name="user" /> Customer</span>
+            {/* WEC-263: shortcut to the customer's profile (guests have no profile). */}
+            {order.userId && (
+              <Link
+                to={`/admin/users?userId=${order.userId}`}
+                className="admin-od-link"
+                title="Open this customer's profile in the Users admin"
+              >
+                Profile <Ico name="arrow" size={13} />
+              </Link>
+            )}
+          </div>
+          <div className="admin-od-name">{order.customerName || '—'}</div>
+          <div className="admin-od-contacts">
+            {order.customerEmail && (
+              <a className="admin-od-contact" href={`mailto:${order.customerEmail}`}><Ico name="mail" /> {order.customerEmail}</a>
+            )}
+            {order.customerPhone && (
+              <a className="admin-od-contact" href={`tel:${order.customerPhone}`}><Ico name="phone" /> {order.customerPhone}</a>
+            )}
+          </div>
+          {/* WEC-392: read-only impersonation provenance (from admin_order_id),
+              kept separate from the editable admin note. */}
+          {order.adminOrderId && (
+            <div className="admin-od-provenance">
+              <Ico name="shield" size={13} /> Placed by an admin on behalf of the customer · {new Date(order.createdAt).toLocaleString('en-GB', { dateStyle: 'short', timeStyle: 'short' })}
+            </div>
           )}
         </div>
-        <div><strong>{order.customerName || '—'}</strong></div>
-        <div className="admin-sub">{order.customerEmail} · {order.customerPhone}</div>
-      </section>
-      <section className="admin-form-section">
-        <h3 className="admin-form-label" style={{ fontSize: 13 }}>Totals</h3>
-        <div className="admin-totals">
-          <div><span>Subtotal</span><strong>€{(order.subtotal / 100).toFixed(2)}</strong></div>
-          {order.discountAmount > 0 && <div><span>Discount</span><strong>−€{(order.discountAmount / 100).toFixed(2)}</strong></div>}
-          <div className="admin-total-final"><span>Total</span><strong>€{(order.total / 100).toFixed(2)}</strong></div>
+
+        {/* Payment */}
+        <div className="admin-od-card admin-od-col-3">
+          <span className="admin-od-card-title"><Ico name="card" /> Payment</span>
+          <dl className="admin-od-kv">
+            <div><dt>Method</dt><dd className="admin-od-method">{order.paymentMethod ?? '—'}</dd></div>
+            <div><dt>Status</dt><dd><PaymentBadge status={order.paymentStatus} /></dd></div>
+            {(order.refundAmount ?? 0) > 0 && (
+              <div><dt>Refunded</dt><dd>€{((order.refundAmount ?? 0) / 100).toFixed(2)}</dd></div>
+            )}
+          </dl>
         </div>
-      </section>
-      <section className="admin-form-section">
-        <h3 className="admin-form-label" style={{ fontSize: 13 }}>Payment</h3>
-        <div>Method: <strong>{order.paymentMethod ?? '—'}</strong></div>
-        <div>Status: <PaymentBadge status={order.paymentStatus} /></div>
-        {(order.refundAmount ?? 0) > 0 && (
-          <div className="admin-sub" style={{ marginTop: 4 }}>
-            Refunded: <strong>€{((order.refundAmount ?? 0) / 100).toFixed(2)}</strong>
+
+        {/* Totals */}
+        <div className="admin-od-card admin-od-col-2">
+          <span className="admin-od-card-title"><Ico name="receipt" /> Totals</span>
+          <div className="admin-od-totals">
+            <div className="admin-od-total-row"><span>Subtotal</span><span>€{(order.subtotal / 100).toFixed(2)}</span></div>
+            {order.discountAmount > 0 && (
+              <div className="admin-od-total-row admin-od-total-disc"><span>Discount</span><span>−€{(order.discountAmount / 100).toFixed(2)}</span></div>
+            )}
+            <div className="admin-od-total-row admin-od-total-grand"><span>Total</span><span>€{(order.total / 100).toFixed(2)}</span></div>
+          </div>
+        </div>
+
+        {/* Extras — a card in the same row (cutlery + invoice) */}
+        <div className="admin-od-card admin-od-col-3">
+          <span className="admin-od-card-title"><Ico name="info" /> Extras</span>
+          <div className="admin-od-chips">
+            <span className={`admin-od-chip${order.cutlery ? ' on' : ''}`}><Ico name="utensils" /> Cutlery {order.cutlery ? '✓' : '—'}</span>
+            <span className="admin-od-chip"><Ico name="doc" /> {order.invoiceType ?? 'receipt'}{order.invoiceName ? ` · ${order.invoiceName}` : ''}</span>
+          </div>
+        </div>
+
+        {/* Discount detail (rare) — full width, drops to its own row */}
+        {hasDiscount && (
+          <div className="admin-od-card admin-od-col-12">
+            <span className="admin-od-card-title"><Ico name="tag" /> Discount · −€{(order.discountAmount / 100).toFixed(2)}</span>
+            {order.voucherUses.length > 0 ? (
+              <div className="admin-od-vouchers">
+                {order.voucherUses.map((v) => (
+                  <div key={v.id} className="admin-od-voucher">
+                    <code>{v.code}</code>
+                    <span>€{(v.amount / 100).toFixed(2)}</span>
+                    <span className="admin-sub">{new Date(v.usedAt).toLocaleDateString('en-GB')}</span>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="admin-sub">Manual discount — no voucher on record.</div>
+            )}
           </div>
         )}
-      </section>
+      </div>
+
       <PaymentLinkBlock order={order} onChanged={onChanged} />
-      {(order.voucherUses.length > 0 || order.discountAmount > 0) && (
-        <section className="admin-form-section">
-          <h3 className="admin-form-label" style={{ fontSize: 13 }}>
-            Discount · −€{(order.discountAmount / 100).toFixed(2)}
-          </h3>
-          {order.voucherUses.length > 0 ? (
-            order.voucherUses.map((v) => (
-              <div key={v.id}>
-                Voucher <code>{v.code}</code> — €{(v.amount / 100).toFixed(2)}
-                <span className="admin-sub" style={{ marginLeft: 8 }}>
-                  {new Date(v.usedAt).toLocaleDateString('en-GB')}
-                </span>
-              </div>
-            ))
-          ) : (
-            <div className="admin-sub">Manual discount — no voucher on record.</div>
-          )}
-        </section>
-      )}
-      <section className="admin-form-section">
-        <h3 className="admin-form-label" style={{ fontSize: 13 }}>Meta</h3>
-        <div>Cutlery: {order.cutlery ? 'yes' : 'no'}</div>
-        <div>Invoice: {order.invoiceType ?? 'receipt'}{order.invoiceName ? ` — ${order.invoiceName}` : ''}</div>
-        {order.notes && <div className="admin-note-box">Customer note: {order.notes}</div>}
-        {order.adminNotes && <div className="admin-note-box admin-note-admin">Admin note: {order.adminNotes}</div>}
-      </section>
+
+      <NotesBlock order={order} adminUser={adminUser} onChanged={onChanged} />
     </div>
   )
 }
 
-function ItemsTab({ order, adminUser, onChanged }: { order: AdminOrder; adminUser: string; onChanged: () => void }) {
+/** WEC-390: editable customer note + a single internal admin note (kitchen /
+    packaging / management). Both saved independently, audit-logged, any status. */
+function NotesBlock({ order, adminUser, onChanged }: { order: AdminOrder; adminUser: string; onChanged: () => void }) {
+  const [customer, setCustomer] = useState(order.notes ?? '')
+  const [admin, setAdmin] = useState(order.adminNotes ?? '')
+  const [savingC, setSavingC] = useState(false)
+  const [savingA, setSavingA] = useState(false)
+  const dirtyC = customer !== (order.notes ?? '')
+  const dirtyA = admin !== (order.adminNotes ?? '')
+
+  async function saveCustomer() {
+    setSavingC(true)
+    const { error } = await updateOrderNotes(order.id, { notes: customer.trim() || null }, adminUser)
+    setSavingC(false)
+    if (error) { alert(error); return }
+    onChanged()
+  }
+  async function saveAdmin() {
+    setSavingA(true)
+    const { error } = await updateOrderNotes(order.id, { adminNotes: admin.trim() || null }, adminUser)
+    setSavingA(false)
+    if (error) { alert(error); return }
+    onChanged()
+  }
+
   return (
-    <div>
+    <div className="admin-od-notes">
+      <div className="admin-od-note-edit">
+        <label className="admin-od-card-title"><Ico name="note" /> Customer note</label>
+        <textarea
+          className="admin-input admin-od-note-ta"
+          rows={2}
+          value={customer}
+          onChange={(e) => setCustomer(e.target.value)}
+          placeholder="No customer note."
+        />
+        {dirtyC && (
+          <div className="admin-od-note-actions">
+            <button className="admin-btn-ghost" onClick={() => setCustomer(order.notes ?? '')}>Reset</button>
+            <button className="admin-btn-primary" disabled={savingC} onClick={saveCustomer}>{savingC ? 'Saving…' : 'Save customer note'}</button>
+          </div>
+        )}
+      </div>
+
+      <div className="admin-od-note-edit admin-od-note-edit-admin">
+        <label className="admin-od-card-title">
+          <Ico name="shield" /> Admin note
+          <span className="admin-od-note-hint">internal — kitchen / packaging / management</span>
+        </label>
+        <textarea
+          className="admin-input admin-od-note-ta"
+          rows={2}
+          value={admin}
+          onChange={(e) => setAdmin(e.target.value)}
+          placeholder="Add an internal note…"
+        />
+        {dirtyA && (
+          <div className="admin-od-note-actions">
+            <button className="admin-btn-ghost" onClick={() => setAdmin(order.adminNotes ?? '')}>Reset</button>
+            <button className="admin-btn-primary" disabled={savingA} onClick={saveAdmin}>{savingA ? 'Saving…' : 'Save admin note'}</button>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+const EMPTY_SET: Set<string> = new Set()
+
+function DaysSection({ order, adminUser, onChanged }: { order: AdminOrder; adminUser: string; onChanged: () => void }) {
+  // WEC-371: dish catalog + per-day on-menu hints (for the add-item picker and
+  // the inline variant editor).
+  const [dishes, setDishes] = useState<AdminDish[]>([])
+  const [onMenuByDate, setOnMenuByDate] = useState<Record<string, Set<string>>>({})
+  useEffect(() => {
+    let cancelled = false
+    fetchAdminDishes().then((r) => { if (!cancelled) setDishes((r.data ?? []).filter((d) => d.active)) })
+    Promise.all(
+      order.childOrders.map((c) =>
+        fetchOnMenuDishIds(c.deliveryDate).then((s) => [c.deliveryDate, s] as const),
+      ),
+    ).then((pairs) => { if (!cancelled) setOnMenuByDate(Object.fromEntries(pairs)) })
+    return () => { cancelled = true }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [order.id])
+
+  const dishById = useMemo(() => new Map(dishes.map((d) => [d.id, d])), [dishes])
+
+  // WEC-372: item edits (variant / qty / remove / add / cancel day) only while
+  // the order is Pending. Revert a Confirmed order to Pending, then re-confirm.
+  const editable = order.status === 'pending'
+
+  return (
+    <div className="admin-od-days">
+      <h3 className="admin-od-days-title"><Ico name="truck" /> Delivery Days ({order.childOrders.length})</h3>
+      {!editable && (
+        <div className="admin-info-banner">
+          This order is <strong>{order.status}</strong> — revert it to <strong>Pending</strong> (status bar above) to edit items or cancel a day.
+        </div>
+      )}
       {order.childOrders.map((c) => (
-        <section key={c.id} className="admin-form-section">
-          <h3 className="admin-form-label" style={{ fontSize: 13 }}>
-            {c.deliveryDate} · {c.timeFrom?.slice(0, 5)} — {c.timeTo?.slice(0, 5)}
-          </h3>
-          <table className="admin-table admin-table-tight">
-            <thead><tr><th>Item</th><th>Qty</th><th>Unit</th><th>Total</th><th></th></tr></thead>
-            <tbody>
-              {c.items.length === 0 && <tr><td colSpan={5} className="admin-table-empty">No items.</td></tr>}
-              {c.items.map((it) => (
-                <ItemRow key={it.id} item={it} orderId={order.id} childOrderId={c.id} adminUser={adminUser} onChanged={onChanged} />
-              ))}
-            </tbody>
-          </table>
-        </section>
+        <DayCard
+          key={c.id}
+          order={order}
+          child={c}
+          dishById={dishById}
+          dishes={dishes}
+          onMenuIds={onMenuByDate[c.deliveryDate] ?? EMPTY_SET}
+          editable={editable}
+          adminUser={adminUser}
+          onChanged={onChanged}
+        />
       ))}
     </div>
   )
 }
 
-function ItemRow({ item, orderId, childOrderId, adminUser, onChanged }: {
-  item: { id: string; nameEl: string; variantLabelEl: string; quantity: number; unitPrice: number; totalPrice: number; comment: string | null }
-  orderId: string; childOrderId: string; adminUser: string; onChanged: () => void
+function fmtDay(iso: string): string {
+  const [y, m, d] = iso.split('-').map(Number)
+  if (!y || !m || !d) return iso
+  return new Date(y, m - 1, d).toLocaleDateString('en-GB', { weekday: 'short', day: '2-digit', month: 'short', year: 'numeric' })
+}
+
+function DayCard({
+  order, child, dishById, dishes, onMenuIds, editable, adminUser, onChanged,
+}: {
+  order: AdminOrder
+  child: AdminChildOrder
+  dishById: Map<string, AdminDish>
+  dishes: AdminDish[]
+  onMenuIds: Set<string>
+  editable: boolean
+  adminUser: string
+  onChanged: () => void
+}) {
+  const [open, setOpen] = useState(true)
+  const [editingAddr, setEditingAddr] = useState(false)
+  const [working, setWorking] = useState(false)
+
+  const cancelled = !!child.cancelledAt
+  const canEdit = editable && !cancelled
+
+  const timeLabel = child.timeFrom && child.timeTo
+    ? `${child.timeFrom.slice(0, 5)} – ${child.timeTo.slice(0, 5)}`
+    : '—'
+  const addrLine = [child.addressStreet, child.addressZip, child.addressArea].filter(Boolean).join(', ') || '—'
+  const daySubtotal = child.items.reduce((s, it) => s + it.unitPrice * it.quantity, 0)
+
+  async function cancelDay() {
+    if (!confirm(`Cancel the whole delivery day ${fmtDay(child.deliveryDate)}? Its ${child.items.length} item(s) stay on record but drop out of the total — you can Restore it later.`)) return
+    setWorking(true)
+    const { error } = await cancelChildOrder(child.id, order.id, adminUser)
+    setWorking(false)
+    if (error) { alert(error); return }
+    onChanged()
+  }
+  async function restoreDay() {
+    setWorking(true)
+    const { error } = await restoreChildOrder(child.id, order.id, adminUser)
+    setWorking(false)
+    if (error) { alert(error); return }
+    onChanged()
+  }
+
+  return (
+    <div className={`admin-od-day${cancelled ? ' admin-od-day-cancelled' : ''}`}>
+      {/* WEC-386: the whole header toggles the accordion; action buttons stop
+          propagation so they don't also collapse the day. */}
+      <header
+        className="admin-od-day-head"
+        role="button"
+        tabIndex={0}
+        aria-expanded={open}
+        onClick={() => setOpen((v) => !v)}
+        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setOpen((v) => !v) } }}
+      >
+        <span className={`admin-od-day-chevron${open ? ' open' : ''}`} aria-hidden="true"><Ico name="chevron" size={16} /></span>
+        <div className="admin-od-day-id">
+          <div className="admin-od-day-date">
+            {fmtDay(child.deliveryDate)}
+            {cancelled && <span className="admin-od-day-cancelbadge">Cancelled</span>}
+          </div>
+          <div className="admin-od-day-addr"><Ico name="pin" size={13} /> {addrLine}</div>
+        </div>
+        <span className="admin-od-timepill">{timeLabel}</span>
+        <span className="admin-od-day-count">{child.items.length} item{child.items.length === 1 ? '' : 's'} · €{(daySubtotal / 100).toFixed(2)}</span>
+        {cancelled ? (
+          <button className="admin-row-btn admin-od-restoreday" disabled={working} onClick={(e) => { e.stopPropagation(); restoreDay() }}>Restore</button>
+        ) : editable ? (
+          <button className="admin-od-cancelday" disabled={working} onClick={(e) => { e.stopPropagation(); cancelDay() }}>Cancel Day</button>
+        ) : null}
+      </header>
+
+      {open && (
+        <div className="admin-od-day-body">
+          {!editingAddr ? (
+            <div className="admin-od-addr">
+              <div><span className="admin-od-addr-k">Address</span><span>{child.addressStreet || '—'}</span></div>
+              <div><span className="admin-od-addr-k">Post Code</span><span>{child.addressZip || '—'}</span></div>
+              <div><span className="admin-od-addr-k">City</span><span>{child.addressArea || '—'}</span></div>
+              <div><span className="admin-od-addr-k">Floor</span><span>{child.addressFloor || '—'}</span></div>
+              {!cancelled && <button className="admin-row-btn admin-od-addr-edit" onClick={() => setEditingAddr(true)}>Edit address &amp; time</button>}
+            </div>
+          ) : (
+            <AddressTimeEditor
+              child={child}
+              orderId={order.id}
+              adminUser={adminUser}
+              onDone={() => { setEditingAddr(false); onChanged() }}
+              onCancel={() => setEditingAddr(false)}
+            />
+          )}
+
+          <table className="admin-table admin-table-tight admin-od-items">
+            <thead>
+              <tr>
+                <th>Item</th><th>Variant</th><th>Comment</th>
+                <th style={{ textAlign: 'center' }}>Qty</th>
+                <th style={{ textAlign: 'right' }}>Unit</th>
+                <th style={{ textAlign: 'right' }}>Total</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              {child.items.length === 0 && <tr><td colSpan={7} className="admin-table-empty">No items.</td></tr>}
+              {child.items.map((it) => (
+                <DayItemRow
+                  key={it.id}
+                  item={it}
+                  dish={it.dishId ? dishById.get(it.dishId) : undefined}
+                  orderId={order.id}
+                  childOrderId={child.id}
+                  editable={canEdit}
+                  adminUser={adminUser}
+                  onChanged={onChanged}
+                />
+              ))}
+            </tbody>
+          </table>
+
+          {canEdit && (
+            <AddItemPanel
+              orderId={order.id}
+              childOrderId={child.id}
+              dishes={dishes}
+              onMenuIds={onMenuIds}
+              paymentStatus={order.paymentStatus}
+              adminUser={adminUser}
+              onAdded={onChanged}
+            />
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function DayItemRow({ item, dish, orderId, childOrderId, editable, adminUser, onChanged }: {
+  item: AdminOrderItem
+  dish: AdminDish | undefined
+  orderId: string
+  childOrderId: string
+  editable: boolean
+  adminUser: string
+  onChanged: () => void
 }) {
   const [qty, setQty] = useState(item.quantity)
+  const [working, setWorking] = useState(false)
   const dirty = qty !== item.quantity
-  async function save() {
+
+  async function saveQty() {
+    setWorking(true)
     await updateOrderItemQuantity(item.id, item.quantity, qty, orderId, childOrderId, adminUser)
-    onChanged()
+    setWorking(false); onChanged()
   }
-  async function del() {
+  async function remove() {
     if (!confirm('Remove this item?')) return
+    setWorking(true)
     await updateOrderItemQuantity(item.id, item.quantity, 0, orderId, childOrderId, adminUser)
-    onChanged()
+    setWorking(false); onChanged()
   }
+  async function changeVariant(variantId: string) {
+    const v = dish?.variants.find((x) => x.id === variantId)
+    if (!v) return
+    setWorking(true)
+    await updateOrderItemVariant({
+      itemId: item.id, orderId, childOrderId,
+      quantity: item.quantity,
+      variantId: v.id, variantLabelEl: v.labelEl, variantLabelEn: v.labelEn,
+      unitPrice: v.price, calories: v.calories, protein: v.protein, carbs: v.carbs, fat: v.fat,
+      oldLabel: item.variantLabelEl, adminUser,
+    })
+    setWorking(false); onChanged()
+  }
+
+  const variants = dish?.variants ?? []
+  const canEditVariant = editable && variants.length > 0
+  const currentInList = variants.some((v) => v.id === item.variantId)
+
   return (
     <tr>
+      <td>{item.nameEl}</td>
       <td>
-        <div>{item.nameEl}</div>
-        {item.variantLabelEl && <div className="admin-sub">{item.variantLabelEl}</div>}
-        {item.comment && <div className="admin-sub">💬 {item.comment}</div>}
+        {canEditVariant ? (
+          <select
+            className="admin-select admin-input-tight"
+            value={item.variantId ?? ''}
+            disabled={working}
+            onChange={(e) => changeVariant(e.target.value)}
+          >
+            {!currentInList && item.variantId && (
+              <option value={item.variantId}>{item.variantLabelEl || '—'}</option>
+            )}
+            {variants.map((v) => (
+              <option key={v.id} value={v.id}>{(v.labelEl || '—')} · €{(v.price / 100).toFixed(2)}</option>
+            ))}
+          </select>
+        ) : (
+          <span className="admin-sub">{item.variantLabelEl || '—'}</span>
+        )}
       </td>
-      <td>
-        <input className="admin-input admin-input-tight" type="number" min={0} value={qty} onChange={(e) => setQty(Math.max(0, +e.target.value || 0))} style={{ width: 64 }} />
+      <td className="admin-sub">{item.comment ? `💬 ${item.comment}` : '—'}</td>
+      <td style={{ textAlign: 'center' }}>
+        {editable
+          ? <input className="admin-input admin-input-tight" type="number" min={0} value={qty} onChange={(e) => setQty(Math.max(0, +e.target.value || 0))} style={{ width: 54 }} />
+          : item.quantity}
       </td>
-      <td>€{(item.unitPrice / 100).toFixed(2)}</td>
-      <td>€{((item.unitPrice * qty) / 100).toFixed(2)}</td>
-      <td style={{ whiteSpace: 'nowrap' }}>
-        {dirty && <button className="admin-row-btn" onClick={save}>Save</button>}
-        <button className="admin-row-btn danger" onClick={del}>Remove</button>
+      <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>€{(item.unitPrice / 100).toFixed(2)}</td>
+      <td style={{ textAlign: 'right', whiteSpace: 'nowrap', fontWeight: 700 }}>€{((item.unitPrice * (editable ? qty : item.quantity)) / 100).toFixed(2)}</td>
+      <td style={{ whiteSpace: 'nowrap', textAlign: 'right' }}>
+        {editable && (
+          <>
+            {dirty && <button className="admin-row-btn" disabled={working} onClick={saveQty}>Save</button>}
+            <button className="admin-od-itemx" disabled={working} onClick={remove} title="Remove item">×</button>
+          </>
+        )}
       </td>
     </tr>
   )
 }
 
-function DeliveryTab({ order, adminUser, onChanged }: { order: AdminOrder; adminUser: string; onChanged: () => void }) {
+/** WEC-371: in-drawer "add item" picker for a single child order. Full active
+    catalogue (admins can add off-menu dishes), with on-menu dishes badged +
+    floated to the top. Payment is handled manually after saving. */
+function AddItemPanel({
+  orderId, childOrderId, dishes, onMenuIds, paymentStatus, adminUser, onAdded,
+}: {
+  orderId: string
+  childOrderId: string
+  dishes: AdminDish[]
+  onMenuIds: Set<string>
+  paymentStatus: PaymentStatus
+  adminUser: string
+  onAdded: () => void
+}) {
+  const [open, setOpen] = useState(false)
+  const [search, setSearch] = useState('')
+  const [dishId, setDishId] = useState<string | null>(null)
+  const [variantId, setVariantId] = useState<string | null>(null)
+  const [qty, setQty] = useState(1)
+  const [comment, setComment] = useState('')
+  const [saving, setSaving] = useState(false)
+  const [err, setErr] = useState<string | null>(null)
+
+  const dish = dishes.find((d) => d.id === dishId) ?? null
+  const variant = dish?.variants.find((v) => v.id === variantId) ?? null
+
+  const filtered = useMemo(() => {
+    const n = foldGreek(search.trim())
+    const arr = dishes.filter((d) => !n || foldGreek(`${d.nameEl} ${d.nameEn}`).includes(n))
+    // On-menu dishes float to the top (hint only — off-menu is still allowed).
+    return [...arr]
+      .sort((a, b) => (onMenuIds.has(b.id) ? 1 : 0) - (onMenuIds.has(a.id) ? 1 : 0))
+      .slice(0, 60)
+  }, [dishes, search, onMenuIds])
+
+  function pickDish(d: AdminDish) {
+    setDishId(d.id)
+    const def = d.variants.find((v) => v.isDefault) ?? d.variants[0] ?? null
+    setVariantId(def?.id ?? null)
+  }
+
+  function reset() {
+    setDishId(null); setVariantId(null); setQty(1); setComment(''); setSearch(''); setErr(null)
+  }
+
+  async function add() {
+    if (!dish || !variant) return
+    setSaving(true); setErr(null)
+    const { error } = await addOrderItem({
+      orderId, childOrderId,
+      dishId: dish.id, variantId: variant.id,
+      nameEl: dish.nameEl, nameEn: dish.nameEn,
+      variantLabelEl: variant.labelEl, variantLabelEn: variant.labelEn,
+      unitPrice: variant.price,
+      quantity: qty,
+      calories: variant.calories, protein: variant.protein, carbs: variant.carbs, fat: variant.fat,
+      comment,
+      adminUser,
+    })
+    setSaving(false)
+    if (error) { setErr(error); return }
+    reset()
+    setOpen(false)
+    onAdded()
+  }
+
+  if (!open) {
+    return (
+      <button className="admin-od-additem-link" onClick={() => setOpen(true)}>
+        + Add item from menu
+      </button>
+    )
+  }
+
   return (
-    <div>
-      {order.childOrders.map((c) => (
-        <ChildOrderEditor key={c.id} child={c} orderId={order.id} adminUser={adminUser} onChanged={onChanged} />
-      ))}
+    <div className="admin-additem">
+      {err && <div className="admin-error-banner">{err}</div>}
+      {paymentStatus === 'paid' && (
+        <div className="admin-warn-banner">
+          This order is already paid — adding items won’t charge the customer. Send a payment link for the balance after saving.
+        </div>
+      )}
+
+      {!dish && (
+        <>
+          <input
+            className="admin-input"
+            type="search"
+            autoFocus
+            placeholder="Search dishes…"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
+          <div className="admin-additem-list">
+            {filtered.length === 0 && <div className="admin-text-muted" style={{ padding: 8 }}>No dishes match.</div>}
+            {filtered.map((d) => (
+              <button key={d.id} type="button" className="admin-additem-row" onClick={() => pickDish(d)}>
+                <span>{d.nameEl}</span>
+                {onMenuIds.has(d.id) && <span className="admin-additem-badge">on menu</span>}
+              </button>
+            ))}
+          </div>
+          <div className="admin-additem-actions">
+            <button className="admin-btn-ghost" onClick={() => { reset(); setOpen(false) }}>Cancel</button>
+          </div>
+        </>
+      )}
+
+      {dish && (
+        <div className="admin-additem-config">
+          <div className="admin-additem-picked">
+            <strong>{dish.nameEl}</strong>
+            <button type="button" className="admin-row-btn" onClick={() => { setDishId(null); setVariantId(null) }}>Change dish</button>
+          </div>
+
+          <label className="admin-form-label">Variant</label>
+          <div className="admin-chip-wrap">
+            {dish.variants.map((v) => (
+              <button
+                key={v.id}
+                type="button"
+                className={`admin-chip${variantId === v.id ? ' on' : ''}`}
+                onClick={() => setVariantId(v.id)}
+              >
+                {v.labelEl || '—'} · €{(v.price / 100).toFixed(2)}
+              </button>
+            ))}
+          </div>
+
+          <div className="admin-grid-2" style={{ marginTop: 10 }}>
+            <div>
+              <label className="admin-form-label">Quantity</label>
+              <input className="admin-input" type="number" min={1} value={qty}
+                onChange={(e) => setQty(Math.max(1, +e.target.value || 1))} />
+            </div>
+            <div>
+              <label className="admin-form-label">Comment (optional)</label>
+              <input className="admin-input" value={comment} onChange={(e) => setComment(e.target.value)} />
+            </div>
+          </div>
+
+          <div className="admin-additem-actions">
+            <button className="admin-btn-ghost" onClick={() => { reset(); setOpen(false) }}>Cancel</button>
+            <button className="admin-btn-primary" disabled={saving || !variant} onClick={add}>
+              {saving ? 'Adding…' : variant ? `Add · €${((variant.price * qty) / 100).toFixed(2)}` : 'Add'}
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
 
-function ChildOrderEditor({ child, orderId, adminUser, onChanged }: {
-  child: { id: string; deliveryDate: string; timeFrom: string | null; timeTo: string | null; addressStreet: string | null; addressArea: string | null; addressZip: string | null; addressFloor: string | null }
-  orderId: string; adminUser: string; onChanged: () => void
+function AddressTimeEditor({ child, orderId, adminUser, onDone, onCancel }: {
+  child: AdminChildOrder
+  orderId: string
+  adminUser: string
+  onDone: () => void
+  onCancel: () => void
 }) {
   const [street, setStreet] = useState(child.addressStreet ?? '')
   const [area, setArea] = useState(child.addressArea ?? '')
@@ -458,36 +985,31 @@ function ChildOrderEditor({ child, orderId, adminUser, onChanged }: {
   const [floor, setFloor] = useState(child.addressFloor ?? '')
   const [timeFrom, setTimeFrom] = useState(child.timeFrom?.slice(0, 5) ?? '')
   const [timeTo, setTimeTo] = useState(child.timeTo?.slice(0, 5) ?? '')
+  const [working, setWorking] = useState(false)
 
-  async function saveAddress() {
+  async function saveAll() {
+    setWorking(true)
     await updateChildOrderAddress(child.id, orderId, { street, area, zip, floor }, adminUser)
-    onChanged()
-  }
-  async function saveTime() {
     await updateChildOrderTime(child.id, orderId, timeFrom ? `${timeFrom}:00` : null, timeTo ? `${timeTo}:00` : null, adminUser)
-    onChanged()
+    setWorking(false)
+    onDone()
   }
 
   return (
-    <section className="admin-form-section">
-      <h3 className="admin-form-label" style={{ fontSize: 13 }}>{child.deliveryDate}</h3>
-      <div className="admin-grid-2">
-        <div><label className="admin-form-label">Street</label><input className="admin-input" value={street} onChange={(e) => setStreet(e.target.value)} /></div>
-        <div><label className="admin-form-label">Area</label><input className="admin-input" value={area} onChange={(e) => setArea(e.target.value)} /></div>
-        <div><label className="admin-form-label">Zip</label><input className="admin-input" value={zip} onChange={(e) => setZip(e.target.value)} /></div>
+    <div className="admin-od-addr-edit-panel">
+      <div className="admin-od-addr-grid">
+        <div><label className="admin-form-label">Address</label><input className="admin-input" value={street} onChange={(e) => setStreet(e.target.value)} /></div>
+        <div><label className="admin-form-label">Post Code</label><input className="admin-input" value={zip} onChange={(e) => setZip(e.target.value)} /></div>
+        <div><label className="admin-form-label">City</label><input className="admin-input" value={area} onChange={(e) => setArea(e.target.value)} /></div>
         <div><label className="admin-form-label">Floor</label><input className="admin-input" value={floor} onChange={(e) => setFloor(e.target.value)} /></div>
+        <div><label className="admin-form-label">Time from</label><input className="admin-input" type="time" value={timeFrom} onChange={(e) => setTimeFrom(e.target.value)} /></div>
+        <div><label className="admin-form-label">Time to</label><input className="admin-input" type="time" value={timeTo} onChange={(e) => setTimeTo(e.target.value)} /></div>
       </div>
-      <div className="admin-inline-form" style={{ marginTop: 10 }}>
-        <button className="admin-btn-ghost" onClick={saveAddress}>Save address</button>
+      <div className="admin-od-addr-edit-actions">
+        <button className="admin-btn-ghost" disabled={working} onClick={onCancel}>Cancel</button>
+        <button className="admin-btn-primary" disabled={working} onClick={saveAll}>{working ? 'Saving…' : 'Save address & time'}</button>
       </div>
-      <div className="admin-inline-form" style={{ marginTop: 14 }}>
-        <label className="admin-form-label" style={{ marginRight: 8 }}>Time window</label>
-        <input className="admin-input" type="time" value={timeFrom} onChange={(e) => setTimeFrom(e.target.value)} style={{ width: 110 }} />
-        <span className="admin-text-muted">to</span>
-        <input className="admin-input" type="time" value={timeTo} onChange={(e) => setTimeTo(e.target.value)} style={{ width: 110 }} />
-        <button className="admin-btn-ghost" onClick={saveTime}>Save time</button>
-      </div>
-    </section>
+    </div>
   )
 }
 

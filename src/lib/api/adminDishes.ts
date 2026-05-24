@@ -333,28 +333,45 @@ export async function saveDishRecipe(
 ): Promise<{ error: string | null }> {
   // 1. Resolve ingredientIds for entries that don't have one yet.
   //    Auto-create missing catalog rows by search_key.
-  const resolved: Array<RecipeEntryInput & { ingredientId: string }> = []
-  for (const e of entries) {
-    if (!e.nameEl.trim()) continue
-    if (e.ingredientId) {
-      resolved.push({ ...e, ingredientId: e.ingredientId })
-      continue
-    }
+  // WEC-369: resolve ingredient ids in BULK. Previously this looped one
+  // upsert + one select per new ingredient, so a 12-ingredient recipe was
+  // ~24 sequential round-trips and the Save button felt stuck. Now it's a
+  // single upsert + single select regardless of recipe size.
+  const named = entries.filter((e) => e.nameEl.trim())
+  const skByEntry = new Map<RecipeEntryInput, string>()
+  const missingSk = new Set<string>()
+  const newRows: Array<{ name_el: string; search_key: string }> = []
+  for (const e of named) {
+    if (e.ingredientId) continue
     const sk = searchKey(e.nameEl)
-    // Lookup-or-create. Race-safe via the search_key UNIQUE constraint:
-    // if a parallel admin already created the row, ON CONFLICT skips and
-    // we re-fetch the existing row.
+    skByEntry.set(e, sk)
+    if (!missingSk.has(sk)) {
+      missingSk.add(sk)
+      newRows.push({ name_el: e.nameEl.trim(), search_key: sk })
+    }
+  }
+  const skToId = new Map<string, string>()
+  if (newRows.length > 0) {
+    // One upsert creates any missing catalog rows (race-safe via the
+    // search_key UNIQUE constraint), then one select maps them all back.
     const { error: upErr } = await supabase
       .from('ingredients')
-      .upsert({ name_el: e.nameEl.trim(), search_key: sk }, { onConflict: 'search_key', ignoreDuplicates: true })
+      .upsert(newRows, { onConflict: 'search_key', ignoreDuplicates: true })
     if (upErr) return { error: upErr.message }
-    const { data, error: lookupErr } = await supabase
+    const { data: rows, error: lookupErr } = await supabase
       .from('ingredients')
-      .select('id')
-      .eq('search_key', sk)
-      .single()
-    if (lookupErr || !data) return { error: lookupErr?.message ?? 'Ingredient lookup failed' }
-    resolved.push({ ...e, ingredientId: data.id as string })
+      .select('id, search_key')
+      .in('search_key', Array.from(missingSk))
+    if (lookupErr) return { error: lookupErr.message }
+    for (const r of (rows ?? []) as Array<{ id: string; search_key: string }>) {
+      skToId.set(r.search_key, r.id)
+    }
+  }
+  const resolved: Array<RecipeEntryInput & { ingredientId: string }> = []
+  for (const e of named) {
+    const id = e.ingredientId ?? skToId.get(skByEntry.get(e) ?? '')
+    if (!id) return { error: `Ingredient lookup failed for "${e.nameEl}"` }
+    resolved.push({ ...e, ingredientId: id })
   }
 
   // 2. Delete existing recipe rows for this dish.

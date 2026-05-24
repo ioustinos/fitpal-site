@@ -287,7 +287,7 @@ function UserDetail({
       <h3 className="admin-page-sub" style={{ marginTop: 24, marginBottom: 8 }}>Admin notes (not visible to customer)</h3>
       <div className="admin-form-grid">
         <div className="admin-form-row">
-          <label>Dietician</label>
+          <label>Dietitian</label>
           <input
             className="admin-input"
             value={dietician}

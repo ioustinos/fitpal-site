@@ -678,12 +678,11 @@ export default async (request: Request) => {
 
     const orderNumber = generateOrderNumber()
 
-    // When an admin places an order on behalf of a customer, surface that
-    // in the audit trail so support can tell apart self-service vs curator
-    // orders downstream (admin dashboard, exports, refund decisions).
-    const adminNotesValue = isImpersonating
-      ? `Placed by admin ${adminUserId} on behalf of customer ${userId} at ${new Date().toISOString()}`
-      : null
+    // WEC-390/392: admin-placed orders are recorded structurally via
+    // `admin_order_id` (the impersonating admin's user_id) — that's the
+    // provenance the admin UI renders as a read-only line. `admin_notes` is
+    // left empty so it stays a free-text field for the team (kitchen /
+    // packaging / management), NOT provenance.
 
     const { data: orderRow, error: oErr } = await supabase
       .from('orders')
@@ -705,7 +704,7 @@ export default async (request: Request) => {
         invoice_vat: body.invoiceVat ?? null,
         notes: body.notes ?? null,
         admin_order_id: adminUserId,
-        admin_notes: adminNotesValue,
+        admin_notes: null,
       })
       .select('id')
       .single()

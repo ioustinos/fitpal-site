@@ -32,6 +32,11 @@ import {
   type AdminWeeklyMenu, type AdminMenuDayDish,
 } from '../../lib/api/adminMenus'
 import { CategoryOrderStrip } from '../components/CategoryOrderStrip'
+import { foldGreek } from '../../lib/text'
+import {
+  exportMenuToPdf, exportMenuToXls,
+  type MenuExportData, type MenuExportCategory,
+} from '../lib/exportMenu'
 
 const DAY_NAMES_BY_DOW = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'] as const
 
@@ -124,12 +129,12 @@ export function Menus() {
   const catById = useMemo(() => new Map(categories.map((c) => [c.id, c])), [categories])
 
   const filteredDishes = useMemo(() => {
-    const needle = search.trim().toLowerCase()
+    const needle = foldGreek(search.trim())
     return dishes.filter((d) => {
       if (filterCategory !== 'all' && d.categoryId !== filterCategory) return false
       if (filterTag !== 'all' && !d.tagIds.includes(filterTag)) return false
       if (needle) {
-        const hay = `${d.nameEl} ${d.nameEn}`.toLowerCase()
+        const hay = foldGreek(`${d.nameEl} ${d.nameEn}`)
         if (!hay.includes(needle)) return false
       }
       return true
@@ -241,6 +246,60 @@ export function Menus() {
     setMenusInWeek((prev) =>
       prev.map((m) => (m.id === selectedMenu.id ? { ...m, categoryOrder: next } : m)),
     )
+  }
+
+  // WEC-366: assemble the export model — per day, grouped by category in the
+  // per-menu order (same as the builder + customer site). Closed days skipped.
+  function buildExportModel(): MenuExportData {
+    const catOrder = selectedMenu?.categoryOrder ?? []
+    const globalOrder = [...categories].sort((a, b) => a.sortOrder - b.sortOrder).map((c) => c.id)
+    const orderedCatIds = catOrder.length
+      ? [...catOrder, ...globalOrder.filter((id) => !catOrder.includes(id))]
+      : globalOrder
+
+    const exDays: MenuExportData['days'] = []
+    for (const dateIso of days) {
+      if (inactiveDates.has(dateIso)) continue
+      const dayAsns = assignments.filter((a) => a.date === dateIso)
+      const byCat = new Map<string, AdminMenuDayDish[]>()
+      for (const a of dayAsns) {
+        const d = dishById.get(a.dishId)
+        const cid = d?.categoryId ?? 'uncategorized'
+        const arr = byCat.get(cid) ?? []
+        arr.push(a)
+        byCat.set(cid, arr)
+      }
+      for (const arr of byCat.values()) arr.sort((a, b) => a.sortOrder - b.sortOrder)
+
+      const cats: MenuExportCategory[] = []
+      const used = new Set<string>()
+      const pushCat = (cid: string) => {
+        if (used.has(cid) || !byCat.has(cid)) return
+        used.add(cid)
+        cats.push({
+          catName: catById.get(cid)?.nameEl ?? '—',
+          dishes: byCat.get(cid)!.map((a) => {
+            const d = dishById.get(a.dishId)
+            return {
+              nameEl: d?.nameEl ?? `(missing ${a.dishId})`,
+              nameEn: d?.nameEn ?? '',
+              variants: (d?.variants ?? []).map((v) => v.labelEl).filter(Boolean),
+            }
+          }),
+        })
+      }
+      for (const cid of orderedCatIds) pushCat(cid)
+      for (const [cid] of byCat) pushCat(cid)
+
+      exDays.push({ date: dateIso, dayName: dayNameFromIso(dateIso), categories: cats })
+    }
+
+    return {
+      title: selectedMenu?.name || `Menu ${weekStart}`,
+      weekFrom: weekStart,
+      weekTo: weekEnd,
+      days: exDays,
+    }
   }
 
   // ─── Drag handlers ────────────────────────────────────────────────
@@ -412,6 +471,8 @@ export function Menus() {
           {selectedMenu && (
             <>
               <button className="admin-btn-ghost" onClick={handleDuplicateFromPrev}>Duplicate from last week</button>
+              <button className="admin-btn-ghost" onClick={() => exportMenuToPdf(buildExportModel())}>Export PDF</button>
+              <button className="admin-btn-ghost" onClick={() => exportMenuToXls(buildExportModel())}>Export Excel</button>
               <button
                 className={selectedMenu.active ? 'admin-btn-ghost' : 'admin-btn-primary'}
                 onClick={handleTogglePublish}
@@ -482,6 +543,7 @@ export function Menus() {
                       dishById={dishById}
                       categories={categories}
                       catById={catById}
+                      categoryOrder={selectedMenu?.categoryOrder ?? []}
                       inactive={isInactive}
                       menuExists={!!selectedMenuId}
                       isDragTarget={hoverDate === dateIso}
@@ -531,7 +593,7 @@ function LibraryCard({ dish, usedOn, disabled }: { dish: AdminDish; usedOn: stri
 }
 
 function DayColumn({
-  dateIso, dayName, assignments, dishById, categories, catById, inactive, menuExists, isDragTarget, onRemove, onToggleActive,
+  dateIso, dayName, assignments, dishById, categories, catById, categoryOrder, inactive, menuExists, isDragTarget, onRemove, onToggleActive,
 }: {
   dateIso: string
   dayName: string
@@ -539,6 +601,8 @@ function DayColumn({
   dishById: Map<string, AdminDish>
   categories: AdminCategory[]
   catById: Map<string, AdminCategory>
+  /** WEC-367: per-menu category order (weekly_menus.category_order). */
+  categoryOrder: string[]
   inactive: boolean
   menuExists: boolean
   /** True if the cursor is currently over this column or any of its assignments while dragging. */
@@ -564,20 +628,27 @@ function DayColumn({
     }
     for (const arr of byCat.values()) arr.sort((a, b) => a.sortOrder - b.sortOrder)
 
-    // Order categories by sort_order; put "uncategorized" last
+    // WEC-367: honour the per-menu category order (set in CategoryOrderStrip,
+    // stored on weekly_menus.category_order) so the builder reflects the
+    // decided order — same as the customer site. Fall back to global
+    // sort_order for any category missing from that list (e.g. one added
+    // after the order was saved); uncategorized / unknown last.
+    const globalOrder = [...categories].sort((a, b) => a.sortOrder - b.sortOrder).map((c) => c.id)
+    const orderedCatIds = categoryOrder.length ? categoryOrder : globalOrder
     const ordered: Array<{ catId: string; catName: string; items: AdminMenuDayDish[] }> = []
     const used = new Set<string>()
-    for (const c of [...categories].sort((a, b) => a.sortOrder - b.sortOrder)) {
-      if (byCat.has(c.id)) {
-        ordered.push({ catId: c.id, catName: c.nameEl, items: byCat.get(c.id)! })
-        used.add(c.id)
-      }
+    const pushCat = (cid: string) => {
+      if (used.has(cid) || !byCat.has(cid)) return
+      ordered.push({ catId: cid, catName: catById.get(cid)?.nameEl ?? '—', items: byCat.get(cid)! })
+      used.add(cid)
     }
+    for (const cid of orderedCatIds) pushCat(cid)
+    for (const cid of globalOrder) pushCat(cid)
     for (const [cid, items] of byCat) {
       if (!used.has(cid)) ordered.push({ catId: cid, catName: catById.get(cid)?.nameEl ?? '—', items })
     }
     return ordered
-  }, [assignments, dishById, categories, catById])
+  }, [assignments, dishById, categories, catById, categoryOrder])
 
   const total = assignments.length
 

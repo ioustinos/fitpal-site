@@ -164,6 +164,7 @@ export async function fetchUserOrders(userId: string): Promise<{
     .from('child_orders')
     .select('*')
     .in('order_id', orderIds)
+    .is('cancelled_at', null) // WEC-389: hide soft-cancelled days from customers
     .order('delivery_date')
 
   if (cErr) return { data: null, error: cErr.message }
@@ -318,6 +319,7 @@ export async function fetchOrderForConfirmation(
     .from('child_orders')
     .select('*')
     .eq('order_id', o.id)
+    .is('cancelled_at', null) // WEC-389: hide soft-cancelled days from customers
     .order('delivery_date')
   if (cErr) return { data: null, error: cErr.message }
   const children = (rawChildren ?? []) as DbChildOrder[]

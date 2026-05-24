@@ -50,6 +50,8 @@ export interface AdminChildOrder {
   addressArea: string | null
   addressZip: string | null
   addressFloor: string | null
+  /** WEC-389: set when this delivery day has been soft-cancelled. */
+  cancelledAt: string | null
   items: AdminOrderItem[]
 }
 
@@ -199,6 +201,7 @@ export async function listAdminOrders(f: OrderFilters): Promise<{ data: AdminOrd
       id: string; order_id: string; delivery_date: string;
       time_from: string | null; time_to: string | null;
       address_street: string | null; address_area: string | null; address_zip: string | null; address_floor: string | null;
+      cancelled_at: string | null;
     }
     const arr = childrenByOrder.get(row.order_id) ?? []
     arr.push({
@@ -206,6 +209,7 @@ export async function listAdminOrders(f: OrderFilters): Promise<{ data: AdminOrd
       timeFrom: row.time_from, timeTo: row.time_to,
       addressStreet: row.address_street, addressArea: row.address_area,
       addressZip: row.address_zip, addressFloor: row.address_floor,
+      cancelledAt: row.cancelled_at,
       items: itemsByChild.get(row.id) ?? [],
     })
     childrenByOrder.set(row.order_id, arr)
@@ -260,12 +264,14 @@ export async function getAdminOrder(id: string): Promise<{ data: AdminOrder | nu
       id: string; order_id: string; delivery_date: string;
       time_from: string | null; time_to: string | null;
       address_street: string | null; address_area: string | null; address_zip: string | null; address_floor: string | null;
+      cancelled_at: string | null;
     }
     return {
       id: row.id, orderId: row.order_id, deliveryDate: row.delivery_date,
       timeFrom: row.time_from, timeTo: row.time_to,
       addressStreet: row.address_street, addressArea: row.address_area,
       addressZip: row.address_zip, addressFloor: row.address_floor,
+      cancelledAt: row.cancelled_at,
       items: itemsByChild.get(row.id) ?? [],
     }
   })
@@ -425,6 +431,130 @@ export async function updateOrderItemQuantity(itemId: string, oldQty: number, ne
   return recomputeOrderTotals(orderId)
 }
 
+// WEC-390: edit the customer note and the internal admin note on an order.
+// Not money-affecting, so allowed in any status. admin_notes is free text for
+// kitchen / packaging / management.
+export async function updateOrderNotes(
+  orderId: string,
+  patch: { notes?: string | null; adminNotes?: string | null },
+  adminUser: string,
+): Promise<{ error: string | null }> {
+  const update: Record<string, string | null> = { updated_at: new Date().toISOString() }
+  if (patch.notes !== undefined) update.notes = patch.notes
+  if (patch.adminNotes !== undefined) update.admin_notes = patch.adminNotes
+  const { error } = await supabase.from('orders').update(update).eq('id', orderId)
+  if (error) return { error: error.message }
+  const isCustomer = patch.notes !== undefined
+  await writeChangeLog({
+    orderId,
+    tableName: 'orders',
+    fieldName: isCustomer ? 'notes' : 'admin_notes',
+    oldValue: null,
+    newValue: (isCustomer ? patch.notes : patch.adminNotes) || '(cleared)',
+    label: isCustomer ? 'customer note updated' : 'admin note updated',
+    adminUser,
+  })
+  return { error: null }
+}
+
+// WEC-386: change ONLY the variant of an existing order item (very common —
+// customer wants a different protein/side size). Re-snapshots label + price +
+// macros from the chosen variant, recomputes line + order totals, audit-logs.
+export async function updateOrderItemVariant(params: {
+  itemId: string
+  orderId: string
+  childOrderId: string
+  quantity: number
+  variantId: string
+  variantLabelEl: string
+  variantLabelEn: string
+  unitPrice: number   // cents
+  calories: number
+  protein: number
+  carbs: number
+  fat: number
+  oldLabel: string
+  adminUser: string
+}): Promise<{ error: string | null }> {
+  const { error } = await supabase.from('order_items').update({
+    variant_id: params.variantId,
+    variant_label_el: params.variantLabelEl || null,
+    variant_label_en: params.variantLabelEn || null,
+    unit_price: params.unitPrice,
+    total_price: params.unitPrice * params.quantity,
+    calories: params.calories ?? null,
+    protein: params.protein ?? null,
+    carbs: params.carbs ?? null,
+    fat: params.fat ?? null,
+  }).eq('id', params.itemId)
+  if (error) return { error: error.message }
+  await writeChangeLog({
+    orderId: params.orderId, childOrderId: params.childOrderId, orderItemId: params.itemId,
+    tableName: 'order_items', fieldName: 'variant',
+    oldValue: params.oldLabel, newValue: params.variantLabelEl,
+    label: `variant → ${params.variantLabelEl}`, adminUser: params.adminUser,
+  })
+  return recomputeOrderTotals(params.orderId)
+}
+
+// WEC-389: SOFT-cancel a whole delivery day (child order). Marks cancelled_at
+// (keeps the record + items for audit / refund reconciliation). Totals and the
+// customer/kitchen views exclude cancelled days; an admin can Restore it. If no
+// active (non-cancelled) day remains, the parent order is set to cancelled.
+export async function cancelChildOrder(childOrderId: string, orderId: string, adminUser: string): Promise<{ error: string | null }> {
+  const { error: coErr } = await supabase
+    .from('child_orders')
+    .update({ cancelled_at: new Date().toISOString() })
+    .eq('id', childOrderId)
+  if (coErr) return { error: coErr.message }
+  await writeChangeLog({
+    orderId, childOrderId,
+    tableName: 'child_orders', fieldName: 'cancelled_at',
+    oldValue: null, newValue: 'cancelled',
+    label: 'delivery day cancelled', adminUser,
+  })
+  const { data: active } = await supabase
+    .from('child_orders')
+    .select('id')
+    .eq('order_id', orderId)
+    .is('cancelled_at', null)
+  if ((active ?? []).length === 0) {
+    await supabase.from('orders').update({ status: 'cancelled', updated_at: new Date().toISOString() }).eq('id', orderId)
+    await writeChangeLog({
+      orderId, tableName: 'orders', fieldName: 'status',
+      oldValue: null, newValue: 'cancelled',
+      label: 'all days cancelled → order cancelled', adminUser,
+    })
+  }
+  return recomputeOrderTotals(orderId)
+}
+
+// WEC-389: restore a soft-cancelled day. Clears cancelled_at, recomputes totals,
+// and re-opens the parent order if it had been auto-cancelled.
+export async function restoreChildOrder(childOrderId: string, orderId: string, adminUser: string): Promise<{ error: string | null }> {
+  const { error } = await supabase
+    .from('child_orders')
+    .update({ cancelled_at: null })
+    .eq('id', childOrderId)
+  if (error) return { error: error.message }
+  await writeChangeLog({
+    orderId, childOrderId,
+    tableName: 'child_orders', fieldName: 'cancelled_at',
+    oldValue: 'cancelled', newValue: null,
+    label: 'delivery day restored', adminUser,
+  })
+  const { data: ord } = await supabase.from('orders').select('status').eq('id', orderId).single()
+  if ((ord as { status: string } | null)?.status === 'cancelled') {
+    await supabase.from('orders').update({ status: 'pending', updated_at: new Date().toISOString() }).eq('id', orderId)
+    await writeChangeLog({
+      orderId, tableName: 'orders', fieldName: 'status',
+      oldValue: 'cancelled', newValue: 'pending',
+      label: 'day restored → order re-opened (pending)', adminUser,
+    })
+  }
+  return recomputeOrderTotals(orderId)
+}
+
 export async function deleteOrderItem(itemId: string, orderId: string, childOrderId: string, adminUser: string): Promise<{ error: string | null }> {
   const { error } = await supabase.from('order_items').delete().eq('id', itemId)
   if (error) return { error: error.message }
@@ -437,8 +567,86 @@ export async function deleteOrderItem(itemId: string, orderId: string, childOrde
   return recomputeOrderTotals(orderId)
 }
 
+// WEC-371: add a brand-new line item to an existing order. Snapshots
+// name/variant/price/macros exactly like the customer checkout
+// (submit-order.ts) so the row is self-contained even if the dish/variant
+// later changes. Recomputes order totals; payment is handled manually by the
+// admin (balance link if total went up, refund if down).
+export async function addOrderItem(params: {
+  orderId: string
+  childOrderId: string
+  dishId: string
+  variantId: string
+  nameEl: string
+  nameEn: string
+  variantLabelEl: string
+  variantLabelEn: string
+  unitPrice: number   // cents
+  quantity: number
+  calories: number
+  protein: number
+  carbs: number
+  fat: number
+  comment?: string | null
+  adminUser: string
+}): Promise<{ error: string | null }> {
+  const qty = Math.max(1, Math.floor(params.quantity || 1))
+  const { data, error } = await supabase.from('order_items').insert({
+    child_order_id: params.childOrderId,
+    dish_id: params.dishId,
+    variant_id: params.variantId,
+    name_el: params.nameEl,
+    name_en: params.nameEn || params.nameEl,
+    variant_label_el: params.variantLabelEl || null,
+    variant_label_en: params.variantLabelEn || null,
+    quantity: qty,
+    unit_price: params.unitPrice,
+    total_price: params.unitPrice * qty,
+    calories: params.calories ?? null,
+    protein: params.protein ?? null,
+    carbs: params.carbs ?? null,
+    fat: params.fat ?? null,
+    comment: params.comment?.trim() || null,
+  }).select('id').single()
+  if (error) return { error: error.message }
+  await writeChangeLog({
+    orderId: params.orderId,
+    childOrderId: params.childOrderId,
+    orderItemId: (data as { id: string }).id,
+    tableName: 'order_items',
+    fieldName: 'item',
+    oldValue: null,
+    newValue: `${params.nameEl}${params.variantLabelEl ? ` (${params.variantLabelEl})` : ''} ×${qty}`,
+    label: 'item added',
+    adminUser: params.adminUser,
+  })
+  return recomputeOrderTotals(params.orderId)
+}
+
+/**
+ * WEC-371: dish ids that appear on the active menu for a given delivery date.
+ * Used to badge "on menu today" in the admin add-item picker. Admins can still
+ * add off-menu dishes — this is a hint, not a filter.
+ */
+export async function fetchOnMenuDishIds(date: string): Promise<Set<string>> {
+  const { data: menus } = await supabase
+    .from('weekly_menus')
+    .select('id')
+    .eq('active', true)
+    .lte('from_date', date)
+    .gte('to_date', date)
+  const ids = (menus ?? []).map((m) => (m as { id: string }).id)
+  if (ids.length === 0) return new Set()
+  const { data: mdd } = await supabase
+    .from('menu_day_dishes')
+    .select('dish_id')
+    .eq('date', date)
+    .in('menu_id', ids)
+  return new Set((mdd ?? []).map((r) => (r as { dish_id: string }).dish_id))
+}
+
 async function recomputeOrderTotals(orderId: string): Promise<{ error: string | null }> {
-  const { data: cos, error: cosErr } = await supabase.from('child_orders').select('id').eq('order_id', orderId)
+  const { data: cos, error: cosErr } = await supabase.from('child_orders').select('id').eq('order_id', orderId).is('cancelled_at', null)
   if (cosErr) return { error: cosErr.message }
   const cIds = (cos ?? []).map((r) => r.id as string)
   if (cIds.length === 0) return { error: null }

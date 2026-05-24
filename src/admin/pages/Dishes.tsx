@@ -21,6 +21,7 @@ import { fetchDishRecipe } from '../../lib/api/dishRecipe'
 import { DishRecipeEditor, type RecipeRow } from '../components/DishRecipeEditor'
 import { supabase } from '../../lib/supabase'
 import { parseIngredientList } from '../../lib/menu-csv/parse'
+import { foldGreek } from '../../lib/text'
 
 type LangTab = 'el' | 'en'
 
@@ -58,14 +59,14 @@ export function Dishes() {
   useEffect(() => { refresh() }, [])
 
   const filtered = useMemo(() => {
-    const needle = search.trim().toLowerCase()
+    const needle = foldGreek(search.trim())
     return dishes.filter((d) => {
       if (filterCategory !== 'all' && d.categoryId !== filterCategory) return false
       if (filterTag !== 'all' && !d.tagIds.includes(filterTag)) return false
       if (filterActive === 'active' && !d.active) return false
       if (filterActive === 'inactive' && d.active) return false
       if (needle) {
-        const hay = `${d.nameEl} ${d.nameEn}`.toLowerCase()
+        const hay = foldGreek(`${d.nameEl} ${d.nameEn}`)
         if (!hay.includes(needle)) return false
       }
       return true
@@ -246,28 +247,38 @@ function DishDrawer({
   // WEC-249: recipe state — loaded on mount for existing dishes, persisted
   // alongside the dish on save. Empty for new dishes; admin builds it before
   // first save.
+  // WEC-369: recipe starts [] but for an existing dish that does NOT mean
+  // "empty recipe" until the fetch resolves. Saving before then would wipe the
+  // dish's ingredients (saveDishRecipe deletes then re-inserts). `recipeLoaded`
+  // gates the Save button so that race can't happen.
   const [recipe, setRecipe] = useState<RecipeRow[]>([])
+  const [recipeLoaded, setRecipeLoaded] = useState(isNew)
+  const [editTab, setEditTab] = useState<'basic' | 'recipe'>('basic')
   useEffect(() => {
-    if (isNew || !dish.id) return
+    if (isNew || !dish.id) { setRecipeLoaded(true); return }
     let cancelled = false
+    setRecipeLoaded(false)
     fetchDishRecipe(dish.id).then((res) => {
-      if (cancelled || !res.data) return
-      const rows: RecipeRow[] = res.data.ingredients.map((ing, i) => {
-        const perVariant: Record<string, number> = {}
-        for (const a of res.data!.variantAmounts) {
-          if (a.ingredientId === ing.ingredientId) perVariant[a.variantId] = Number(a.grams)
-        }
-        return {
-          _key: `${ing.ingredientId}-${i}`,
-          ingredientId: ing.ingredientId,
-          nameEl: ing.nameEl,
-          isVariant: ing.isVariant,
-          fixedGrams: ing.fixedGrams != null ? Number(ing.fixedGrams) : null,
-          perVariant,
-          sortOrder: ing.sortOrder,
-        }
-      })
-      setRecipe(rows)
+      if (cancelled) return
+      if (res.data) {
+        const rows: RecipeRow[] = res.data.ingredients.map((ing, i) => {
+          const perVariant: Record<string, number> = {}
+          for (const a of res.data!.variantAmounts) {
+            if (a.ingredientId === ing.ingredientId) perVariant[a.variantId] = Number(a.grams)
+          }
+          return {
+            _key: `${ing.ingredientId}-${i}`,
+            ingredientId: ing.ingredientId,
+            nameEl: ing.nameEl,
+            isVariant: ing.isVariant,
+            fixedGrams: ing.fixedGrams != null ? Number(ing.fixedGrams) : null,
+            perVariant,
+            sortOrder: ing.sortOrder,
+          }
+        })
+        setRecipe(rows)
+      }
+      setRecipeLoaded(true)
     })
     return () => { cancelled = true }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -412,77 +423,84 @@ function DishDrawer({
   }
 
   async function handleSave() {
-    if (!form.nameEl.trim()) { setErr('Greek name is required'); return }
-    if (form.variants.length === 0) { setErr('At least one variant is required'); return }
+    if (!form.nameEl.trim()) { setEditTab('basic'); setErr('Greek name is required'); return }
+    if (form.variants.length === 0) { setEditTab('recipe'); setErr('At least one variant is required'); return }
     for (const v of form.variants) {
-      if (!v.labelEl.trim()) { setErr('Every variant needs a Greek label'); return }
-      if (v.price <= 0) { setErr('Every variant needs a price > 0'); return }
+      if (!v.labelEl.trim()) { setEditTab('recipe'); setErr('Every variant needs a Greek label'); return }
+      if (v.price <= 0) { setEditTab('recipe'); setErr('Every variant needs a price > 0'); return }
     }
+    // WEC-369: never save with a not-yet-loaded recipe — that would wipe the
+    // dish's existing ingredients.
+    if (!recipeLoaded) { setErr('Recipe is still loading — please wait a moment and try again.'); return }
+
     setSaving(true)
     setErr(null)
-    const { data: saveData, error } = await saveDish({
-      id: isNew ? undefined : form.id,
-      categoryId: form.categoryId,
-      nameEl: form.nameEl.trim(),
-      nameEn: form.nameEn.trim() || form.nameEl.trim(),
-      descEl: form.descEl,
-      descEn: form.descEn,
-      imageUrl: form.imageUrl,
-      emoji: form.emoji,
-      discountPct: form.discountPct,
-      active: form.active,
-      previewCal: form.previewCal, previewPro: form.previewPro,
-      previewCarb: form.previewCarb, previewFat: form.previewFat,
-      variants: form.variants,
-      tagIds: form.tagIds,
-    })
-    if (error) { setSaving(false); setErr(error); return }
-
-    // WEC-249: persist recipe alongside dish + variants. Recipe rows
-    // reference variants by id; saveDish above may have re-issued IDs for
-    // brand-new variants, so we re-fetch the persisted variant ids.
-    const dishId = saveData?.id ?? form.id
-    if (dishId) {
-      // Map old (form) variant ids → persisted ids by sortOrder, since
-      // saveDish replaces variants and assigns new ids for brand-new ones.
-      // For existing dishes whose variants kept their ids, the map is identity.
-      const { data: freshVariants } = await import('../../lib/supabase').then(({ supabase }) =>
-        supabase.from('dish_variants').select('id, sort_order').eq('dish_id', dishId).order('sort_order'),
-      )
-      const idBySort = new Map<number, string>()
-      for (const v of (freshVariants ?? []) as Array<{ id: string; sort_order: number }>) {
-        idBySort.set(v.sort_order, v.id)
-      }
-      const remappedRecipe = recipe.map((r) => {
-        const perVariant: Record<string, number> = {}
-        for (let i = 0; i < form.variants.length; i++) {
-          const oldId = form.variants[i].id
-          const newId = idBySort.get(i) ?? oldId
-          if (r.perVariant[oldId] != null) perVariant[newId] = r.perVariant[oldId]
-        }
-        return { ...r, perVariant }
+    try {
+      const { data: saveData, error } = await saveDish({
+        id: isNew ? undefined : form.id,
+        categoryId: form.categoryId,
+        nameEl: form.nameEl.trim(),
+        nameEn: form.nameEn.trim() || form.nameEl.trim(),
+        descEl: form.descEl,
+        descEn: form.descEn,
+        imageUrl: form.imageUrl,
+        emoji: form.emoji,
+        discountPct: form.discountPct,
+        active: form.active,
+        previewCal: form.previewCal, previewPro: form.previewPro,
+        previewCarb: form.previewCarb, previewFat: form.previewFat,
+        variants: form.variants,
+        tagIds: form.tagIds,
       })
+      if (error) { setErr(error); return }
 
-      const { error: recipeErr } = await saveDishRecipe(
-        dishId,
-        remappedRecipe.map((r) => ({
-          ingredientId: r.ingredientId,
-          nameEl: r.nameEl,
-          isVariant: r.isVariant,
-          fixedGrams: r.fixedGrams,
-          perVariant: r.perVariant,
-          sortOrder: r.sortOrder,
-        })),
-      )
-      if (recipeErr) {
-        setSaving(false)
-        setErr(`Recipe save failed: ${recipeErr}`)
-        return
+      // WEC-249: persist recipe alongside dish + variants. Recipe rows
+      // reference variants by id; saveDish above may have re-issued IDs for
+      // brand-new variants, so we re-fetch the persisted variant ids.
+      const dishId = saveData?.id ?? form.id
+      if (dishId) {
+        // Map old (form) variant ids → persisted ids by sortOrder, since
+        // saveDish replaces variants and assigns new ids for brand-new ones.
+        // For existing dishes whose variants kept their ids, the map is identity.
+        const { data: freshVariants } = await import('../../lib/supabase').then(({ supabase }) =>
+          supabase.from('dish_variants').select('id, sort_order').eq('dish_id', dishId).order('sort_order'),
+        )
+        const idBySort = new Map<number, string>()
+        for (const v of (freshVariants ?? []) as Array<{ id: string; sort_order: number }>) {
+          idBySort.set(v.sort_order, v.id)
+        }
+        const remappedRecipe = recipe.map((r) => {
+          const perVariant: Record<string, number> = {}
+          for (let i = 0; i < form.variants.length; i++) {
+            const oldId = form.variants[i].id
+            const newId = idBySort.get(i) ?? oldId
+            if (r.perVariant[oldId] != null) perVariant[newId] = r.perVariant[oldId]
+          }
+          return { ...r, perVariant }
+        })
+
+        const { error: recipeErr } = await saveDishRecipe(
+          dishId,
+          remappedRecipe.map((r) => ({
+            ingredientId: r.ingredientId,
+            nameEl: r.nameEl,
+            isVariant: r.isVariant,
+            fixedGrams: r.fixedGrams,
+            perVariant: r.perVariant,
+            sortOrder: r.sortOrder,
+          })),
+        )
+        if (recipeErr) { setErr(`Recipe save failed: ${recipeErr}`); return }
       }
-    }
 
-    setSaving(false)
-    onSaved()
+      onSaved()
+    } catch (e) {
+      // WEC-369: any unexpected throw still clears the spinner via finally,
+      // so Save can never get stuck on "Saving…".
+      setErr(e instanceof Error ? e.message : String(e))
+    } finally {
+      setSaving(false)
+    }
   }
 
   async function handleDelete() {
@@ -505,6 +523,18 @@ function DishDrawer({
         <div className="admin-drawer-body">
           {err && <div className="admin-error-banner">{err}</div>}
 
+          {/* WEC-369: split into a Basic tab (quick edits — name, tags, image,
+              macros) and a Recipe & Variants tab (the heavy ingredient
+              machinery). Keeps simple edits away from the recipe load/save. */}
+          <nav className="admin-order-tabs admin-dish-edit-tabs">
+            <button className={`admin-tab${editTab === 'basic' ? ' active' : ''}`} onClick={() => setEditTab('basic')}>Basic</button>
+            <button className={`admin-tab${editTab === 'recipe' ? ' active' : ''}`} onClick={() => setEditTab('recipe')}>
+              Recipe &amp; Variants{!isNew && !recipeLoaded ? ' …' : ''}
+            </button>
+          </nav>
+
+          {editTab === 'basic' && (
+            <>
           {/* External code — the slug used everywhere (CSV, URLs, admin search). */}
           {/* Read-only on existing dishes (renaming would orphan past order rows). */}
           <section className="admin-form-section">
@@ -671,7 +701,11 @@ function DishDrawer({
               ))}
             </div>
           </section>
+            </>
+          )}
 
+          {editTab === 'recipe' && (
+            <>
           {/* Variants */}
           <section className="admin-form-section">
             <div className="admin-section-head">
@@ -755,14 +789,16 @@ function DishDrawer({
               onChange={setRecipe}
             />
           </section>
+            </>
+          )}
         </div>
 
         <footer className="admin-drawer-foot">
           {!isNew && <button className="admin-btn-danger" disabled={saving} onClick={handleDelete}>Delete</button>}
           <div style={{ flex: 1 }} />
           <button className="admin-btn-ghost" onClick={onClose}>Cancel</button>
-          <button className="admin-btn-primary" disabled={saving} onClick={handleSave}>
-            {saving ? 'Saving…' : isNew ? 'Create dish' : 'Save changes'}
+          <button className="admin-btn-primary" disabled={saving || (!isNew && !recipeLoaded)} onClick={handleSave}>
+            {saving ? 'Saving…' : (!isNew && !recipeLoaded) ? 'Loading recipe…' : isNew ? 'Create dish' : 'Save changes'}
           </button>
         </footer>
       </div>

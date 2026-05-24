@@ -2843,7 +2843,7 @@ a.btn-conf-done { display: inline-block; text-decoration: none; }
 .wpv2-seg-opt.sel { background: var(--fp-green-600); color: var(--fp-paper); border-color: var(--fp-green-600); }
 
 /* Activity chips (5-up grid) */
-.wpv2-activity { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; }
+.wpv2-activity { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
 .wpv2-activity-opt { padding: 12px 8px; background: var(--fp-paper); border: 1.5px solid var(--fp-ink-200); border-radius: var(--fp-radius-sm); cursor: pointer; transition: all 0.15s; text-align: left; font-family: inherit; display: flex; flex-direction: column; gap: 4px; }
 .wpv2-activity-opt:hover { border-color: var(--fp-green-300); }
 .wpv2-activity-opt.sel { border-color: var(--fp-green-600); background: var(--fp-green-50); }
@@ -2877,6 +2877,8 @@ a.btn-conf-done { display: inline-block; text-decoration: none; }
 .wpv2-nutri.protein .wpv2-nutri-bar-fill { background: var(--fp-green-500); }
 .wpv2-nutri.fat     .wpv2-nutri-bar-fill { background: var(--fp-accent-yellow); }
 .wpv2-nutri-sub { font-size: 10px; font-weight: 600; color: var(--fp-ink-500); margin-top: auto; }
+/* WEC-360 — BMR equation credibility footnote. */
+.wpv2-nutri-footnote { margin-top: 10px; font-size: 11px; font-weight: 500; font-style: italic; color: var(--fp-ink-400, var(--fp-ink-500)); line-height: 1.45; }
 
 /* ── Meal chips ───────────────────────────────────────────────── */
 .wpv2-meals { display: flex; flex-wrap: wrap; gap: 10px; }
@@ -2915,6 +2917,9 @@ a.btn-conf-done { display: inline-block; text-decoration: none; }
 .wpv2-length-sub { font-size: 12px; color: var(--fp-ink-500); font-weight: 500; }
 .wpv2-length-disc { font-size: 12px; font-weight: 700; color: var(--fp-green-700); margin-top: 2px; }
 .wpv2-length-disc.none { color: var(--fp-ink-400); font-weight: 600; }
+/* WEC-360 — free-delivery perk pill on the 1mo/3mo plan cards. */
+.wpv2-length-perk { display: inline-flex; align-items: center; gap: 5px; margin-top: 4px; padding: 3px 9px; width: fit-content; background: var(--fp-green-50); color: var(--fp-green-800, var(--fp-green-700)); border: 1px solid var(--fp-green-200, var(--fp-green-100)); border-radius: 999px; font-size: 10.5px; font-weight: 800; letter-spacing: 0.2px; }
+.wpv2-length-perk svg { color: var(--fp-green-600); }
 .wpv2-length-check { position: absolute; top: 14px; right: 14px; width: 22px; height: 22px; border-radius: 50%; border: 1.5px solid var(--fp-ink-200); display: flex; align-items: center; justify-content: center; }
 .wpv2-length.sel .wpv2-length-check { background: var(--fp-green-600); border-color: var(--fp-green-600); }
 .wpv2-length-check svg { color: transparent; }
@@ -2982,6 +2987,17 @@ a.btn-conf-done { display: inline-block; text-decoration: none; }
 .wpv2-paymethod:hover { border-color: var(--fp-green-300); }
 .wpv2-paymethod.sel { border-color: var(--fp-green-600); background: var(--fp-green-50); color: var(--fp-green-900); }
 .wpv2-paymethods-hint { font-size: 11px; color: var(--fp-ink-500); font-weight: 500; line-height: 1.4; padding-top: 2px; }
+
+/* WEC-360 — receipt/invoice block in the sidebar. */
+.wpv2-invoice { display: flex; flex-direction: column; gap: 8px; }
+.wpv2-invoice-toggle { display: flex; flex-direction: column; gap: 6px; }
+.wpv2-invoice-toggle-lbl { font-size: 11px; font-weight: 700; color: var(--fp-ink-500); letter-spacing: 0.5px; text-transform: uppercase; }
+.wpv2-invoice-fields { display: flex; flex-direction: column; gap: 6px; }
+.wpv2-invoice-input { padding: 9px 12px; border: 1.5px solid var(--fp-ink-200); border-radius: var(--fp-radius-sm); font-size: 13px; font-weight: 600; color: var(--fp-ink-900); background: var(--fp-paper); font-family: inherit; box-sizing: border-box; transition: border-color 0.15s; }
+.wpv2-invoice-input::placeholder { color: var(--fp-ink-400); font-weight: 500; }
+.wpv2-invoice-input:focus { outline: none; border-color: var(--fp-green-600); }
+.wpv2-invoice-input.bad { border-color: #d94d3a; background: #fdecea; }
+.wpv2-invoice-err { font-size: 11px; font-weight: 600; color: #8a1a14; line-height: 1.4; }
 
 /* ── Inline error in sidebar ─────────────────────────────────── */
 .wpv2-aside-err { background: #fdecea; border: 1px solid #f5c6c2; border-radius: var(--fp-radius-sm); padding: 10px 12px; font-size: 12px; color: #8a1a14; font-weight: 600; line-height: 1.45; }
@@ -3608,6 +3624,36 @@ body.is-impersonating { padding-top: 36px; }
   border: 1.5px solid #FCA5A5;
   box-shadow: 0 1px 3px rgba(0,0,0,0.12);
   cursor: help;
+}
+/* WEC-368: instant tooltip (replaces the slow native `title`). Opens
+   downward so it stays within the card's `overflow: hidden` box. */
+.dish-diet-warn::after {
+  content: attr(data-tip);
+  position: absolute;
+  top: calc(100% + 5px);
+  left: 0;
+  width: max-content;
+  max-width: 150px;
+  white-space: normal;
+  text-align: left;
+  background: rgba(17, 24, 39, 0.96);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.3;
+  padding: 6px 8px;
+  border-radius: 8px;
+  box-shadow: 0 4px 14px rgba(0,0,0,0.25);
+  opacity: 0;
+  transform: translateY(-3px);
+  pointer-events: none;
+  transition: opacity 0.12s ease, transform 0.12s ease;
+  z-index: 6;
+}
+.dish-diet-warn:hover::after,
+.dish-diet-warn:focus-visible::after {
+  opacity: 1;
+  transform: translateY(0);
 }
 .dish-card.diet-flag .dish-img { filter: saturate(0.85) brightness(0.95); }
 

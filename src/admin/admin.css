@@ -415,7 +415,7 @@
 @keyframes admin-drawer-in { from { opacity: 0; transform: translateX(16px); } to { opacity: 1; transform: translateX(0); } }
 
 .admin-drawer-head {
-  padding: 16px 24px;
+  padding: 12px 20px;
   border-bottom: 1px solid var(--a-border);
   display: flex; align-items: center; justify-content: space-between;
   /* Explicit colours — earlier the head was inheriting a brand-green
@@ -426,7 +426,7 @@
 }
 .admin-drawer-head h2 {
   margin: 0;
-  font-size: 18px;
+  font-size: 15px;
   font-weight: 700;
   color: var(--a-text);
   letter-spacing: -0.2px;
@@ -441,7 +441,7 @@
   display: inline-flex; align-items: center; justify-content: center;
 }
 .admin-drawer-close:hover { background: var(--a-hover); color: var(--a-text); }
-.admin-drawer-body { padding: 20px 22px; overflow-y: auto; flex: 1; }
+.admin-drawer-body { padding: 16px 18px; overflow-y: auto; flex: 1; }
 .admin-drawer-foot {
   padding: 14px 22px;
   border-top: 1px solid var(--a-border);
@@ -1172,6 +1172,330 @@
   box-shadow: none;
   background: transparent;
 }
+
+/* WEC-361: section dividers in the consolidated order Details screen. */
+.admin-order-block-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 20px 0 10px;
+  padding-top: 16px;
+  border-top: 1px solid var(--a-border);
+  font-size: 12px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--a-text-muted);
+}
+.admin-order-block-title .admin-od-ico { color: var(--a-primary); }
+
+/* WEC-361 polish: compact, icon-led order Details screen. */
+.admin-od { display: flex; flex-direction: column; gap: 10px; }
+.admin-od-ico { color: var(--a-text-muted); flex-shrink: 0; }
+.admin-od-card {
+  border: 1px solid var(--a-border);
+  border-radius: 10px;
+  padding: 10px 12px;
+  background: #fff;
+}
+.admin-od-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.admin-od-card-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  margin-bottom: 6px;
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--a-text-muted);
+}
+.admin-od-card-title .admin-od-ico { color: var(--a-primary); }
+.admin-od-card-head .admin-od-card-title { margin-bottom: 0; }
+/* align-items: stretch → cards in a row share equal height. */
+.admin-od-grid { display: grid; grid-template-columns: repeat(12, 1fr); gap: 10px; align-items: stretch; }
+.admin-od-col-6 { grid-column: span 6; }
+.admin-od-col-4 { grid-column: span 4; }
+.admin-od-col-3 { grid-column: span 3; }
+.admin-od-col-2 { grid-column: span 2; }
+.admin-od-col-12 { grid-column: span 12; }
+@media (max-width: 1180px) {
+  .admin-od-col-6 { grid-column: span 12; }
+  .admin-od-col-4, .admin-od-col-3, .admin-od-col-2 { grid-column: span 6; }
+}
+@media (max-width: 640px) {
+  .admin-od-col-4, .admin-od-col-3, .admin-od-col-2, .admin-od-col-6 { grid-column: span 12; }
+}
+/* WEC-393: action-verb status buttons, coloured by target status (inline). */
+.admin-od-statusbtn { padding: 6px 14px; border-radius: 8px; border: 1px solid transparent; font-size: 13px; font-weight: 700; cursor: pointer; }
+.admin-od-statusbtn:hover:not(:disabled) { filter: brightness(0.97); }
+.admin-od-statusbtn:disabled { opacity: 0.5; cursor: default; }
+/* Extras: one compact horizontal line, not a tall card. */
+.admin-od-extras { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.admin-od-extras .admin-od-card-title { margin-bottom: 0; margin-right: 4px; }
+.admin-od-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--a-primary);
+  text-decoration: none;
+  padding: 4px 9px;
+  border: 1px solid var(--a-border);
+  border-radius: 7px;
+}
+.admin-od-link:hover { background: var(--a-bg); }
+.admin-od-link .admin-od-ico { color: var(--a-primary); }
+.admin-od-name { font-size: 15px; font-weight: 700; margin-bottom: 5px; }
+.admin-od-contacts { display: flex; flex-wrap: wrap; gap: 4px 18px; }
+.admin-od-contact {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--a-text-muted);
+  text-decoration: none;
+}
+.admin-od-contact:hover { color: var(--a-primary); }
+.admin-od-provenance { display: flex; align-items: center; gap: 6px; margin-top: 8px; font-size: 11px; color: var(--a-text-muted); }
+.admin-od-provenance .admin-od-ico { color: var(--a-text-muted); }
+.admin-od-kv { margin: 0; display: flex; flex-direction: column; gap: 7px; }
+.admin-od-kv > div { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.admin-od-kv dt { margin: 0; font-size: 13px; color: var(--a-text-muted); }
+.admin-od-kv dd { margin: 0; font-size: 13px; font-weight: 600; }
+.admin-od-method { text-transform: capitalize; }
+.admin-od-totals { display: flex; flex-direction: column; gap: 6px; }
+.admin-od-total-row { display: flex; align-items: center; justify-content: space-between; font-size: 13px; }
+.admin-od-total-row > span:first-child { color: var(--a-text-muted); }
+.admin-od-total-disc > span:last-child { color: #dc2626; }
+.admin-od-total-grand {
+  margin-top: 2px;
+  padding-top: 8px;
+  border-top: 1px solid var(--a-border);
+  font-size: 16px;
+  font-weight: 800;
+}
+.admin-od-total-grand > span:first-child { color: inherit; }
+.admin-od-chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.admin-od-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 5px 11px;
+  border-radius: 999px;
+  background: var(--a-bg);
+  border: 1px solid var(--a-border);
+  color: var(--a-text-muted);
+  text-transform: capitalize;
+}
+.admin-od-chip.on {
+  color: var(--a-primary);
+  border-color: rgba(0, 185, 107, 0.3);
+  background: rgba(0, 185, 107, 0.08);
+}
+.admin-od-chip.on .admin-od-ico { color: var(--a-primary); }
+.admin-od-vouchers { display: flex; flex-direction: column; gap: 5px; }
+.admin-od-voucher { display: flex; align-items: center; gap: 10px; font-size: 13px; }
+.admin-od-voucher code { background: var(--a-bg); padding: 1px 6px; border-radius: 4px; font-size: 12px; }
+.admin-od-note {
+  display: flex;
+  gap: 9px;
+  margin-top: 10px;
+  padding: 9px 11px;
+  border-radius: 8px;
+  background: var(--a-bg);
+  font-size: 12.5px;
+  line-height: 1.45;
+  word-break: break-word;
+}
+.admin-od-note .admin-od-ico { margin-top: 1px; }
+.admin-od-note strong {
+  display: block;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  color: var(--a-text-muted);
+  margin-bottom: 2px;
+}
+.admin-od-note-admin { background: #fff7ed; color: #7c4a03; }
+.admin-od-note-admin .admin-od-ico { color: #c2740c; }
+.admin-od-note-admin strong { color: #c2740c; }
+
+/* WEC-390: editable customer + internal admin notes. */
+.admin-od-notes { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 10px; }
+@media (max-width: 900px) { .admin-od-notes { grid-template-columns: 1fr; } }
+.admin-od-note-edit { border: 1px solid var(--a-border); border-radius: 10px; padding: 12px 14px; background: #fff; }
+.admin-od-note-edit-admin { background: #fff7ed; border-color: #f3d9b8; }
+.admin-od-note-edit .admin-od-card-title { margin-bottom: 8px; }
+.admin-od-note-edit-admin .admin-od-card-title,
+.admin-od-note-edit-admin .admin-od-card-title .admin-od-ico { color: #c2740c; }
+.admin-od-note-hint { font-size: 10px; font-weight: 600; text-transform: none; letter-spacing: 0; color: var(--a-text-muted); margin-left: 8px; }
+.admin-od-note-ta { width: 100%; box-sizing: border-box; resize: vertical; font-family: inherit; }
+.admin-od-note-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 8px; }
+
+/* WEC-361: label the two status pills so Order vs Payment is obvious. */
+.admin-od-statusbar-badges { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+.admin-od-badgewrap { display: inline-flex; align-items: center; gap: 6px; }
+.admin-od-badgecap {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  color: var(--a-text-muted);
+}
+
+/* WEC-371: add-item picker inside the order Items section. */
+.admin-additem {
+  margin-top: 10px;
+  padding: 12px;
+  border: 1px solid var(--a-border);
+  border-radius: 8px;
+  background: var(--a-bg);
+}
+.admin-additem-list {
+  max-height: 220px;
+  overflow-y: auto;
+  margin-top: 8px;
+  border: 1px solid var(--a-border);
+  border-radius: 6px;
+  background: #fff;
+}
+.admin-additem-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  text-align: left;
+  padding: 8px 10px;
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid var(--a-border);
+  cursor: pointer;
+  font-size: 13px;
+}
+.admin-additem-row:last-child { border-bottom: none; }
+.admin-additem-row:hover { background: var(--a-bg); }
+.admin-additem-badge {
+  font-size: 10px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  color: var(--a-primary);
+  background: rgba(0, 185, 107, 0.12);
+  padding: 2px 7px;
+  border-radius: 999px;
+  flex-shrink: 0;
+}
+.admin-additem-picked {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+.admin-additem-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 12px;
+}
+/* WEC-393: selected variant pill in the add-item picker. */
+.admin-additem-config .admin-chip.on { background: var(--a-primary); color: #fff; border-color: var(--a-primary); }
+
+/* WEC-369: dish editor Basic / Recipe tabs sit inside the drawer body, which
+   already has padding — reset the order-tabs horizontal padding. */
+.admin-dish-edit-tabs {
+  padding: 0;
+  margin-bottom: 16px;
+}
+
+/* WEC-386: per-day Child Order cards in the order Details screen. */
+.admin-od-days { margin-top: 10px; }
+.admin-od-days-title {
+  display: flex; align-items: center; gap: 8px;
+  margin: 0 0 9px;
+  font-size: 12px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px;
+  color: var(--a-text-muted);
+}
+.admin-od-days-title .admin-od-ico { color: var(--a-primary); }
+.admin-od-day { border: 1px solid var(--a-border); border-radius: 10px; margin-bottom: 10px; overflow: hidden; background: #fff; }
+.admin-od-day-head {
+  display: flex; align-items: center; gap: 12px;
+  padding: 8px 12px;
+  background: var(--a-bg);
+  border-bottom: 1px solid var(--a-border);
+  cursor: pointer;
+  user-select: none;
+}
+.admin-od-day-head:hover { filter: brightness(0.98); }
+.admin-od-day-head:focus-visible { outline: 2px solid var(--a-primary); outline-offset: -2px; }
+.admin-od-day-chevron {
+  display: inline-flex; color: var(--a-text-muted); flex-shrink: 0;
+  transform: rotate(-90deg); transition: transform 0.15s ease;
+}
+.admin-od-day-chevron.open { transform: rotate(0deg); }
+.admin-od-day-id { flex: 1; min-width: 0; }
+.admin-od-day-date { font-size: 14px; font-weight: 700; }
+.admin-od-day-addr { display: flex; align-items: center; gap: 5px; font-size: 12px; color: var(--a-text-muted); margin-top: 1px; }
+.admin-od-timepill {
+  font-size: 12px; font-weight: 700; color: var(--a-primary);
+  background: rgba(0, 185, 107, 0.1); padding: 4px 10px; border-radius: 999px;
+  white-space: nowrap; flex-shrink: 0;
+}
+.admin-od-day-count { font-size: 12px; color: var(--a-text-muted); white-space: nowrap; flex-shrink: 0; }
+.admin-od-cancelday {
+  font-size: 12px; font-weight: 600; color: #dc2626;
+  background: #fff; border: 1px solid #f3c0c0; border-radius: 7px;
+  padding: 5px 11px; cursor: pointer; white-space: nowrap; flex-shrink: 0;
+}
+.admin-od-cancelday:hover:not(:disabled) { background: #fef2f2; }
+.admin-od-cancelday:disabled { opacity: 0.5; cursor: default; }
+.admin-od-restoreday { white-space: nowrap; flex-shrink: 0; }
+.admin-od-day-cancelled { opacity: 0.75; }
+.admin-od-day-cancelled .admin-od-day-head { background: #fef2f2; }
+.admin-od-day-cancelbadge {
+  margin-left: 8px; font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.4px;
+  color: #dc2626; background: #fde8e8; padding: 2px 7px; border-radius: 999px; vertical-align: middle;
+}
+.admin-od-day-body { padding: 11px; }
+.admin-od-addr {
+  display: grid; grid-template-columns: repeat(4, 1fr) auto; gap: 10px 16px; align-items: end;
+  padding: 10px 12px; background: var(--a-bg); border-radius: 8px; margin-bottom: 11px;
+}
+.admin-od-addr > div { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.admin-od-addr-k { font-size: 11px; color: var(--a-text-muted); }
+.admin-od-addr > div > span:last-child { font-size: 13px; font-weight: 500; }
+.admin-od-addr-edit { align-self: center; white-space: nowrap; }
+@media (max-width: 720px) {
+  .admin-od-addr { grid-template-columns: 1fr 1fr; }
+  .admin-od-addr-edit { grid-column: 1 / -1; }
+}
+.admin-od-addr-edit-panel { padding: 12px; background: var(--a-bg); border-radius: 8px; margin-bottom: 11px; }
+.admin-od-addr-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+@media (max-width: 720px) { .admin-od-addr-grid { grid-template-columns: 1fr 1fr; } }
+.admin-od-addr-edit-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 12px; }
+.admin-od-items { margin-bottom: 8px; }
+.admin-od-itemx {
+  background: none; border: none; color: #dc2626; font-size: 18px; line-height: 1;
+  cursor: pointer; padding: 0 4px;
+}
+.admin-od-itemx:hover:not(:disabled) { color: #b91c1c; }
+.admin-od-itemx:disabled { opacity: 0.4; cursor: default; }
+.admin-od-additem-link {
+  background: none; border: none; color: var(--a-primary);
+  font-size: 13px; font-weight: 600; cursor: pointer; padding: 4px 0;
+}
+.admin-od-additem-link:hover { text-decoration: underline; }
 
 .admin-totals > div {
   display: flex; justify-content: space-between;
