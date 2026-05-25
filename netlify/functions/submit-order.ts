@@ -1,6 +1,8 @@
 import { createClient } from '@supabase/supabase-js'
 import { createVivaOrder } from '../lib/viva/createOrder'
 import { trackAsync } from '../lib/klaviyo'
+import { corsHeaders } from '../lib/cors'
+import { checkRateLimit, clientIp } from '../lib/rateLimit'
 
 // ─── Greek ΑΦΜ checksum (WEC-354) ──────────────────────────────────────────
 // Duplicated from src/lib/vat.ts — cross-folder src/ ⇄ netlify/ imports
@@ -292,20 +294,21 @@ function generateOrderNumber(): string {
 // ─── Handler ────────────────────────────────────────────────────────────────
 
 export default async (request: Request) => {
-  // CORS preflight
+  // CORS preflight (WEC-146: origin allowlist via shared helper)
   if (request.method === 'OPTIONS') {
-    return new Response(null, {
-      status: 204,
-      headers: {
-        'Access-Control-Allow-Origin': '*',
-        'Access-Control-Allow-Methods': 'POST, OPTIONS',
-        'Access-Control-Allow-Headers': 'Content-Type, Authorization',
-      },
-    })
+    return new Response(null, { status: 204, headers: corsHeaders(request, 'POST, OPTIONS') })
   }
 
   if (request.method !== 'POST') {
     return Response.json({ error: 'Method not allowed' }, { status: 405 })
+  }
+
+  // WEC-147: rate limit (fail-open) — 10 order submissions / minute / IP.
+  if (!(await checkRateLimit(`submit-order:${clientIp(request)}`, 10, 60))) {
+    return Response.json(
+      { error: 'Πολλές προσπάθειες παραγγελίας. Δοκίμασε ξανά σε λίγο. / Too many order attempts — please try again in a moment.' },
+      { status: 429, headers: corsHeaders(request, 'POST, OPTIONS') },
+    )
   }
 
   try {

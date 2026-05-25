@@ -142,19 +142,26 @@ const fmtAddress = (row: DbChildOrder): string => {
  * Fetch order history for a user, newest first.
  * Includes child orders and their items.
  */
-export async function fetchUserOrders(userId: string): Promise<{
+export async function fetchUserOrders(userId: string, limit = 50, offset = 0): Promise<{
   data: OrderHistoryItem[] | null
   error: string | null
+  hasMore?: boolean
 }> {
-  // 1. Orders
+  // 1. Orders — WEC-149: bounded by limit/offset so a long-standing customer
+  // doesn't pull every order (plus all child_orders + items) into memory at
+  // login. Defaults to the most-recent 50; pass offset for "load more".
   const { data: rawOrders, error: oErr } = await supabase
     .from('orders')
     .select('*')
     .eq('user_id', userId)
     .order('created_at', { ascending: false })
+    .range(offset, offset + limit - 1)
 
   if (oErr) return { data: null, error: oErr.message }
-  if (!rawOrders || rawOrders.length === 0) return { data: [], error: null }
+  if (!rawOrders || rawOrders.length === 0) return { data: [], error: null, hasMore: false }
+
+  // If we got a full page back there may be more behind it.
+  const hasMore = rawOrders.length === limit
 
   const orders = rawOrders as DbOrder[]
   const orderIds = orders.map((o) => o.id)
@@ -259,7 +266,7 @@ export async function fetchUserOrders(userId: string): Promise<{
     }
   })
 
-  return { data: result, error: null }
+  return { data: result, error: null, hasMore }
 }
 
 /**

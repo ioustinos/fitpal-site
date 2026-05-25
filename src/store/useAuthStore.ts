@@ -59,6 +59,14 @@ export interface UserWallet {
   nextRenewal?: string   // ISO date string
   monthlyAmount?: number
   creditAmount?: number
+  // WEC-349: plan composition + dates, joined from wallet_plans so the
+  // "My Subscription" account tab can render real values (was "—").
+  startDate?: string        // ISO date — when the active plan was purchased
+  bonusExpiresAt?: string   // ISO date — wallet_plans.bonus_expires_at
+  frequency?: string        // wallet_frequency enum: biweekly | monthly | quarterly
+  people?: number
+  daysPerWeek?: number
+  meals?: { breakfast: boolean; lunch: boolean; dinner: boolean }
   transactions?: WalletTransaction[]
   /**
    * When true, only an admin (via impersonation) can spend this wallet —

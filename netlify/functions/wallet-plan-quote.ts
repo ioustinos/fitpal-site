@@ -12,27 +12,28 @@
 import { calculateWalletPlan } from '../../src/lib/wallet/calculator'
 import { loadWalletConfig } from '../lib/wallet/loadSettings'
 import type { WalletCalcInput } from '../../src/lib/wallet/types'
-
-const ALLOWED_ORIGINS = '*'
+import { corsHeaders } from '../lib/cors'
 
 export default async (request: Request) => {
+  // WEC-146: origin allowlist via shared helper
+  const cors = corsHeaders(request, 'POST, OPTIONS')
   if (request.method === 'OPTIONS') {
-    return new Response(null, { status: 204, headers: corsHeaders() })
+    return new Response(null, { status: 204, headers: cors })
   }
   if (request.method !== 'POST') {
-    return Response.json({ error: 'Method not allowed' }, { status: 405, headers: corsHeaders() })
+    return Response.json({ error: 'Method not allowed' }, { status: 405, headers: cors })
   }
 
   let body: WalletCalcInput
   try {
     body = await request.json() as WalletCalcInput
   } catch {
-    return Response.json({ error: 'Invalid JSON body' }, { status: 400, headers: corsHeaders() })
+    return Response.json({ error: 'Invalid JSON body' }, { status: 400, headers: cors })
   }
 
   const validation = validateInput(body)
   if (validation) {
-    return Response.json({ error: validation }, { status: 400, headers: corsHeaders() })
+    return Response.json({ error: validation }, { status: 400, headers: cors })
   }
 
   try {
@@ -47,18 +48,10 @@ export default async (request: Request) => {
         servicesCatalog: config.servicesCatalog,
         minAmountCents:  config.minAmountCents,
       },
-    }, { status: 200, headers: corsHeaders() })
+    }, { status: 200, headers: cors })
   } catch (err) {
     console.error('[wallet-plan-quote] failed', err)
-    return Response.json({ error: 'Internal error' }, { status: 500, headers: corsHeaders() })
-  }
-}
-
-function corsHeaders() {
-  return {
-    'Access-Control-Allow-Origin': ALLOWED_ORIGINS,
-    'Access-Control-Allow-Methods': 'POST, OPTIONS',
-    'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+    return Response.json({ error: 'Internal error' }, { status: 500, headers: cors })
   }
 }
 

@@ -31,6 +31,7 @@ interface DbWalletPlan {
   bonus_pct: number
   bonus_amount: number       // cents
   bonus_expires_at: string | null
+  created_at: string
 }
 
 interface DbWalletTransaction {
@@ -97,6 +98,13 @@ export async function fetchWallet(userId: string): Promise<{
   let bonusPct: number | undefined
   let monthlyAmount: number | undefined
   let creditAmount: number | undefined
+  // WEC-349: plan composition + dates for the "My Subscription" tab.
+  let startDate: string | undefined
+  let bonusExpiresAt: string | undefined
+  let frequency: string | undefined
+  let people: number | undefined
+  let daysPerWeek: number | undefined
+  let meals: { breakfast: boolean; lunch: boolean; dinner: boolean } | undefined
 
   if (w.active_plan_id) {
     const { data: planRow } = await supabase
@@ -121,6 +129,20 @@ export async function fetchWallet(userId: string): Promise<{
       bonusPct = plan.bonus_pct
       monthlyAmount = centsToEuros(plan.cost)
       creditAmount = centsToEuros(plan.credits + plan.bonus_amount)
+      // created_at is a timestamptz; keep the date part for display parity
+      // with the other ISO date fields the tab formats.
+      startDate = plan.created_at ? plan.created_at.split('T')[0] : undefined
+      bonusExpiresAt = plan.bonus_expires_at
+        ? plan.bonus_expires_at.split('T')[0]
+        : undefined
+      frequency = plan.frequency
+      people = plan.people
+      daysPerWeek = plan.days_per_week
+      meals = {
+        breakfast: !!plan.meal_breakfast,
+        lunch: !!plan.meal_lunch,
+        dinner: !!plan.meal_dinner,
+      }
     }
   }
 
@@ -148,6 +170,12 @@ export async function fetchWallet(userId: string): Promise<{
       nextRenewal: w.next_renewal ?? undefined,
       monthlyAmount,
       creditAmount,
+      startDate,
+      bonusExpiresAt,
+      frequency,
+      people,
+      daysPerWeek,
+      meals,
       transactions,
       adminManaged: w.admin_managed ?? false,
     },

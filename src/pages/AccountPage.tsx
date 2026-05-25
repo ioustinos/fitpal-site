@@ -1819,8 +1819,27 @@ function SubscriptionTab({ user, lang }: any) {
   const cycleCost = wallet.monthlyAmount ?? legacyPlan?.price ?? null
   const cycleCredits = wallet.creditAmount ?? legacyPlan?.credits ?? null
 
-  // Placeholder dash for fields we don't yet fetch from wallet_plans.
+  // WEC-349: plan composition + dates, now joined from wallet_plans via
+  // fetchWallet(). Fall back to a dash only when a field is genuinely absent.
   const TODO_DASH = '—'
+  const startDateStr = fmtDate(wallet.startDate)
+  const bonusExpiresStr = fmtDate(wallet.bonusExpiresAt)
+  const FREQ_LABELS: Record<string, { el: string; en: string }> = {
+    biweekly:  { el: 'Κάθε 2 εβδομάδες', en: 'Every 2 weeks' },
+    monthly:   { el: 'Μηνιαία', en: 'Monthly' },
+    quarterly: { el: 'Κάθε 3 μήνες', en: 'Quarterly' },
+  }
+  const freqLabel = wallet.frequency
+    ? (FREQ_LABELS[wallet.frequency]?.[isEl ? 'el' : 'en'] ?? wallet.frequency)
+    : null
+  const mealNames: { key: 'breakfast' | 'lunch' | 'dinner'; el: string; en: string }[] = [
+    { key: 'breakfast', el: 'Πρωινό', en: 'Breakfast' },
+    { key: 'lunch',     el: 'Μεσημεριανό', en: 'Lunch' },
+    { key: 'dinner',    el: 'Βραδινό', en: 'Dinner' },
+  ]
+  const selectedMeals = wallet.meals
+    ? mealNames.filter((m) => wallet.meals![m.key])
+    : []
 
   return (
     <div className="tab-section">
@@ -1838,10 +1857,7 @@ function SubscriptionTab({ user, lang }: any) {
         <div className="subs-hero-meta">
           <div className="subs-meta-item">
             <span className="subs-meta-label">{isEl ? 'Έναρξη' : 'Start'}</span>
-            <span className="subs-meta-value">
-              {TODO_DASH}
-              {/* TODO WEC-349: wallet_plans.created_at not yet exposed in user.wallet. */}
-            </span>
+            <span className="subs-meta-value">{startDateStr ?? TODO_DASH}</span>
           </div>
           <div className="subs-meta-divider" aria-hidden />
           <div className="subs-meta-item">
@@ -1851,10 +1867,7 @@ function SubscriptionTab({ user, lang }: any) {
           <div className="subs-meta-divider" aria-hidden />
           <div className="subs-meta-item">
             <span className="subs-meta-label">{isEl ? 'Bonus λήγει' : 'Bonus expires'}</span>
-            <span className="subs-meta-value">
-              {TODO_DASH}
-              {/* TODO WEC-349: wallet_plans.bonus_expires_at not yet exposed. */}
-            </span>
+            <span className="subs-meta-value">{bonusExpiresStr ?? TODO_DASH}</span>
           </div>
         </div>
       </div>
@@ -1869,21 +1882,26 @@ function SubscriptionTab({ user, lang }: any) {
             <div className="subs-row">
               <span className="subs-row-key">{isEl ? 'Γεύματα' : 'Meals'}</span>
               <span className="subs-row-val">
-                {/* TODO WEC-349: meal_breakfast/lunch/dinner flags not yet exposed. */}
-                <span className="subs-pill subs-pill-dim">{TODO_DASH}</span>
+                {selectedMeals.length > 0 ? (
+                  selectedMeals.map((m) => (
+                    <span key={m.key} className="subs-pill">{isEl ? m.el : m.en}</span>
+                  ))
+                ) : (
+                  <span className="subs-pill subs-pill-dim">{TODO_DASH}</span>
+                )}
               </span>
             </div>
             <div className="subs-row">
               <span className="subs-row-key">{isEl ? 'Άτομα' : 'People'}</span>
-              <span className="subs-row-val">{TODO_DASH}</span>
+              <span className="subs-row-val">{wallet.people ?? TODO_DASH}</span>
             </div>
             <div className="subs-row">
               <span className="subs-row-key">{isEl ? 'Μέρες/εβδομάδα' : 'Days/week'}</span>
-              <span className="subs-row-val">{TODO_DASH}</span>
+              <span className="subs-row-val">{wallet.daysPerWeek ?? TODO_DASH}</span>
             </div>
             <div className="subs-row">
               <span className="subs-row-key">{isEl ? 'Συχνότητα' : 'Frequency'}</span>
-              <span className="subs-row-val">{TODO_DASH}</span>
+              <span className="subs-row-val">{freqLabel ?? TODO_DASH}</span>
             </div>
           </div>
         </div>

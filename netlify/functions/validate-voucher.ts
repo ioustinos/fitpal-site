@@ -1,4 +1,6 @@
 import { createClient } from '@supabase/supabase-js'
+import { corsHeaders } from '../lib/cors'
+import { checkRateLimit, clientIp } from '../lib/rateLimit'
 
 const SUPABASE_URL = process.env.VITE_SUPABASE_URL ?? ''
 const SUPABASE_ANON_KEY = process.env.VITE_SUPABASE_ANON_KEY ?? ''
@@ -46,19 +48,22 @@ interface VoucherResult {
 // ─── Handler ────────────────────────────────────────────────────────────────
 
 export default async (request: Request) => {
+  // WEC-146: origin allowlist via shared helper
   if (request.method === 'OPTIONS') {
-    return new Response(null, {
-      status: 204,
-      headers: {
-        'Access-Control-Allow-Origin': '*',
-        'Access-Control-Allow-Methods': 'POST, OPTIONS',
-        'Access-Control-Allow-Headers': 'Content-Type, Authorization',
-      },
-    })
+    return new Response(null, { status: 204, headers: corsHeaders(request, 'POST, OPTIONS') })
   }
 
   if (request.method !== 'POST') {
     return Response.json({ error: 'Method not allowed' }, { status: 405 })
+  }
+
+  // WEC-147: rate limit (fail-open) — 20 voucher checks / minute / IP, blunts
+  // brute-force enumeration of codes (the abuse vector behind cancelled WEC-148).
+  if (!(await checkRateLimit(`validate-voucher:${clientIp(request)}`, 20, 60))) {
+    return Response.json(
+      { valid: false, error: 'Πολλές προσπάθειες. Δοκίμασε ξανά σε λίγο. / Too many attempts — please try again shortly.' },
+      { status: 429, headers: corsHeaders(request, 'POST, OPTIONS') },
+    )
   }
 
   try {
