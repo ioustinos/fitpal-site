@@ -23,6 +23,12 @@ interface StartDatePickerProps {
   onChange: (next: string) => void
   /** How many days to render. Reference shows 8. */
   daysCount?: number
+  /**
+   * WEC-360: minimum lead time in days before the first selectable start
+   * date. The dietitian team needs ~1 business day to build the plan, so
+   * the earliest start is the day-after-tomorrow (lead = 2), never tomorrow.
+   */
+  minLeadDays?: number
 }
 
 const DOW_EL = ['Κυ', 'Δε', 'Τρ', 'Τε', 'Πε', 'Πα', 'Σα']
@@ -38,7 +44,7 @@ function toIso(d: Date): string {
   return `${y}-${m}-${dd}`
 }
 
-export function StartDatePicker({ lang, value, onChange, daysCount = 8 }: StartDatePickerProps) {
+export function StartDatePicker({ lang, value, onChange, daysCount = 8, minLeadDays = 2 }: StartDatePickerProps) {
   const isEl = lang === 'el'
   const settings = useMenuStore((s) => s.settings)
   const weeksMeta = useMenuStore((s) => s.weeksMeta)
@@ -53,8 +59,10 @@ export function StartDatePicker({ lang, value, onChange, daysCount = 8 }: StartD
     return set
   }, [weeksMeta])
 
-  /* Build the next N days starting today (local time). Each entry knows
-     whether it's eligible — disabled days still render. */
+  /* Build the day window. WEC-360: it starts at today + `minLeadDays` (not
+     today) so tomorrow is never offered — the dietitian team needs ~1
+     business day to build the plan. Cutoff + kitchen-closed rules still
+     apply on top of the lead-time floor. */
   const days = useMemo(() => {
     const today = new Date()
     today.setHours(0, 0, 0, 0)
@@ -69,7 +77,7 @@ export function StartDatePicker({ lang, value, onChange, daysCount = 8 }: StartD
     }> = []
     for (let i = 0; i < daysCount; i++) {
       const d = new Date(today)
-      d.setDate(today.getDate() + i)
+      d.setDate(today.getDate() + minLeadDays + i)
       const iso = toIso(d)
       const inactive = inactiveDates.has(iso)
       const orderable = !inactive && isDayOrderable(iso, settings, now)
@@ -83,7 +91,7 @@ export function StartDatePicker({ lang, value, onChange, daysCount = 8 }: StartD
       })
     }
     return out
-  }, [daysCount, settings, inactiveDates])
+  }, [daysCount, minLeadDays, settings, inactiveDates])
 
   /* Default-select the first eligible day on mount (or whenever the
      existing selection becomes invalid). */
@@ -125,8 +133,8 @@ export function StartDatePicker({ lang, value, onChange, daysCount = 8 }: StartD
       </div>
       <div className="wpv2-startdate-hint">
         {isEl
-          ? 'Παραδίδουμε φρέσκα γεύματα νωρίς το πρωί. Διαθέσιμες ημέρες — η κουζίνα και η ώρα cutoff τις καθορίζουν.'
-          : 'We deliver fresh meals early in the morning. Availability follows kitchen schedule and order cutoff.'}
+          ? 'Θα σε καλέσει η Διαιτολογική μας ομάδα εντός 1 εργάσιμης ημέρας για να χτίσετε μαζί τα γεύματά σου.'
+          : 'Our dietitian team will call you within 1 business day to build your meals together.'}
       </div>
     </div>
   )

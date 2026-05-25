@@ -107,12 +107,16 @@ export const PLAN_LENGTH_LABELS: Record<PlanLength, { el: string; en: string; sh
   '3mo': { el: '3 μήνες',     en: '3 months', short: '3mo' },
 }
 
+// WEC-360: renamed per dietitian feedback. The top "very active / 2× daily"
+// tier was dropped from the UI (see the activity button list in WalletPage).
+// `very_active` is kept in the map so the type/calculator stay intact — it's
+// simply never offered as a selectable option.
 export const ACTIVITY_LABELS = {
-  sedentary:   { el: 'Καθιστικός',     en: 'Sedentary',   sub: { el: 'γραφείο, λίγη κίνηση',       en: 'desk job, no exercise'      } },
-  light:       { el: 'Ελαφρύς',        en: 'Light',       sub: { el: '1–3 προπονήσεις/εβδ.',       en: '1–3 workouts/wk'            } },
-  moderate:    { el: 'Μέτριος',        en: 'Moderate',    sub: { el: '3–5 προπονήσεις/εβδ.',       en: '3–5 workouts/wk'            } },
-  active:      { el: 'Ενεργός',        en: 'Active',      sub: { el: '6–7 προπονήσεις/εβδ.',       en: '6–7 workouts/wk'            } },
-  very_active: { el: 'Πολύ ενεργός',   en: 'Very active', sub: { el: '2× ημερησίως ή φυσική εργασία', en: '2× daily or physical job' } },
+  sedentary:   { el: 'Καθιστική Ζωή',       en: 'Sedentary',          sub: { el: 'γραφείο, λίγη κίνηση',                  en: 'desk job, little movement'  } },
+  light:       { el: 'Ελαφρώς Δραστήριος',  en: 'Lightly active',     sub: { el: '1–3 προπονήσεις/εβδ.',                 en: '1–3 workouts/wk'            } },
+  moderate:    { el: 'Μέτρια Δραστήριος',   en: 'Moderately active',  sub: { el: '3–5 προπονήσεις/εβδ.',                 en: '3–5 workouts/wk'            } },
+  active:      { el: 'Πολύ Δραστήριος',     en: 'Very active',        sub: { el: '6–7 προπονήσεις ή βαριά σωματική εργασία', en: '6–7 workouts or hard labour' } },
+  very_active: { el: 'Πολύ ενεργός',        en: 'Extremely active',   sub: { el: '2× ημερησίως ή φυσική εργασία',        en: '2× daily or physical job'   } },
 } as const
 
 export const GOAL_LABELS = {

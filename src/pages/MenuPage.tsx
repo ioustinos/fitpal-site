@@ -97,7 +97,14 @@ export function MenuPage() {
     (sum, items) => sum + items.reduce((s, i) => s + i.qty, 0), 0
   )
 
-  const walletActive = user?.wallet?.active
+  // WEC-348/349 (2026-05-15): proxy for "has bought a subscription plan".
+  // `wallet.active` was the previous proxy — turns out that's the live-
+  // wallet-record flag, true for ANYONE with a wallet (e.g. after a
+  // top-up). `wallet.planId` is closer: it's the FK to the active
+  // wallet_plans row, null when no plan has been purchased.
+  // TODO swap to a dedicated `user.subscription.active` flag if/when
+  // we add one — see project_subscription_signal_todo.md.
+  const subscribed = !!user?.wallet?.planId
   const walletBalance = user?.wallet?.balance ?? 0
   const dateRange = weekMetaForRange ? weekDateRange(weekMetaForRange.days, lang) : ''
   const weekWord = lang === 'el' ? 'Εβδομάδα' : 'Week'
@@ -149,14 +156,12 @@ export function MenuPage() {
               The shell (size, cream paper, glyph) is identical in both
               states so the row keeps a consistent visual rhythm.
 
-              SUBSCRIPTION PROXY — see WEC-348 description for TODO.
-              We don't have a dedicated `user.subscription.active` flag
-              yet; the closest signal is `user.wallet.active` from the
-              Wallet v2 model (project_wallet_v2). Swap this proxy when
-              we get a definitive subscription field on the user object.
+              `subscribed` is computed above from `wallet.planId` as a
+              proxy until a dedicated subscription flag lands. Crucially:
+              having a wallet (with balance, after a top-up) does NOT
+              imply a subscription — only owning a plan does.
           */}
           {(() => {
-            const subscribed = !!walletActive
             const cardCta = subscribed
               ? () => goToAccount('goals')
               : () => goToWalletPage()

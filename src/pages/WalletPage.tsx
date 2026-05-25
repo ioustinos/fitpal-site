@@ -12,6 +12,7 @@ import { saveProfileAllergies, saveProfileAvoidedIngredients } from '../lib/api/
 import { useMenuStore } from '../store/useMenuStore'
 import { supabase } from '../lib/supabase'
 import { MacroIcon } from '../components/ui/MacroDots'
+import { isValidGreekVat, vatDigits } from '../lib/vat'
 
 /* ─────────────────────────────────────────────────────────────────
    Static content & display data
@@ -29,26 +30,26 @@ interface GoalCardData {
 const GOAL_CARDS: GoalCardData[] = [
   {
     id: 'lose',
-    nameEl: 'Χάσε Βάρος',
-    nameEn: 'Lose Weight',
+    nameEl: 'Απώλεια Βάρους',
+    nameEn: 'Weight Loss',
     descEl: 'Ισορροπημένα γεύματα με έλλειμμα θερμίδων',
     descEn: 'Balanced meals with a calorie deficit',
     img: 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=600&q=80',
   },
   {
     id: 'maintain',
-    nameEl: 'Διατήρησε Βάρος',
-    nameEn: 'Maintain Weight',
-    descEl: 'Ευέλικτα μενού για καθημερινή ρουτίνα',
-    descEn: 'Flexible menu for everyday routine',
+    nameEl: 'Διατήρηση Βάρους',
+    nameEn: 'Weight Maintenance',
+    descEl: 'Υγιεινά γεύματα για την καθημερινή ρουτίνα',
+    descEn: 'Healthy meals for your daily routine',
     img: 'https://images.unsplash.com/photo-1540189549336-e6e99c3679fe?w=600&q=80',
   },
   {
     id: 'gain',
-    nameEl: 'Χτίσε Μύες',
-    nameEn: 'Build Muscle',
-    descEl: 'Υψηλή πρωτεΐνη για δύναμη & ανάκαμψη',
-    descEn: 'High protein for strength & recovery',
+    nameEl: 'Αύξηση Μυϊκής Μάζας',
+    nameEn: 'Muscle Gain',
+    descEl: 'Γεύματα υψηλά σε πρωτεΐνη για δύναμη και αντοχή',
+    descEn: 'High-protein meals for strength and endurance',
     img: 'https://images.unsplash.com/photo-1598515214211-89d3c73ae83b?w=600&q=80',
   },
 ]
@@ -195,7 +196,21 @@ export function WalletPage() {
   const [meals, setMeals] = useState<MealsSelection>(DEFAULTS.meals)
   const [planLength, setPlanLength] = useState<PlanLength>(DEFAULTS.planLength)
   const [daysPerWeek, setDaysPerWeek] = useState<DaysPerWeek>(DEFAULTS.daysPerWeek)
-  const [dieticianManaged, setDieticianManaged] = useState(DEFAULTS.dieticianManaged)
+  // Dietitian management is mandatory (the section-10 card is locked on), so
+  // the value is fixed — no setter needed.
+  const [dieticianManaged] = useState(DEFAULTS.dieticianManaged)
+  // WEC-360: optional body-fat measurement (λιπομέτρηση). Selectable, but the
+  // price + total-integration are intentionally NOT wired yet — pending a
+  // confirmed price from Ioustinos and server-side support. UI-only for now.
+  const [bodyFat, setBodyFat] = useState(false)
+
+  // WEC-360: receipt (απόδειξη) vs invoice (τιμολόγιο) — mirrors the regular
+  // checkout's ExtrasSection. invoice=false → plain receipt. invoice=true →
+  // collect company/name + 9-digit Greek VAT (validated via src/lib/vat).
+  const [wantInvoice, setWantInvoice] = useState(false)
+  const [invoiceName, setInvoiceName] = useState('')
+  const [invoiceVat, setInvoiceVat] = useState('')
+  const vatBad = wantInvoice && invoiceVat.length > 0 && (invoiceVat.length !== 9 || !isValidGreekVat(invoiceVat))
 
   /* ── Live result ────────────────────────────────────────────── */
   const result = useMemo(() => calculateWalletPlan({
@@ -419,7 +434,7 @@ export function WalletPage() {
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
             <path d="M3 11l18-7-7 18-2-8-9-3z"/>
           </svg>
-          {isEl ? 'Δες το δείγμα μενού' : 'See sample menu'}
+          {isEl ? 'Δες μερικά πιάτα από το μενού μας' : 'See some dishes from our menu'}
         </button>
       </div>
 
@@ -471,10 +486,10 @@ export function WalletPage() {
               <span className="wpv2-section-num">2</span>
               <div>
                 <div className="wpv2-section-title">
-                  {isEl ? 'Πες μας λίγα για σένα' : 'Tell us about you'}
+                  {isEl ? 'Πες μας λίγα λόγια για σένα' : 'Tell us a little about you'}
                 </div>
                 <div className="wpv2-section-sub">
-                  {isEl ? 'Για να υπολογίσουμε με ακρίβεια τις διατροφικές σου ανάγκες.' : 'So we can calculate your nutrition needs accurately.'}
+                  {isEl ? 'Για να υπολογίσει η Διαιτολογική μας ομάδα με ακρίβεια τις διατροφικές σου ανάγκες.' : 'So our dietitian team can calculate your nutritional needs accurately.'}
                 </div>
               </div>
             </div>
@@ -538,7 +553,8 @@ export function WalletPage() {
               <div className="wpv2-field">
                 <span className="wpv2-label">{isEl ? 'Επίπεδο δραστηριότητας' : 'Activity level'}</span>
                 <div className="wpv2-activity">
-                  {(['sedentary', 'light', 'moderate', 'active', 'very_active'] as ActivityLevel[]).map((a) => (
+                  {/* WEC-360: dropped 'very_active' — 4 tiers now (dietitian feedback). */}
+                  {(['sedentary', 'light', 'moderate', 'active'] as ActivityLevel[]).map((a) => (
                     <button
                       key={a}
                       type="button"
@@ -561,10 +577,10 @@ export function WalletPage() {
               <span className="wpv2-section-num">3</span>
               <div>
                 <div className="wpv2-section-title">
-                  {isEl ? 'Το διατροφικό σου προφίλ' : 'Your nutrition profile'}
+                  {isEl ? 'Οι διατροφικές σου ανάγκες σύμφωνα με τους Διαιτολόγους μας' : 'Your nutritional needs, per our dietitians'}
                 </div>
                 <div className="wpv2-section-sub">
-                  {isEl ? 'Υπολογίζεται αυτόματα από το προφίλ + τον στόχο σου.' : 'Calculated from your profile + goal.'}
+                  {isEl ? 'Υπολογίζονται από τον στόχο σου και τα ανθρωπομετρικά σου χαρακτηριστικά.' : 'Calculated from your goal and your anthropometric data.'}
                 </div>
               </div>
             </div>
@@ -608,6 +624,15 @@ export function WalletPage() {
                 <div className="wpv2-nutri-sub">{result.macroGramsPerDay.f} g</div>
               </div>
             </div>
+
+            {/* WEC-360: scientific-credibility footnote. Cites the ACTUAL
+                equation the calculator uses (Mifflin-St Jeor — see
+                src/lib/wallet/calculator.ts), not Schofield. */}
+            <p className="wpv2-nutri-footnote">
+              {isEl
+                ? '* Για τον υπολογισμό του Βασικού Μεταβολικού Ρυθμού χρησιμοποιήθηκε η εξίσωση Mifflin-St Jeor.'
+                : '* Basal Metabolic Rate is calculated using the Mifflin-St Jeor equation.'}
+            </p>
           </section>
 
           {/* SECTION 4 · Meals */}
@@ -657,7 +682,7 @@ export function WalletPage() {
               <span className="wpv2-section-num">5</span>
               <div>
                 <div className="wpv2-section-title">
-                  {isEl ? 'Πόσο συχνά θα τρως Fitpal' : 'How often will you eat Fitpal'}
+                  {isEl ? 'Πόσο συχνά θέλεις τα Fitpal Meals να φροντίζουν τη διατροφή σου;' : 'How often should Fitpal Meals take care of your nutrition?'}
                 </div>
                 <div className="wpv2-section-sub">
                   {isEl ? 'Επίλεξε πόσες ημέρες την εβδομάδα θέλεις να λαμβάνεις τα γεύματά σου.' : 'How many days a week do you want delivery.'}
@@ -713,6 +738,15 @@ export function WalletPage() {
                         ? (isEl ? 'Χωρίς έκπτωση' : 'No discount')
                         : `−${Math.round(disc * 100)}% ${isEl ? 'έκπτωση' : 'off'}`}
                     </div>
+                    {/* WEC-360: free-delivery incentive on the longer plans. */}
+                    {(pl.id === '1mo' || pl.id === '3mo') && (
+                      <div className="wpv2-length-perk">
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                          <rect x="1" y="3" width="15" height="13"/><path d="M16 8h4l3 3v5h-7V8z"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/>
+                        </svg>
+                        {isEl ? 'Δωρεάν Μεταφορικά' : 'Free delivery'}
+                      </div>
+                    )}
                     <div className="wpv2-length-check">
                       <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round">
                         <polyline points="20 6 9 17 4 12"/>
@@ -730,12 +764,12 @@ export function WalletPage() {
               <span className="wpv2-section-num">7</span>
               <div>
                 <div className="wpv2-section-title">
-                  {isEl ? 'Αλλεργίες & συστατικά που αποφεύγεις' : 'Allergies & ingredients to avoid'}
+                  {isEl ? 'Αλλεργίες & Υλικά που αποφεύγεις' : 'Allergies & ingredients you avoid'}
                 </div>
                 <div className="wpv2-section-sub">
                   {isEl
-                    ? 'Όλα σε ένα πεδίο — γράψε ό,τι θες να αποφεύγεις και θα φιλτράρουμε τα γεύματα.'
-                    : 'All in one field — type whatever you want to avoid and we will filter your meals.'}
+                    ? 'Γράψε μας τα υλικά που δεν καταναλώνεις κι εμείς θα τα αποκλείσουμε από τα γεύματά σου.'
+                    : 'Tell us the ingredients you don\'t eat and we\'ll exclude them from your meals.'}
                 </div>
               </div>
             </div>
@@ -766,7 +800,7 @@ export function WalletPage() {
               <span className="wpv2-section-num">9</span>
               <div>
                 <div className="wpv2-section-title">
-                  {isEl ? 'Ενδεικτική διεύθυνση παράδοσης' : 'Indicative delivery address'}
+                  {isEl ? 'Διεύθυνση Παράδοσης — Στα Fitpal Meals παραδίδουμε καθημερινά!' : 'Delivery address — Fitpal Meals delivers daily!'}
                 </div>
                 <div className="wpv2-section-sub">
                   {isEl
@@ -795,12 +829,13 @@ export function WalletPage() {
                 </div>
                 <div className="wpv2-section-sub">
                   {isEl
-                    ? 'Το πλάνο σου περιλαμβάνει τις παρακάτω υπηρεσίες χωρίς επιπλέον χρέωση.'
-                    : 'Your plan includes the following services at no extra charge.'}
+                    ? 'Η διαχείριση από τη Διαιτολογική μας ομάδα περιλαμβάνεται. Πρόσθεσε προαιρετικές υπηρεσίες.'
+                    : 'Dietitian-team management is included. Add optional extras.'}
                 </div>
               </div>
             </div>
             <div className="wpv2-services">
+              {/* Included, mandatory — dietitian-team management. */}
               <button
                 type="button"
                 className="wpv2-service sel locked"
@@ -815,18 +850,45 @@ export function WalletPage() {
                 </span>
                 <div className="wpv2-service-body">
                   <div className="wpv2-service-name">
-                    {isEl ? 'Διαχείριση από διαιτολόγο' : 'Dietician-managed ordering'}
+                    {isEl ? 'Διαχείριση από την Διαιτολογική μας ομάδα' : 'Managed by our dietitian team'}
                   </div>
                   <div className="wpv2-service-desc">
                     {isEl
-                      ? 'Ο διαιτολόγος μας μπαίνει εβδομαδιαία και παραγγέλνει για σένα — χωρίς κόπο.'
-                      : 'Our dietician logs in each week and orders for you — zero effort.'}
+                      ? 'Εντός 1 εργάσιμης ημέρας θα σε καλέσουμε και χτίζουμε εβδομαδιαία τα γεύματά σου — χωρίς κόπο.'
+                      : "We'll call you within 1 business day and build your meals each week — zero effort."}
                   </div>
                 </div>
                 <div className="wpv2-service-price">
                   <span className="wpv2-service-included">
                     {isEl ? 'Περιλαμβάνεται' : 'Included'}
                   </span>
+                </div>
+              </button>
+
+              {/* WEC-360: optional body-fat measurement (λιπομέτρηση). Selectable;
+                  price TBD so it is NOT added to the total yet. */}
+              <button
+                type="button"
+                className={`wpv2-service${bodyFat ? ' sel' : ''}`}
+                onClick={() => setBodyFat((v) => !v)}
+              >
+                <span className="wpv2-service-cb">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round">
+                    <polyline points="20 6 9 17 4 12"/>
+                  </svg>
+                </span>
+                <div className="wpv2-service-body">
+                  <div className="wpv2-service-name">
+                    {isEl ? 'Λιπομέτρηση' : 'Body-fat measurement'}
+                  </div>
+                  <div className="wpv2-service-desc">
+                    {isEl
+                      ? 'Μέτρηση σύστασης σώματος από τη Διαιτολογική μας ομάδα για ακριβέστερη παρακολούθηση.'
+                      : 'Body-composition measurement by our dietitian team for more accurate tracking.'}
+                  </div>
+                </div>
+                <div className="wpv2-service-price">
+                  {isEl ? 'Έξτρα υπηρεσία' : 'Extra service'}
                 </div>
               </button>
             </div>
@@ -853,7 +915,7 @@ export function WalletPage() {
                   </svg>
                 </span>
                 <div className="wpv2-aside-menu-cta-text">
-                  {isEl ? 'Δες το δείγμα μενού' : 'See sample menu'}
+                  {isEl ? 'Δες μερικά πιάτα από το μενού μας' : 'See some dishes from our menu'}
                   <small>{isEl ? 'Γεύματα που θα λαμβάνεις' : 'Meals you\'ll receive'}</small>
                 </div>
               </div>
@@ -900,7 +962,7 @@ export function WalletPage() {
             <div className="wpv2-aside-voucher">
               <input
                 type="text"
-                placeholder={isEl ? 'Κωδικός προσφοράς' : 'Voucher code'}
+                placeholder={isEl ? 'Κουπόνι' : 'Coupon'}
                 value={voucher}
                 onChange={(e) => setVoucher(e.target.value)}
               />
@@ -917,8 +979,8 @@ export function WalletPage() {
             {result.bonusCredits > 0 && (
               <div className="wpv2-aside-credits">
                 {isEl
-                  ? <>Πιστώνεται στο wallet σου: <b>{fmtEur(result.walletCredit)}</b> ({fmtEur(result.bonusCredits)} bonus credits)</>
-                  : <>Credits added to your wallet: <b>{fmtEur(result.walletCredit)}</b> ({fmtEur(result.bonusCredits)} bonus credits)</>}
+                  ? <>Πληρώνεις <b>{fmtEur(total)}</b> και παίρνεις <b>{fmtEur(result.walletCredit)}</b> υπόλοιπο στο Fitpal Wallet σου για να παραγγέλνεις γεύματα — δηλαδή <b>{fmtEur(result.bonusCredits)}</b> δώρο.</>
+                  : <>You pay <b>{fmtEur(total)}</b> and get <b>{fmtEur(result.walletCredit)}</b> of balance in your Fitpal Wallet to order meals — that's <b>{fmtEur(result.bonusCredits)}</b> free.</>}
               </div>
             )}
 
@@ -933,9 +995,9 @@ export function WalletPage() {
                     className={`wpv2-paymethod${paymentMethod === pm ? ' sel' : ''}`}
                     onClick={() => setPaymentMethod(pm)}
                   >
-                    {pm === 'card'     && (isEl ? 'Κάρτα'        : 'Card')}
-                    {pm === 'link'     && (isEl ? 'Σύνδεσμος'    : 'Payment link')}
-                    {pm === 'transfer' && (isEl ? 'Έμβασμα'      : 'Bank transfer')}
+                    {pm === 'card'     && (isEl ? 'Κάρτα online'             : 'Credit card online')}
+                    {pm === 'link'     && (isEl ? 'Link πληρωμής αργότερα'   : 'Payment link later')}
+                    {pm === 'transfer' && (isEl ? 'Τραπεζική μεταφορά'       : 'Bank transfer')}
                   </button>
                 ))}
               </div>
@@ -947,6 +1009,53 @@ export function WalletPage() {
               {paymentMethod === 'transfer' && (
                 <div className="wpv2-paymethods-hint">
                   {isEl ? 'Το πλάνο θα ενεργοποιηθεί όταν λάβουμε το έμβασμα.' : 'The plan activates when we receive your transfer.'}
+                </div>
+              )}
+            </div>
+
+            {/* WEC-360 — receipt vs invoice (mirrors checkout ExtrasSection). */}
+            <div className="wpv2-invoice">
+              <div className="wpv2-invoice-toggle">
+                <span className="wpv2-invoice-toggle-lbl">{isEl ? 'Παραστατικό' : 'Document'}</span>
+                <div className="wpv2-seg">
+                  <button
+                    type="button"
+                    className={`wpv2-seg-opt${!wantInvoice ? ' sel' : ''}`}
+                    onClick={() => setWantInvoice(false)}
+                  >{isEl ? 'Απόδειξη' : 'Receipt'}</button>
+                  <button
+                    type="button"
+                    className={`wpv2-seg-opt${wantInvoice ? ' sel' : ''}`}
+                    onClick={() => setWantInvoice(true)}
+                  >{isEl ? 'Τιμολόγιο' : 'Invoice'}</button>
+                </div>
+              </div>
+              {wantInvoice && (
+                <div className="wpv2-invoice-fields">
+                  <input
+                    type="text"
+                    className="wpv2-invoice-input"
+                    placeholder={isEl ? 'Επωνυμία / Όνομα' : 'Company / Name'}
+                    value={invoiceName}
+                    onChange={(e) => setInvoiceName(e.target.value)}
+                  />
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    maxLength={9}
+                    className={`wpv2-invoice-input${vatBad ? ' bad' : ''}`}
+                    placeholder={isEl ? 'ΑΦΜ' : 'VAT number'}
+                    value={invoiceVat}
+                    onChange={(e) => setInvoiceVat(vatDigits(e.target.value))}
+                    aria-invalid={vatBad || undefined}
+                  />
+                  {vatBad && (
+                    <div className="wpv2-invoice-err">
+                      {invoiceVat.length !== 9
+                        ? (isEl ? 'Το ΑΦΜ πρέπει να έχει 9 ψηφία' : 'VAT must be 9 digits')
+                        : (isEl ? 'Μη έγκυρο ΑΦΜ — έλεγξε τα ψηφία' : 'Invalid VAT — check the digits')}
+                    </div>
+                  )}
                 </div>
               )}
             </div>
