@@ -11,6 +11,7 @@ import { dishDietFlags } from '../../lib/api/diet'
 import { makeTr } from '../../lib/translations'
 import { RecipePanel } from './RecipePanel'
 import { VariantPicker } from './VariantPicker'
+import { track } from '../../lib/tracking'
 
 export function DishModal() {
   const lang = useUIStore((s) => s.lang)
@@ -70,6 +71,24 @@ export function DishModal() {
     setComment('')
     setImgError(false)
   }, [dish, isEdit, editingCartItem])
+
+  // WEC-397: ViewContent when the dish modal opens in view mode (skip edit-mode
+  // opens from the cart). INERT unless VITE_TRACKING_ENABLED.
+  useEffect(() => {
+    if (!dish || isEdit || openModal !== 'dish') return
+    const v = dish.variants.find((x) => x.isDefault) ?? dish.variants[0]
+    try {
+      track('view_content', {
+        contentIds: [dish.id],
+        contentName: dish.nameEl,
+        value: v ? effPrice(v.price, dish.discount) : undefined,
+        currency: 'EUR',
+      })
+    } catch {
+      /* non-fatal */
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dish?.id, isEdit, openModal])
 
   if (!dish) return null
 

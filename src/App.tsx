@@ -17,6 +17,8 @@ import { DishModal } from './components/menu/DishModal'
 import { AuthModal } from './components/layout/AuthModal'
 import { WalletModal } from './components/wallet/WalletModal'
 import { ImpersonationBanner } from './components/admin/ImpersonationBanner'
+import { ConsentBanner } from './components/consent/ConsentBanner'
+import { initTracking } from './lib/tracking'
 
 // Admin is lazy-loaded so the customer bundle stays lean — /admin/* code
 // won't be fetched until a user actually visits the admin panel.
@@ -161,12 +163,20 @@ export default function App() {
     }
   }, [])
 
+  // WEC-373/397: initialize the tracking layer — first-touch UTM always; Consent
+  // Mode v2 defaults + SDK loaders + PageView only when VITE_TRACKING_ENABLED is
+  // on and an SDK id is configured. Fully inert otherwise.
+  useEffect(() => {
+    initTracking()
+  }, [])
+
   return (
     <>
       {/* Impersonation banner mounts globally — visible across customer pages,
           admin pages, return URLs, etc. The banner pushes content via the
           `is-impersonating` body class. */}
       <ImpersonationBanner />
+      <ConsentBanner />
       <Routes>
         <Route
           path="/admin/*"

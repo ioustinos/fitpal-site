@@ -7,6 +7,7 @@
 // WEC-172: part of the Viva Payments integration epic (WEC-125).
 
 import { createClient, SupabaseClient } from '@supabase/supabase-js'
+import { sendMetaCapiEvent, metaConfigured, hashLower, hashPhone } from '../metaCapi'
 
 const SUPABASE_URL = process.env.VITE_SUPABASE_URL ?? ''
 const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY ?? ''
@@ -71,7 +72,47 @@ export async function markPaid(
   if (!data) return false
 
   await audit(orderId, 'pending', 'paid', `Viva paid · tx=${transactionId} · €${(amountCents / 100).toFixed(2)}`)
+
+  // WEC-397: server-side Purchase to Meta CAPI. Card orders redirect to Viva
+  // before the confirmation screen, so the browser never fires Purchase — this
+  // is the authoritative fire (survives a closed tab; runs once thanks to the
+  // pending→paid guard above). Same event_id as the client (`purchase:<order#>`)
+  // so any overlap with link/wallet orders deduplicates at Meta. Fail-soft.
+  await firePurchaseCapi(supabase, orderId, amountCents)
   return true
+}
+
+/** Fire a Meta CAPI Purchase for a just-paid order. Never throws. */
+async function firePurchaseCapi(
+  supabase: SupabaseClient,
+  orderId: string,
+  amountCents: number,
+): Promise<void> {
+  if (!metaConfigured()) return
+  try {
+    const { data: order } = await supabase
+      .from('orders')
+      .select('order_number, total, customer_email, customer_phone, user_id')
+      .eq('id', orderId)
+      .maybeSingle()
+    if (!order) return
+    await sendMetaCapiEvent({
+      eventName: 'Purchase',
+      eventId: `purchase:${order.order_number}`,
+      userData: {
+        em: hashLower(order.customer_email),
+        ph: hashPhone(order.customer_phone),
+        external_id: hashLower(order.user_id),
+      },
+      customData: {
+        currency: 'EUR',
+        value: Math.round(order.total ?? amountCents) / 100,
+        order_id: order.order_number,
+      },
+    })
+  } catch (e) {
+    console.error('[markPaid] purchase CAPI failed (non-fatal) for orderId=%s:', orderId, e)
+  }
 }
 
 /**

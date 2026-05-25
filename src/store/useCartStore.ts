@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import type { Macros } from '../data/menu'
+import { track } from '../lib/tracking'
 
 // ─── Domain types ─────────────────────────────────────────────────────────────
 
@@ -155,7 +156,7 @@ export const useCartStore = create<CartStore>()(
   voucherLoading: false,
   lastTouchedAt: 0,
 
-  addItem: (dayDate, newItem) =>
+  addItem: (dayDate, newItem) => {
     set((state) => {
       const dayItems = state.cart[dayDate] ?? []
       const existing = dayItems.findIndex(
@@ -168,7 +169,22 @@ export const useCartStore = create<CartStore>()(
             )
           : [...dayItems, newItem]
       return { cart: { ...state.cart, [dayDate]: updated }, lastTouchedAt: Date.now() }
-    }),
+    })
+    // WEC-397: AddToCart — fired outside the set() updater (no side effects
+    // during state computation). INERT unless VITE_TRACKING_ENABLED.
+    try {
+      track('add_to_cart', {
+        contentIds: [newItem.dishId],
+        contentName: newItem.nameEl,
+        value: Math.round(newItem.price * newItem.qty * 100) / 100,
+        currency: 'EUR',
+        numItems: newItem.qty,
+        items: [{ dishId: newItem.dishId, nameEl: newItem.nameEl, quantity: newItem.qty, price: newItem.price }],
+      })
+    } catch {
+      /* tracking must never block a cart add */
+    }
+  },
 
   updateItem: (dayDate, itemIndex, patch) =>
     set((state) => {

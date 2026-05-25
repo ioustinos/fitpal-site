@@ -20,6 +20,7 @@ import { useMenuStore } from '../store/useMenuStore'
 import { useToast } from '../components/ui/Toast'
 import { submitOrder } from '../lib/api/orders'
 import { useImpersonationStore } from '../store/useImpersonationStore'
+import { track } from '../lib/tracking'
 
 const GUEST_CONTACT_KEY = 'fitpal_guest_contact'
 
@@ -72,6 +73,25 @@ export function CheckoutPage() {
   // Contact info (WEC-130). Initialized from user profile (if logged in) or
   // localStorage (guest prefill), filled in via the useEffect below.
   const [contact, setContact] = useState<ContactInfo>({ name: '', email: '', phone: '' })
+
+  // WEC-397: InitiateCheckout once when the checkout screen opens. INERT unless
+  // VITE_TRACKING_ENABLED. Guarded so tracking can never break the page.
+  useEffect(() => {
+    try {
+      const dates = Object.keys(cart).filter((d) => (cart[d]?.length ?? 0) > 0)
+      const allItems = dates.flatMap((d) => cart[d] ?? [])
+      if (allItems.length === 0) return
+      track('initiate_checkout', {
+        value: Math.round(dates.reduce((s, d) => s + dayAmt(cart[d] ?? []), 0) * 100) / 100,
+        currency: 'EUR',
+        contentIds: Array.from(new Set(allItems.map((i) => i.dishId))),
+        numItems: allItems.reduce((n, i) => n + (i.qty ?? 1), 0),
+      })
+    } catch {
+      /* non-fatal */
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
   // Toggles red borders on the contact inputs only *after* the user attempts
   // to submit — feels less aggressive than validating while they're typing.
   const [contactAttempted, setContactAttempted] = useState(false)
@@ -497,6 +517,30 @@ export function CheckoutPage() {
       // Fire and forget — the confirmation screen still renders for the
       // customer-side eyes the admin is showing the result to.
       void useImpersonationStore.getState().stop()
+    }
+
+    // WEC-397: Purchase conversion (browser Pixel + server CAPI, deduped by the
+    // order number). INERT unless VITE_TRACKING_ENABLED. Card orders redirect to
+    // Viva above and fire Purchase on the return page instead, so everything that
+    // reaches here is a non-card confirmation. Guarded so a tracking hiccup can
+    // never break the confirmation screen.
+    try {
+      const allItems = activeDates.flatMap((d) => cart[d] ?? [])
+      const value = activeDates.reduce((sum, d) => sum + dayAmt(cart[d] ?? []), 0)
+      track(
+        'purchase',
+        {
+          value: Math.round(value * 100) / 100,
+          currency: 'EUR',
+          contentIds: Array.from(new Set(allItems.map((i) => i.dishId))),
+          numItems: allItems.reduce((n, i) => n + (i.qty ?? 1), 0),
+          orderId: data?.orderNumber, // stable dedup key
+          orderNumber: data?.orderNumber,
+        },
+        { email: contactEmail, phone: contact.phone, externalId: user?.id },
+      )
+    } catch (e) {
+      console.warn('[tracking] purchase event failed (non-fatal):', e)
     }
 
     setConfirmed(true)
