@@ -9,6 +9,7 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js'
 import { getVivaAccessToken } from '../viva/auth'
 import { getVivaCreds } from '../viva/env'
+import { sendMetaCapiEvent, metaConfigured, hashLower, hashPhone } from '../metaCapi'
 
 const SUPABASE_URL = process.env.VITE_SUPABASE_URL ?? ''
 const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY ?? ''
@@ -118,6 +119,13 @@ export async function verifyWalletPlanTransaction(
       console.error('[verifyWalletPlanTransaction] wallet_plan_mark_paid failed:', error)
       throw error
     }
+    // WEC-398: Subscribe conversion (Meta CAPI, server-side, separate from food
+    // Purchase). Fire only when THIS verification is the pending→paid transition
+    // (plan.payment_status was 'pending' when fetched above) so duplicate webhook
+    // / reconcile re-verifies don't re-fire; also deduped at Meta by event_id.
+    if (plan.payment_status === 'pending') {
+      await fireSubscribeCapi(supabase, walletPlanId, amountCents)
+    }
     return { status: 'paid', walletPlanId, amountCents, transactionId }
   }
 
@@ -132,4 +140,60 @@ export async function verifyWalletPlanTransaction(
   }
 
   return { status: 'pending', walletPlanId, statusId, transactionId }
+}
+
+/**
+ * WEC-398: fire a Meta CAPI `Subscribe` for a just-paid wallet plan. Server-side
+ * because card/link redirect to Viva (no browser at confirm). Never throws.
+ * Deduped at Meta by `event_id = subscribe:<walletPlanId>`.
+ */
+async function fireSubscribeCapi(
+  supabase: SupabaseClient,
+  walletPlanId: string,
+  amountCents: number,
+): Promise<void> {
+  if (!metaConfigured()) return
+  try {
+    // Resolve the buyer (for hashed advanced matching) via wallet_plan → wallet.
+    let userId: string | undefined
+    let email: string | undefined
+    let phone: string | undefined
+    const { data: planRow } = await supabase
+      .from('wallet_plans')
+      .select('wallet_id')
+      .eq('id', walletPlanId)
+      .maybeSingle()
+    const walletId = (planRow as { wallet_id?: string } | null)?.wallet_id
+    if (walletId) {
+      const { data: w } = await supabase
+        .from('wallets')
+        .select('user_id')
+        .eq('id', walletId)
+        .maybeSingle()
+      userId = (w as { user_id?: string } | null)?.user_id ?? undefined
+    }
+    if (userId) {
+      const { data: prof } = await supabase
+        .from('profiles')
+        .select('phone')
+        .eq('id', userId)
+        .maybeSingle()
+      phone = (prof as { phone?: string } | null)?.phone ?? undefined
+      const { data: au } = await supabase.auth.admin.getUserById(userId)
+      email = au?.user?.email ?? undefined
+    }
+    await sendMetaCapiEvent({
+      eventName: 'Subscribe',
+      eventId: `subscribe:${walletPlanId}`,
+      userData: { em: hashLower(email), ph: hashPhone(phone), external_id: hashLower(userId) },
+      customData: {
+        currency: 'EUR',
+        value: Math.round(amountCents) / 100,
+        order_id: walletPlanId,
+        content_type: 'subscription',
+      },
+    })
+  } catch (e) {
+    console.error('[verifyWalletPlanTransaction] subscribe CAPI failed (non-fatal) planId=%s:', walletPlanId, e)
+  }
 }
