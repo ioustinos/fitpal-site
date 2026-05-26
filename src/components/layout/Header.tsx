@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useUIStore } from '../../store/useUIStore'
 import { useAuthStore } from '../../store/useAuthStore'
@@ -8,6 +8,17 @@ import { makeTr } from '../../lib/translations'
 export function Header() {
   const lang = useUIStore((s) => s.lang)
   const setLang = useUIStore((s) => s.setLang)
+  // WEC-406: mobile lang popover state + click-outside close.
+  const [langOpen, setLangOpen] = useState(false)
+  const langRef = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    if (!langOpen) return
+    const onDoc = (e: MouseEvent) => {
+      if (langRef.current && !langRef.current.contains(e.target as Node)) setLangOpen(false)
+    }
+    document.addEventListener('mousedown', onDoc)
+    return () => document.removeEventListener('mousedown', onDoc)
+  }, [langOpen])
   const openAuthModal = useUIStore((s) => s.openAuthModal)
   const openWalletModal = useUIStore((s) => s.openWalletModal)
   const goToAccount = useUIStore((s) => s.goToAccount)
@@ -88,16 +99,57 @@ export function Header() {
           </button>
         )}
 
-        {/* Language toggle */}
-        <div className="lang-toggle">
-          <button
-            className={`lang-btn${lang === 'el' ? ' active' : ''}`}
-            onClick={() => setLang('el')}
-          >ΕΛ</button>
-          <button
-            className={`lang-btn${lang === 'en' ? ' active' : ''}`}
-            onClick={() => setLang('en')}
-          >EN</button>
+        {/* Language toggle — WEC-406: dual pills on desktop; mobile (<640) gets
+            a single globe icon that opens a small popover so the header keeps
+            its space for the logo + account. */}
+        <div className="lang-toggle" ref={langRef}>
+          <div className="lang-toggle-desktop">
+            <button
+              className={`lang-btn${lang === 'el' ? ' active' : ''}`}
+              onClick={() => setLang('el')}
+            >ΕΛ</button>
+            <button
+              className={`lang-btn${lang === 'en' ? ' active' : ''}`}
+              onClick={() => setLang('en')}
+            >EN</button>
+          </div>
+          <div className="lang-toggle-mobile">
+            <button
+              type="button"
+              className="lang-globe"
+              onClick={() => setLangOpen((v) => !v)}
+              aria-label={lang === 'el' ? 'Γλώσσα' : 'Language'}
+              aria-expanded={langOpen}
+              aria-haspopup="menu"
+            >
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <circle cx="12" cy="12" r="10" />
+                <line x1="2" y1="12" x2="22" y2="12" />
+                <ellipse cx="12" cy="12" rx="4" ry="10" />
+              </svg>
+              <span className="lang-globe-badge" aria-hidden="true">{lang === 'el' ? 'EL' : 'EN'}</span>
+            </button>
+            {langOpen && (
+              <div className="lang-popover" role="menu">
+                <button
+                  role="menuitemradio"
+                  aria-checked={lang === 'el'}
+                  className={`lang-popover-item${lang === 'el' ? ' active' : ''}`}
+                  onClick={() => { setLang('el'); setLangOpen(false) }}
+                >
+                  <span className="lang-popover-check">{lang === 'el' ? '✓' : ''}</span> Ελληνικά
+                </button>
+                <button
+                  role="menuitemradio"
+                  aria-checked={lang === 'en'}
+                  className={`lang-popover-item${lang === 'en' ? ' active' : ''}`}
+                  onClick={() => { setLang('en'); setLangOpen(false) }}
+                >
+                  <span className="lang-popover-check">{lang === 'en' ? '✓' : ''}</span> English
+                </button>
+              </div>
+            )}
+          </div>
         </div>
 
         {/* Auth */}

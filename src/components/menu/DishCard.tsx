@@ -89,37 +89,12 @@ export function DishCard({ dish, dayIndex }: DishCardProps) {
 
   function handleAdd(e: React.MouseEvent) {
     e.stopPropagation()
-    // Closed day — open modal so user can still view details, but don't add.
-    if (unavailable) {
-      openDishModal(dish, dayIndex)
-      return
-    }
-    if (dish.variants.length > 1) {
-      openDishModal(dish, dayIndex)
-      return
-    }
-    // Only reached for single-variant dishes (the if above sends >1 to the
-    // modal). For 1-variant dishes the preselected variant IS the only one.
-    // WEC-336: defensive guard — if we somehow can't resolve a date for
-    // this dayIndex (week not yet loaded?), open the modal instead of
-    // silently dropping the click.
-    if (!dayDate) {
-      openDishModal(dish, dayIndex)
-      return
-    }
-    addItem(dayDate, {
-      dishId: dish.id,
-      variantId: preselectedVariant.id,
-      nameEl: dish.nameEl,
-      nameEn: dish.nameEn,
-      variantLabelEl: preselectedVariant.labelEl,
-      variantLabelEn: preselectedVariant.labelEn,
-      price: finalPrice,
-      qty: 1,
-      macros: preselectedVariant.macros,
-      img: dish.img,
-      emoji: dish.emoji,
-    })
+    // WEC-399 (2026-05-26): the product modal ALWAYS opens — even for
+    // single-variant dishes — so the customer reliably sees ingredients,
+    // macros, allergens, and the qty stepper before committing the item.
+    // Previously single-variant dishes added directly, bypassing the modal.
+    // The modal's own "Add to cart" button is now the sole add path.
+    openDishModal(dish, dayIndex)
   }
 
   return (

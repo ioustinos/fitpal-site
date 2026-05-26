@@ -312,7 +312,16 @@ function OrderDrawer({
     <div className="admin-drawer-overlay" onClick={onClose}>
       <div className="admin-drawer" onClick={(e) => e.stopPropagation()}>
         <header className="admin-drawer-head">
-          <h2>{order ? order.orderNumber : `#${orderId.slice(0, 6)}…`}</h2>
+          <div className="admin-drawer-head-title">
+            <h2>{order ? order.orderNumber : `#${orderId.slice(0, 6)}…`}</h2>
+            {/* WEC-404: order placement time next to the order ID — first thing
+                the admin sees when opening the drawer, no clicking required. */}
+            {order && (
+              <span className="admin-drawer-placed">
+                {new Date(order.createdAt).toLocaleString('en-GB', { dateStyle: 'short', timeStyle: 'short' })}
+              </span>
+            )}
+          </div>
           <button className="admin-drawer-close" onClick={onClose}>×</button>
         </header>
 
@@ -408,6 +417,12 @@ function OverviewTab({ order, adminUser, onChanged }: { order: AdminOrder; admin
               <a className="admin-od-contact" href={`tel:${order.customerPhone}`}><Ico name="phone" /> {order.customerPhone}</a>
             )}
           </div>
+          {/* WEC-404: order placement time, always visible — ops/kitchen care
+              about "did this come in before cutoff?" / "how long has it been
+              sitting?" without having to infer from the order number. */}
+          <div className="admin-od-provenance">
+            <Ico name="info" size={13} /> Placed at {new Date(order.createdAt).toLocaleString('en-GB', { dateStyle: 'short', timeStyle: 'short' })}
+          </div>
           {/* WEC-392: read-only impersonation provenance (from admin_order_id),
               kept separate from the editable admin note. */}
           {order.adminOrderId && (
@@ -446,7 +461,15 @@ function OverviewTab({ order, adminUser, onChanged }: { order: AdminOrder; admin
           <span className="admin-od-card-title"><Ico name="info" /> Extras</span>
           <div className="admin-od-chips">
             <span className={`admin-od-chip${order.cutlery ? ' on' : ''}`}><Ico name="utensils" /> Cutlery {order.cutlery ? '✓' : '—'}</span>
-            <span className="admin-od-chip"><Ico name="doc" /> {order.invoiceType ?? 'receipt'}{order.invoiceName ? ` · ${order.invoiceName}` : ''}</span>
+            {/* WEC-403: distinguish invoice (Τιμολόγιο, B2B with company+ΑΦΜ)
+                from receipt (Απόδειξη). Invoice chip highlights so the admin
+                can see at a glance that this is a business-invoice order. */}
+            <span className={`admin-od-chip${order.invoiceType === 'invoice' ? ' on' : ''}`}>
+              <Ico name="doc" />{' '}
+              {order.invoiceType === 'invoice'
+                ? `Τιμολόγιο · ${order.invoiceName || '—'}${order.invoiceVat ? ' · ΑΦΜ ' + order.invoiceVat : ''}`
+                : 'Απόδειξη'}
+            </span>
           </div>
         </div>
 
@@ -1192,11 +1215,21 @@ function PaymentLinkBlock({ order, onChanged }: { order: AdminOrder; onChanged: 
 function TimelineTab({ order }: { order: AdminOrder }) {
   return (
     <div>
-      <p className="admin-sub">Latest {order.changeLog.length} changes:</p>
+      <p className="admin-sub">Order placement + latest {order.changeLog.length} admin change(s):</p>
       <table className="admin-table admin-table-tight">
         <thead><tr><th>When</th><th>Field</th><th>Old</th><th>New</th><th>Label</th><th>By</th></tr></thead>
         <tbody>
-          {order.changeLog.length === 0 && <tr><td colSpan={6} className="admin-table-empty">No admin changes yet.</td></tr>}
+          {/* WEC-404: synthetic first row — the order's own placement. Always
+              present; reads chronologically from "Order placed" → subsequent
+              admin changes. Styled identically to the other rows. */}
+          <tr>
+            <td className="admin-sub">{new Date(order.createdAt).toLocaleString('en-GB')}</td>
+            <td>orders.created</td>
+            <td className="admin-sub">—</td>
+            <td className="admin-sub">placed</td>
+            <td>Order placed</td>
+            <td className="admin-sub">customer</td>
+          </tr>
           {order.changeLog.map((l) => (
             <tr key={l.id}>
               <td className="admin-sub">{new Date(l.createdAt).toLocaleString('en-GB')}</td>

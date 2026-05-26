@@ -309,17 +309,26 @@ export function CheckoutPage() {
       const prefIdx = jsDow === 0 ? 6 : jsDow - 1  // 0..6 for Mon..Sun
       if (prefIdx > 4) continue  // Sat/Sun — no per-weekday pref slots
 
-      if (user.prefs.slots?.[prefIdx]) {
+      // WEC-405: resolve the saved address FIRST so we can gate the slot-pref
+      // prepopulate on it. If the saved address is out-of-zone, pre-selecting a
+      // saved slot would paint that slot with `.sel` (green) over `.unavailable`
+      // (grey) — the customer reads it as "available" and is confused. We still
+      // pre-fill the address (so they see their saved choice + the zone warning),
+      // we just don't pre-select an unselectable slot.
+      const addrPrefId = user.prefs.dayAddress?.[prefIdx]
+      const addrPref = addrPrefId ? user.addresses.find((a) => a.id === addrPrefId) : undefined
+      const addressInZone = addrPref?.zip ? zipInZone(addrPref.zip, zones) : true
+
+      if (user.prefs.slots?.[prefIdx] && addressInZone) {
         setDelivery(dDate, { timeSlot: user.prefs.slots[prefIdx] })
       }
 
       // Prepopulate address if saved
-      if (user.prefs.dayAddress?.[prefIdx]) {
-        const addrId = user.prefs.dayAddress[prefIdx]
-        const addr = user.addresses.find((a) => a.id === addrId)
-        if (addr) {
+      if (addrPref) {
+        const addr = addrPref
+        {
           setDelivery(dDate, {
-            addrId,
+            addrId: addr.id,
             street: addr.street,
             area: addr.area,
             zip: addr.zip,
@@ -411,7 +420,10 @@ export function CheckoutPage() {
       customerPhone: contact.phone,  // E.164 from <PhoneInput>
       paymentMethod: payment.method as 'cash' | 'card' | 'link' | 'transfer' | 'wallet',
       cutlery: payment.cutlery ?? false,
-      invoiceType: payment.invoice ? 'receipt' : undefined,
+      // WEC-403: when the customer ticks "Τιμολόγιο" + fills Επωνυμία/ΑΦΜ
+      // it's a B2B invoice — persist as 'invoice', not 'receipt'. The 'receipt'
+      // enum value remains for a future "issue a receipt, no VAT" path (no UI today).
+      invoiceType: payment.invoice ? 'invoice' : undefined,
       invoiceName: payment.invoiceName,
       invoiceVat: payment.invoiceVat,
       notes: payment.notes,
