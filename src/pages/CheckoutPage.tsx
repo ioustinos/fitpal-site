@@ -15,6 +15,7 @@ import { activeDays, dayAmt, zipInZone } from '../lib/helpers'
 import { dayLabel } from '../lib/datelabels'
 import { isValidPhone } from '../lib/phone'
 import { isValidGreekVat, vatDigits } from '../lib/vat'
+import { isValidEmail } from '../lib/email'
 import { updateProfile } from '../lib/api/auth'
 import { useMenuStore } from '../store/useMenuStore'
 import { useToast } from '../components/ui/Toast'
@@ -123,9 +124,10 @@ export function CheckoutPage() {
   // canonical one, kept in case the previous regex had edge-case false-positives).
   const contactName = contact.name.trim()
   const contactEmail = contact.email.trim()
-  const emailRe = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
   const contactNameOk = contactName.length >= 2
-  const contactEmailOk = contactEmail.length > 0 && emailRe.test(contactEmail)
+  // WEC-408: tighter shared email validator (rejects HTML-shaped local parts,
+  // > 254 chars, etc.) — same helper used by ContactSection's per-field error.
+  const contactEmailOk = isValidEmail(contactEmail)
   const contactPhoneOk = isValidPhone(contact.phone)
 
   if (!contactNameOk) {

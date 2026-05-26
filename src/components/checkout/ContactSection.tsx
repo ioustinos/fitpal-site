@@ -4,6 +4,7 @@ import flags from 'react-phone-number-input/flags'
 import 'react-phone-number-input/style.css'
 import { useUIStore } from '../../store/useUIStore'
 import { COUNTRIES, DEFAULT_COUNTRY, isValidPhone, phoneLabels } from '../../lib/phone'
+import { isValidEmail } from '../../lib/email'
 
 export interface ContactInfo {
   name: string
@@ -42,7 +43,8 @@ export function ContactSection({ value, onChange, showErrors = false }: ContactS
   // disallows whitespace and @ in either half. Phone uses the per-country
   // libphonenumber-js validator.
   const nameInvalid = showErrors && value.name.trim().length < 2
-  const emailInvalid = showErrors && (!value.email.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.email.trim()))
+  // WEC-408: shared tighter email validator (rejects `<img>@…`, length > 254, etc.)
+  const emailInvalid = showErrors && !isValidEmail(value.email)
   const phoneInvalid = showErrors && !isValidPhone(value.phone)
 
   // Memoise country list reference so PhoneInput doesn't re-render on every keystroke

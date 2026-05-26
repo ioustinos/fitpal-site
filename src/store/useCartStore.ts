@@ -355,6 +355,20 @@ function todayIso(): string {
   return `${y}-${m}-${day}`
 }
 
+// WEC-409: multi-tab cart sync. The Zustand `persist` middleware writes to
+// localStorage on every state change, but only rehydrates ONCE on mount — so a
+// customer with two tabs would build a cart in Tab B, switch to Tab A, and see
+// stale totals. The browser's `storage` event fires in OTHER tabs when our key
+// changes; on that signal we ask persist to rehydrate, which re-reads the
+// freshly-written state and propagates it through the store's subscribers (so
+// every component re-renders with the new cart within a tick). Same-tab writes
+// don't trigger this — the event spec explicitly excludes the writing tab.
+if (typeof window !== 'undefined') {
+  window.addEventListener('storage', (e) => {
+    if (e.key === 'fitpal-cart') void useCartStore.persist.rehydrate()
+  })
+}
+
 export function reconcileCartAgeAndDates() {
   const state = useCartStore.getState()
   const cartNonEmpty = Object.keys(state.cart).length > 0

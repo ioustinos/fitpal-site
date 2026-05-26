@@ -221,7 +221,19 @@ const VALID_METHODS = ['cash', 'card', 'link', 'transfer', 'wallet']
 // compounded with missing server-side checks would let garbage payloads through
 // (single-char names, "foo" emails, invoice toggle on with empty fields). We
 // reject here too so a bypassed/malicious client can't get an order through.
-const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+// WEC-408: tighter email validation — mirror of src/lib/email.ts (kept as a
+// server-side duplicate so curl/script submissions can't bypass the client
+// regex). Rejects HTML-shaped local parts (`<img>@…`), > 254 chars, etc.
+const EMAIL_RE = /^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$/
+function isValidEmailServer(input: string): boolean {
+  const s = input.trim()
+  if (!s || s.length > 254) return false
+  if (s.includes('<') || s.includes('>')) return false
+  return EMAIL_RE.test(s)
+}
+// WEC-407: order-notes cap. Mirrors the client maxLength={500} on the
+// checkout textarea — protects the DB / admin view against megabyte payloads.
+const NOTES_MAX_LEN = 500
 
 function validatePayload(body: OrderPayload): Errors {
   const errors: Errors = {}
@@ -236,8 +248,12 @@ function validatePayload(body: OrderPayload): Errors {
   const customerEmail = body.customerEmail?.trim() ?? ''
   if (!customerEmail) {
     addError(errors, 'general', 'Customer email is required')
-  } else if (!EMAIL_RE.test(customerEmail)) {
-    addError(errors, 'general', 'Customer email is invalid')
+  } else if (!isValidEmailServer(customerEmail)) {
+    addError(errors, 'general', 'Παρακαλώ εισάγετε μια έγκυρη διεύθυνση email / Please enter a valid email')
+  }
+  // WEC-407: server-side cap on order notes (mirror of client maxLength=500).
+  if (typeof body.notes === 'string' && body.notes.length > NOTES_MAX_LEN) {
+    addError(errors, 'general', `Τα σχόλια δεν μπορούν να ξεπερνούν τους ${NOTES_MAX_LEN} χαρακτήρες / Notes must be at most ${NOTES_MAX_LEN} characters`)
   }
   // Phone is optional at the schema level (logged-in users without one),
   // but if provided we sanity-check it has at least 8 digits so something
