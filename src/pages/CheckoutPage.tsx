@@ -93,6 +93,25 @@ export function CheckoutPage() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  // WEC-410: when a day is flipped to pickup and there's exactly one configured
+  // pickup location, auto-select it so the customer immediately sees WHERE to
+  // go (no extra click needed). For multi-location, leave it unset so the
+  // picker prompts the user. Reads delivery via getState to avoid the dep loop.
+  useEffect(() => {
+    const all = useMenuStore.getState().settings.pickupLocations
+    if (all.length !== 1) return
+    const onlyId = all[0].id
+    const dates = activeDays(useCartStore.getState().cart)
+    const fl = useCartStore.getState().fulfillment
+    for (const dDate of dates) {
+      if ((fl[dDate] ?? 'delivery') !== 'pickup') continue
+      const cur = useCartStore.getState().delivery[dDate]
+      if (cur?.pickupLocationId === onlyId) continue
+      setDelivery(dDate, { pickupLocationId: onlyId })
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fulfillment, pickupLocations.length])
   // Toggles red borders on the contact inputs only *after* the user attempts
   // to submit — feels less aggressive than validating while they're typing.
   const [contactAttempted, setContactAttempted] = useState(false)
@@ -152,8 +171,25 @@ export function CheckoutPage() {
     const del = delivery[dDate]
     const label = dayLabelForDate(dDate)
     const amt = dayAmt(cart, dDate)
+    const dayFulfillment = fulfillment[dDate] ?? 'delivery'
 
-    if (!del?.street || !del?.area) {
+    if (dayFulfillment === 'pickup') {
+      // WEC-410: pickup days require a chosen location (auto-selected when
+      // there's only one configured; multi-location must be picked).
+      if (pickupLocations.length === 0) {
+        validationIssues.push(
+          lang === 'el'
+            ? `${label}: Δεν υπάρχουν διαθέσιμα σημεία παραλαβής`
+            : `${label}: No pickup locations available`
+        )
+      } else if (!del?.pickupLocationId && pickupLocations.length > 1) {
+        validationIssues.push(
+          lang === 'el'
+            ? `${label}: Δεν έχει επιλεγεί σημείο παραλαβής`
+            : `${label}: No pickup location selected`
+        )
+      }
+    } else if (!del?.street || !del?.area) {
       validationIssues.push(
         lang === 'el'
           ? `${label}: Δεν έχει επιλεγεί διεύθυνση`
@@ -386,7 +422,11 @@ export function CheckoutPage() {
       const items = cart[dDate] ?? []
       const { from, to } = parseSlot(del?.timeSlot ?? '')
       const ftype = fulfillment[dDate] ?? 'delivery'
-      const pickupLoc = pickupLocations[0]
+      // WEC-410: per-day pickup choice. Falls back to the single configured
+      // location for backwards-compat / single-location auto-select.
+      const pickupLocId = ftype === 'pickup'
+        ? (del?.pickupLocationId ?? (pickupLocations.length === 1 ? pickupLocations[0]?.id : null))
+        : null
 
       return {
         deliveryDate: dDate,
@@ -398,7 +438,7 @@ export function CheckoutPage() {
         addressZip: ftype === 'pickup' ? undefined : del?.zip,
         addressFloor: ftype === 'pickup' ? undefined : del?.floor,
         fulfillmentType: ftype,
-        pickupLocationId: ftype === 'pickup' ? (pickupLoc?.id ?? null) : null,
+        pickupLocationId: pickupLocId,
         items: items.map((item) => ({
           dishId: item.dishId,
           variantId: item.variantId,
@@ -699,7 +739,7 @@ export function CheckoutPage() {
                   </div>
 
                   {/* Address (delivery) OR pickup-location info — never both. */}
-                  {ftype === 'pickup' && pickupLoc ? (
+                  {ftype === 'pickup' ? (
                     <div className="ddb-zone">
                       <div className="ddb-section-hdr">
                         <span className="ddb-section-ico">
@@ -709,13 +749,73 @@ export function CheckoutPage() {
                         </span>
                         {lang === 'el' ? 'ΣΗΜΕΙΟ ΠΑΡΑΛΑΒΗΣ' : 'PICKUP LOCATION'}
                       </div>
-                      <div className="pickup-loc-card">
-                        <div className="pickup-loc-name">{lang === 'el' ? pickupLoc.nameEl : pickupLoc.nameEn}</div>
-                        <div className="pickup-loc-addr">{pickupLoc.address}</div>
-                        {((lang === 'el' ? pickupLoc.hoursNoteEl : pickupLoc.hoursNoteEn) ?? '').length > 0 && (
-                          <div className="pickup-loc-hours">{lang === 'el' ? pickupLoc.hoursNoteEl : pickupLoc.hoursNoteEn}</div>
-                        )}
-                      </div>
+                      {/* WEC-410: render zero/single/multi pickup states explicitly so a
+                          customer in pickup mode always sees WHERE to go (or a
+                          clear contact-us fallback). For multi-location, render a
+                          radio picker and persist the choice per-day. */}
+                      {(() => {
+                        if (pickupLocations.length === 0) {
+                          return (
+                            <div className="pickup-loc-warning">
+                              {lang === 'el'
+                                ? 'Δεν υπάρχουν διαμορφωμένα σημεία παραλαβής. Επικοινώνησε μαζί μας.'
+                                : 'No pickup locations configured. Please contact us.'}
+                            </div>
+                          )
+                        }
+                        const activeId =
+                          delivery[dDate]?.pickupLocationId ??
+                          (pickupLocations.length === 1 ? pickupLocations[0].id : undefined)
+                        const selectedLoc = pickupLocations.find((l) => l.id === activeId)
+                        return (
+                          <>
+                            {pickupLocations.length > 1 && (
+                              <div className="pickup-loc-picker" role="radiogroup">
+                                {pickupLocations.map((loc) => {
+                                  const sel = activeId === loc.id
+                                  return (
+                                    <button
+                                      key={loc.id}
+                                      type="button"
+                                      role="radio"
+                                      aria-checked={sel}
+                                      className={`pickup-loc-opt${sel ? ' selected' : ''}`}
+                                      onClick={() => setDelivery(dDate, { pickupLocationId: loc.id })}
+                                    >
+                                      <div className="pickup-loc-opt-name">{lang === 'el' ? loc.nameEl : loc.nameEn}</div>
+                                      <div className="pickup-loc-opt-addr">{loc.address}</div>
+                                    </button>
+                                  )
+                                })}
+                              </div>
+                            )}
+                            {selectedLoc ? (
+                              <div className="pickup-loc-card">
+                                <div className="pickup-loc-name">{lang === 'el' ? selectedLoc.nameEl : selectedLoc.nameEn}</div>
+                                <div className="pickup-loc-addr">
+                                  {selectedLoc.address}
+                                  {' · '}
+                                  <a
+                                    className="pickup-loc-map"
+                                    href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(selectedLoc.address)}`}
+                                    target="_blank"
+                                    rel="noreferrer noopener"
+                                  >
+                                    {lang === 'el' ? 'Άνοιγμα στον χάρτη ↗' : 'Open in maps ↗'}
+                                  </a>
+                                </div>
+                                {((lang === 'el' ? selectedLoc.hoursNoteEl : selectedLoc.hoursNoteEn) ?? '').length > 0 && (
+                                  <div className="pickup-loc-hours">{lang === 'el' ? selectedLoc.hoursNoteEl : selectedLoc.hoursNoteEn}</div>
+                                )}
+                              </div>
+                            ) : (
+                              <div className="pickup-loc-hint">
+                                {lang === 'el' ? 'Διάλεξε σημείο παραλαβής παραπάνω' : 'Pick a location above'}
+                              </div>
+                            )}
+                          </>
+                        )
+                      })()}
                     </div>
                   ) : (
                     <div className="ddb-zone">

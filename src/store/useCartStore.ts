@@ -30,6 +30,11 @@ export interface DeliveryInfo {
   notes?: string
   timeSlot?: string
   addrId?: string  // ID of the selected saved address (if any)
+  /** WEC-410: pickup-only — settings.pickup_locations[i].id. Auto-set when
+   *  there's only one configured location and the day flips to pickup; the
+   *  multi-location radio picker writes here on user choice. Persisted with
+   *  the rest of delivery so a reload restores the choice. */
+  pickupLocationId?: string
 }
 
 export interface PaymentInfo {
