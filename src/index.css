@@ -1788,6 +1788,10 @@ header {
 .voucher-btn:hover:not(:disabled) { background: var(--green); }
 .voucher-error { font-size: 11px; color: #EF4444; font-weight: 700; margin-top: 2px; }
 .voucher-applied { display: flex; align-items: center; gap: 6px; background: var(--green-pale); border: 1px solid var(--green-light); border-radius: var(--radius-sm); padding: 7px 10px; font-size: 12px; font-weight: 700; color: var(--green-dark); }
+/* WEC-217: single-voucher policy explainer — kills the "silent no-op" when a
+   customer tries to apply a second code. Small, muted, sits right under the
+   active chip in both the cart sidebar and the checkout summary. */
+.voucher-policy { font-size: 10.5px; font-weight: 600; color: var(--text-muted); margin-top: 4px; letter-spacing: 0.2px; }
 .voucher-val { font-weight: 900; margin-left: 2px; }
 .voucher-remove { margin-left: auto; background: none; border: none; cursor: pointer; color: var(--text-muted); font-size: 13px; font-weight: 700; padding: 0 2px; transition: color 0.15s; }
 .voucher-remove:hover { color: #EF4444; }

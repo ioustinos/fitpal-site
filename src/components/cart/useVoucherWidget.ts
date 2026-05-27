@@ -3,6 +3,7 @@ import { useCartStore } from '../../store/useCartStore'
 import { useUIStore } from '../../store/useUIStore'
 import { useAuthStore } from '../../store/useAuthStore'
 import { useMenuStore } from '../../store/useMenuStore'
+import { useToast } from '../ui/Toast'
 import { activeDays, dayAmt, eligibleSubtotal } from '../../lib/helpers'
 
 /**
@@ -31,6 +32,10 @@ export function useVoucherWidget() {
 
   const dishMap = useMenuStore((s) => s.dishMap)
   const catLookup = (id: string) => dishMap[id]?.catId
+  // WEC-402: toast on auto-drop so the customer sees the removal even when
+  // they're not looking at the voucher widget (e.g. after a page reload that
+  // re-validated the persisted voucher against the current cart and rejected).
+  const toast = useToast((s) => s.show)
 
   const [code, setCode] = useState('')
   const [error, setError] = useState('')
@@ -67,14 +72,19 @@ export function useVoucherWidget() {
   useEffect(() => {
     if (!voucher.applied || voucher.minOrder == null) return
     if (rawTotal < voucher.minOrder) {
+      const droppedCode = voucher.code
       removeVoucher()
-      setError(
-        lang === 'el'
-          ? `Απαιτείται ελάχιστη παραγγελία €${voucher.minOrder.toFixed(2)} για αυτό το κουπόνι`
-          : `Minimum order €${voucher.minOrder.toFixed(2)} required for this voucher`,
-      )
+      const msg = lang === 'el'
+        ? `Απαιτείται ελάχιστη παραγγελία €${voucher.minOrder.toFixed(2)} για αυτό το κουπόνι`
+        : `Minimum order €${voucher.minOrder.toFixed(2)} required for this voucher`
+      setError(msg)
+      // WEC-402: also toast so a reload-induced drop (or a drop while the cart
+      // sidebar is closed) is visible — not silent.
+      toast(lang === 'el'
+        ? `Ο κωδικός ${droppedCode} αφαιρέθηκε — ${msg.toLowerCase()}`
+        : `Voucher ${droppedCode} removed — ${msg.toLowerCase()}`)
     }
-  }, [rawTotal, voucher.applied, voucher.minOrder, removeVoucher, lang])
+  }, [rawTotal, voucher.applied, voucher.minOrder, voucher.code, removeVoucher, lang, toast])
 
   // Resolve category ids → labels so the auto-drop message can tell the
   // customer exactly which categories the voucher works on, instead of
@@ -90,6 +100,7 @@ export function useVoucherWidget() {
     const cats = voucher.applicableCategoryIds
     if (!cats || cats.length === 0) return
     if (eligibleNow <= 0) {
+      const droppedCode = voucher.code
       removeVoucher()
       const labels = cats
         .map((id) => {
@@ -98,13 +109,17 @@ export function useVoucherWidget() {
           return lang === 'el' ? c.labelEl : c.labelEn
         })
         .join(', ')
-      setError(
-        lang === 'el'
-          ? `Το κουπόνι εφαρμόζεται μόνο στις εξής κατηγορίες: ${labels}`
-          : `This voucher only applies to: ${labels}`,
-      )
+      const msg = lang === 'el'
+        ? `Το κουπόνι εφαρμόζεται μόνο στις εξής κατηγορίες: ${labels}`
+        : `This voucher only applies to: ${labels}`
+      setError(msg)
+      // WEC-402: also toast so the customer sees the drop even if the cart
+      // sidebar isn't in view at that moment.
+      toast(lang === 'el'
+        ? `Ο κωδικός ${droppedCode} αφαιρέθηκε — ${msg.toLowerCase()}`
+        : `Voucher ${droppedCode} removed — ${msg.toLowerCase()}`)
     }
-  }, [eligibleNow, voucher.applied, voucher.applicableCategoryIds, removeVoucher, lang, categories])
+  }, [eligibleNow, voucher.applied, voucher.applicableCategoryIds, voucher.code, removeVoucher, lang, categories, toast])
 
   return {
     /** Cart-store voucher state (.applied, .code, .type, .value, .minOrder, etc.) */

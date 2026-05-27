@@ -86,7 +86,7 @@ export function OrderSummary() {
                 {fmt(rawTotal)}
               </span>
             </div>
-            <div className="cart-total-row" style={{ marginBottom: 10 }}>
+            <div className="cart-total-row" style={{ marginBottom: 6 }}>
               <span style={{ fontSize: 12, color: 'var(--green)', display: 'flex', alignItems: 'center', gap: 4 }}>
                 <span style={{ fontSize: 10, fontWeight: 900, background: 'var(--green-light)', color: 'var(--green-dark)', padding: '1px 6px', borderRadius: 999 }}>
                   {voucher.code}
@@ -99,6 +99,10 @@ export function OrderSummary() {
               <span style={{ fontSize: 13, fontWeight: 900, color: 'var(--green)' }}>
                 −{fmt(rawTotal - total)}
               </span>
+            </div>
+            {/* WEC-217: single-voucher policy hint (matches CartSidebar). */}
+            <div className="voucher-policy" style={{ marginBottom: 10 }}>
+              {lang === 'el' ? 'Μόνο 1 κουπόνι ανά παραγγελία' : '1 voucher per order'}
             </div>
           </>
         ) : (

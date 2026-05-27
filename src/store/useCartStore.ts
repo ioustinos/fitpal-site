@@ -313,6 +313,13 @@ export const useCartStore = create<CartStore>()(
         cart: state.cart,
         delivery: state.delivery,
         payment: state.payment,
+        // WEC-402: persist the applied voucher across reload so the discount
+        // doesn't silently disappear when the page refreshes (Viva return,
+        // accidental F5, etc.). Stale vouchers are caught by useVoucherWidget's
+        // auto-drop on min_order / category-scope mismatch (now also toasting),
+        // and the server re-validates at submit, so an expired-since-apply
+        // voucher gets a clear error then.
+        voucher: state.voucher,
         lastTouchedAt: state.lastTouchedAt,
       }),
       migrate: () => ({

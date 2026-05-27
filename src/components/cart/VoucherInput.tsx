@@ -15,15 +15,23 @@ export function VoucherInput() {
 
   if (voucher.applied && voucher.code) {
     return (
-      <div className="voucher-applied">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-          <polyline points="20 6 9 17 4 12"/>
-        </svg>
-        <span>{voucher.code}</span>
-        {voucher.type === 'pct' && <span className="voucher-val">-{voucher.value}%</span>}
-        {voucher.type === 'fixed' && <span className="voucher-val">-€{voucher.value?.toFixed(2)}</span>}
-        <button className="voucher-remove" onClick={remove}>✕</button>
-      </div>
+      <>
+        <div className="voucher-applied">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <polyline points="20 6 9 17 4 12"/>
+          </svg>
+          <span>{voucher.code}</span>
+          {voucher.type === 'pct' && <span className="voucher-val">-{voucher.value}%</span>}
+          {voucher.type === 'fixed' && <span className="voucher-val">-€{voucher.value?.toFixed(2)}</span>}
+          <button className="voucher-remove" onClick={remove}>✕</button>
+        </div>
+        {/* WEC-217: single-voucher policy — make it explicit so the customer
+            isn't left wondering why typing a second code does nothing.
+            Decided 2026-05-27: no stacking (industry standard, predictable margin). */}
+        <div className="voucher-policy">
+          {lang === 'el' ? 'Μόνο 1 κουπόνι ανά παραγγελία' : '1 voucher per order'}
+        </div>
+      </>
     )
   }
 
