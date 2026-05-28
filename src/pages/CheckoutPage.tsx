@@ -66,6 +66,13 @@ export function CheckoutPage() {
   const clearDraft = useCartStore((s) => s.clearDraft)
   const user = useAuthStore((s) => s.user)
   const toast = useToast((s) => s.show)
+  // WEC-422: these three MUST be declared above the WEC-410 auto-pickup
+  // useEffect (its dep array reads pickupLocations.length). Previously they
+  // sat ~50 lines below — fine in dev (HMR tolerates the TDZ) but a hard
+  // ReferenceError in the minified production bundle that blanked /checkout.
+  const zones = useMenuStore((s) => s.zones)
+  const minOrder = useMenuStore((s) => s.settings.minOrder)
+  const pickupLocations = useMenuStore((s) => s.settings.pickupLocations)
 
   const [confirmed, setConfirmed] = useState(false)
   const [orderNumber, setOrderNumber] = useState('')
@@ -147,9 +154,8 @@ export function CheckoutPage() {
   const paymentRef = useRef<HTMLDivElement>(null)
   const extrasRef = useRef<HTMLDivElement>(null)
 
-  const zones = useMenuStore((s) => s.zones)
-  const minOrder = useMenuStore((s) => s.settings.minOrder)
-  const pickupLocations = useMenuStore((s) => s.settings.pickupLocations)
+  // WEC-422: zones / minOrder / pickupLocations hoisted to the top hook block
+  // (above the WEC-410 useEffect that uses pickupLocations.length).
   // WEC-336: resolve the long weekday label for an ISO date. Always
   // computes from getDay() of the actual date — never from list index
   // (which was the WEC-122 trap). No longer dependent on the currently-
