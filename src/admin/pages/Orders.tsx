@@ -17,6 +17,10 @@ import { fetchAdminDishes, type AdminDish } from '../../lib/api/adminDishes'
 import { foldGreek } from '../../lib/text'
 
 const STATUS_COLOURS: Record<OrderStatus, string> = {
+  // WEC-420: draft uses the same warm orange as the in-drawer banner so the
+  // list row, the badge and the banner all read as "this isn't a real order
+  // yet" without the admin having to read the word.
+  draft: '#f97316',
   pending: '#f59e0b', confirmed: '#3b82f6', preparing: '#8b5cf6',
   delivering: '#14b8a6', delivered: '#10b981', cancelled: '#ef4444',
 }
@@ -43,7 +47,11 @@ function offeredTransitions(status: OrderStatus): OrderStatus[] {
 }
 
 // WEC-393: action-verb labels for status buttons (coloured by target status).
+// WEC-420: no transition INTO a draft is offered by offeredTransitions(),
+// so the 'draft' label is only here to satisfy the Record<OrderStatus,string>
+// type — it should never be rendered.
 const TRANSITION_LABEL: Record<OrderStatus, string> = {
+  draft: 'Draft',
   pending: 'Make Pending',
   confirmed: 'Confirm',
   preparing: 'Mark Preparing',
@@ -52,7 +60,7 @@ const TRANSITION_LABEL: Record<OrderStatus, string> = {
   cancelled: 'Cancel',
 }
 
-type Preset = 'all' | 'today' | 'pending-payment' | 'this-week'
+type Preset = 'all' | 'today' | 'pending-payment' | 'this-week' | 'drafts'
 
 export function Orders() {
   const user = useAuthStore((s) => s.user)
@@ -71,7 +79,14 @@ export function Orders() {
   async function refresh() {
     setLoading(true); setErr(null)
     const filters: OrderFilters = { search: search.trim() || undefined }
-    if (filterStatus.length) filters.status = filterStatus
+    // WEC-420: Drafts tab. Forces status=['draft'] (overriding any user-picked
+    // Status filter for this tab); other presets default-exclude drafts via
+    // the API's neq guard (WEC-419).
+    if (preset === 'drafts') {
+      filters.status = ['draft']
+    } else if (filterStatus.length) {
+      filters.status = filterStatus
+    }
     if (filterPayment.length) filters.paymentStatus = filterPayment
     const today = new Date().toISOString().slice(0, 10)
     if (preset === 'today') { filters.deliveryDateFrom = today; filters.deliveryDateTo = today }
@@ -122,6 +137,9 @@ export function Orders() {
           { k: 'today', label: "Today's deliveries" },
           { k: 'this-week', label: 'This week' },
           { k: 'pending-payment', label: 'Pending payment' },
+          // WEC-420: Drafts tab — in-progress checkouts that haven't been
+          // submitted yet. Excluded from every other view.
+          { k: 'drafts', label: 'Drafts' },
         ] as { k: Preset; label: string }[]).map((p) => (
           <button key={p.k} className={`admin-pill${preset === p.k ? ' on' : ''}`} onClick={() => setPreset(p.k)}>
             {p.label}
@@ -330,43 +348,61 @@ function OrderDrawer({
 
         {order && (
           <>
+            {/* WEC-420: Drafts are in-progress checkouts — the customer hasn't
+                submitted yet. Surface a clear banner + hide status-transition
+                buttons / payment changes / Refund tab so admins don't act on
+                a draft as if it were a real order. */}
+            {order.status === 'draft' && (
+              <div className="admin-error-banner" style={{ margin: '10px 20px 0', background: '#FFF7ED', borderColor: '#FED7AA', color: '#9A3412' }}>
+                <strong>Draft</strong> — in-progress checkout, not yet submitted. Read-only view; no payment actions available.
+              </div>
+            )}
+
             {/* Status bar */}
             <div className="admin-order-status-bar">
               <div className="admin-od-statusbar-badges">
                 <span className="admin-od-badgewrap"><span className="admin-od-badgecap">Order</span><StatusBadge status={order.status} /></span>
-                <span className="admin-od-badgewrap"><span className="admin-od-badgecap">Payment</span><PaymentBadge status={order.paymentStatus} /></span>
+                {/* Payment status is meaningless on a draft — hide. */}
+                {order.status !== 'draft' && (
+                  <span className="admin-od-badgewrap"><span className="admin-od-badgecap">Payment</span><PaymentBadge status={order.paymentStatus} /></span>
+                )}
               </div>
-              <div className="admin-status-actions">
-                {offeredTransitions(order.status).map((n) => (
-                  <button
-                    key={n}
-                    className={n === 'cancelled' ? 'admin-btn-danger' : 'admin-od-statusbtn'}
-                    style={n === 'cancelled' ? undefined : { background: `${STATUS_COLOURS[n]}1f`, borderColor: `${STATUS_COLOURS[n]}66`, color: STATUS_COLOURS[n] }}
-                    disabled={working}
-                    onClick={() => changeStatus(n)}
-                  >
-                    {TRANSITION_LABEL[n]}
-                  </button>
-                ))}
-                <details className="admin-filter-details">
-                  <summary className="admin-btn-ghost">Payment…</summary>
-                  <div className="admin-filter-body">
-                    {PAYMENT_STATUS_VALUES.filter((p) => p !== order.paymentStatus).map((p) => (
-                      <button key={p} className="admin-row-btn" disabled={working} onClick={() => changePayment(p)}>
-                        → {p}
-                      </button>
-                    ))}
-                  </div>
-                </details>
-              </div>
+              {order.status !== 'draft' && (
+                <div className="admin-status-actions">
+                  {offeredTransitions(order.status).map((n) => (
+                    <button
+                      key={n}
+                      className={n === 'cancelled' ? 'admin-btn-danger' : 'admin-od-statusbtn'}
+                      style={n === 'cancelled' ? undefined : { background: `${STATUS_COLOURS[n]}1f`, borderColor: `${STATUS_COLOURS[n]}66`, color: STATUS_COLOURS[n] }}
+                      disabled={working}
+                      onClick={() => changeStatus(n)}
+                    >
+                      {TRANSITION_LABEL[n]}
+                    </button>
+                  ))}
+                  <details className="admin-filter-details">
+                    <summary className="admin-btn-ghost">Payment…</summary>
+                    <div className="admin-filter-body">
+                      {PAYMENT_STATUS_VALUES.filter((p) => p !== order.paymentStatus).map((p) => (
+                        <button key={p} className="admin-row-btn" disabled={working} onClick={() => changePayment(p)}>
+                          → {p}
+                        </button>
+                      ))}
+                    </div>
+                  </details>
+                </div>
+              )}
             </div>
 
             <nav className="admin-order-tabs">
-              {(['details', 'refund', 'timeline'] as const).map((t) => (
-                <button key={t} className={`admin-tab${tab === t ? ' active' : ''}`} onClick={() => setTab(t)}>
-                  {t[0].toUpperCase() + t.slice(1)}
-                </button>
-              ))}
+              {(['details', 'refund', 'timeline'] as const)
+                // WEC-420: Refund tab makes no sense on a draft (nothing was paid).
+                .filter((t) => !(t === 'refund' && order.status === 'draft'))
+                .map((t) => (
+                  <button key={t} className={`admin-tab${tab === t ? ' active' : ''}`} onClick={() => setTab(t)}>
+                    {t[0].toUpperCase() + t.slice(1)}
+                  </button>
+                ))}
             </nav>
 
             {/* WEC-361: Overview + Items + Delivery are one scrollable screen.

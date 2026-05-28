@@ -2,7 +2,13 @@ import { supabase } from '../supabase'
 
 // ─── Enum values (mirror DB) ──────────────────────────────────────────────
 
-export type OrderStatus = 'pending' | 'confirmed' | 'preparing' | 'delivering' | 'delivered' | 'cancelled'
+// WEC-415/420: 'draft' is an in-progress checkout snapshot — has its own
+// preset in the admin Orders list and is excluded from every other view.
+// It's not a "real" status admins transition into, so it's deliberately
+// omitted from ORDER_STATUS_VALUES (the checkbox filter row) and from
+// VALID_NEXT_STATUS (there's no transition INTO a draft, only OUT of it,
+// and that's done by the customer hitting Submit — handled by submit-order).
+export type OrderStatus = 'draft' | 'pending' | 'confirmed' | 'preparing' | 'delivering' | 'delivered' | 'cancelled'
 export type PaymentStatus = 'pending' | 'paid' | 'failed' | 'refunded'
 export type PaymentMethod = 'cash' | 'card' | 'link' | 'transfer' | 'wallet'
 
@@ -11,6 +17,7 @@ export const PAYMENT_STATUS_VALUES: PaymentStatus[] = ['pending', 'paid', 'faile
 
 /** Valid forward transitions for order status (admin can always force-cancel). */
 export const VALID_NEXT_STATUS: Record<OrderStatus, OrderStatus[]> = {
+  draft:      [],
   pending:    ['confirmed', 'cancelled'],
   confirmed:  ['preparing', 'cancelled'],
   preparing:  ['delivering', 'cancelled'],
