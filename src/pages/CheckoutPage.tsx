@@ -123,18 +123,21 @@ export function CheckoutPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fulfillment, pickupLocations.length])
 
-  // ── WEC-417: draft persistence (triggers A + B) ───────────────────────────
-  // A: on mount, seed/save the initial draft so support has visibility from
-  //    the moment a customer lands on /checkout (even before they edit).
+  // ── WEC-417 / WEC-423: draft persistence (triggers B + C) ────────────────
   // B: debounced 2s on changes to cart / addresses / time slots / payment /
-  //    voucher / fulfillment / customer contact. Single debounced effect.
+  //    voucher / fulfillment / customer contact. Also fires on mount (React
+  //    runs every effect on initial render), so B is the *only* save we need
+  //    on /checkout entry — no separate "mount save".
   // C is in handleSubmit below — synchronous pre-submit save so a Viva 500
   //    leaves an intact draft an admin can recover.
+  //
+  // WEC-423: trigger A (`useEffect(() => saveDraft(), [])`) was removed.
+  // It raced trigger B on the first render: both fired before either had a
+  // draft_id, so the server treated them as two inserts and produced an
+  // orphan row that no future save touched. B alone is sufficient; the 2 s
+  // first-save delay is acceptable.
+  //
   // Fail-soft: drafts never block the UI; the cart store is authoritative.
-  useEffect(() => {
-    void saveDraft({ contact })
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
   const draftDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   useEffect(() => {
     if (draftDebounceRef.current) clearTimeout(draftDebounceRef.current)

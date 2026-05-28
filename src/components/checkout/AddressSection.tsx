@@ -111,16 +111,25 @@ export function AddressSection({ dayDate }: AddressSectionProps) {
     prevStreetRef.current = current.street
   }, [current?.street, current?.area, current?.zip, current?.floor, current?.doorbell, current?.notes]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // When new-address form fields change AND are valid, auto-apply to delivery.
-  // Zone validity is strictly postcode-based.
+  // When new-address form fields change, persist whatever's been typed to the
+  // cart store — even if the address isn't complete or in-zone yet.
+  //
+  // WEC-424: previously this bailed out unless ALL of street/area/zip were
+  // filled AND the zip was in a delivery zone. That meant drafts captured
+  // NULL for every field until the address was fully valid, so abandoned
+  // carts lost the postcode — the single most useful field for support
+  // ("could we have delivered to them?"). Now we always push the partial
+  // state; the in-zone status indicator is purely UI. Final validation
+  // still runs server-side at submit-order time.
+  //
+  // Trigger B's 2 s debounce already collapses keystroke-level Zustand
+  // writes into a single save-draft per settle, so the extra write traffic
+  // is harmless.
   const autoApplyForm = useCallback(() => {
     if (mode !== 'form') return
-    if (!form.street || !form.area || !form.zip) return
-    if (!zipInZone(form.zip, zones)) return
-
     setDelivery(dayDate, {
-      street: form.street,
-      area: form.area,
+      street: form.street || '',
+      area: form.area || '',
       zip: form.zip || '',
       floor: form.floor || '',
       doorbell: form.doorbell || '',
