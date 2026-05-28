@@ -40,9 +40,12 @@ export async function fetchDashboardStats(): Promise<{ data: DashboardStats | nu
       .eq('delivery_date', today)
       .is('cancelled_at', null), // WEC-389: don't count cancelled days
     // orders where status = 'pending' OR payment_status = 'pending'
+    // WEC-419: drafts never count toward "needs attention" — they're in-progress
+    // checkouts, not orders that the kitchen has to act on.
     supabase
       .from('orders')
       .select('id', { count: 'exact', head: true })
+      .neq('status', 'draft')
       .or('status.eq.pending,payment_status.eq.pending'),
     // Active weekly menu that covers today
     supabase

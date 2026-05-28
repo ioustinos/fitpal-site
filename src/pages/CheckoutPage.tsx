@@ -20,6 +20,7 @@ import { updateProfile } from '../lib/api/auth'
 import { useMenuStore } from '../store/useMenuStore'
 import { useToast } from '../components/ui/Toast'
 import { submitOrder } from '../lib/api/orders'
+import { saveDraft } from '../lib/api/draft'
 import { useImpersonationStore } from '../store/useImpersonationStore'
 import { track } from '../lib/tracking'
 
@@ -61,6 +62,8 @@ export function CheckoutPage() {
   const setDelivery = useCartStore((s) => s.setDelivery)
   const setPayment = useCartStore((s) => s.setPayment)
   const setFulfillment = useCartStore((s) => s.setFulfillment)
+  const draftId = useCartStore((s) => s.draftId)
+  const clearDraft = useCartStore((s) => s.clearDraft)
   const user = useAuthStore((s) => s.user)
   const toast = useToast((s) => s.show)
 
@@ -112,6 +115,30 @@ export function CheckoutPage() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fulfillment, pickupLocations.length])
+
+  // ── WEC-417: draft persistence (triggers A + B) ───────────────────────────
+  // A: on mount, seed/save the initial draft so support has visibility from
+  //    the moment a customer lands on /checkout (even before they edit).
+  // B: debounced 2s on changes to cart / addresses / time slots / payment /
+  //    voucher / fulfillment / customer contact. Single debounced effect.
+  // C is in handleSubmit below — synchronous pre-submit save so a Viva 500
+  //    leaves an intact draft an admin can recover.
+  // Fail-soft: drafts never block the UI; the cart store is authoritative.
+  useEffect(() => {
+    void saveDraft({ contact })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+  const draftDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  useEffect(() => {
+    if (draftDebounceRef.current) clearTimeout(draftDebounceRef.current)
+    draftDebounceRef.current = setTimeout(() => {
+      void saveDraft({ contact })
+    }, 2000)
+    return () => {
+      if (draftDebounceRef.current) clearTimeout(draftDebounceRef.current)
+    }
+  }, [cart, delivery, fulfillment, payment, voucher, contact])
+
   // Toggles red borders on the contact inputs only *after* the user attempts
   // to submit — feels less aggressive than validating while they're typing.
   const [contactAttempted, setContactAttempted] = useState(false)
@@ -455,6 +482,14 @@ export function CheckoutPage() {
     // from the impersonation store automatically.
     const isImpersonating = useImpersonationStore.getState().active
 
+    // WEC-417 trigger C: synchronous pre-submit save. Captures the final state
+    // BEFORE the network/Viva call so a 500 / timeout / 3DS bounce leaves an
+    // intact draft an admin can recover. Awaited so the draft id we forward
+    // to submit-order is the freshest one. saveDraft is fail-soft, so a
+    // transient draft failure still lets us proceed (cart is authoritative).
+    const presubmit = await saveDraft({ contact })
+    const draftIdForPromote = presubmit?.draftId ?? draftId ?? undefined
+
     const { data, error, validationErrors } = await submitOrder({
       userId: user?.id,
       customerName: contactName,
@@ -471,6 +506,8 @@ export function CheckoutPage() {
       notes: payment.notes,
       voucherCode: voucher.applied ? voucher.code : undefined,
       days: dayPayloads,
+      // WEC-418: promote this draft (idempotent via WHERE status='draft' on the server).
+      draftId: draftIdForPromote,
     })
 
     setSubmitting(false)
@@ -539,6 +576,11 @@ export function CheckoutPage() {
     }
 
     setOrderNumber(data?.orderNumber ?? '')
+
+    // WEC-417: the draft just promoted to a real order on the server (or this
+    // was a legacy no-draft submit). Clear the client draft id so a refresh /
+    // new tab doesn't try to keep updating a now-pending row.
+    clearDraft()
 
     // ─── Viva redirect (WEC-171) ────────────────────────────────────────
     // For `card` only — customer pays in-session, redirect to Viva's hosted

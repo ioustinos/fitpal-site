@@ -148,7 +148,13 @@ export async function listAdminOrders(f: OrderFilters): Promise<{ data: AdminOrd
   }
 
   let q = supabase.from('orders').select('*').order('created_at', { ascending: false })
-  if (f.status && f.status.length) q = q.in('status', f.status)
+  // WEC-419: default view excludes drafts; the Drafts tab opts in by passing
+  // ['draft'] in f.status, which then routes through the `in` filter below.
+  if (f.status && f.status.length) {
+    q = q.in('status', f.status)
+  } else {
+    q = q.neq('status', 'draft')
+  }
   if (f.paymentStatus && f.paymentStatus.length) q = q.in('payment_status', f.paymentStatus)
   if (f.createdFrom) q = q.gte('created_at', `${f.createdFrom}T00:00:00Z`)
   if (f.createdTo) q = q.lte('created_at', `${f.createdTo}T23:59:59Z`)

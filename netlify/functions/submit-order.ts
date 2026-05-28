@@ -42,6 +42,10 @@ interface OrderPayload {
   notes?: string
   voucherCode?: string
   days: DayPayload[]
+  // WEC-418: if set, submit-order promotes the draft (UPDATE … WHERE status='draft')
+  // instead of inserting a fresh row. Side effects (voucher_uses, payment_links,
+  // Viva, Klaviyo) run on the promote path, NOT on draft creation.
+  draftId?: string
 }
 
 interface DayPayload {
@@ -717,37 +721,90 @@ export default async (request: Request) => {
     // left empty so it stays a free-text field for the team (kitchen /
     // packaging / management), NOT provenance.
 
-    const { data: orderRow, error: oErr } = await supabase
-      .from('orders')
-      .insert({
-        order_number: orderNumber,
-        user_id: userId,
-        customer_name: body.customerName,
-        customer_email: body.customerEmail,
-        customer_phone: body.customerPhone ?? null,
-        subtotal: orderSubtotal,
-        discount_amount: discountAmount,
-        total: orderTotal,
-        payment_method: body.paymentMethod,
-        payment_status: 'pending',
-        status: 'pending',
-        cutlery: body.cutlery,
-        invoice_type: body.invoiceType ?? null,
-        invoice_name: body.invoiceName ?? null,
-        invoice_vat: body.invoiceVat ?? null,
-        notes: body.notes ?? null,
-        admin_order_id: adminUserId,
-        admin_notes: null,
-      })
-      .select('id')
-      .single()
-
-    if (oErr || !orderRow) {
-      console.error('Order insert error:', oErr)
-      return Response.json({ error: 'Failed to create order' }, { status: 500 })
+    // WEC-418: promote-from-draft path. If the client sent a draft_id, atomically
+    // UPDATE that row to status='pending' (guarded by WHERE status='draft' for
+    // idempotency — a concurrent retry won't double-promote). Otherwise fall
+    // back to the legacy INSERT path (any client/admin flow without a draft).
+    const orderRecord = {
+      order_number: orderNumber,
+      user_id: userId,
+      customer_name: body.customerName,
+      customer_email: body.customerEmail,
+      customer_phone: body.customerPhone ?? null,
+      subtotal: orderSubtotal,
+      discount_amount: discountAmount,
+      total: orderTotal,
+      payment_method: body.paymentMethod,
+      payment_status: 'pending',
+      status: 'pending',
+      cutlery: body.cutlery,
+      invoice_type: body.invoiceType ?? null,
+      invoice_name: body.invoiceName ?? null,
+      invoice_vat: body.invoiceVat ?? null,
+      notes: body.notes ?? null,
+      admin_order_id: adminUserId,
+      admin_notes: null,
+      updated_at: new Date().toISOString(),
     }
 
-    const orderId = orderRow.id
+    let orderId: string
+    if (body.draftId) {
+      // First, ownership sanity-check: confirm the draft is owned by this caller
+      // (or no user_id if guest). A foreign draft_id must not be promoted.
+      const { data: existingDraft, error: selErr } = await supabase
+        .from('orders')
+        .select('id, status, user_id')
+        .eq('id', body.draftId)
+        .maybeSingle()
+      if (selErr) {
+        console.error('Draft lookup error:', selErr)
+        return Response.json({ error: 'Failed to load draft' }, { status: 500 })
+      }
+      if (!existingDraft) {
+        return Response.json({ error: 'Draft not found' }, { status: 404 })
+      }
+      const draftOwner = (existingDraft as { user_id: string | null }).user_id
+      if (draftOwner && draftOwner !== userId) {
+        return Response.json({ error: 'Draft not owned by caller' }, { status: 403 })
+      }
+      if ((existingDraft as { status: string }).status !== 'draft') {
+        // Idempotent retry — already promoted. Return the existing id so the
+        // caller doesn't loop.
+        orderId = (existingDraft as { id: string }).id
+      } else {
+        const { data: promoted, error: upErr } = await supabase
+          .from('orders')
+          .update(orderRecord)
+          .eq('id', body.draftId)
+          .eq('status', 'draft')           // race guard — exactly one row flips
+          .select('id')
+          .maybeSingle()
+        if (upErr) {
+          console.error('Draft promote error:', upErr)
+          return Response.json({ error: 'Failed to promote draft' }, { status: 500 })
+        }
+        if (!promoted) {
+          // Lost the race — another concurrent call already promoted it.
+          orderId = (existingDraft as { id: string }).id
+        } else {
+          orderId = (promoted as { id: string }).id
+          // Clear the draft's child_orders so we can re-insert from the
+          // authoritative payload below. CASCADE removes order_items too.
+          await supabase.from('child_orders').delete().eq('order_id', orderId)
+        }
+      }
+    } else {
+      const { data: orderRow, error: oErr } = await supabase
+        .from('orders')
+        .insert(orderRecord)
+        .select('id')
+        .single()
+      if (oErr || !orderRow) {
+        console.error('Order insert error:', oErr)
+        return Response.json({ error: 'Failed to create order' }, { status: 500 })
+      }
+      orderId = orderRow.id
+    }
 
     // ─── Insert child orders + items ────────────────────────────────────
 

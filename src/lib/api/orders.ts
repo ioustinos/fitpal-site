@@ -154,6 +154,7 @@ export async function fetchUserOrders(userId: string, limit = 50, offset = 0): P
     .from('orders')
     .select('*')
     .eq('user_id', userId)
+    .neq('status', 'draft')                 // WEC-419: drafts never show in My Orders
     .order('created_at', { ascending: false })
     .range(offset, offset + limit - 1)
 
@@ -400,6 +401,9 @@ export interface SubmitOrderPayload {
   notes?: string
   voucherCode?: string
   days: SubmitDayPayload[]
+  // WEC-418: if set, submit-order promotes this draft (UPDATE … WHERE
+  // status='draft' for idempotency) instead of inserting a fresh row.
+  draftId?: string
 }
 
 export interface SubmitDayPayload {

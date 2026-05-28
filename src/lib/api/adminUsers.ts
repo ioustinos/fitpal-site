@@ -91,10 +91,12 @@ export async function fetchAdminUsers(opts?: {
 
   // Parallel fetches: orders (count + sum), wallets, admin_users.
   const [ordersRes, walletsRes, adminsRes] = await Promise.all([
+    // WEC-419: drafts don't count as orders for the users-list stats.
     supabase
       .from('orders')
       .select('user_id, total, payment_status')
-      .in('user_id', ids),
+      .in('user_id', ids)
+      .neq('status', 'draft'),
     supabase
       .from('wallets')
       .select('user_id, balance, active, admin_managed')
@@ -173,12 +175,14 @@ export async function fetchAdminUserDetail(userId: string): Promise<{
     supabase.from('wallets')
       .select('id, active_plan_id, balance, base_balance, bonus_balance, auto_renew, next_renewal, active, admin_managed')
       .eq('user_id', userId).maybeSingle(),
+    // WEC-419: drafts hidden from the user-detail orders list + lifetime stats.
     supabase.from('orders')
       .select('id, order_number, total, status, payment_status, payment_method, created_at')
-      .eq('user_id', userId).order('created_at', { ascending: false }).limit(20),
+      .eq('user_id', userId).neq('status', 'draft')
+      .order('created_at', { ascending: false }).limit(20),
     supabase.from('orders')
       .select('total, payment_status')
-      .eq('user_id', userId),
+      .eq('user_id', userId).neq('status', 'draft'),
     supabase.from('admin_users').select('user_id').eq('user_id', userId).maybeSingle(),
   ])
 

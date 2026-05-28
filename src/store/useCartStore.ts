@@ -94,6 +94,19 @@ interface CartStore {
    * 0 means "never touched" → reconcile treats it the same as fresh.
    */
   lastTouchedAt: number
+  /**
+   * WEC-417: server-side draft id for this checkout session. Set by the first
+   * /api/save-draft call (trigger A) and reused on subsequent saves (triggers
+   * B/C) plus the eventual submit-order promote. Cleared on successful order
+   * placement. Persisted with the cart so a same-tab reload mid-checkout
+   * reuses the same draft (a new tab generates its own).
+   */
+  draftId: string | null
+  /** Epoch ms of the last successful save-draft response — debug visibility. */
+  draftLastSavedAt: number | null
+  setDraftId: (id: string | null) => void
+  setDraftLastSavedAt: (t: number | null) => void
+  clearDraft: () => void
 
   addItem: (dayDate: DateKey, item: CartItem) => void
   updateItem: (dayDate: DateKey, itemIndex: number, patch: Partial<CartItem>) => void
@@ -160,6 +173,11 @@ export const useCartStore = create<CartStore>()(
   voucher: defaultVoucher,
   voucherLoading: false,
   lastTouchedAt: 0,
+  draftId: null,
+  draftLastSavedAt: null,
+  setDraftId: (id) => set({ draftId: id }),
+  setDraftLastSavedAt: (t) => set({ draftLastSavedAt: t }),
+  clearDraft: () => set({ draftId: null, draftLastSavedAt: null }),
 
   addItem: (dayDate, newItem) => {
     set((state) => {
@@ -326,6 +344,11 @@ export const useCartStore = create<CartStore>()(
         // voucher gets a clear error then.
         voucher: state.voucher,
         lastTouchedAt: state.lastTouchedAt,
+        // WEC-417: persist the server-side draft id so a same-tab reload
+        // mid-checkout continues writing to the same draft instead of
+        // orphaning the old one and creating a duplicate.
+        draftId: state.draftId,
+        draftLastSavedAt: state.draftLastSavedAt,
       }),
       migrate: () => ({
         cart: {},
