@@ -5,23 +5,22 @@
 // be completed without anyone fetching VIVA_CLIENT_ID/SECRET from Netlify by
 // hand — the function already has them at runtime.
 //
-// Auth: shared-secret bearer header. Uses VIVA_INTERNAL_TOKEN (same env var
-// the dev-only viva-create-order wrapper uses). NEVER set this in prod.
+// Auth: none. These are demo-merchant credentials reading demo-merchant data.
+// The prod guard below (CONTEXT === 'production' → 404) is the only fence.
+// When prod goes live with real creds, re-add a bearer-token gate before
+// flipping the prod guard off.
 //
 // Usage:
-//   curl -H "Authorization: Bearer $VIVA_INTERNAL_TOKEN" \
-//     "https://dev--fitpal-order.netlify.app/api/viva-probe?codes=A,B,C"
+//   curl "https://dev--fitpal-order.netlify.app/api/viva-probe?codes=A,B,C"
 //
 // Returns:
-//   { results: [ { orderCode, transactions: [{transactionId, statusId, amount}] }, ... ] }
+//   { anyPaid, results: [ { orderCode, transactions: [{transactionId, statusId, amount}] } ] }
 //
 // Side effects: NONE. No DB writes, no Viva mutations. Strictly a GET-read.
 
 import { getVivaAccessToken } from '../lib/viva/auth'
 import { getVivaCreds } from '../lib/viva/env'
 import { corsHeaders } from '../lib/cors'
-
-const INTERNAL_TOKEN = process.env.VIVA_INTERNAL_TOKEN ?? ''
 
 interface VivaTx {
   transactionId?: string
@@ -40,18 +39,6 @@ export default async (request: Request) => {
   // Netlify automatically — 'production' for the main branch deploy.
   const isProd = process.env.VIVA_ENV === 'prod' || process.env.CONTEXT === 'production'
   if (isProd) return new Response('Not found', { status: 404 })
-
-  if (!INTERNAL_TOKEN) {
-    return Response.json(
-      { error: 'VIVA_INTERNAL_TOKEN env var not configured' },
-      { status: 500, headers: cors },
-    )
-  }
-  const auth = request.headers.get('authorization') ?? ''
-  const provided = auth.toLowerCase().startsWith('bearer ') ? auth.slice(7) : ''
-  if (provided !== INTERNAL_TOKEN) {
-    return Response.json({ error: 'Unauthorized' }, { status: 401, headers: cors })
-  }
 
   let codes: string[] = []
   try {
