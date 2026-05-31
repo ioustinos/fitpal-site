@@ -43,24 +43,28 @@ export const DEFAULT_WALLET_SETTINGS: WalletSettings = {
   // ────────────────────────────────────────────────────────────
   // Macro split (P/C/F) by user goal. Same split applied to
   // every included meal in V1; per-meal overrides come later.
+  // Source: head dietitian Νένα (2026-05-08 spec).
   // ────────────────────────────────────────────────────────────
   macroSplitByGoal: {
-    lose:     { p: 35, c: 35, f: 30 },
-    maintain: { p: 25, c: 50, f: 25 },
-    gain:     { p: 30, c: 50, f: 20 },
+    lose:     { p: 25, c: 45, f: 30 },  // -500 kcal/day
+    maintain: { p: 20, c: 50, f: 30 },
+    gain:     { p: 30, c: 50, f: 20 },  // +300 kcal/day
   },
 
   // ────────────────────────────────────────────────────────────
-  // Calorie formula — Mifflin-St Jeor BMR × activity × goal adj
+  // Calorie formula — Mifflin-St Jeor BMR × PAL × goal adj
+  // PAL values from head dietitian Νένα. 5th tier (very_active)
+  // kept in the type/calculator but not surfaced in the UI per
+  // WEC-360 — dietitian's table only covers 4 levels.
   // ────────────────────────────────────────────────────────────
   calorieFormula: {
     formula: 'mifflin_st_jeor',
     activityMultipliers: {
-      sedentary:   1.2,
-      light:       1.375,
-      moderate:    1.55,
-      active:      1.725,
-      very_active: 1.9,
+      sedentary:   1.2,    // Καθιστική
+      light:       1.4,    // Ελαφριά
+      moderate:    1.5,    // Μέτρια
+      active:      1.7,    // Πολύ δραστήριος
+      very_active: 1.9,    // (UI-hidden; legacy)
     },
     goalAdjustments: {
       lose:     -500,
