@@ -11,21 +11,33 @@ export const DEFAULT_WALLET_SETTINGS: WalletSettings = {
   // ────────────────────────────────────────────────────────────
   // Pricing matrix — derived from existing dish data via regression
   // (Ioustinos's price-calc chat). Both forms stored; `active` decides.
+  // Shape: macro × meal grid (3×4 = 12 values per form) + 4 intercepts
+  // + kcalPerGram biology constants. Mirrors the admin grid editor.
   // ────────────────────────────────────────────────────────────
   pricingMatrix: {
     active: 'perKcal',
+    // € per gram of <macro> at <meal>
     perGram: {
-      breakfast: { i: 3.2438, p: 0.059611, c: 0.000640, f: 0.033241 },
-      lunch:     { i: 6.6102, p: 0.083625, c: -0.034411, f: 0.078906 },
-      dinner:    { i: 6.3362, p: 0.072036, c: -0.005313, f: 0.012452 },
-      snack:     { i: 2.4800, p: 0.027286, c: 0.006719, f: -0.013487 },
+      p: { breakfast:  0.059611, lunch:  0.083625, dinner:  0.072036, snack:  0.027286 },
+      c: { breakfast:  0.000640, lunch: -0.034411, dinner: -0.005313, snack:  0.006719 },
+      f: { breakfast:  0.033241, lunch:  0.078906, dinner:  0.012452, snack: -0.013487 },
     },
+    // € per kcal of <macro> at <meal> (= perGram ÷ kcalPerGram)
     perKcal: {
-      breakfast: { i: 3.2438, p: 0.014903, c: 0.000160, f: 0.003693 },
-      lunch:     { i: 6.6102, p: 0.020906, c: -0.008603, f: 0.008767 },
-      dinner:    { i: 6.3362, p: 0.018009, c: -0.001328, f: 0.001384 },
-      snack:     { i: 2.4800, p: 0.006822, c: 0.001680, f: -0.001499 },
+      p: { breakfast:  0.014903, lunch:  0.020906, dinner:  0.018009, snack:  0.006822 },
+      c: { breakfast:  0.000160, lunch: -0.008603, dinner: -0.001328, snack:  0.001680 },
+      f: { breakfast:  0.003693, lunch:  0.008767, dinner:  0.001384, snack: -0.001499 },
     },
+    // Per-meal fixed floor cost (€)
+    intercepts: {
+      breakfast: 3.2438,
+      lunch:     6.6102,
+      dinner:    6.3362,
+      snack:     2.4800,
+    },
+    // Biology: kcal yielded by 1g of each macro. Configurable but
+    // realistically never changes from 4/4/9.
+    kcalPerGram: { p: 4, c: 4, f: 9 },
   },
 
   // ────────────────────────────────────────────────────────────
@@ -94,7 +106,11 @@ export const DEFAULT_WALLET_SETTINGS: WalletSettings = {
 }
 
 // ────────────────────────────────────────────────────────────
-// kcal per gram by macro (biology constants)
+// kcal per gram by macro (biology constants — fallback only)
+// The canonical source is now `settings.pricingMatrix.kcalPerGram`;
+// this constant is kept so legacy callers without a settings object
+// still work, and so the calculator can fall back if the field is
+// missing from a stale settings row.
 // ────────────────────────────────────────────────────────────
 export const KCAL_PER_GRAM = {
   p: 4,

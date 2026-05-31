@@ -16,8 +16,8 @@
 //   wallet_min_amount_cents      (returned separately)
 
 import { createClient, SupabaseClient } from '@supabase/supabase-js'
-import type { WalletSettings, PaymentMethod } from '../../../src/lib/wallet/types'
-import { DEFAULT_WALLET_SETTINGS } from '../../../src/lib/wallet/constants'
+import type { WalletSettings, PaymentMethod, MealKey, Macro } from '../../../src/lib/wallet/types'
+import { DEFAULT_WALLET_SETTINGS, KCAL_PER_GRAM } from '../../../src/lib/wallet/constants'
 
 const SUPABASE_URL = process.env.VITE_SUPABASE_URL ?? ''
 const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY ?? ''
@@ -95,7 +95,7 @@ export async function loadWalletConfig(opts: { force?: boolean } = {}): Promise<
   for (const row of data ?? []) map.set(row.key, row.value)
 
   const settings: WalletSettings = {
-    pricingMatrix:    (map.get('wallet_pricing_matrix')      as WalletSettings['pricingMatrix'])    ?? DEFAULT_WALLET_SETTINGS.pricingMatrix,
+    pricingMatrix:    normalizePricingMatrix(map.get('wallet_pricing_matrix')),
     mealSplit:        (map.get('wallet_meal_split')          as WalletSettings['mealSplit'])        ?? DEFAULT_WALLET_SETTINGS.mealSplit,
     macroSplitByGoal: (map.get('wallet_macro_split_by_goal') as WalletSettings['macroSplitByGoal']) ?? DEFAULT_WALLET_SETTINGS.macroSplitByGoal,
     calorieFormula:   (map.get('wallet_calorie_formula')     as WalletSettings['calorieFormula'])   ?? DEFAULT_WALLET_SETTINGS.calorieFormula,
@@ -147,6 +147,81 @@ function pickFirstBank(raw: unknown): BankTransferInfo {
     }
   }
   return fallback
+}
+
+/**
+ * Accepts either:
+ *  - the new shape: { active, perGram: {p:{b,l,d,s},c:{...},f:{...}}, perKcal:{...}, intercepts:{b,l,d,s}, kcalPerGram:{p,c,f} }
+ *  - the legacy shape: { active, perGram: {breakfast:{i,p,c,f}, lunch:{...}, ...}, perKcal:{...} }
+ *
+ * In both cases returns the new shape. Used at load time so the calculator
+ * never has to know about the legacy nesting. The migration in
+ * supabase/migrations/wec_wallet_pricing_matrix_reshape.sql writes the new
+ * shape back into the DB once; until that runs, this normalizer covers it.
+ */
+function normalizePricingMatrix(raw: unknown): WalletSettings['pricingMatrix'] {
+  const fallback = DEFAULT_WALLET_SETTINGS.pricingMatrix
+  if (!raw || typeof raw !== 'object') return fallback
+  const obj = raw as Record<string, unknown>
+
+  // New shape: perGram.p / perGram.c / perGram.f are keyed by macro and
+  // contain {breakfast,lunch,dinner,snack} objects.
+  const perGramObj = (obj.perGram as Record<string, unknown>) ?? {}
+  const newShapeHit =
+    perGramObj &&
+    typeof perGramObj === 'object' &&
+    'p' in perGramObj &&
+    'c' in perGramObj &&
+    'f' in perGramObj &&
+    perGramObj.p &&
+    typeof perGramObj.p === 'object' &&
+    'breakfast' in (perGramObj.p as object)
+
+  if (newShapeHit) {
+    return {
+      active: (obj.active as 'perGram' | 'perKcal') ?? fallback.active,
+      perGram: perGramObj as unknown as WalletSettings['pricingMatrix']['perGram'],
+      perKcal: (obj.perKcal as WalletSettings['pricingMatrix']['perKcal']) ?? fallback.perKcal,
+      intercepts: (obj.intercepts as WalletSettings['pricingMatrix']['intercepts']) ?? fallback.intercepts,
+      kcalPerGram: (obj.kcalPerGram as WalletSettings['pricingMatrix']['kcalPerGram']) ?? KCAL_PER_GRAM,
+    }
+  }
+
+  // Legacy shape: perGram.breakfast = { i, p, c, f } etc. Transpose.
+  const transpose = (form: 'perGram' | 'perKcal') => {
+    const raw = obj[form] as Record<MealKey, { i: number; p: number; c: number; f: number }> | undefined
+    if (!raw) return fallback[form]
+    const out: WalletSettings['pricingMatrix']['perGram'] = {
+      p: { breakfast: 0, lunch: 0, dinner: 0, snack: 0 },
+      c: { breakfast: 0, lunch: 0, dinner: 0, snack: 0 },
+      f: { breakfast: 0, lunch: 0, dinner: 0, snack: 0 },
+    }
+    const meals: MealKey[] = ['breakfast', 'lunch', 'dinner', 'snack']
+    const macros: Macro[] = ['p', 'c', 'f']
+    for (const m of meals) {
+      const cell = raw[m] ?? { i: 0, p: 0, c: 0, f: 0 }
+      for (const k of macros) out[k][m] = Number(cell[k]) || 0
+    }
+    return out
+  }
+
+  const intercepts: WalletSettings['pricingMatrix']['intercepts'] = {
+    breakfast: 0, lunch: 0, dinner: 0, snack: 0,
+  }
+  const legacyPerGram = obj.perGram as Record<MealKey, { i: number }> | undefined
+  if (legacyPerGram) {
+    for (const m of ['breakfast', 'lunch', 'dinner', 'snack'] as MealKey[]) {
+      intercepts[m] = Number(legacyPerGram[m]?.i) || 0
+    }
+  }
+
+  return {
+    active: (obj.active as 'perGram' | 'perKcal') ?? fallback.active,
+    perGram: transpose('perGram'),
+    perKcal: transpose('perKcal'),
+    intercepts,
+    kcalPerGram: KCAL_PER_GRAM,
+  }
 }
 
 function defaultConfig(): FullWalletConfig {

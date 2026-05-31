@@ -83,21 +83,40 @@ export interface WalletCalcResult {
 // accepts a settings object so it's easy to swap later.
 // ──────────────────────────────────────────────────────────────────────────────
 
-export interface PerMealCoeff {
-  /** Intercept (€) — fixed cost per meal regardless of macros */
-  i: number
-  /** € per gram (or per kcal) of protein */
-  p: number
-  /** € per gram (or per kcal) of carbs */
-  c: number
-  /** € per gram (or per kcal) of fat */
-  f: number
-}
+/**
+ * Macro × meal coefficient grid — 12 values per form, rendered as a 3×4 table
+ * in the admin UI. Rows = macros (p / c / f). Columns = meals.
+ *
+ * Reading a value: `coeffs.p.lunch` = € per (gram or kcal) of protein in lunch.
+ * Whether the row is "per gram" or "per kcal" depends on which form holds it
+ * (`PricingMatrix.perGram` vs `.perKcal`).
+ */
+export type MacroMealCoeffs = Record<Macro, Record<MealKey, number>>
 
 export interface PricingMatrix {
-  perGram: Record<MealKey, PerMealCoeff>
-  perKcal: Record<MealKey, PerMealCoeff>
+  /** Macro × meal coefficients, € per gram of that macro at that meal */
+  perGram: MacroMealCoeffs
+  /** Macro × meal coefficients, € per kcal of that macro at that meal */
+  perKcal: MacroMealCoeffs
+  /** Per-meal fixed floor cost (intercepts) — applied regardless of macros */
+  intercepts: Record<MealKey, number>
+  /** Which form the calculator uses */
   active: 'perGram' | 'perKcal'
+  /**
+   * Biology constants — kcal yielded by 1 gram of each macro.
+   * Default 4/4/9 (protein, carbs, fat). Configurable here so the admin
+   * can override if needed, but in practice these never change.
+   */
+  kcalPerGram: Record<Macro, number>
+}
+
+/** @deprecated Legacy nested-per-meal coefficient shape, kept for backward
+ *  compatibility while migrating reads. New code should use MacroMealCoeffs. */
+export interface PerMealCoeff {
+  i: number
+  p: number
+  c: number
+  f: number
 }
 
 export interface CalorieFormulaSettings {

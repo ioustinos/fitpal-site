@@ -513,6 +513,92 @@
 /* Wallet settings JSON editor */
 .admin-setting-key { font-family: ui-monospace, 'SF Mono', Menlo, monospace; font-size: 11px; color: var(--a-text-muted); font-weight: 500; margin-left: 8px; padding: 2px 6px; background: var(--a-bg); border-radius: 4px; }
 
+/* ──────────────────────────────────────────────────────────────
+   Design System page (/admin/design-system)
+   ────────────────────────────────────────────────────────────── */
+.ds-page code { font-family: ui-monospace, 'SF Mono', Menlo, monospace; font-size: 12px; padding: 1px 6px; background: var(--a-bg); border-radius: 4px; color: var(--a-text); }
+.ds-layout { display: grid; grid-template-columns: 200px 1fr; gap: 28px; align-items: start; }
+.ds-nav { position: sticky; top: 20px; display: flex; flex-direction: column; gap: 2px; padding: 6px 0; }
+.ds-nav-item { padding: 9px 12px; border: none; background: none; border-radius: 6px; font-size: 13px; font-weight: 500; color: var(--a-text-muted); cursor: pointer; text-align: left; font-family: inherit; transition: all 0.15s; }
+.ds-nav-item:hover { background: var(--a-hover); color: var(--a-text); }
+.ds-nav-item.active { background: var(--a-primary-lt); color: var(--a-primary); font-weight: 700; }
+.ds-content { min-width: 0; display: flex; flex-direction: column; gap: 32px; }
+
+.ds-block { background: var(--a-surface); border: 1px solid var(--a-border); border-radius: 10px; padding: 24px; }
+.ds-block-head h2 { font-size: 18px; font-weight: 700; margin: 0 0 4px; color: var(--a-text); }
+.ds-block-head p { font-size: 13px; color: var(--a-text-muted); margin: 0 0 16px; line-height: 1.5; }
+.ds-block-body h3 { font-size: 13px; font-weight: 700; color: var(--a-text); margin: 18px 0 10px; text-transform: uppercase; letter-spacing: 0.5px; }
+.ds-block-body h3:first-child { margin-top: 0; }
+
+.ds-note { font-size: 12px; color: var(--a-text-muted); line-height: 1.55; margin: 16px 0 0; padding: 10px 12px; background: var(--a-bg); border-radius: 6px; border-left: 3px solid var(--a-primary); }
+
+/* Brand */
+.ds-brand-row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.ds-brand-mark { padding: 32px 24px; background: #FCF2D9; border-radius: 12px; text-align: center; display: flex; flex-direction: column; gap: 12px; align-items: center; }
+.ds-brand-mark-v2 { background: #0f3d2e; color: #fff; }
+.ds-brand-mark small { font-size: 11px; color: var(--a-text-muted); font-weight: 500; }
+.ds-brand-mark-v2 small { color: rgba(255,255,255,0.55); }
+.ds-logo-lockup { font-family: 'Nunito', system-ui, sans-serif; font-size: 32px; font-weight: 900; color: #004739; letter-spacing: -0.5px; }
+.ds-logo-lockup-v2 { font-family: 'Plus Jakarta Sans', system-ui, sans-serif; font-weight: 800; color: #fff; }
+
+/* Colors */
+.ds-swatch-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 12px; }
+.ds-swatch { display: flex; flex-direction: column; gap: 6px; }
+.ds-swatch-color { height: 72px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 600; font-family: ui-monospace, Menlo, monospace; border: 1px solid rgba(0,0,0,0.04); }
+.ds-swatch-meta code { font-size: 11px; }
+
+/* Typography */
+.ds-type-sample { padding: 18px 20px; background: var(--a-bg); border-radius: 8px; margin-bottom: 14px; }
+.ds-type-sample h3 { margin: 0 0 12px; font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--a-text-muted); font-weight: 700; }
+.ds-type-sample > div { margin-bottom: 6px; color: var(--a-text); }
+
+/* Spacing */
+.ds-spacing-row { display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 24px; }
+.ds-spacing-sample { padding: 18px 24px; font-size: 12px; font-weight: 600; color: var(--a-text); }
+.ds-shadow-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+.ds-shadow-sample { padding: 24px; background: #fff; border-radius: 8px; font-size: 12px; font-weight: 600; color: var(--a-text-muted); text-align: center; }
+
+/* Buttons */
+.ds-btn-row { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; padding: 14px 16px; background: var(--a-bg); border-radius: 8px; margin-bottom: 12px; }
+
+/* Forms */
+.ds-form-row { display: flex; gap: 12px; align-items: flex-start; flex-wrap: wrap; padding: 16px; background: var(--a-bg); border-radius: 8px; margin-bottom: 12px; }
+.ds-form-row > * { min-width: 200px; }
+
+/* Cards */
+.ds-card-row { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; }
+.ds-card-demo strong { display: block; margin-bottom: 4px; }
+
+/* Pills */
+.ds-pill-row { display: flex; gap: 8px; flex-wrap: wrap; }
+
+/* Icons */
+.ds-icon-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 16px; }
+.ds-icon-cell { display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 18px; background: var(--a-bg); border-radius: 8px; }
+.ds-icon-display { color: var(--a-primary); }
+.ds-icon-cell code { font-size: 10px; }
+
+/* Goals */
+.ds-goal-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 16px; }
+.ds-goal-cell { display: flex; flex-direction: column; gap: 10px; border-radius: 12px; overflow: hidden; border: 1px solid var(--a-border); }
+.ds-goal-cell .goal-card-art { aspect-ratio: 1 / 1; padding: 16px; }
+.ds-goal-meta { padding: 10px 14px 14px; display: flex; flex-direction: column; gap: 4px; }
+.ds-goal-meta code { font-size: 10px; }
+
+/* Patterns + rules */
+.ds-pattern-list, .ds-rules { padding-left: 20px; margin: 0; }
+.ds-pattern-list li, .ds-rules li { font-size: 13px; line-height: 1.6; color: var(--a-text); margin-bottom: 8px; }
+
+/* Inline link reused by tools section in Advanced */
+.admin-inline-link { color: var(--a-primary); text-decoration: underline; text-underline-offset: 2px; }
+.admin-inline-link:hover { color: var(--a-primary-dk); }
+
+@media (max-width: 900px) {
+  .ds-layout { grid-template-columns: 1fr; }
+  .ds-nav { position: static; flex-direction: row; flex-wrap: wrap; }
+  .ds-brand-row, .ds-card-row, .ds-shadow-row { grid-template-columns: 1fr; }
+}
+
 /* Image preview */
 .admin-img-preview { margin-bottom: 10px; }
 .admin-img-preview img { max-width: 200px; max-height: 140px; border-radius: 8px; border: 1px solid var(--a-border); display: block; }
@@ -1032,6 +1118,88 @@
 .admin-setting-head p { margin: 0; font-size: 12px; color: var(--a-text-muted); line-height: 1.5; }
 .admin-setting-body { padding: 14px 18px; }
 .admin-setting-body .admin-inline-form { margin-bottom: 6px; }
+
+/* ── Pricing matrix editor ─────────────────────────────────── */
+.admin-pricing-matrix {
+  border: 1px solid var(--a-border);
+  border-radius: 10px;
+  padding: 12px 14px;
+  margin-bottom: 12px;
+  background: var(--a-bg);
+  transition: border-color 0.15s, background 0.15s;
+}
+.admin-pricing-matrix.is-active {
+  border-color: var(--a-primary);
+  background: var(--a-surface);
+}
+.admin-pricing-matrix-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+.admin-pricing-matrix-head h4 { margin: 0; font-size: 13px; font-weight: 700; }
+.admin-pricing-active-pill {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: var(--a-primary);
+  color: #fff;
+}
+.admin-pricing-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+.admin-pricing-table th,
+.admin-pricing-table td {
+  padding: 6px;
+  text-align: left;
+  border-bottom: 1px solid var(--a-border);
+}
+.admin-pricing-table thead th {
+  font-weight: 700;
+  background: transparent;
+  color: var(--a-text-muted);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.admin-pricing-table tbody th {
+  font-weight: 700;
+  width: 80px;
+  color: var(--a-text);
+}
+.admin-pricing-table td .admin-input {
+  width: 100%;
+  min-width: 0;
+  font-size: 12px;
+  padding: 6px 8px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+.admin-pricing-row {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+.admin-pricing-row-narrow {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+.admin-pricing-cell { display: flex; flex-direction: column; gap: 4px; }
+.admin-pricing-cell label {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--a-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.admin-pricing-cell .admin-input {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12px;
+}
 
 /* ── Zones page ────────────────────────────────────────────── */
 .admin-zones-layout {

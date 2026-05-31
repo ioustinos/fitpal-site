@@ -11,7 +11,7 @@ import type {
   WalletSettings,
   MealKey,
   MealBreakdown,
-  PerMealCoeff,
+  MacroMealCoeffs,
 } from './types'
 import { DEFAULT_WALLET_SETTINGS, KCAL_PER_GRAM } from './constants'
 
@@ -31,11 +31,21 @@ function mifflinStJeor(sex: WalletCalcInput['sex'], weightKg: number, heightCm: 
 }
 
 // ──────────────────────────────────────────────────────────────────────────────
-// Per-meal price = intercept + Σ(macro_quantity × coefficient)
-// `quantity` is grams (perGram table) or kcal (perKcal table)
+// Per-meal price = intercept + Σ(macro_quantity × coefficient at this meal)
+// `quantity` is grams (perGram form) or kcal (perKcal form)
 // ──────────────────────────────────────────────────────────────────────────────
-function priceMeal(coeff: PerMealCoeff, quantity: { p: number; c: number; f: number }): number {
-  return coeff.i + coeff.p * quantity.p + coeff.c * quantity.c + coeff.f * quantity.f
+function priceMeal(
+  intercept: number,
+  coeffs: MacroMealCoeffs,
+  meal: MealKey,
+  quantity: { p: number; c: number; f: number },
+): number {
+  return (
+    intercept +
+    coeffs.p[meal] * quantity.p +
+    coeffs.c[meal] * quantity.c +
+    coeffs.f[meal] * quantity.f
+  )
 }
 
 export function calculateWalletPlan(
@@ -51,16 +61,21 @@ export function calculateWalletPlan(
   // ── 2. Macro split (P/C/F) by goal — applied per-meal ──────
   const macroSplitPct = settings.macroSplitByGoal[input.goal]
 
+  // Biology constants. Live in settings.pricingMatrix.kcalPerGram now; fall
+  // back to the legacy module constant if the field is missing (stale row).
+  const kcalPerGram = settings.pricingMatrix.kcalPerGram ?? KCAL_PER_GRAM
+
   // Daily macro grams (informational — also surfaced in "your numbers" pill)
   const macroGramsPerDay = {
-    p: Math.round((dailyKcal * macroSplitPct.p) / 100 / KCAL_PER_GRAM.p),
-    c: Math.round((dailyKcal * macroSplitPct.c) / 100 / KCAL_PER_GRAM.c),
-    f: Math.round((dailyKcal * macroSplitPct.f) / 100 / KCAL_PER_GRAM.f),
+    p: Math.round((dailyKcal * macroSplitPct.p) / 100 / kcalPerGram.p),
+    c: Math.round((dailyKcal * macroSplitPct.c) / 100 / kcalPerGram.c),
+    f: Math.round((dailyKcal * macroSplitPct.f) / 100 / kcalPerGram.f),
   }
 
   // ── 3. Per-meal breakdown — the 4×3 matrix ─────────────────
   const matrix = settings.pricingMatrix
   const useTable = matrix.active // 'perKcal' | 'perGram'
+  const activeCoeffs = matrix[useTable]
 
   const perMeal = {} as Record<MealKey, MealBreakdown>
   let dailyPrice = 0
@@ -76,17 +91,16 @@ export function calculateWalletPlan(
     const kcalF = (mealKcal * macroSplitPct.f) / 100
 
     // grams of each macro at this meal
-    const gP = kcalP / KCAL_PER_GRAM.p
-    const gC = kcalC / KCAL_PER_GRAM.c
-    const gF = kcalF / KCAL_PER_GRAM.f
+    const gP = kcalP / kcalPerGram.p
+    const gC = kcalC / kcalPerGram.c
+    const gF = kcalF / kcalPerGram.f
 
-    // price using whichever table is active
-    const coeff = matrix[useTable][meal]
+    // price using whichever form is active
     const quantity =
       useTable === 'perKcal'
         ? { p: kcalP, c: kcalC, f: kcalF }
         : { p: gP, c: gC, f: gF }
-    const rawPrice = priceMeal(coeff, quantity)
+    const rawPrice = priceMeal(matrix.intercepts[meal], activeCoeffs, meal, quantity)
     const price = Math.max(0, rawPrice) // floor at 0 for safety
 
     perMeal[meal] = {
