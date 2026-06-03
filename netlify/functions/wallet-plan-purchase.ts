@@ -259,7 +259,7 @@ function validateInput(b: PurchaseBody): string | null {
   if (!['lose','maintain','gain'].includes(b.goal)) return 'goal invalid'
   if (!b.meals || typeof b.meals !== 'object') return 'meals invalid'
   if (!['2w','1mo','3mo'].includes(b.planLength)) return 'planLength invalid'
-  if (![5,6,7].includes(b.daysPerWeek)) return 'daysPerWeek invalid'
+  if (![4,5,6,7].includes(b.daysPerWeek)) return 'daysPerWeek invalid'
   if (!b.services || typeof b.services !== 'object') return 'services invalid'
   if (!['card','link','transfer'].includes(b.paymentMethod)) return 'paymentMethod invalid (must be card|link|transfer)'
   return null

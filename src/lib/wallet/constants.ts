@@ -90,9 +90,11 @@ export const DEFAULT_WALLET_SETTINGS: WalletSettings = {
   // Values are fractions (0..1). Tune freely.
   // ────────────────────────────────────────────────────────────
   discountMatrix: {
-    '2w':  { 5: 0.04, 6: 0.06, 7: 0.08 },
-    '1mo': { 5: 0.10, 6: 0.12, 7: 0.15 },
-    '3mo': { 5: 0.18, 6: 0.22, 7: 0.25 },
+    // 4-day starting values extrapolated from the existing 5/6/7 curve
+    // (one step below 5-day per row). Tune in /admin/wallet-settings if needed.
+    '2w':  { 4: 0.02, 5: 0.04, 6: 0.06, 7: 0.08 },
+    '1mo': { 4: 0.08, 5: 0.10, 6: 0.12, 7: 0.15 },
+    '3mo': { 4: 0.15, 5: 0.18, 6: 0.22, 7: 0.25 },
   },
 
   // ────────────────────────────────────────────────────────────

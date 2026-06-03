@@ -2876,6 +2876,14 @@ a.btn-conf-done { display: inline-block; text-decoration: none; }
 .wpv2-goal.sel { border-color: var(--fp-green-600); background: var(--fp-green-50); }
 .wpv2-goal-img { width: 100%; aspect-ratio: 4 / 3; object-fit: cover; display: block; background: var(--fp-ink-100); }
 .wpv2-goal-body { padding: 12px 14px 14px; }
+
+/* Goal card art — custom duo-chrome illustrations replacing Unsplash food photos.
+   Each goal has a soft tinted background to give the SVG warmth + identity. */
+.goal-card-art { width: 100%; aspect-ratio: 4 / 3; display: flex; align-items: center; justify-content: center; padding: 18px; box-sizing: border-box; }
+.goal-card-art svg { width: 100%; height: 100%; max-width: 220px; max-height: 220px; }
+.goal-card-art-lose     { background: linear-gradient(135deg, #FDF5EC 0%, #F5EFE4 100%); }
+.goal-card-art-maintain { background: linear-gradient(135deg, #F1FAF4 0%, #E3F3EA 100%); }
+.goal-card-art-gain     { background: linear-gradient(135deg, #F5EFE4 0%, #E8DCC2 100%); }
 .wpv2-goal-name { font-size: 14px; font-weight: 800; color: var(--fp-ink-900); margin-bottom: 4px; }
 .wpv2-goal-desc { font-size: 12px; color: var(--fp-ink-500); font-weight: 500; line-height: 1.45; }
 .wpv2-goal-check { position: absolute; top: 12px; right: 12px; width: 26px; height: 26px; border-radius: 50%; background: rgba(255,255,255,0.85); border: 1.5px solid var(--fp-ink-200); backdrop-filter: blur(4px); display: flex; align-items: center; justify-content: center; }
@@ -2955,7 +2963,8 @@ a.btn-conf-done { display: inline-block; text-decoration: none; }
 .wpv2-meals-warn { width: 100%; margin-top: 12px; padding: 10px 14px; background: #FFF6E0; border: 1px solid #F5D680; border-radius: var(--fp-radius-sm); font-size: 12px; font-weight: 700; color: #8B6914; }
 
 /* ── Frequency cards (3-up) ───────────────────────────────────── */
-.wpv2-freq { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+.wpv2-freq { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; }
+@media (max-width: 900px) { .wpv2-freq { grid-template-columns: repeat(2, 1fr); } }
 .wpv2-freq-opt { display: flex; align-items: center; gap: 12px; padding: 18px 18px; background: var(--fp-paper); border: 1.5px solid var(--fp-ink-200); border-radius: var(--fp-radius); cursor: pointer; transition: all 0.18s; font-family: inherit; text-align: left; }
 .wpv2-freq-opt:hover { border-color: var(--fp-green-300); }
 .wpv2-freq-opt.sel { border-color: var(--fp-green-600); background: var(--fp-green-50); }

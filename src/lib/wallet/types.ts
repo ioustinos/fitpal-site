@@ -11,7 +11,7 @@ export type Goal = 'lose' | 'maintain' | 'gain'
 export type MealKey = 'breakfast' | 'lunch' | 'dinner' | 'snack'
 export type Macro = 'p' | 'c' | 'f'
 export type PlanLength = '2w' | '1mo' | '3mo'
-export type DaysPerWeek = 5 | 6 | 7
+export type DaysPerWeek = 4 | 5 | 6 | 7
 export type PaymentMethod = 'cash' | 'card' | 'link' | 'transfer' | 'wallet'
 
 export interface MealsSelection {

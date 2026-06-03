@@ -3,6 +3,8 @@ import { useUIStore } from '../store/useUIStore'
 import { useAuthStore } from '../store/useAuthStore'
 import { calculateWalletPlan } from '../lib/wallet/calculator'
 import { DEFAULT_WALLET_SETTINGS, ACTIVITY_LABELS, MEAL_LABELS } from '../lib/wallet/constants'
+import { MealIcon } from '../components/icons/MealIcon'
+import { GoalCardArt } from '../components/icons/GoalIllustration'
 import type { ActivityLevel, DaysPerWeek, Goal, MealsSelection, PaymentMethod, PlanLength, Sex, MealKey } from '../lib/wallet/types'
 import { purchaseWalletPlan, sendEmailOtp, verifyEmailOtp, savePhoneToProfile } from '../lib/api/walletPlan'
 import { DietPicker, type DietSelection } from '../components/wallet/DietPicker'
@@ -137,7 +139,15 @@ function ActivityIcon({ level }: { level: ActivityLevel }) {
   }
 }
 
+// MealIcon now lives in src/components/icons/MealIcon.tsx — shared component,
+// Fitpal-set: coffee cup / place setting / cloche / wrapped bar. Linear,
+// monochrome, currentColor. The earlier WEC-360 time-of-day (sunrise / sun
+// / moon / apple) and food-based (mug / plate / bowl / apple) sets were
+// stepping stones — the current art was hand-picked by Ioustinos from the
+// curated icon kit.
+
 const FREQ_CARDS: Array<{ id: DaysPerWeek; nameEl: string; nameEn: string; subEl: string; subEn: string }> = [
+  { id: 4, nameEl: '4 ημέρες', nameEn: '4 days', subEl: 'Δευ–Πεμ',         subEn: 'Mon–Thu' },
   { id: 5, nameEl: '5 ημέρες', nameEn: '5 days', subEl: 'Δευ–Παρ',         subEn: 'Mon–Fri' },
   { id: 6, nameEl: '6 ημέρες', nameEn: '6 days', subEl: 'Δευ–Σαβ',         subEn: 'Mon–Sat' },
   { id: 7, nameEl: '7 ημέρες', nameEn: '7 days', subEl: 'Όλη την εβδομάδα', subEn: 'Whole week' },
@@ -465,7 +475,7 @@ export function WalletPage() {
                   className={`wpv2-goal${goal === g.id ? ' sel' : ''}`}
                   onClick={() => setGoal(g.id)}
                 >
-                  <img className="wpv2-goal-img" src={g.img} alt={isEl ? g.nameEl : g.nameEn} loading="lazy" />
+                  <GoalCardArt goal={g.id} />
                   <div className="wpv2-goal-body">
                     <div className="wpv2-goal-name">{isEl ? g.nameEl : g.nameEn}</div>
                     <div className="wpv2-goal-desc">{isEl ? g.descEl : g.descEn}</div>
@@ -665,7 +675,7 @@ export function WalletPage() {
                         <polyline points="20 6 9 17 4 12"/>
                       </svg>
                     </span>
-                    <span className="wpv2-meal-emoji">{MEAL_LABELS[m].emoji}</span>
+                    <span className="wpv2-meal-ico"><MealIcon meal={m} /></span>
                     <span className="wpv2-meal-name">{MEAL_LABELS[m][lang]}</span>
                   </button>
                 )
