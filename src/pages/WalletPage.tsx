@@ -676,7 +676,10 @@ export function WalletPage() {
                       </svg>
                     </span>
                     <span className="wpv2-meal-ico"><MealIcon meal={m} /></span>
-                    <span className="wpv2-meal-name">{MEAL_LABELS[m][lang]}</span>
+                    <span className="wpv2-meal-text">
+                      <span className="wpv2-meal-name">{MEAL_LABELS[m][lang]}</span>
+                      <span className="wpv2-meal-kcal">{result.perMeal[m].kcal} kcal</span>
+                    </span>
                   </button>
                 )
               })}
