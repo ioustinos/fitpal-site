@@ -2964,6 +2964,8 @@ a.btn-conf-done { display: inline-block; text-decoration: none; }
 .wpv2-meal-kcal { font-size: 11px; font-weight: 500; color: var(--fp-ink-500); margin-top: 1px; }
 .wpv2-meal.sel .wpv2-meal-kcal { color: var(--fp-green-700); }
 .wpv2-meals-warn { width: 100%; margin-top: 12px; padding: 10px 14px; background: #FFF6E0; border: 1px solid #F5D680; border-radius: var(--fp-radius-sm); font-size: 12px; font-weight: 700; color: #8B6914; }
+.wpv2-meals-summary { width: 100%; margin-top: 12px; font-size: 12px; font-weight: 500; color: var(--fp-ink-500); }
+.wpv2-meals-summary strong { font-weight: 700; color: var(--fp-green-700); }
 
 /* ── Frequency cards (3-up) ───────────────────────────────────── */
 .wpv2-freq { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; }

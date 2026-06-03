@@ -684,9 +684,24 @@ export function WalletPage() {
                 )
               })}
             </div>
-            {result.selectedMealCount === 0 && (
+            {result.selectedMealCount === 0 ? (
               <div className="wpv2-meals-warn">{isEl ? 'Διάλεξε τουλάχιστον ένα γεύμα.' : 'Pick at least one meal.'}</div>
-            )}
+            ) : (() => {
+              // Sum kcal across selected meals, then % of the user's daily target.
+              const selectedKcal = (['breakfast', 'lunch', 'dinner', 'snack'] as MealKey[])
+                .filter((m) => meals[m])
+                .reduce((sum, m) => sum + result.perMeal[m].kcal, 0)
+              const pct = result.dailyKcal > 0
+                ? Math.round((selectedKcal / result.dailyKcal) * 100)
+                : 0
+              return (
+                <div className="wpv2-meals-summary">
+                  {isEl
+                    ? <>{selectedKcal} kcal · <strong>{pct}%</strong> των ημερήσιων αναγκών σου</>
+                    : <>{selectedKcal} kcal · <strong>{pct}%</strong> of your daily intake</>}
+                </div>
+              )
+            })()}
           </section>
 
           {/* SECTION 5 · Frequency */}
