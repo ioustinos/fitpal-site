@@ -149,6 +149,7 @@ export default async (request: Request) => {
     maxInstallments: 0,
   }
 
+  let freshOrderCodeAsString: string | null = null
   try {
     const res = await fetch(orderUrl, {
       method: 'POST',
@@ -161,6 +162,20 @@ export default async (request: Request) => {
     const text = await res.text()
     let parsed: unknown
     try { parsed = JSON.parse(text) } catch { parsed = text }
+    // WEC-430: precision-loss hunt. Extract the orderCode AS A STRING from the
+    // raw JSON text (regex), NOT via JSON.parse(). Viva returns the orderCode
+    // as a JSON number that often exceeds Number.MAX_SAFE_INTEGER, so parsing
+    // it as a number silently rounds to the nearest representable double.
+    // If freshOrderCodeRaw != String(parsed.orderCode), our reference loses
+    // precision and downstream retrieval probes look up the wrong number.
+    const m = text.match(/"orderCode"\s*:\s*(\d+)/)
+    const orderCodeRaw = m ? m[1] : null
+    let orderCodeParsedString: string | null = null
+    if (parsed && typeof parsed === 'object' && 'orderCode' in parsed) {
+      const o = (parsed as { orderCode: number | string }).orderCode
+      orderCodeParsedString = String(o)
+      freshOrderCodeAsString = orderCodeRaw ?? orderCodeParsedString
+    }
     steps.push({
       step: 'CreateOrder',
       ok: res.ok,
@@ -168,9 +183,37 @@ export default async (request: Request) => {
       url: orderUrl,
       requestBody: body,
       response: typeof parsed === 'string' ? parsed.slice(0, 800) : parsed,
+      rawResponseText: text.slice(0, 400),
+      orderCodeRaw,                       // exact string Viva sent
+      orderCodeParsedString,              // what we'd store after parse + String()
+      precisionLoss: orderCodeRaw && orderCodeParsedString
+        ? orderCodeRaw !== orderCodeParsedString
+        : null,
     })
   } catch (err) {
     steps.push({ step: 'CreateOrder', ok: false, url: orderUrl, error: String(err) })
+  }
+
+  // ── Step 2b: WEC-430 precision-loss verification — IMMEDIATELY probe the
+  // just-minted orderCode using BOTH the raw-string and the parsed-string
+  // forms. If raw works and parsed doesn't, precision loss is the bug.
+  if (freshOrderCodeAsString && token) {
+    const url = `https://${creds.apiHost}/checkout/v2/orders/${encodeURIComponent(freshOrderCodeAsString)}`
+    try {
+      const r = await fetch(url, { headers: { Authorization: `Bearer ${token}` } })
+      const t = await r.text()
+      let p: unknown
+      try { p = JSON.parse(t) } catch { p = t }
+      steps.push({
+        step: 'ProbeFreshOrderCode (raw-string from regex)',
+        ok: r.ok,
+        status: r.status,
+        url,
+        response: typeof p === 'string' ? p.slice(0, 400) : p,
+      })
+    } catch (err) {
+      steps.push({ step: 'ProbeFreshOrderCode (raw)', ok: false, error: String(err) })
+    }
   }
 
   // ── Step 3 (optional): probe the listing endpoint for a real orderCode ─
