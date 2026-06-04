@@ -13,6 +13,7 @@ import { getVivaAccessToken } from '../lib/viva/auth'
 import { getVivaCreds } from '../lib/viva/env'
 import { verifyVivaTransaction } from '../lib/viva/verify'
 import { verifyWalletPlanTransaction } from '../lib/wallet/verifyWalletPlanTransaction'
+import { getVivaOrderState } from '../lib/viva/orderState'
 
 const SUPABASE_URL = process.env.VITE_SUPABASE_URL ?? ''
 const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY ?? ''
@@ -228,38 +229,29 @@ export default async (request?: Request) => {
     // No viva_order_code → Viva never knew about this order, safe to cancel.
     let vivaSaidPaid = false
     if (code) {
-      try {
-        const txs = await listVivaTransactionSummaries(code)
-        vivaSaidPaid = txs.some((t) => t.statusId === 'F')
-      } catch (err) {
-        // Verify failed — DON'T cancel; we'd rather leave the row pending
-        // for the next reconcile run than risk a wrong cancel.
+      // WEC-432: use the legacy Basic-auth order-state endpoint. The OAuth
+      // /checkout/v2/orders/{code} we were calling returns 404 for every
+      // orderCode (paid or not), making the rescue a no-op.
+      const state = await getVivaOrderState(code)
+      vivaSaidPaid = state.state === 'paid'
+      if (state.state === 'unknown' && state.stateId === null) {
+        // Endpoint errored / 404 / unknown StateId — leave the row pending
+        // for next reconcile rather than risk a wrong cancel.
         errors++
-        const msg = err instanceof Error ? err.message : String(err)
-        errorNotes.push(`pre-cancel verify ${cand.id}: ${msg}`)
+        errorNotes.push(`pre-cancel state-unknown ${cand.id}: viva=${code}`)
         continue
       }
     }
     if (vivaSaidPaid) {
       rescuedFromCancelOrders++
       console.warn(
-        '[viva-reconcile] CANARY: would-have-cancelled order %s but Viva says PAID (orderCode=%s) — webhook + return-URL both missed',
+        '[viva-reconcile] CANARY: would-have-cancelled order %s but Viva says PAID (orderCode=%s) — webhook + return-URL both missed; admin must investigate manually (we lack the transactionId from this endpoint to call markPaid)',
         cand.id, code,
       )
       errorNotes.push(`rescued-from-cancel ${cand.id} viva=${code}`)
-      // Trigger Phase-1-style verify so the row gets flipped to paid
-      // properly (markPaid via verifyVivaTransaction).
-      try {
-        const txs = await listVivaTransactionSummaries(code!)
-        const paidTx = txs.find((t) => t.statusId === 'F')
-        if (paidTx && !dryRun) {
-          await verifyVivaTransaction(paidTx.transactionId)
-          paid++
-        }
-      } catch (err) {
-        const msg = err instanceof Error ? err.message : String(err)
-        errorNotes.push(`rescue verify ${cand.id}: ${msg}`)
-      }
+      // WEC-432: we DON'T flip to paid here — that needs a transactionId we
+      // can't get from the state endpoint. Leaving the row alone is the
+      // safe default; the CANARY log pages the admin to investigate.
       continue
     }
 
@@ -317,34 +309,23 @@ export default async (request?: Request) => {
   for (const plan of (orphanPlans ?? []) as Array<{ id: string; viva_order_code: string | null }>) {
     let vivaSaidPaid = false
     if (plan.viva_order_code) {
-      try {
-        const txs = await listVivaTransactionSummaries(plan.viva_order_code)
-        vivaSaidPaid = txs.some((t) => t.statusId === 'F')
-      } catch (err) {
+      // WEC-432: same legacy-Basic-auth swap as Phase 2 (orders).
+      const state = await getVivaOrderState(plan.viva_order_code)
+      vivaSaidPaid = state.state === 'paid'
+      if (state.state === 'unknown' && state.stateId === null) {
         errors++
-        const msg = err instanceof Error ? err.message : String(err)
-        errorNotes.push(`pre-cancel verify wp/${plan.id}: ${msg}`)
+        errorNotes.push(`pre-cancel state-unknown wp/${plan.id}: viva=${plan.viva_order_code}`)
         continue
       }
     }
     if (vivaSaidPaid) {
       rescuedFromCancelWalletPlans++
       console.warn(
-        '[viva-reconcile] CANARY: would-have-cancelled wallet_plan %s but Viva says PAID (orderCode=%s)',
+        '[viva-reconcile] CANARY: would-have-cancelled wallet_plan %s but Viva says PAID (orderCode=%s) — admin must investigate manually',
         plan.id, plan.viva_order_code,
       )
       errorNotes.push(`rescued-from-cancel wp/${plan.id} viva=${plan.viva_order_code}`)
-      try {
-        const txs = await listVivaTransactionSummaries(plan.viva_order_code!)
-        const paidTx = txs.find((t) => t.statusId === 'F')
-        if (paidTx && !dryRun) {
-          await verifyWalletPlanTransaction(paidTx.transactionId)
-          walletPaid++
-        }
-      } catch (err) {
-        const msg = err instanceof Error ? err.message : String(err)
-        errorNotes.push(`rescue verify wp/${plan.id}: ${msg}`)
-      }
+      // WEC-432: don't try to mark paid — no transactionId available here.
       continue
     }
     if (dryRun) {

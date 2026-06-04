@@ -747,7 +747,19 @@ export default async (request: Request) => {
       updated_at: new Date().toISOString(),
     }
 
+    // Time normaliser used both by the JS-side insert loop (legacy path)
+    // and to build the RPC payload (WEC-429 #2 atomic-promote path).
+    const fmtTime = (t: string) => {
+      const parts = t.split(':')
+      return `${parts[0].padStart(2, '0')}:${(parts[1] ?? '00').padStart(2, '0')}:00`
+    }
+
     let orderId: string
+    // WEC-429 #2: when promoting a draft, the RPC also writes child_orders +
+    // order_items in the same transaction. We flip this flag so the legacy
+    // JS-side insert loop below is skipped — otherwise we'd double-insert.
+    let childrenAlreadyInserted = false
+
     if (body.draftId) {
       // First, ownership sanity-check: confirm the draft is owned by this caller
       // (or no user_id if guest). A foreign draft_id must not be promoted.
@@ -767,32 +779,66 @@ export default async (request: Request) => {
       if (draftOwner && draftOwner !== userId) {
         return Response.json({ error: 'Draft not owned by caller' }, { status: 403 })
       }
-      if ((existingDraft as { status: string }).status !== 'draft') {
-        // Idempotent retry — already promoted. Return the existing id so the
-        // caller doesn't loop.
-        orderId = (existingDraft as { id: string }).id
-      } else {
-        const { data: promoted, error: upErr } = await supabase
-          .from('orders')
-          .update(orderRecord)
-          .eq('id', body.draftId)
-          .eq('status', 'draft')           // race guard — exactly one row flips
-          .select('id')
-          .maybeSingle()
-        if (upErr) {
-          console.error('Draft promote error:', upErr)
-          return Response.json({ error: 'Failed to promote draft' }, { status: 500 })
+
+      // WEC-429 #2: single-RPC promote. Wraps SELECT-FOR-UPDATE +
+      // DELETE child_orders + INSERT child_orders + INSERT order_items +
+      // UPDATE orders.status='pending' in one transaction. Closes the
+      // ~50ms window where the old JS-level UPDATE→DELETE→INSERT loop
+      // let an admin see a 'pending' order with zero days/items.
+      const childrenPayload = body.days.map((day) => ({
+        delivery_date: day.deliveryDate,
+        time_from: fmtTime(day.timeFrom),
+        time_to: fmtTime(day.timeTo),
+        address_street: day.addressStreet,
+        address_area: day.addressArea,
+        address_zip: day.addressZip?.replace(/\s/g, '') ?? null,
+        address_floor: day.addressFloor ?? null,
+        fulfillment_type: day.fulfillmentType ?? 'delivery',
+        pickup_location_id: day.fulfillmentType === 'pickup' ? (day.pickupLocationId ?? null) : null,
+        items: day.items.map((item) => {
+          const variant = variantMap.get(item.variantId)!
+          const dish = dishMap.get(item.dishId)
+          return {
+            dish_id: item.dishId,
+            variant_id: item.variantId,
+            name_el: dish?.name_el ?? '',
+            name_en: dish?.name_en ?? '',
+            variant_label_el: variant.label_el ?? null,
+            variant_label_en: variant.label_en ?? null,
+            quantity: item.quantity,
+            unit_price: variant.price,
+            total_price: variant.price * item.quantity,
+            calories: variant.calories ?? null,
+            protein: variant.protein ?? null,
+            carbs: variant.carbs ?? null,
+            fat: variant.fat ?? null,
+            comment: item.comment ?? null,
+          }
+        }),
+      }))
+      // Strip admin_notes (column-not-present on the patch path; the RPC
+      // doesn't touch it). updated_at is set inside the RPC via now().
+      const { admin_notes: _adminNotes, updated_at: _updatedAt, ...orderPatch } = orderRecord
+      const { data: rpcRows, error: rpcErr } = await supabase.rpc('promote_draft_atomic', {
+        p_order_id: body.draftId,
+        p_order_patch: orderPatch,
+        p_children: childrenPayload,
+      })
+      if (rpcErr) {
+        if ((rpcErr as { code?: string }).code === 'P0002') {
+          return Response.json({ error: 'Draft not found' }, { status: 404 })
         }
-        if (!promoted) {
-          // Lost the race — another concurrent call already promoted it.
-          orderId = (existingDraft as { id: string }).id
-        } else {
-          orderId = (promoted as { id: string }).id
-          // Clear the draft's child_orders so we can re-insert from the
-          // authoritative payload below. CASCADE removes order_items too.
-          await supabase.from('child_orders').delete().eq('order_id', orderId)
-        }
+        console.error('promote_draft_atomic failed:', rpcErr)
+        return Response.json({ error: 'Failed to promote draft' }, { status: 500 })
       }
+      const row = Array.isArray(rpcRows) ? rpcRows[0] : rpcRows
+      // RETURNS column is `promoted_order_id` (not `order_id`) — renamed to
+      // avoid plpgsql ambiguity with `child_orders.order_id` inside the fn.
+      if (!row?.promoted_order_id) {
+        return Response.json({ error: 'Promote returned no row' }, { status: 500 })
+      }
+      orderId = row.promoted_order_id as string
+      childrenAlreadyInserted = true
     } else {
       const { data: orderRow, error: oErr } = await supabase
         .from('orders')
@@ -806,16 +852,12 @@ export default async (request: Request) => {
       orderId = orderRow.id
     }
 
-    // ─── Insert child orders + items ────────────────────────────────────
+    // ─── Insert child orders + items (legacy non-draft path only) ───────
+    // WEC-429 #2: when promoting from a draft, the RPC already wrote these
+    // rows atomically. Skip the JS-side loop to avoid double-inserting.
 
-    for (let i = 0; i < body.days.length; i++) {
+    for (let i = 0; i < body.days.length && !childrenAlreadyInserted; i++) {
       const day = body.days[i]
-
-      // Normalize time to HH:MM:SS for DB
-      const fmtTime = (t: string) => {
-        const parts = t.split(':')
-        return `${parts[0].padStart(2, '0')}:${(parts[1] ?? '00').padStart(2, '0')}:00`
-      }
 
       const { data: childRow, error: cErr } = await supabase
         .from('child_orders')
