@@ -422,7 +422,14 @@ export function CheckoutPage() {
     ref.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
   }
 
-  async function handlePlaceOrder() {
+  // WEC-433: quote-before-submit confirm modal state. Mirrors WalletPage's
+  // safety net for the meal-order flow. If the server-quoted total differs
+  // from the locally-computed sum (admin edited a variant price mid-flow,
+  // useMenuStore cached the old one), we pause submit and require an
+  // explicit re-confirm so the customer doesn't get a surprise charge.
+  const [priceConfirm, setPriceConfirm] = useState<{ serverCents: number; clientCents: number } | null>(null)
+
+  async function handlePlaceOrder(opts: { skipQuoteCheck?: boolean } = {}) {
     if (!contactOk) {
       setContactAttempted(true)
       toast(lang === 'el' ? 'Συμπλήρωσε τα στοιχεία επικοινωνίας' : 'Please complete contact info')
@@ -490,6 +497,41 @@ export function CheckoutPage() {
     // on submitOrder's X-Impersonator-Token header, which it picks up
     // from the impersonation store automatically.
     const isImpersonating = useImpersonationStore.getState().active
+
+    // WEC-433: server-side authoritative quote before we proceed. If the
+    // total cents differ from the locally-computed sum (admin changed a
+    // variant price between page load and submit, or a variant was deleted),
+    // we pause and surface a confirm modal so the customer can re-confirm
+    // the new amount. Skipped on the second click ("Confirm" in the modal).
+    if (!opts.skipQuoteCheck) {
+      const linesForQuote = dayPayloads.flatMap((d) => d.items.map((it) => ({
+        dish_id: it.dishId, variant_id: it.variantId, qty: it.quantity,
+      })))
+      try {
+        const qRes = await fetch('/api/menu-quote', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ lines: linesForQuote }),
+        })
+        if (qRes.ok) {
+          const q = await qRes.json() as { totalCents?: number; missingVariantIds?: string[] }
+          const serverCents = q.totalCents ?? 0
+          const clientCents = Math.round(
+            activeDates.reduce((s, d) => s + dayAmt(cart[d] ?? []), 0) * 100,
+          )
+          if (serverCents > 0 && Math.abs(serverCents - clientCents) > 1) {
+            setPriceConfirm({ serverCents, clientCents })
+            setSubmitting(false)
+            return
+          }
+        }
+        // Quote endpoint failed → fall through. submit-order is the
+        // authoritative price source anyway; a transient API hiccup
+        // shouldn't block the customer from paying.
+      } catch {
+        /* network error — fall through */
+      }
+    }
 
     // WEC-417 trigger C: synchronous pre-submit save. Captures the final state
     // BEFORE the network/Viva call so a 500 / timeout / 3DS bounce leaves an
@@ -957,6 +999,49 @@ export function CheckoutPage() {
           to be able to review what they're about to pay. Read-only mode
           (no checkout CTA — they're already on this page). */}
       <MobileCartSheet mode="checkout" />
+
+      {/* WEC-433: price-drift confirm modal. Shown only if the server
+          authoritative total differs from what the page showed (e.g. admin
+          changed a variant price mid-flow). Customer must re-confirm. */}
+      {priceConfirm && (
+        <div
+          className="admin-drawer-overlay"
+          style={{ background: 'rgba(0,0,0,0.45)', zIndex: 2000 }}
+          onClick={() => { setPriceConfirm(null); setSubmitting(false) }}
+        >
+          <div
+            style={{
+              maxWidth: 440, margin: '14vh auto', background: '#fff',
+              border: '1px solid #e5e7eb', borderRadius: 10, padding: 24,
+              boxShadow: '0 12px 40px rgba(0,0,0,0.18)',
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 style={{ margin: '0 0 8px', fontSize: 17 }}>
+              {lang === 'el' ? 'Η τιμή ενημερώθηκε' : 'Price updated'}
+            </h3>
+            <p style={{ margin: '0 0 16px', color: '#4b5563', fontSize: 14, lineHeight: 1.5 }}>
+              {lang === 'el'
+                ? <>Νέο σύνολο: <strong>€{(priceConfirm.serverCents / 100).toFixed(2)}</strong> (εμφανιζόταν €{(priceConfirm.clientCents / 100).toFixed(2)}). Συνεχίζοντας θα χρεωθείς το νέο ποσό.</>
+                : <>New total: <strong>€{(priceConfirm.serverCents / 100).toFixed(2)}</strong> (was €{(priceConfirm.clientCents / 100).toFixed(2)}). Continuing charges the new amount.</>}
+            </p>
+            <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+              <button
+                className="admin-btn-ghost"
+                onClick={() => { setPriceConfirm(null); setSubmitting(false) }}
+              >
+                {lang === 'el' ? 'Άκυρο' : 'Cancel'}
+              </button>
+              <button
+                className="admin-btn-danger"
+                onClick={() => { setPriceConfirm(null); void handlePlaceOrder({ skipQuoteCheck: true }) }}
+              >
+                {lang === 'el' ? 'Συνέχεια' : 'Continue'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

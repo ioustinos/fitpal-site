@@ -2,6 +2,8 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useUIStore } from '../store/useUIStore'
 import { useAuthStore } from '../store/useAuthStore'
 import { calculateWalletPlan } from '../lib/wallet/calculator'
+import { loadWalletSettingsFromDb } from '../lib/wallet/loadSettingsClient'
+import type { WalletSettings } from '../lib/wallet/types'
 import { DEFAULT_WALLET_SETTINGS, ACTIVITY_LABELS, MEAL_LABELS } from '../lib/wallet/constants'
 import { MealIcon } from '../components/icons/MealIcon'
 import { GoalCardArt } from '../components/icons/GoalIllustration'
@@ -222,6 +224,20 @@ export function WalletPage() {
   const [invoiceVat, setInvoiceVat] = useState('')
   const vatBad = wantInvoice && invoiceVat.length > 0 && (invoiceVat.length !== 9 || !isValidGreekVat(invoiceVat))
 
+  /* ── Live wallet settings (WEC-433) ──────────────────────────
+     Fetched once on mount from the public `settings` table. While loading
+     we use the bundled DEFAULT_WALLET_SETTINGS so the page renders
+     immediately; the real values arrive within one round-trip and the
+     `useMemo` below re-runs.
+     Server is the authoritative pricing point — this just keeps the
+     customer-visible preview honest. */
+  const [walletSettings, setWalletSettings] = useState<WalletSettings>(DEFAULT_WALLET_SETTINGS)
+  useEffect(() => {
+    let cancelled = false
+    void loadWalletSettingsFromDb().then((s) => { if (!cancelled) setWalletSettings(s) })
+    return () => { cancelled = true }
+  }, [])
+
   /* ── Live result ────────────────────────────────────────────── */
   const result = useMemo(() => calculateWalletPlan({
     sex,
@@ -234,7 +250,7 @@ export function WalletPage() {
     planLength,
     daysPerWeek,
     services: { dieticianManaged },
-  }), [sex, age, heightCm, weightKg, activity, goal, meals, planLength, daysPerWeek, dieticianManaged])
+  }, walletSettings), [sex, age, heightCm, weightKg, activity, goal, meals, planLength, daysPerWeek, dieticianManaged, walletSettings])
 
   /* ── Payment method (default card; transfer shows bank info) ─ */
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('card')
@@ -339,8 +355,16 @@ export function WalletPage() {
     }
   }
 
+  /** WEC-433: server-side quote → confirm-price modal state.
+   *  Customer sees `result.priceTotal` from the client-side calculator
+   *  (using fetched settings). Before redirecting to Viva we hit the
+   *  authoritative server quote. If the cents differ at all, we surface
+   *  the new figure and require an explicit re-click so the customer
+   *  never gets a surprise charge. */
+  const [priceConfirm, setPriceConfirm] = useState<{ serverCents: number; clientCents: number } | null>(null)
+
   /** Fire the real /api/wallet-plan-purchase call. Assumes a session exists. */
-  async function startPurchase() {
+  async function startPurchase(opts: { skipQuoteCheck?: boolean } = {}) {
     setBusy(true)
     setErrMsg(null)
     try {
@@ -349,6 +373,36 @@ export function WalletPage() {
       const { data: sess } = await supabase.auth.getSession()
       const uid = sess?.session?.user?.id
       if (uid) void persistDiet(uid)
+
+      // WEC-433: server-side quote-before-submit safety net. Skip on the
+      // second click (the modal's "Confirm" button) so the customer can
+      // proceed once they've acknowledged the new price.
+      if (!opts.skipQuoteCheck) {
+        try {
+          const qRes = await fetch('/api/wallet-plan-quote', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(buildInput()),
+          })
+          if (qRes.ok) {
+            // wallet-plan-quote returns { result: WalletCalcResult, config: {...} }
+            // where result.priceTotal is the total in EUROS (not cents).
+            const q = await qRes.json() as { result?: { priceTotal?: number } }
+            const serverCents = Math.round((q.result?.priceTotal ?? 0) * 100)
+            const clientCents = Math.round(result.priceTotal * 100)
+            if (serverCents > 0 && Math.abs(serverCents - clientCents) > 1) {
+              setPriceConfirm({ serverCents, clientCents })
+              setBusy(false)
+              return
+            }
+          }
+          // Quote endpoint failed — fall through. submit-order will recompute
+          // server-side anyway; we'd rather let the customer pay than block
+          // them on a transient API hiccup.
+        } catch {
+          /* network error — fall through */
+        }
+      }
 
       const { data, error } = await purchaseWalletPlan({ ...buildInput(), paymentMethod })
       if (error || !data) { setErrMsg(error ?? 'Purchase failed'); return }
@@ -1224,6 +1278,48 @@ export function WalletPage() {
             <button className="wpv2-bank-close" onClick={() => setBankInfo(null)}>
               {isEl ? 'Κλείσιμο' : 'Close'}
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* WEC-433: server quote-confirm modal — appears only if the server
+          authoritative price differs from what the calculator showed (e.g.
+          admin edited pricing between page-load and submit). Customer must
+          re-click to proceed. */}
+      {priceConfirm && (
+        <div
+          className="wpv2-bank-overlay"
+          onClick={() => { setPriceConfirm(null); setBusy(false) }}
+          style={{ zIndex: 1000 }}
+        >
+          <div
+            className="wpv2-bank-card"
+            onClick={(e) => e.stopPropagation()}
+            style={{ maxWidth: 440, padding: 28 }}
+          >
+            <h3 style={{ margin: '0 0 8px', fontSize: 18 }}>
+              {isEl ? 'Η τιμή ενημερώθηκε' : 'Price updated'}
+            </h3>
+            <p style={{ margin: '0 0 16px', color: '#4b5563', fontSize: 14, lineHeight: 1.5 }}>
+              {isEl
+                ? <>Η τιμή του πλάνου σου άλλαξε. Νέα τιμή: <strong>€{(priceConfirm.serverCents / 100).toFixed(2)}</strong> (εμφανιζόταν €{(priceConfirm.clientCents / 100).toFixed(2)}). Συνεχίζοντας θα χρεωθείς το νέο ποσό.</>
+                : <>The plan price has changed. New total: <strong>€{(priceConfirm.serverCents / 100).toFixed(2)}</strong> (was €{(priceConfirm.clientCents / 100).toFixed(2)}). Continuing charges the new amount.</>}
+            </p>
+            <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+              <button
+                className="wpv2-bank-close"
+                onClick={() => { setPriceConfirm(null); setBusy(false) }}
+                style={{ background: '#e5e7eb', color: '#374151' }}
+              >
+                {isEl ? 'Άκυρο' : 'Cancel'}
+              </button>
+              <button
+                className="wpv2-bank-close"
+                onClick={() => { setPriceConfirm(null); void startPurchase({ skipQuoteCheck: true }) }}
+              >
+                {isEl ? 'Συνέχεια πληρωμής' : 'Continue to payment'}
+              </button>
+            </div>
           </div>
         </div>
       )}

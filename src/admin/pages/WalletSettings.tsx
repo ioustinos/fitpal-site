@@ -12,6 +12,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { fetchAllSettings, setSetting, type SettingRow } from '../../lib/api/adminSettings'
 import type { MealKey, Macro, WalletSettings } from '../../lib/wallet/types'
+import { supabase } from '../../lib/supabase'
 
 type PricingMatrixValue = WalletSettings['pricingMatrix']
 
@@ -106,6 +107,22 @@ export function WalletSettings() {
     setSavedKey(key)
     setTimeout(() => setSavedKey(null), 1500)
     refresh()
+    // WEC-433: the server caches wallet_* settings in-memory for 60s.
+    // Bust it the instant the admin saves so the next /api/wallet-plan-quote
+    // sees the new value. Fail-soft — a transient miss just means the
+    // existing 60s TTL applies. We do this for any wallet_* key.
+    if (key.startsWith('wallet_')) {
+      try {
+        const { data: sess } = await supabase.auth.getSession()
+        const token = sess?.session?.access_token
+        if (token) {
+          await fetch('/api/wallet-config-bust', {
+            method: 'POST',
+            headers: { Authorization: `Bearer ${token}` },
+          })
+        }
+      } catch { /* fail-soft */ }
+    }
   }
 
   const visibleKeys = tab === 'diet' ? DIET_KEYS : PRICING_KEYS
