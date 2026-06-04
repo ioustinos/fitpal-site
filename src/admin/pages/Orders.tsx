@@ -307,14 +307,53 @@ function OrderDrawer({
   const [tab, setTab] = useState<'details' | 'refund' | 'timeline'>('details')
   const [err, setErr] = useState<string | null>(null)
   const [working, setWorking] = useState(false)
+  // WEC-431: soft prompt when admin cancels a paid order. Stash the pending
+  // 'cancelled' transition + the order snapshot it was raised against, so
+  // the modal can show "€X paid via {card/link/wallet}" and route the admin
+  // to the Refund tab if they choose to issue one.
+  const [cancelPrompt, setCancelPrompt] = useState<{ orderId: string } | null>(null)
 
-  async function changeStatus(next: OrderStatus) {
+  async function performStatusChange(next: OrderStatus) {
     if (!order) return
     setWorking(true); setErr(null)
     const { error } = await setOrderStatus(order.id, order.status, next, adminUser)
     setWorking(false)
     if (error) { setErr(error); return }
     onRefresh()
+  }
+
+  async function changeStatus(next: OrderStatus) {
+    if (!order) return
+    // WEC-431: if cancelling a paid order on a refundable method, intercept
+    // and show the refund-prompt modal first. Anything else takes the
+    // normal path. Wallet refunds = credit-back; card/link refunds via Viva.
+    const refundableMethods: PaymentMethod[] = ['card', 'link', 'wallet']
+    if (
+      next === 'cancelled' &&
+      order.paymentStatus === 'paid' &&
+      refundableMethods.includes(order.paymentMethod) &&
+      (order.refundAmount ?? 0) < order.total
+    ) {
+      setCancelPrompt({ orderId: order.id })
+      return
+    }
+    await performStatusChange(next)
+  }
+
+  /** WEC-431: admin chose "Issue refund" in the soft prompt — perform the
+   *  cancel transition, then switch the drawer to the Refund tab so the
+   *  admin can complete the refund in one continuous flow. */
+  async function confirmCancelAndOpenRefund() {
+    setCancelPrompt(null)
+    await performStatusChange('cancelled')
+    setTab('refund')
+  }
+  /** WEC-431: admin chose "Cancel without refund". Same path as a normal
+   *  cancel — no Refund tab switch. Future: capture the reason in
+   *  admin_notes (open question in the ticket). */
+  async function confirmCancelNoRefund() {
+    setCancelPrompt(null)
+    await performStatusChange('cancelled')
   }
 
   async function changePayment(next: PaymentStatus) {
@@ -418,6 +457,58 @@ function OrderDrawer({
               {tab === 'timeline' && <TimelineTab order={order} />}
             </div>
           </>
+        )}
+
+        {/* WEC-431: refund prompt — shown when admin tries to cancel a paid
+            order on a refundable method. "Issue refund" cancels + jumps to
+            Refund tab; "Cancel without refund" cancels normally. Background
+            click and Esc both bail out without changing anything. */}
+        {cancelPrompt && order && (
+          <div
+            className="admin-drawer-overlay"
+            style={{ background: 'rgba(0,0,0,0.45)' }}
+            onClick={() => setCancelPrompt(null)}
+          >
+            <div
+              className="admin-modal"
+              style={{
+                maxWidth: 460, margin: '14vh auto', background: '#fff',
+                border: '1px solid #e5e7eb', borderRadius: 10, padding: 24,
+                boxShadow: '0 12px 40px rgba(0,0,0,0.18)',
+              }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <h3 style={{ margin: '0 0 8px', fontSize: 17 }}>Cancel this paid order?</h3>
+              <p style={{ margin: '0 0 16px', color: '#4b5563', fontSize: 14, lineHeight: 1.45 }}>
+                This order has <strong>€{((order.total - (order.refundAmount ?? 0)) / 100).toFixed(2)}</strong>
+                {' '}still paid via <strong>{order.paymentMethod}</strong>. Cancelling without a
+                refund leaves the funds with{order.paymentMethod === 'wallet' ? ' your wallet ledger' : ' Viva'}.
+              </p>
+              <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', flexWrap: 'wrap' }}>
+                <button
+                  className="admin-btn-ghost"
+                  disabled={working}
+                  onClick={() => setCancelPrompt(null)}
+                >
+                  Keep order
+                </button>
+                <button
+                  className="admin-btn-ghost"
+                  disabled={working}
+                  onClick={() => void confirmCancelNoRefund()}
+                >
+                  Cancel without refund
+                </button>
+                <button
+                  className="admin-btn-danger"
+                  disabled={working}
+                  onClick={() => void confirmCancelAndOpenRefund()}
+                >
+                  Cancel + issue refund
+                </button>
+              </div>
+            </div>
+          </div>
         )}
       </div>
     </div>

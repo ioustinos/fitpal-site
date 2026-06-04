@@ -951,9 +951,7 @@ export default async (request: Request) => {
       }
     } else if (body.paymentMethod === 'wallet') {
       // Atomic: lock wallet, verify balance, debit, record tx, mark order paid.
-      // If the RPC raises P0002 (insufficient balance), delete the order
-      // (cascade cleans child_orders + order_items + voucher_uses) and
-      // surface a 402 so the user can pick another method.
+      // If the RPC raises P0002 (insufficient balance), roll back.
       const { error: debitErr } = await svcRpc.rpc('wallet_debit_for_order', {
         p_order_id: orderId,
         p_user_id: userId,
@@ -963,15 +961,31 @@ export default async (request: Request) => {
         const code = (debitErr as { code?: string }).code ?? ''
         const msg = debitErr.message ?? ''
         console.error('wallet_debit_for_order failed for orderId=%s:', orderId, debitErr)
-        // Roll back voucher BEFORE deleting the order — unredeem_voucher_for_order
+        // Roll back voucher BEFORE touching the order — unredeem_voucher_for_order
         // reverses uses_count + remaining, then deletes the voucher_uses row. The
         // FK cascade on order delete would only remove the use row, leaving the
         // counters incremented (existing pre-WEC-211 bug, fixed here).
         if (voucherId) {
           await svcRpc.rpc('unredeem_voucher_for_order', { p_order_id: orderId })
         }
-        // Roll back the order row. Cascade cleans child_orders + order_items.
-        await supabase.from('orders').delete().eq('id', orderId)
+        // WEC-429 #1: roll back the order row.
+        //   - Legacy path (no draftId)  → DELETE (cascade cleans child_orders + items).
+        //   - Promote-from-draft path   → REVERT to status='draft' + clear order_number.
+        //     The whole point of WEC-414 drafts is that an after-form failure
+        //     leaves the user's state intact so they can switch payment method
+        //     without re-filling everything. Deleting wiped it.
+        //     voucher_uses is already gone (unredeem above), and the
+        //     wec421_block_voucher_uses_on_drafts trigger keeps it that way.
+        if (body.draftId) {
+          await supabase.from('orders').update({
+            status: 'draft',
+            order_number: null,
+            payment_status: 'pending',
+            updated_at: new Date().toISOString(),
+          }).eq('id', orderId)
+        } else {
+          await supabase.from('orders').delete().eq('id', orderId)
+        }
         if (code === 'P0002' || msg.includes('insufficient_balance')) {
           return Response.json(
             { error: 'Insufficient wallet balance', validationErrors: { general: ['Insufficient wallet balance'] } },
