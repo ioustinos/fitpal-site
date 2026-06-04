@@ -106,13 +106,25 @@ export async function createVivaOrder(args: CreateOrderArgs): Promise<CreateOrde
     body: JSON.stringify(body),
   })
 
+  const text = await res.text()
   if (!res.ok) {
-    const errBody = await res.text().catch(() => '')
-    throw new Error(`Viva create-order failed: ${res.status} ${errBody}`)
+    throw new Error(`Viva create-order failed: ${res.status} ${text.slice(0, 400)}`)
   }
 
-  const json = (await res.json()) as { orderCode: number | string }
-  const orderCode = String(json.orderCode)
+  // WEC-430 ROOT CAUSE: do NOT JSON.parse the orderCode. It's a 16-digit
+  // integer that often exceeds Number.MAX_SAFE_INTEGER (~9.01e15); parsing
+  // silently rounds odd values down by 1, so we'd store and redirect to a
+  // *different* orderCode than the one Viva minted — customer lands on
+  // "Order not found." Extract as a literal string from the raw response.
+  // Fallback to JSON.parse for safety on the boring (sub-MAX_SAFE) case.
+  const m = text.match(/"orderCode"\s*:\s*(\d+)/)
+  let orderCode: string
+  if (m) {
+    orderCode = m[1]
+  } else {
+    const json = JSON.parse(text) as { orderCode: number | string }
+    orderCode = String(json.orderCode)
+  }
   const paymentUrl = checkoutUrl(orderCode)
 
   // Regenerate mode: fail any pending row for this order first.

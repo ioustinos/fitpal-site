@@ -170,7 +170,11 @@ export default async (request: Request) => {
           : () => verifyVivaTransaction(transactionId)
         await verifier().catch(async () => {
           // Fallback: mark failed by orderCode if retrieve failed.
-          const orderCode = eventData.OrderCode ? String(eventData.OrderCode) : null
+          // WEC-430: extract OrderCode from rawBody via regex — the parsed
+          // payload's `eventData.OrderCode` is a JS Number that rounds 16-digit
+          // codes above MAX_SAFE_INTEGER and would mismatch our DB row.
+          const m = rawBody.match(/"OrderCode"\s*:\s*(\d+)/)
+          const orderCode = m ? m[1] : (eventData.OrderCode ? String(eventData.OrderCode) : null)
           if (!orderCode) return
           if (isWalletPlan) {
             await supabase

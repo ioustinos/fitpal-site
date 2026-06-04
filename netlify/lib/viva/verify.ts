@@ -73,8 +73,14 @@ export async function verifyVivaTransaction(transactionId: string): Promise<Veri
     const body = await res.text().catch(() => '')
     throw new Error(`Viva retrieve-transaction failed: ${res.status} ${body}`)
   }
-  const data = (await res.json()) as VivaTransaction
-  const orderCode = String(data.orderCode)
+  // WEC-430: read response as text + extract orderCode via regex on the raw
+  // JSON, NOT via JSON.parse — 16-digit codes above MAX_SAFE_INTEGER lose
+  // precision and the resulting lookup of payment_links would miss. We still
+  // JSON.parse for everything else (statusId, amount, merchantTrns, etc.).
+  const text = await res.text()
+  const data = JSON.parse(text) as VivaTransaction
+  const m = text.match(/"orderCode"\s*:\s*(\d+)/)
+  const orderCode = m ? m[1] : String(data.orderCode)
   const statusId = String(data.statusId ?? '')
 
   const supabase = serviceClient()

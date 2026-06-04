@@ -91,13 +91,24 @@ export async function createWalletPlanVivaOrder(
     body: JSON.stringify(body),
   })
 
+  const text = await res.text()
   if (!res.ok) {
-    const errBody = await res.text().catch(() => '')
-    throw new Error(`Viva create-order failed: ${res.status} ${errBody}`)
+    throw new Error(`Viva create-order failed: ${res.status} ${text.slice(0, 400)}`)
   }
 
-  const json = (await res.json()) as { orderCode: number | string }
-  const orderCode = String(json.orderCode)
+  // WEC-430 ROOT CAUSE: parse orderCode as STRING via regex, NEVER as a JS
+  // Number — Viva returns a 16-digit int that often exceeds MAX_SAFE_INTEGER
+  // (~9.01e15) and JSON.parse silently rounds odd values down by 1. The
+  // rounded code is a different (often non-existent) orderCode at Viva,
+  // so the customer redirect hits "Order not found". See createOrder.ts.
+  const m = text.match(/"orderCode"\s*:\s*(\d+)/)
+  let orderCode: string
+  if (m) {
+    orderCode = m[1]
+  } else {
+    const json = JSON.parse(text) as { orderCode: number | string }
+    orderCode = String(json.orderCode)
+  }
   const paymentUrl = checkoutUrl(orderCode)
 
   // Persist orderCode on the wallet_plan
