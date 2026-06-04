@@ -182,15 +182,104 @@ export default async (request: Request) => {
       let parsed: unknown
       try { parsed = JSON.parse(text) } catch { parsed = text }
       steps.push({
-        step: 'ListTransactionsForOrderCode',
+        step: 'ListTransactionsForOrderCode (OAuth, /checkout/v2/orders/)',
         ok: res.ok,
         status: res.status,
         url: probeUrl,
         response: typeof parsed === 'string' ? parsed.slice(0, 1500) : parsed,
       })
     } catch (err) {
-      steps.push({ step: 'ListTransactionsForOrderCode', ok: false, error: String(err) })
+      steps.push({ step: 'ListTransactionsForOrderCode (OAuth)', ok: false, error: String(err) })
     }
+  }
+
+  // ── Step 4: WEC-430 diagnostic — try alternative auth + URL combinations ─
+  // The standard /checkout/v2/orders/{code} probe above is returning 404 even
+  // for freshly-minted codes. This step systematically tries the four most
+  // likely alternatives to find one that works.
+  if (probeOrderCode) {
+    const basicHeader = `Basic ${Buffer.from(`${creds.merchantId}:${creds.apiKey}`).toString('base64')}`
+
+    const variants: Array<{ name: string; url: string; auth: string }> = [
+      // OAuth + /checkout/v2/orders/{code}  ← we already tested this above
+      // Basic + /checkout/v2/orders/{code}
+      { name: 'Basic+checkout-v2',
+        url: `https://${creds.apiHost}/checkout/v2/orders/${encodeURIComponent(probeOrderCode)}`,
+        auth: basicHeader },
+      // OAuth + /api/orders/{code}  (legacy listing)
+      { name: 'OAuth+api-orders',
+        url: `https://${creds.apiHost}/api/orders/${encodeURIComponent(probeOrderCode)}`,
+        auth: token ? `Bearer ${token}` : '' },
+      // Basic + /api/orders/{code}
+      { name: 'Basic+api-orders',
+        url: `https://${creds.apiHost}/api/orders/${encodeURIComponent(probeOrderCode)}`,
+        auth: basicHeader },
+      // Basic + checkoutHost (some Viva legacy endpoints live there)
+      { name: 'Basic+checkoutHost-api-orders',
+        url: `https://${creds.checkoutHost}/api/orders/${encodeURIComponent(probeOrderCode)}`,
+        auth: basicHeader },
+    ]
+    for (const v of variants) {
+      try {
+        const res = await fetch(v.url, { headers: { Authorization: v.auth } })
+        const text = await res.text()
+        let parsed: unknown
+        try { parsed = JSON.parse(text) } catch { parsed = text }
+        steps.push({
+          step: `Probe[${v.name}]`,
+          ok: res.ok,
+          status: res.status,
+          url: v.url,
+          response: typeof parsed === 'string' ? parsed.slice(0, 500) : parsed,
+        })
+      } catch (err) {
+        steps.push({ step: `Probe[${v.name}]`, ok: false, url: v.url, error: String(err) })
+      }
+    }
+  }
+
+  // ── Step 5: WEC-430 diagnostic — retry OAuth with broader scope set.
+  // Hypothesis: the redirectcheckout scope grants only CREATE rights on
+  // orders, not READ. Try adding the transactions/retrievals scope.
+  try {
+    const broadScope = 'urn:viva:payments:core:api:redirectcheckout urn:viva:payments:core:api:retrievetransactions'
+    const r = await fetch(oauthUrl, {
+      method: 'POST',
+      headers: { Authorization: `Basic ${basic}`, 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({ grant_type: 'client_credentials', scope: broadScope }).toString(),
+    })
+    const text = await r.text()
+    let parsed: unknown
+    try { parsed = JSON.parse(text) } catch { parsed = text }
+    let broadToken: string | null = null
+    if (parsed && typeof parsed === 'object' && 'access_token' in parsed) {
+      broadToken = (parsed as { access_token: string }).access_token
+    }
+    steps.push({
+      step: 'OAuth (broader scope)',
+      ok: r.ok,
+      status: r.status,
+      scope: broadScope,
+      response: parsed && typeof parsed === 'object'
+        ? { ...(parsed as object), access_token: broadToken ? `<token len=${broadToken.length}>` : null }
+        : (typeof parsed === 'string' ? parsed.slice(0, 600) : parsed),
+    })
+    if (broadToken && probeOrderCode) {
+      const url = `https://${creds.apiHost}/checkout/v2/orders/${encodeURIComponent(probeOrderCode)}`
+      const r2 = await fetch(url, { headers: { Authorization: `Bearer ${broadToken}` } })
+      const t = await r2.text()
+      let p: unknown
+      try { p = JSON.parse(t) } catch { p = t }
+      steps.push({
+        step: 'Probe[OAuth-broadScope+checkout-v2]',
+        ok: r2.ok,
+        status: r2.status,
+        url,
+        response: typeof p === 'string' ? p.slice(0, 800) : p,
+      })
+    }
+  } catch (err) {
+    steps.push({ step: 'OAuth (broader scope)', ok: false, error: String(err) })
   }
 
   return Response.json({ steps })
