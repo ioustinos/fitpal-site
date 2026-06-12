@@ -360,11 +360,12 @@ function NonPaidView({ outcome, lang }: { outcome: Outcome; lang: 'el' | 'en' })
     )
   }
 
-  // unknown
+  // unknown (only status left in this union after the early returns above)
+  const msg = outcome.status === 'unknown' ? outcome.message : ''
   return (
     <div className="order-return-state">
       <h2>{lang === 'el' ? 'Η σελίδα απαιτεί παραμέτρους' : 'Missing parameters'}</h2>
-      <p>{outcome.message}</p>
+      <p>{msg}</p>
     </div>
   )
 }

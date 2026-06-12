@@ -1,3 +1,4 @@
+import { Link } from 'react-router-dom'
 import { RawJsonSection } from './Settings'
 import { useAdminSettings } from '../hooks/useAdminSettings'
 
@@ -27,6 +28,23 @@ export function Advanced() {
       {err && <div className="admin-error-banner">{err}</div>}
       {savingMsg && <div className="admin-info-banner">{savingMsg}</div>}
       {loading && <div className="admin-loading">Loading…</div>}
+
+      {/* Tools & reference — non-settings utilities live here too */}
+      <section className="admin-setting-card" style={{ marginBottom: 20 }}>
+        <div className="admin-setting-head">
+          <h3>Tools & reference</h3>
+          <p>Internal documentation and shared reference surfaces.</p>
+        </div>
+        <div className="admin-setting-body">
+          <ul style={{ margin: 0, paddingLeft: 20 }}>
+            <li>
+              <Link to="/admin/design-system" className="admin-inline-link">Design System</Link> —
+              live reference for tokens, typography, components, icons, and usage rules.
+              Share with designers, contractors, or anyone touching the UI.
+            </li>
+          </ul>
+        </div>
+      </section>
 
       {!loading && <RawJsonSection rows={all} onSaved={refresh} />}
     </div>

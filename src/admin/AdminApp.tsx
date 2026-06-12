@@ -24,6 +24,7 @@ import { Vouchers } from './pages/Vouchers'
 import { Users } from './pages/Users'
 import { WalletPurchases } from './pages/WalletPurchases'
 import { WalletSettings } from './pages/WalletSettings'
+import { DesignSystem } from './pages/DesignSystem'
 import './admin.css'
 
 /**
@@ -56,6 +57,7 @@ export default function AdminApp() {
           <Route path="payments" element={<SettingsPayments />} />
           <Route path="menu-options" element={<MenuOptions />} />
           <Route path="advanced" element={<Advanced />} />
+          <Route path="design-system" element={<DesignSystem />} />
 
           {/* Legacy /admin/settings redirects to the first settings-group
               page so old bookmarks still land somewhere sensible. */}
