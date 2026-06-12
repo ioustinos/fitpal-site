@@ -63,6 +63,16 @@ export interface KlaviyoProfile {
   externalId?: string  // typically our user_id
 }
 
+/** Canonical event names. Keep stable — Klaviyo flows trigger off the exact string. */
+export const EVT = {
+  OrderPlaced:           'Order Placed',
+  OrderRefunded:         'Order Refunded',
+  OrderCancelled:        'Order Cancelled',
+  PaymentLinkSent:       'Payment Link Sent',
+  SubscriptionPurchased: 'Subscription Purchased',
+  WalletCreditGranted:   'Wallet Credit Granted',
+} as const
+
 /**
  * Track a custom event for a customer. The event name + properties are
  * what Klaviyo flows trigger off — keep names stable; rename ⇒ broken flows.

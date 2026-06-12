@@ -1,0 +1,197 @@
+<!--
+  Klaviyo template: Order Confirmation — ΕΛ
+  Triggered by event: "Order Placed"
+  Use this template inside a flow with conditional: event.lang == "el"
+
+  Tested layout:
+   - 600px container, mobile-collapses below 480px (Outlook respects media; Gmail strips them but base layout still works)
+   - All styles inlined where it matters (Gmail strips <style> in some contexts)
+   - Logo absolute URL: https://dev--fitpal-order.netlify.app/brand/on-dark-green.png
+     (replace with production URL when prod cutover happens)
+
+  Klaviyo variables expected on the event:
+    event.order_number, event.total, event.subtotal, event.discount_amount
+    event.payment_method        (card | cash | link | transfer | wallet)
+    event.payment_status        (pending | paid)
+    event.day_count, event.item_count
+    event.days[]                each: { date, day_label_el, day_label_en, time_window, address, items[], day_total, day_macros{cal,p,c,f} }
+    event.total_macros{cal,p,c,f}
+    event.bank_transfer_infos[] each: { iban, beneficiary, bank_name }   (only when payment_method=transfer)
+-->
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" lang="el">
+<head>
+  <meta charset="utf-8" />
+  <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Η παραγγελία σου επιβεβαιώθηκε</title>
+  <style type="text/css">
+    /* Web-safe Geologica preference; falls back to system stack */
+    @import url('https://fonts.googleapis.com/css2?family=Geologica:wght@400;600;800&display=swap');
+    body { margin: 0; padding: 0; background: #F9F2E1; font-family: 'Geologica', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; color: #1C2B1C; }
+    table { border-collapse: collapse; }
+    img { border: 0; display: block; outline: none; text-decoration: none; }
+    .email-container { max-width: 600px; margin: 0 auto; background: #FFFFFF; }
+    .header { background: #004739; padding: 28px 32px; }
+    .header img { height: 36px; }
+    .hero { padding: 36px 32px 24px; background: #FFFFFF; text-align: left; border-bottom: 1px solid #E2EDE2; }
+    .hero h1 { margin: 0 0 8px; font-size: 24px; font-weight: 800; color: #004739; letter-spacing: -0.4px; line-height: 1.2; }
+    .hero p  { margin: 0; font-size: 14px; color: #3D5A3D; line-height: 1.5; }
+    .order-pill { display: inline-block; margin-top: 14px; background: #D4F5E5; color: #004739; padding: 6px 14px; border-radius: 999px; font-size: 13px; font-weight: 600; }
+    .section { padding: 24px 32px; border-bottom: 1px solid #F0E3C0; }
+    .section h2 { margin: 0 0 14px; font-size: 14px; font-weight: 700; color: #004739; letter-spacing: 1px; text-transform: uppercase; }
+    .day-card { background: #F9F2E1; border-radius: 10px; padding: 16px; margin-bottom: 12px; }
+    .day-head { display: block; font-size: 15px; font-weight: 700; color: #004739; margin-bottom: 4px; }
+    .day-meta { display: block; font-size: 12px; color: #3D5A3D; margin-bottom: 12px; }
+    .item-row { padding: 6px 0; border-bottom: 1px dashed #E2EDE2; font-size: 13px; }
+    .item-row:last-child { border-bottom: 0; }
+    .item-name { color: #1C2B1C; font-weight: 600; }
+    .item-meta { color: #7A957A; font-size: 11px; }
+    .item-price { float: right; color: #1C2B1C; font-weight: 600; }
+    .day-total { margin-top: 10px; padding-top: 10px; border-top: 1px solid #E2EDE2; font-size: 13px; font-weight: 600; }
+    .day-macros { margin-top: 8px; font-size: 11px; color: #7A957A; }
+
+    .totals { background: #F0FAF5; padding: 18px 24px; border-radius: 10px; }
+    .totals-row { padding: 4px 0; font-size: 13px; color: #1C2B1C; }
+    .totals-row strong { float: right; }
+    .totals-row.grand { border-top: 1.5px solid #00B96B; padding-top: 10px; margin-top: 8px; font-size: 16px; font-weight: 800; color: #004739; }
+
+    .pay-card { background: #FFFDF5; border: 1.5px solid #F0E3C0; border-radius: 10px; padding: 18px; }
+    .pay-card.transfer { background: #FFF7ED; border-color: #FED7AA; }
+    .pay-title { font-size: 13px; font-weight: 700; color: #004739; margin: 0 0 8px; }
+    .pay-detail { font-size: 13px; color: #1C2B1C; line-height: 1.55; margin: 2px 0; }
+    .pay-detail strong { color: #004739; }
+
+    .cta { display: inline-block; background: #00B96B; color: #FFFFFF !important; text-decoration: none; font-weight: 800; padding: 14px 28px; border-radius: 999px; font-size: 14px; letter-spacing: 0.3px; }
+
+    .footer { padding: 28px 32px; background: #004739; color: rgba(255,255,255,0.7); font-size: 12px; text-align: center; }
+    .footer a { color: #CFD72B; text-decoration: none; }
+    .footer .links { margin: 8px 0 14px; }
+    .footer .links a { margin: 0 8px; }
+    .footer .small { font-size: 11px; color: rgba(255,255,255,0.5); margin-top: 12px; }
+
+    @media (max-width: 480px) {
+      .hero, .section, .footer, .header { padding-left: 20px !important; padding-right: 20px !important; }
+      .hero h1 { font-size: 20px !important; }
+      .totals-row.grand { font-size: 15px !important; }
+    }
+  </style>
+</head>
+<body>
+  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0">
+    <tr>
+      <td align="center" style="padding: 24px 12px;">
+        <table role="presentation" class="email-container" width="600" cellspacing="0" cellpadding="0" border="0" style="max-width: 600px; background: #FFFFFF; border-radius: 14px; overflow: hidden;">
+
+          <!-- Header with logo -->
+          <tr>
+            <td class="header">
+              <img src="https://dev--fitpal-order.netlify.app/brand/on-dark-green.png" alt="Fitpal Meals" height="36" />
+            </td>
+          </tr>
+
+          <!-- Hero -->
+          <tr>
+            <td class="hero">
+              <h1>Ευχαριστούμε, Ioustinos! Η παραγγελία σου καταχωρήθηκε ✓</h1>
+              <p>Θα τη φροντίσουμε με προσοχή και θα σου στείλουμε ενημέρωση όταν είναι έτοιμη να ξεκινήσει για εσένα.</p>
+              <span class="order-pill">Παραγγελία #FP-260612-2204</span>
+            </td>
+          </tr>
+
+          <!-- Per-day breakdown -->
+          <tr>
+            <td class="section">
+              <h2>Πρόγραμμα παράδοσης</h2>
+              
+              <div class="day-card">
+                <span class="day-head">Δευτέρα 15 Ιουν</span>
+                <span class="day-meta">12:00–14:00 · Εολου 23, Αθήνα 10551</span>
+                
+                <div class="item-row">
+                  <span class="item-price">€</span>
+                  <div class="item-name"> × </div>
+                  <div class="item-meta"> ·  kcal · P  g · C  g · F  g</div>
+                </div>
+                
+              <div class="day-card">
+                <span class="day-head">Τετάρτη 17 Ιουν</span>
+                <span class="day-meta">13:00–15:00 · Εολου 23, Αθήνα 10551</span>
+                
+                <div class="item-row">
+                  <span class="item-price">€</span>
+                  <div class="item-name"> × </div>
+                  <div class="item-meta"> ·  kcal · P  g · C  g · F  g</div>
+                </div>
+                
+                <div class="day-total">
+                  Σύνολο ημέρας <span style="float: right;">€</span>
+                </div>
+                <div class="day-macros">
+                  Συνολικά μακροθρεπτικά:  kcal ·  g πρωτεΐνη ·  g υδ/κες ·  g λιπαρά
+                </div>
+              </div>
+              
+            </td>
+          </tr>
+
+          <!-- Totals -->
+          <tr>
+            <td class="section">
+              <h2>Σύνοψη</h2>
+              <div class="totals">
+                <div class="totals-row">Υποσύνολο <strong>€37.40</strong></div>
+                
+                <div class="totals-row" style="color: #00B96B;">Έκπτωση <strong>−€3.74</strong></div>
+                
+                <div class="totals-row grand">Σύνολο <strong>€33.66</strong></div>
+              </div>
+              <p style="margin: 12px 0 0; font-size: 11px; color: #7A957A;">Όλες οι τιμές περιλαμβάνουν ΦΠΑ.</p>
+            </td>
+          </tr>
+
+          <!-- Payment block — conditional on method -->
+          <tr>
+            <td class="section">
+              <h2>Πληρωμή</h2>
+              
+              <div class="pay-card transfer">
+                <p class="pay-title">Τραπεζική Μεταφορά — εκκρεμεί</p>
+                <p class="pay-detail">Μετάφερε το ποσό στον λογαριασμό μας. Η παραγγελία σου ενεργοποιείται μόλις λάβουμε επιβεβαίωση.</p>
+                
+                <p class="pay-detail" style="margin-top: 14px;"><strong>IBAN:</strong> GR16 0110 1250 0000 0001 2300 695</p>
+                <p class="pay-detail"><strong>Δικαιούχος:</strong> Fitpal Meals AE · </p>
+                
+                <p class="pay-detail" style="margin-top: 14px;"><strong>Αιτιολογία πληρωμής:</strong> FP-260612-2204</p>
+              </div>
+              
+            </td>
+          </tr>
+
+          <!-- CTA -->
+          <tr>
+            <td class="section" style="text-align: center; border-bottom: 0;">
+              <a href="https://dev--fitpal-order.netlify.app/account" class="cta">Δες την παραγγελία σου</a>
+              <p style="margin: 14px 0 0; font-size: 12px; color: #7A957A;">Χρειάζεσαι βοήθεια; Απάντησε σε αυτό το email ή γράψε μας στο <a href="mailto:hello@fitpal.gr" style="color: #00B96B; text-decoration: none;">hello@fitpal.gr</a>.</p>
+            </td>
+          </tr>
+
+          <!-- Footer -->
+          <tr>
+            <td class="footer">
+              <div>Fitpal Meals — υγιεινό φαγητό με νόημα.</div>
+              <div class="links">
+                <a href="https://fitpal.gr">fitpal.gr</a> ·
+                <a href="https://www.instagram.com/fitpalmeals">Instagram</a> ·
+                <a href="https://dev--fitpal-order.netlify.app/account">Λογαριασμός</a>
+              </div>
+              <div class="small">Λάβατε αυτό το email επειδή κάνατε μια παραγγελία στο Fitpal Meals. Δεν είναι διαφημιστικό μήνυμα.</div>
+            </td>
+          </tr>
+
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>

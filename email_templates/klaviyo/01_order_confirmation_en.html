@@ -1,0 +1,154 @@
+<!--
+  Klaviyo template: Order Confirmation — EN
+  Triggered by event: "Order Placed"   |   Conditional: event.lang == "en"
+  Mirror of 01_order_confirmation_el.html. Keep both in sync if you tweak layout.
+-->
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Your order is confirmed</title>
+  <style type="text/css">
+    @import url('https://fonts.googleapis.com/css2?family=Geologica:wght@400;600;800&display=swap');
+    body { margin: 0; padding: 0; background: #F9F2E1; font-family: 'Geologica', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; color: #1C2B1C; }
+    table { border-collapse: collapse; }
+    img { border: 0; display: block; outline: none; text-decoration: none; }
+    .email-container { max-width: 600px; margin: 0 auto; background: #FFFFFF; }
+    .header { background: #004739; padding: 28px 32px; }
+    .header img { height: 36px; }
+    .hero { padding: 36px 32px 24px; background: #FFFFFF; text-align: left; border-bottom: 1px solid #E2EDE2; }
+    .hero h1 { margin: 0 0 8px; font-size: 24px; font-weight: 800; color: #004739; letter-spacing: -0.4px; line-height: 1.2; }
+    .hero p  { margin: 0; font-size: 14px; color: #3D5A3D; line-height: 1.5; }
+    .order-pill { display: inline-block; margin-top: 14px; background: #D4F5E5; color: #004739; padding: 6px 14px; border-radius: 999px; font-size: 13px; font-weight: 600; }
+    .section { padding: 24px 32px; border-bottom: 1px solid #F0E3C0; }
+    .section h2 { margin: 0 0 14px; font-size: 14px; font-weight: 700; color: #004739; letter-spacing: 1px; text-transform: uppercase; }
+    .day-card { background: #F9F2E1; border-radius: 10px; padding: 16px; margin-bottom: 12px; }
+    .day-head { display: block; font-size: 15px; font-weight: 700; color: #004739; margin-bottom: 4px; }
+    .day-meta { display: block; font-size: 12px; color: #3D5A3D; margin-bottom: 12px; }
+    .item-row { padding: 6px 0; border-bottom: 1px dashed #E2EDE2; font-size: 13px; }
+    .item-row:last-child { border-bottom: 0; }
+    .item-name { color: #1C2B1C; font-weight: 600; }
+    .item-meta { color: #7A957A; font-size: 11px; }
+    .item-price { float: right; color: #1C2B1C; font-weight: 600; }
+    .day-total { margin-top: 10px; padding-top: 10px; border-top: 1px solid #E2EDE2; font-size: 13px; font-weight: 600; }
+    .day-macros { margin-top: 8px; font-size: 11px; color: #7A957A; }
+    .totals { background: #F0FAF5; padding: 18px 24px; border-radius: 10px; }
+    .totals-row { padding: 4px 0; font-size: 13px; color: #1C2B1C; }
+    .totals-row strong { float: right; }
+    .totals-row.grand { border-top: 1.5px solid #00B96B; padding-top: 10px; margin-top: 8px; font-size: 16px; font-weight: 800; color: #004739; }
+    .pay-card { background: #FFFDF5; border: 1.5px solid #F0E3C0; border-radius: 10px; padding: 18px; }
+    .pay-card.transfer { background: #FFF7ED; border-color: #FED7AA; }
+    .pay-title { font-size: 13px; font-weight: 700; color: #004739; margin: 0 0 8px; }
+    .pay-detail { font-size: 13px; color: #1C2B1C; line-height: 1.55; margin: 2px 0; }
+    .pay-detail strong { color: #004739; }
+    .cta { display: inline-block; background: #00B96B; color: #FFFFFF !important; text-decoration: none; font-weight: 800; padding: 14px 28px; border-radius: 999px; font-size: 14px; letter-spacing: 0.3px; }
+    .footer { padding: 28px 32px; background: #004739; color: rgba(255,255,255,0.7); font-size: 12px; text-align: center; }
+    .footer a { color: #CFD72B; text-decoration: none; }
+    .footer .links { margin: 8px 0 14px; }
+    .footer .links a { margin: 0 8px; }
+    .footer .small { font-size: 11px; color: rgba(255,255,255,0.5); margin-top: 12px; }
+    @media (max-width: 480px) {
+      .hero, .section, .footer, .header { padding-left: 20px !important; padding-right: 20px !important; }
+      .hero h1 { font-size: 20px !important; }
+      .totals-row.grand { font-size: 15px !important; }
+    }
+  </style>
+</head>
+<body>
+  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0">
+    <tr>
+      <td align="center" style="padding: 24px 12px;">
+        <table role="presentation" class="email-container" width="600" cellspacing="0" cellpadding="0" border="0" style="max-width: 600px; background: #FFFFFF; border-radius: 14px; overflow: hidden;">
+
+          <tr><td class="header"><img src="https://dev--fitpal-order.netlify.app/brand/on-dark-green.png" alt="Fitpal Meals" height="36" /></td></tr>
+
+          <tr><td class="hero">
+            <h1>Thanks, {{ event.first_name|default:"" }}! Your order is confirmed ✓</h1>
+            <p>We'll prepare it with care and ping you when it's on the way.</p>
+            <span class="order-pill">Order #{{ event.order_number }}</span>
+          </td></tr>
+
+          <tr><td class="section">
+            <h2>Delivery schedule</h2>
+            {% for day in event.days %}
+            <div class="day-card">
+              <span class="day-head">{{ day.day_label_en|default:day.date }}</span>
+              <span class="day-meta">{{ day.time_window }} · {{ day.address }}</span>
+              {% for item in day.items %}
+              <div class="item-row">
+                <span class="item-price">€{{ item.total_price|floatformat:2 }}</span>
+                <div class="item-name">{{ item.name_en|default:item.name_el }} {% if item.qty > 1 %}× {{ item.qty }}{% endif %}</div>
+                <div class="item-meta">{{ item.variant_label_en|default:item.variant_label_el }}{% if item.variant_label_en %} · {% endif %}{{ item.calories }} kcal · P {{ item.protein }} g · C {{ item.carbs }} g · F {{ item.fat }} g</div>
+              </div>
+              {% endfor %}
+              <div class="day-total">Day total <span style="float: right;">€{{ day.day_total|floatformat:2 }}</span></div>
+              <div class="day-macros">Day macros: {{ day.day_macros.calories }} kcal · {{ day.day_macros.protein }} g protein · {{ day.day_macros.carbs }} g carbs · {{ day.day_macros.fat }} g fat</div>
+            </div>
+            {% endfor %}
+          </td></tr>
+
+          <tr><td class="section">
+            <h2>Summary</h2>
+            <div class="totals">
+              <div class="totals-row">Subtotal <strong>€{{ event.subtotal|floatformat:2 }}</strong></div>
+              {% if event.discount_amount > 0 %}
+              <div class="totals-row" style="color: #00B96B;">Discount <strong>−€{{ event.discount_amount|floatformat:2 }}</strong></div>
+              {% endif %}
+              <div class="totals-row grand">Total <strong>€{{ event.total|floatformat:2 }}</strong></div>
+            </div>
+            <p style="margin: 12px 0 0; font-size: 11px; color: #7A957A;">All prices include VAT.</p>
+          </td></tr>
+
+          <tr><td class="section">
+            <h2>Payment</h2>
+            {% if event.payment_method == "card" or event.payment_method == "wallet" %}
+            <div class="pay-card">
+              <p class="pay-title">{% if event.payment_method == "card" %}Card{% else %}Fitpal Wallet{% endif %} ✓</p>
+              <p class="pay-detail">Payment complete. Nothing more to do.</p>
+            </div>
+            {% elif event.payment_method == "cash" %}
+            <div class="pay-card">
+              <p class="pay-title">Cash on delivery</p>
+              <p class="pay-detail">Pay our driver at delivery. Having the exact amount ready helps.</p>
+            </div>
+            {% elif event.payment_method == "transfer" %}
+            <div class="pay-card transfer">
+              <p class="pay-title">Bank transfer — pending</p>
+              <p class="pay-detail">Transfer the amount to our account. Your order activates the moment we confirm receipt.</p>
+              {% for b in event.bank_transfer_infos %}
+              <p class="pay-detail" style="margin-top: 14px;"><strong>IBAN:</strong> {{ b.iban }}</p>
+              <p class="pay-detail"><strong>Beneficiary:</strong> {{ b.beneficiary }}{% if b.bank_name %} · {{ b.bank_name }}{% endif %}</p>
+              {% endfor %}
+              <p class="pay-detail" style="margin-top: 14px;"><strong>Reference:</strong> {{ event.order_number }}</p>
+            </div>
+            {% elif event.payment_method == "link" %}
+            <div class="pay-card">
+              <p class="pay-title">Payment link</p>
+              <p class="pay-detail">You'll receive a separate email shortly with a secure Viva payment link.</p>
+            </div>
+            {% endif %}
+          </td></tr>
+
+          <tr><td class="section" style="text-align: center; border-bottom: 0;">
+            <a href="https://dev--fitpal-order.netlify.app/account" class="cta">View your order</a>
+            <p style="margin: 14px 0 0; font-size: 12px; color: #7A957A;">Need help? Reply to this email or write to <a href="mailto:info@fitpal.gr" style="color: #00B96B; text-decoration: none;">info@fitpal.gr</a>.</p>
+          </td></tr>
+
+          <tr><td class="footer">
+            <div>Fitpal Meals — healthy food, with meaning.</div>
+            <div class="links">
+              <a href="https://fitpal.gr">fitpal.gr</a> ·
+              <a href="https://www.instagram.com/fitpalmeals">Instagram</a> ·
+              <a href="https://dev--fitpal-order.netlify.app/account">Account</a>
+            </div>
+            <div class="small">You received this email because you placed an order with Fitpal Meals. This is not a marketing message.</div>
+          </td></tr>
+
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>

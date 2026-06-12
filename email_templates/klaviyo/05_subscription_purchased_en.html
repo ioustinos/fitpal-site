@@ -1,0 +1,36 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en">
+<head><meta charset="utf-8"/><meta http-equiv="X-UA-Compatible" content="IE=edge"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/><title>Welcome to Fitpal Plus</title>
+<style type="text/css">@import url('https://fonts.googleapis.com/css2?family=Geologica:wght@400;600;800&display=swap');
+body{margin:0;padding:0;background:#F9F2E1;font-family:'Geologica',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;color:#1C2B1C}
+table{border-collapse:collapse}img{border:0;display:block;outline:none;text-decoration:none}
+.email-container{max-width:600px;margin:0 auto;background:#FFFFFF}
+.header{background:#004739;padding:28px 32px}.header img{height:36px}
+.hero{padding:36px 32px 24px;background:#FFFFFF;text-align:left;border-bottom:1px solid #E2EDE2}
+.hero h1{margin:0 0 8px;font-size:24px;font-weight:800;color:#004739;letter-spacing:-0.4px;line-height:1.2}
+.hero p{margin:0;font-size:14px;color:#3D5A3D;line-height:1.5}
+.order-pill{display:inline-block;margin-top:14px;background:#D4F5E5;color:#004739;padding:6px 14px;border-radius:999px;font-size:13px;font-weight:600}
+.section{padding:24px 32px;border-bottom:1px solid #F0E3C0}
+.section h2{margin:0 0 14px;font-size:14px;font-weight:700;color:#004739;letter-spacing:1px;text-transform:uppercase}
+.card{background:#F9F2E1;border-radius:10px;padding:18px;margin-bottom:12px}
+.card.warn{background:#FFF7ED;border:1.5px solid #FED7AA}
+.card.success{background:#F0FAF5;border:1.5px solid #00B96B}
+.card.neutral{background:#FFFDF5;border:1.5px solid #F0E3C0}
+.row{padding:6px 0;font-size:13px;color:#1C2B1C}
+.row strong{float:right;color:#004739}
+.row.grand{border-top:1.5px solid #00B96B;padding-top:10px;margin-top:8px;font-size:16px;font-weight:800;color:#004739}
+.detail{font-size:13px;color:#1C2B1C;line-height:1.55;margin:4px 0}.detail strong{color:#004739}
+.cta{display:inline-block;background:#00B96B;color:#FFFFFF !important;text-decoration:none;font-weight:800;padding:14px 28px;border-radius:999px;font-size:14px;letter-spacing:0.3px}
+.footer{padding:28px 32px;background:#004739;color:rgba(255,255,255,0.7);font-size:12px;text-align:center}
+.footer a{color:#CFD72B;text-decoration:none}.footer .links{margin:8px 0 14px}.footer .links a{margin:0 8px}
+.footer .small{font-size:11px;color:rgba(255,255,255,0.5);margin-top:12px}
+@media (max-width:480px){.hero,.section,.footer,.header{padding-left:20px !important;padding-right:20px !important}.hero h1{font-size:20px !important}}</style></head>
+<body><table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0"><tr><td align="center" style="padding:24px 12px;">
+<table role="presentation" class="email-container" width="600" cellspacing="0" cellpadding="0" border="0" style="max-width:600px;background:#FFFFFF;border-radius:14px;overflow:hidden;">
+<tr><td class="header"><img src="https://dev--fitpal-order.netlify.app/brand/on-dark-green.png" alt="Fitpal Meals" height="36"/></td></tr>
+<tr><td class="hero"><h1>You're in, {{ event.first_name|default:"" }}!</h1><p>Thanks for trusting us. Your plan is now active and our nutrition team has already started tailoring it to you.</p></td></tr><tr><td class="section"><h2>Your plan</h2><div class="card neutral"><div class="row">Plan length <strong>{{ event.plan_length_label }}</strong></div><div class="row">Meals per week <strong>{{ event.meals_per_week }}</strong></div><div class="row">Total paid <strong>€{{ event.amount_paid|floatformat:2 }}</strong></div>{% if event.bonus_credits %}<div class="row" style="color:#00B96B;">Bonus credits <strong>+€{{ event.bonus_credits|floatformat:2 }}</strong></div>{% endif %}<div class="row grand">Available balance <strong>€{{ event.new_balance|floatformat:2 }}</strong></div></div><p class="detail" style="margin-top:14px;">You can start ordering today. The amount is automatically deducted from your wallet with each order.</p></td></tr><tr><td class="section" style="text-align:center;border-bottom:0;"><a href="https://dev--fitpal-order.netlify.app/" class="cta">See the menu</a><p style="margin:14px 0 0;font-size:12px;color:#7A957A;">Questions about your plan? Write to info@fitpal.gr — our nutrition team is here for you.</p></td></tr>
+<tr><td class="footer"><div>Fitpal Meals — healthy food, with meaning.</div>
+<div class="links"><a href="https://fitpal.gr">fitpal.gr</a> · <a href="https://www.instagram.com/fitpalmeals">Instagram</a> · <a href="https://dev--fitpal-order.netlify.app/account">Account</a></div>
+<div class="small">You received this email because you activated a Fitpal Plus plan. {% unsubscribe 'Unsubscribe' %}</div></td></tr>
+</table></td></tr></table></body></html>

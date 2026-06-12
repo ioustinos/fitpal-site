@@ -83,6 +83,16 @@ export default async (request: Request) => {
           customer_phone: string | null; total: number; refund_amount: number;
           user_id: string | null; payment_status: string;
         }
+        // WEC-emails: pull preferred language from user_prefs so the email
+        // template fires in the customer's chosen language. Fail-soft → 'el'.
+        let custLang: 'el' | 'en' = 'el'
+        if (o.user_id) {
+          const { data: pref } = await supa
+            .from('user_prefs').select('lang').eq('user_id', o.user_id).maybeSingle()
+          if (pref && ((pref as { lang?: string }).lang === 'el' || (pref as { lang?: string }).lang === 'en')) {
+            custLang = (pref as { lang: 'el' | 'en' }).lang
+          }
+        }
         trackAsync('Order Refunded', {
           email: o.customer_email,
           firstName: o.customer_name?.split(' ')[0],
@@ -90,6 +100,7 @@ export default async (request: Request) => {
           phone: o.customer_phone ?? undefined,
           externalId: o.user_id ?? undefined,
         }, {
+          lang: custLang,
           orderId: body.orderId,
           orderNumber: o.order_number,
           refundAmountCents: body.amountCents ?? o.total,

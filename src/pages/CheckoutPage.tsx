@@ -543,6 +543,8 @@ export function CheckoutPage() {
 
     const { data, error, validationErrors } = await submitOrder({
       userId: user?.id,
+      // Routes EL/EN Klaviyo template inside the Order Placed flow.
+      lang,
       customerName: contactName,
       customerEmail: contactEmail,
       customerPhone: contact.phone,  // E.164 from <PhoneInput>

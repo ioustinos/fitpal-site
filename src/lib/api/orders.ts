@@ -400,6 +400,9 @@ export interface SubmitOrderPayload {
   invoiceVat?: string
   notes?: string
   voucherCode?: string
+  /** Customer's display language. Routes EL vs EN Klaviyo template in the
+   *  "Order Placed" flow. CheckoutPage reads this from useUIStore.lang. */
+  lang?: 'el' | 'en'
   days: SubmitDayPayload[]
   // WEC-418: if set, submit-order promotes this draft (UPDATE … WHERE
   // status='draft' for idempotency) instead of inserting a fresh row.

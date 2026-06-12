@@ -41,6 +41,8 @@ interface OrderPayload {
   invoiceVat?: string
   notes?: string
   voucherCode?: string
+  /** WEC-emails: customer's preferred language. Routes EL vs EN Klaviyo template. */
+  lang?: 'el' | 'en'
   days: DayPayload[]
   // WEC-418: if set, submit-order promotes the draft (UPDATE … WHERE status='draft')
   // instead of inserting a fresh row. Side effects (voucher_uses, payment_links,
@@ -1151,6 +1153,10 @@ export default async (request: Request) => {
       phone: body.customerPhone,
       externalId: userId ?? undefined,
     }, {
+      // WEC-433+: lang routes EL vs EN templates inside the Klaviyo flow.
+      // Comes from the request body (set by CheckoutPage from useUIStore.lang)
+      // and falls back to 'el' (Greece-first default).
+      lang: (body.lang === 'en' || body.lang === 'el') ? body.lang : 'el',
       orderId,
       orderNumber,
       total: orderTotal / 100,
