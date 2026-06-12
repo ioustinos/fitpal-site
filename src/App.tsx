@@ -16,6 +16,7 @@ import { TermsPage } from './pages/TermsPage'
 import { DishModal } from './components/menu/DishModal'
 import { AuthModal } from './components/layout/AuthModal'
 import { WalletModal } from './components/wallet/WalletModal'
+import SiteFooter from './components/layout/SiteFooter'
 import { ImpersonationBanner } from './components/admin/ImpersonationBanner'
 import { ConsentBanner } from './components/consent/ConsentBanner'
 import { initTracking } from './lib/tracking'
@@ -29,6 +30,12 @@ function CustomerApp() {
   const isCheckout = useUIStore((s) => s.isCheckout)
   const isAccountPage = useUIStore((s) => s.isAccountPage)
   const isWalletPage = useUIStore((s) => s.isWalletPage)
+  const lang = useUIStore((s) => s.lang)
+
+  // Cross-domain marketing routes (Subscriptions / A La Carte / B2B / About)
+  // live on the landing site. Hardcoded to dev for now; flip to
+  // 'https://fitpal.gr' as part of dev → prod cutover.
+  const MARKETING_BASE = 'https://dev--fitpal-landing.netlify.app'
 
   // Deeplink: fitpal-landing CTAs land users straight in the subscription /
   // wallet plan picker via `?view=subscription` (also accepts the plural form
@@ -61,6 +68,10 @@ function CustomerApp() {
           <MenuPage />
         )}
       </main>
+
+      {/* Shared marketing footer — same component, byte-identical, mirrored
+          in fitpal-landing. Cross-domain links resolve to MARKETING_BASE. */}
+      <SiteFooter lang={lang} logoSrc="/logo.svg" marketingBase={MARKETING_BASE} />
 
       {/* Global modals */}
       <DishModal />
