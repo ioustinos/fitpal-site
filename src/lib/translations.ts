@@ -12,7 +12,7 @@ const T = {
     cartTitle: 'Η Παραγγελία μου',
     cartSub: 'Ανασκόπηση & ολοκλήρωση',
     cartEmpty: 'Το καλάθι σου είναι άδειο',
-    cartEmptySub: 'Πρόσθεσε πιάτα από το μενού για να ξεκινήσεις',
+    cartEmptySub: 'Πρόσθεσε τα αγαπημένα σου Fitpal γεύματα για να ξεκινήσεις!',
     // Macros
     from: 'από',
     kcal: 'kcal',
@@ -186,7 +186,7 @@ const T = {
     cartTitle: 'My Order',
     cartSub: 'Review & complete',
     cartEmpty: 'Your cart is empty',
-    cartEmptySub: 'Add dishes from the menu to get started',
+    cartEmptySub: 'Add your favourite Fitpal meals to get started!',
     from: 'from',
     kcal: 'kcal',
     pro: 'Prot.',
