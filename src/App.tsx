@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect } from 'react'
+import { lazy, Suspense, useEffect, useRef } from 'react'
 import { Routes, Route } from 'react-router-dom'
 import { useUIStore } from './store/useUIStore'
 import { useAuthStore } from './store/useAuthStore'
@@ -29,6 +29,23 @@ function CustomerApp() {
   const isCheckout = useUIStore((s) => s.isCheckout)
   const isAccountPage = useUIStore((s) => s.isAccountPage)
   const isWalletPage = useUIStore((s) => s.isWalletPage)
+
+  // Deeplink: fitpal-landing CTAs land users straight in the subscription /
+  // wallet plan picker via `?view=subscription` (also accepts the plural form
+  // and the legacy `?view=wallet` alias). Runs once on mount — a ref guard
+  // prevents a re-open if the user closes the modal during the same visit.
+  // The query param is left in place on purpose: refreshing or bookmarking
+  // the URL should put the user back into the wizard where they left off.
+  const subscriptionDeeplinkHandled = useRef(false)
+  useEffect(() => {
+    if (subscriptionDeeplinkHandled.current) return
+    subscriptionDeeplinkHandled.current = true
+    if (typeof window === 'undefined') return
+    const view = new URLSearchParams(window.location.search).get('view')
+    if (view === 'subscription' || view === 'subscriptions' || view === 'wallet') {
+      useUIStore.getState().openWalletModal()
+    }
+  }, [])
 
   return (
     <>
