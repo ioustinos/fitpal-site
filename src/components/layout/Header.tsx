@@ -4,6 +4,7 @@ import { useUIStore } from '../../store/useUIStore'
 import { useAuthStore } from '../../store/useAuthStore'
 import { useMenuStore } from '../../store/useMenuStore'
 import { makeTr } from '../../lib/translations'
+import { LogoLockup } from '../ui/LogoLockup'
 
 export function Header() {
   const lang = useUIStore((s) => s.lang)
@@ -58,11 +59,8 @@ export function Header() {
     <header>
       {/* Logo */}
       <a className="logo" href="#" onClick={(e) => e.preventDefault()}>
-        <div className="logo-icon">fp</div>
-        <div className="logo-group">
-          <div className="logo-text">fitpal<span>meals</span></div>
-          <div className="logo-sub">Healthy delivery</div>
-        </div>
+        <LogoLockup className="logo-lockup" />
+        <div className="logo-sub">Healthy delivery</div>
       </a>
 
       {/* Right side */}

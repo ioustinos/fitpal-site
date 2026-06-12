@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Modal } from '../ui/Modal'
+import { LogoLockup } from '../ui/LogoLockup'
 import { useUIStore } from '../../store/useUIStore'
 import { useAuthStore } from '../../store/useAuthStore'
 import {
@@ -216,7 +217,7 @@ export function AuthModal() {
   /* ── Render ──────────────────────────────────────────────────── */
   return (
     <Modal open={isOpen} onClose={closeModal} innerClass="auth-box" overlayClass="auth-open">
-      <div className="auth-logo">fitpal<span>meals</span></div>
+      <div className="auth-logo"><LogoLockup className="auth-logo-lockup" /></div>
 
       <div className="auth-tabs">
         <button

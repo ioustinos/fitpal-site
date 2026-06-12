@@ -78,9 +78,11 @@
       }
     </script>
 
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" />
+    <!-- Self-hosted Geologica (SIL OFL) — WEC-442. @font-face lives in
+         index.css; preload the two hottest weights to avoid a FOUT on the
+         header/body. -->
+    <link rel="preload" as="font" type="font/woff2" href="/fonts/geologica-700.woff2" crossorigin />
+    <link rel="preload" as="font" type="font/woff2" href="/fonts/geologica-400.woff2" crossorigin />
   </head>
   <body>
     <div id="root"></div>

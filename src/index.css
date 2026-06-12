@@ -1,15 +1,32 @@
 /* ══════════════════════════════════════════
+   GEOLOGICA — self-hosted brand font (WEC-442)
+   SIL OFL. Subset to Latin + Greek. 6 weights.
+══════════════════════════════════════════ */
+@font-face { font-family: 'Geologica'; font-style: normal; font-weight: 400; font-display: swap; src: url('/fonts/geologica-400.woff2') format('woff2'); }
+@font-face { font-family: 'Geologica'; font-style: normal; font-weight: 500; font-display: swap; src: url('/fonts/geologica-500.woff2') format('woff2'); }
+@font-face { font-family: 'Geologica'; font-style: normal; font-weight: 600; font-display: swap; src: url('/fonts/geologica-600.woff2') format('woff2'); }
+@font-face { font-family: 'Geologica'; font-style: normal; font-weight: 700; font-display: swap; src: url('/fonts/geologica-700.woff2') format('woff2'); }
+@font-face { font-family: 'Geologica'; font-style: normal; font-weight: 800; font-display: swap; src: url('/fonts/geologica-800.woff2') format('woff2'); }
+@font-face { font-family: 'Geologica'; font-style: normal; font-weight: 900; font-display: swap; src: url('/fonts/geologica-900.woff2') format('woff2'); }
+
+/* ══════════════════════════════════════════
    FITPAL BRAND TOKENS
 ══════════════════════════════════════════ */
 :root {
-  --green:        #00B96B;
-  --green-dark:   #004739;
+  /* Brand greens — canonical, from the brand manual (WEC-439) */
+  --green:        #00B96B;   /* Neon Green — Pantone 7479 C */
+  --green-dark:   #004739;   /* Dark Green — Pantone 3435 C */
   --green-mid:    #006647;
   --green-light:  #D4F5E5;
   --green-pale:   #F0FAF5;
-  --cream:        #FCF2D9;
+  /* Cream — brand neutral from the colour card (#F9F2E1) */
+  --cream:        #F9F2E1;
   --cream-dark:   #F0E3C0;
   --cream-light:  #FFFDF5;
+  /* Lime — brand highlight from the colour card. Only on dark-green
+     surfaces; never as text/fill on white or cream (contrast). */
+  --lime:         #CFD72B;
+  --lime-dark:    #B6BE1B;
   --white:        #FFFFFF;
   --text:         #1C2B1C;
   --text-mid:     #3D5A3D;
@@ -17,8 +34,12 @@
   --border:       #E2EDE2;
   --shadow:       rgba(0, 71, 57, 0.08);
   --shadow-md:    rgba(0, 71, 57, 0.14);
-  --accent:       #FF6B35;
-  --accent-light: #FFF0EA;
+  /* Semantic warning amber (WEC-440) — replaces the retired off-brand
+     orange --accent. Used only for genuine warning/disabled states. */
+  --warn:         #B45309;
+  --warn-bg:      #FDF0E2;
+  /* Logo checkmark colour — overridden to #fff on dark surfaces */
+  --logo-check:   var(--green-dark);
   --sidebar-w:    370px;
   --hdr:          72px;
   --radius:       8px;
@@ -32,7 +53,7 @@
 *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
 html { scroll-behavior: smooth; -webkit-font-smoothing: antialiased; }
 body {
-  font-family: 'Nunito', system-ui, sans-serif;
+  font-family: 'Geologica', system-ui, -apple-system, sans-serif;
   background: var(--cream-light);
   color: var(--text);
   min-height: 100vh;
@@ -81,13 +102,10 @@ header {
 }
 /* WEC-298 (follow-up): logo link gets ≥44 hit area; visual chrome unchanged
    because the inner logo-icon + logo-group already sit at >44px combined. */
-.logo { min-height: 44px; display: flex; align-items: center; gap: 8px; text-decoration: none; }
-.logo-icon {
-  width: 30px; height: 30px; background: var(--green); border-radius: 50%;
-  display: flex; align-items: center; justify-content: center;
-  font-size: 10px; font-weight: 900; color: var(--white); letter-spacing: -0.3px;
-  box-shadow: 0 2px 8px rgba(0,185,107,0.4);
-}
+/* Reverse (on-dark) logo for the dark-green header bar: "fitpal" + check
+   render white, "meals" + heart stay neon green. WEC-441. */
+.logo { min-height: 44px; display: flex; align-items: center; gap: 10px; text-decoration: none; --logo-fg: #fff; --logo-check: #fff; }
+.logo-lockup { height: 26px; width: auto; display: block; }
 .logo-group { display: flex; align-items: baseline; gap: 8px; }
 .logo-text { font-size: 20px; font-weight: 900; letter-spacing: -0.5px; color: var(--white); line-height: 1; }
 .logo-text span { color: var(--green); }
@@ -152,7 +170,7 @@ header {
    PAGE BANNER
 ══════════════════════════════════════════ */
 .page-banner { background: var(--green-dark); border-radius: var(--radius-lg); padding: 18px 24px; margin-bottom: 22px; position: relative; overflow: hidden; }
-.page-banner::after { content: ''; position: absolute; right: -40px; top: -40px; width: 200px; height: 200px; background: var(--green); border-radius: 50%; opacity: 0.12; }
+.page-banner::after { content: ''; position: absolute; right: -40px; top: -40px; width: 200px; height: 200px; background: var(--lime); border-radius: 50%; opacity: 0.16; }
 .page-banner::before { content: ''; position: absolute; right: 60px; bottom: -60px; width: 140px; height: 140px; background: var(--green); border-radius: 50%; opacity: 0.08; }
 /* WEC-338 — banner row now splits 50/50; both cards carry equal visual weight. */
 .banner-row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 22px; }
@@ -1335,8 +1353,8 @@ header {
    AUTH MODAL
 ══════════════════════════════════════════ */
 .auth-box { background: var(--white); border-radius: var(--radius-lg); max-width: 420px; width: 100%; padding: 32px 32px 28px; box-shadow: 0 24px 72px rgba(0,0,0,0.22); animation: modalIn 0.25s cubic-bezier(0.34,1.56,0.64,1); }
-.auth-logo { font-size: 26px; font-weight: 900; color: var(--green-dark); text-align: center; margin-bottom: 22px; letter-spacing: -0.5px; }
-.auth-logo span { color: var(--green); }
+.auth-logo { display: flex; align-items: center; justify-content: center; margin-bottom: 22px; }
+.auth-logo-lockup { height: 34px; width: auto; display: block; }
 .auth-tabs { display: flex; border-bottom: 2px solid var(--border); margin-bottom: 22px; gap: 0; }
 .auth-tab { flex: 1; text-align: center; padding: 9px 12px; font-size: 12px; font-weight: 800; color: var(--text-muted); cursor: pointer; border-bottom: 2.5px solid transparent; margin-bottom: -2px; transition: all 0.18s; background: none; border-top: none; border-left: none; border-right: none; }
 .auth-tab.active { color: var(--green-dark); border-bottom-color: var(--green); }
@@ -1412,7 +1430,7 @@ header {
 .day-btn .day-date  { font-size: 10px; color: var(--text-muted); font-weight: 600; transition: color 0.18s; }
 .day-btn.active .day-short,
 .day-btn.active .day-date { color: var(--white); }
-.day-past-label { font-size: 8px; font-weight: 700; color: var(--accent); margin-top: 2px; }
+.day-past-label { font-size: 8px; font-weight: 700; color: var(--warn); margin-top: 2px; }
 
 /* ══════════════════════════════════════════
    CATEGORY FILTER
@@ -1433,7 +1451,7 @@ header {
 ══════════════════════════════════════════ */
 .dish-tag { padding: 2px 8px; border-radius: 999px; font-size: 9px; font-weight: 900; letter-spacing: 0.3px; }
 .tag-hp   { background: #EDE9FE; color: #6D28D9; }
-.tag-sale { background: var(--accent-light); color: var(--accent); }
+.tag-sale { background: var(--green-pale); color: var(--green-dark); }
 
 /* ══════════════════════════════════════════
    DISH CARD (new layout class names)
@@ -1775,7 +1793,7 @@ header {
 
 /* Keep old aliases */
 .cart-footer { border-top: 1px solid var(--border); padding: 14px 16px 18px; flex-shrink: 0; display: flex; flex-direction: column; gap: 10px; }
-.cart-min-warning { font-size: 11px; font-weight: 700; color: var(--accent); background: var(--accent-light); padding: 7px 10px; border-radius: var(--radius-sm); text-align: center; }
+.cart-min-warning { font-size: 11px; font-weight: 700; color: var(--warn); background: var(--warn-bg); padding: 7px 10px; border-radius: var(--radius-sm); text-align: center; }
 
 /* ══════════════════════════════════════════
    VOUCHER
@@ -2066,7 +2084,7 @@ header {
 .summary-delivery { display: flex; align-items: center; gap: 5px; padding: 4px 16px; font-size: 11px; color: var(--text-muted); font-weight: 600; }
 .summary-total-row { border-top: 1.5px solid var(--border); margin-top: 12px; padding-top: 10px; display: flex; flex-direction: column; gap: 4px; }
 .summary-row { display: flex; justify-content: space-between; font-size: 13px; font-weight: 700; color: var(--text-mid); }
-.summary-row.discount { color: var(--accent); }
+.summary-row.discount { color: var(--green-mid); }
 .summary-row.total { font-size: 15px; font-weight: 900; color: var(--text); }
 
 /* ══════════════════════════════════════════
@@ -2841,7 +2859,7 @@ a.btn-conf-done { display: inline-block; text-decoration: none; }
   --fp-shadow:       0 4px 16px rgba(15,61,46,0.06), 0 1px 2px rgba(15,61,46,0.04);
   --fp-shadow-lg:    0 14px 40px rgba(15,61,46,0.10), 0 2px 6px rgba(15,61,46,0.05);
 
-  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+  font-family: 'Geologica', system-ui, sans-serif;
   background: var(--fp-cream-500);
   color: var(--fp-ink-900);
   padding: 28px 32px 48px;

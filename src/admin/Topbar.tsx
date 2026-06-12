@@ -1,5 +1,6 @@
 import { useNavigate, Link } from 'react-router-dom'
 import { useAuthStore } from '../store/useAuthStore'
+import { LogoIcon } from '../components/ui/LogoIcon'
 
 const IS_DEV = import.meta.env.DEV
 
@@ -19,7 +20,7 @@ export function Topbar() {
     <header className="admin-topbar">
       <div className="admin-topbar-left">
         <Link to="/admin" className="admin-logo">
-          <span className="admin-logo-mark">fp</span>
+          <span className="admin-logo-mark"><LogoIcon /></span>
           <span className="admin-logo-text">fitpal<i>admin</i></span>
         </Link>
         {IS_DEV && <span className="admin-env admin-env-dev">DEV</span>}
