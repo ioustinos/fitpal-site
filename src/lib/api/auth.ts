@@ -1,4 +1,5 @@
 import { supabase } from '../supabase'
+import { useUIStore } from '../../store/useUIStore'
 import type {
   Address,
   UserGoals,
@@ -6,6 +7,16 @@ import type {
   FitpalUser,
   MacroRange,
 } from '../../store/useAuthStore'
+
+/** Snapshot of the current display language for auth flows. Lives in
+ *  user_metadata.lang and is read by the bilingual Supabase Auth email
+ *  templates ({{ if eq .UserMetaData.lang "el" }}…{{ end }}). */
+function currentLang(): 'el' | 'en' {
+  try {
+    const l = useUIStore.getState().lang
+    return l === 'el' || l === 'en' ? l : 'el'
+  } catch { return 'el' }
+}
 
 // ─── DB row shapes ───────────────────────────────────────────────────────────
 
@@ -163,7 +174,8 @@ export async function signUp(email: string, password: string, name?: string): Pr
     email,
     password,
     options: {
-      data: { name },
+      // lang routes the bilingual Brevo email template (see email_templates/supabase_auth/).
+      data: { name, lang: currentLang() },
       emailRedirectTo,
     },
   })
@@ -252,7 +264,9 @@ export async function sendEmailOtp(
     email,
     options: {
       shouldCreateUser: true,
-      data: name ? { name } : undefined,
+      // lang lands in user_metadata.lang and routes the bilingual Brevo
+      // template for both signup confirmation AND magic-link/OTP emails.
+      data: { lang: currentLang(), ...(name ? { name } : {}) },
       emailRedirectTo,
     },
   })
