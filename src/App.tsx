@@ -38,11 +38,14 @@ function CustomerApp() {
   const MARKETING_BASE = 'https://dev--fitpal-landing.netlify.app'
 
   // Deeplink: fitpal-landing CTAs land users straight in the v2 subscription
-  // page (profile-driven calculator, NOT the deprecated 3-tier WalletModal —
-  // see project_wallet_v2 memory) via `?view=subscription`. Accepts plural too.
-  // Runs once on mount — a ref guard prevents re-trigger if the user leaves the
-  // page during the same visit. The query param is left in place on purpose:
-  // refreshing or bookmarking the URL puts the user back into the wizard.
+  // wizard via `?view=subscription`. The v2 wizard is rendered as WalletPage
+  // (profile-driven calculator — Απώλεια / Διατήρηση / Αύξηση goal cards +
+  // macro calculator + live "Περίληψη πλάνου" summary card). NOT the
+  // deprecated 3-tier WalletModal, and NOT goToSubscription() — the latter
+  // is a stub: useUIStore.isSubscriptionPage has no render condition in
+  // CustomerApp so nothing happens. WalletPage is the actual page.
+  // Runs once on mount via ref guard. Query param stays so refresh/bookmark
+  // re-opens the wizard where the user left off.
   const subscriptionDeeplinkHandled = useRef(false)
   useEffect(() => {
     if (subscriptionDeeplinkHandled.current) return
@@ -50,7 +53,7 @@ function CustomerApp() {
     if (typeof window === 'undefined') return
     const view = new URLSearchParams(window.location.search).get('view')
     if (view === 'subscription' || view === 'subscriptions') {
-      useUIStore.getState().goToSubscription()
+      useUIStore.getState().goToWalletPage()
     }
   }, [])
 
