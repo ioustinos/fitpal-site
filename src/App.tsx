@@ -37,20 +37,20 @@ function CustomerApp() {
   // 'https://fitpal.gr' as part of dev → prod cutover.
   const MARKETING_BASE = 'https://dev--fitpal-landing.netlify.app'
 
-  // Deeplink: fitpal-landing CTAs land users straight in the subscription /
-  // wallet plan picker via `?view=subscription` (also accepts the plural form
-  // and the legacy `?view=wallet` alias). Runs once on mount — a ref guard
-  // prevents a re-open if the user closes the modal during the same visit.
-  // The query param is left in place on purpose: refreshing or bookmarking
-  // the URL should put the user back into the wizard where they left off.
+  // Deeplink: fitpal-landing CTAs land users straight in the v2 subscription
+  // page (profile-driven calculator, NOT the deprecated 3-tier WalletModal —
+  // see project_wallet_v2 memory) via `?view=subscription`. Accepts plural too.
+  // Runs once on mount — a ref guard prevents re-trigger if the user leaves the
+  // page during the same visit. The query param is left in place on purpose:
+  // refreshing or bookmarking the URL puts the user back into the wizard.
   const subscriptionDeeplinkHandled = useRef(false)
   useEffect(() => {
     if (subscriptionDeeplinkHandled.current) return
     subscriptionDeeplinkHandled.current = true
     if (typeof window === 'undefined') return
     const view = new URLSearchParams(window.location.search).get('view')
-    if (view === 'subscription' || view === 'subscriptions' || view === 'wallet') {
-      useUIStore.getState().openWalletModal()
+    if (view === 'subscription' || view === 'subscriptions') {
+      useUIStore.getState().goToSubscription()
     }
   }, [])
 
