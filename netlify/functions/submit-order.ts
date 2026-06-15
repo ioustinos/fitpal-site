@@ -762,26 +762,36 @@ export default async (request: Request) => {
     // JS-side insert loop below is skipped — otherwise we'd double-insert.
     let childrenAlreadyInserted = false
 
+    // WEC-452: ownership sanity-check is fail-soft. A foreign / missing /
+    // unreadable draft must not be PROMOTED (security: prevent vandalism +
+    // metadata theft of someone else's draft) — but it must also not BLOCK
+    // the customer's order. Stale draftIds accumulate in localStorage across
+    // sessions (auth changes, demo→real user, multi-device); a hard 403/404
+    // there leaves the customer with no recovery path. So: log the case, fall
+    // through to the fresh-INSERT branch below.
+    let promoteFromDraft = !!body.draftId
     if (body.draftId) {
-      // First, ownership sanity-check: confirm the draft is owned by this caller
-      // (or no user_id if guest). A foreign draft_id must not be promoted.
       const { data: existingDraft, error: selErr } = await supabase
         .from('orders')
         .select('id, status, user_id')
         .eq('id', body.draftId)
         .maybeSingle()
       if (selErr) {
-        console.error('Draft lookup error:', selErr)
-        return Response.json({ error: 'Failed to load draft' }, { status: 500 })
+        console.warn('[submit-order] draft lookup failed — falling back to fresh order. draftId=%s err=%s', body.draftId, selErr.message)
+        promoteFromDraft = false
+      } else if (!existingDraft) {
+        console.warn('[submit-order] stale draftId in client (not found in DB), proceeding fresh. draftId=%s', body.draftId)
+        promoteFromDraft = false
+      } else {
+        const draftOwner = (existingDraft as { user_id: string | null }).user_id
+        if (draftOwner && draftOwner !== userId) {
+          console.warn('[submit-order] draft ownership mismatch — refusing to promote (security), creating fresh order. draftId=%s draftOwner=%s caller=%s', body.draftId, draftOwner, userId ?? 'guest')
+          promoteFromDraft = false
+        }
       }
-      if (!existingDraft) {
-        return Response.json({ error: 'Draft not found' }, { status: 404 })
-      }
-      const draftOwner = (existingDraft as { user_id: string | null }).user_id
-      if (draftOwner && draftOwner !== userId) {
-        return Response.json({ error: 'Draft not owned by caller' }, { status: 403 })
-      }
+    }
 
+    if (promoteFromDraft) {
       // WEC-429 #2: single-RPC promote. Wraps SELECT-FOR-UPDATE +
       // DELETE child_orders + INSERT child_orders + INSERT order_items +
       // UPDATE orders.status='pending' in one transaction. Closes the
@@ -821,8 +831,11 @@ export default async (request: Request) => {
       // Strip admin_notes (column-not-present on the patch path; the RPC
       // doesn't touch it). updated_at is set inside the RPC via now().
       const { admin_notes: _adminNotes, updated_at: _updatedAt, ...orderPatch } = orderRecord
+      // WEC-452: at this point promoteFromDraft is true, which we only set when
+      // body.draftId was truthy AND passed the ownership check. TS doesn't
+      // narrow across the let-reassign, so assert non-null.
       const { data: rpcRows, error: rpcErr } = await supabase.rpc('promote_draft_atomic', {
-        p_order_id: body.draftId,
+        p_order_id: body.draftId!,
         p_order_patch: orderPatch,
         p_children: childrenPayload,
       })
@@ -1020,7 +1033,10 @@ export default async (request: Request) => {
         //     without re-filling everything. Deleting wiped it.
         //     voucher_uses is already gone (unredeem above), and the
         //     wec421_block_voucher_uses_on_drafts trigger keeps it that way.
-        if (body.draftId) {
+        // WEC-452: gate on promoteFromDraft (not body.draftId) so that a stale
+        // /foreign draftId that we silently rejected at the top doesn't trick
+        // this rollback into marking a brand-new (non-draft) order as 'draft'.
+        if (promoteFromDraft) {
           await supabase.from('orders').update({
             status: 'draft',
             order_number: null,
