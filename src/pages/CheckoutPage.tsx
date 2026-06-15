@@ -516,8 +516,12 @@ export function CheckoutPage() {
         if (qRes.ok) {
           const q = await qRes.json() as { totalCents?: number; missingVariantIds?: string[] }
           const serverCents = q.totalCents ?? 0
+          // WEC-451: dayAmt's signature is (cart, dayDate) — not (items[]).
+          // The previous call passed cart[d] as the first arg and undefined as
+          // the second, which silently returned 0 inside dayAmt and tripped
+          // the drift modal on every order. Pass the full cart + the date key.
           const clientCents = Math.round(
-            activeDates.reduce((s, d) => s + dayAmt(cart[d] ?? []), 0) * 100,
+            activeDates.reduce((s, d) => s + dayAmt(cart, d), 0) * 100,
           )
           if (serverCents > 0 && Math.abs(serverCents - clientCents) > 1) {
             setPriceConfirm({ serverCents, clientCents })
@@ -634,6 +638,17 @@ export function CheckoutPage() {
     // was a legacy no-draft submit). Clear the client draft id so a refresh /
     // new tab doesn't try to keep updating a now-pending row.
     clearDraft()
+
+    // WEC-454: refresh user.orders so the new order shows on Account → Orders
+    // without a hard refresh. WalletPage already does this on its success path
+    // (see lines 413 / 466) — CheckoutPage was missed. Fire-and-forget; the
+    // confirmation flow doesn't wait on it.
+    if (user) {
+      useAuthStore.getState().refreshUser(user.id).catch((e) =>
+        // eslint-disable-next-line no-console
+        console.warn('[checkout] post-order refreshUser failed (non-fatal):', e)
+      )
+    }
 
     // ─── Viva redirect (WEC-171) ────────────────────────────────────────
     // For `card` only — customer pays in-session, redirect to Viva's hosted
