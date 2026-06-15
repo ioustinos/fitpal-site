@@ -2456,18 +2456,22 @@ a.btn-conf-done { display: inline-block; text-decoration: none; }
 .set-password-actions { display: flex; align-items: center; gap: 10px; margin-top: 4px; }
 .set-password-ok { font-size: 12px; font-weight: 700; color: var(--green); }
 
-/* ── Addresses (WEC-79) ── */
-.addr-card { border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 16px; }
+/* ── Addresses (WEC-79) — Account → Addresses tab ──
+   WEC-450: scoped under .addr-list to prevent the Account-page .addr-card +
+   .addr-card-actions rules from clobbering checkout's same-named rules
+   (which live earlier in this file under .addr-section). Checkout uses the
+   .addr-section wrapper; Account uses .addr-list. */
+.addr-list .addr-card { border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 16px; }
 /* WEC-141: when editing, the card hosts a full form — override the top-of-file
    .addr-card flex rule so rows stack full width instead of getting center-aligned. */
-.addr-card.editing { display: block; cursor: default; }
-.addr-card.editing:hover { border-color: var(--border); background: var(--white); }
-.addr-card.editing .addr-form { width: 100%; }
-.addr-card.editing .form-input { width: 100%; box-sizing: border-box; }
+.addr-list .addr-card.editing { display: block; cursor: default; }
+.addr-list .addr-card.editing:hover { border-color: var(--border); background: var(--white); }
+.addr-list .addr-card.editing .addr-form { width: 100%; }
+.addr-list .addr-card.editing .form-input { width: 100%; box-sizing: border-box; }
 .addr-card-layout { display: grid; grid-template-columns: 1fr auto; gap: 16px; align-items: start; }
 .addr-card-left { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
 .addr-label-tag { font-size: 15px; font-weight: 900; color: var(--green-dark); }
-.addr-card-actions { display: flex; flex-direction: column; gap: 6px; align-self: center; }
+.addr-list .addr-card-actions { display: flex; flex-direction: column; gap: 6px; align-self: center; }
 .addr-action-btn { background: none; border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 5px 12px; font-size: 11px; font-weight: 700; color: var(--text-muted); cursor: pointer; transition: all 0.15s; display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; width: 100%; justify-content: center; }
 .addr-action-btn:hover { border-color: var(--green); color: var(--green-dark); }
 .addr-action-btn.danger:hover { border-color: #EF4444; color: #EF4444; }
