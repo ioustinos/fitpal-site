@@ -8,6 +8,7 @@
 
 import { createClient } from '@supabase/supabase-js'
 import { createVivaOrder } from '../lib/viva/createOrder'
+import { trackAsync, EVT } from '../lib/klaviyo'
 
 const SUPABASE_URL = process.env.VITE_SUPABASE_URL ?? ''
 const SUPABASE_ANON_KEY = process.env.VITE_SUPABASE_ANON_KEY ?? ''
@@ -60,7 +61,7 @@ export default async (request: Request) => {
   })
   const { data: order } = await service
     .from('orders')
-    .select('id, total, payment_status, customer_name, customer_email, payment_method')
+    .select('id, order_number, total, payment_status, customer_name, customer_email, payment_method, user_id')
     .eq('id', body.orderId)
     .single()
   if (!order) return Response.json({ error: 'Order not found' }, { status: 404 })
@@ -91,6 +92,32 @@ export default async (request: Request) => {
       label: 'Regenerated Viva payment link',
       admin_user: who.userId,
     })
+
+    // Fire Klaviyo "Payment Link Sent" event. Fail-soft — never block admin
+    // action on email delivery. Lang routes EL/EN template via Klaviyo flow's
+    // conditional split on event.lang.
+    try {
+      let custLang: 'el' | 'en' = 'el'
+      if (order.user_id) {
+        const { data: pref } = await service
+          .from('user_prefs')
+          .select('lang')
+          .eq('user_id', order.user_id)
+          .maybeSingle()
+        const l = (pref as { lang?: string } | null)?.lang
+        if (l === 'el' || l === 'en') custLang = l
+      }
+      trackAsync(EVT.PaymentLinkSent, {
+        email: (order.customer_email as string) ?? '',
+        firstName: ((order.customer_name as string) ?? '').split(' ')[0],
+        externalId: (order.user_id as string | null) ?? undefined,
+      }, {
+        lang: custLang,
+        orderNumber: order.order_number,
+        total: (order.total as number) / 100,
+        paymentUrl: result.paymentUrl,
+      })
+    } catch (e) { console.warn('[viva-regenerate-link] klaviyo:', e) }
 
     return Response.json(result)
   } catch (err) {

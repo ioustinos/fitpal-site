@@ -404,7 +404,7 @@ export function WalletPage() {
         }
       }
 
-      const { data, error } = await purchaseWalletPlan({ ...buildInput(), paymentMethod })
+      const { data, error } = await purchaseWalletPlan({ ...buildInput(), paymentMethod, lang })
       if (error || !data) { setErrMsg(error ?? 'Purchase failed'); return }
 
       if (data.paymentMethod === 'transfer') {

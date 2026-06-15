@@ -17,6 +17,8 @@ export interface WalletPlanQuoteResponse {
 export interface WalletPlanPurchaseInput extends WalletCalcInput {
   paymentMethod: PaymentMethod
   voucherCode?: string
+  /** Customer display language — routes EL/EN Klaviyo Subscription Purchased template. */
+  lang?: 'el' | 'en'
 }
 
 export type WalletPlanPurchaseResponse =

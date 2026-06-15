@@ -1,4 +1,5 @@
 import { createClient } from '@supabase/supabase-js'
+import { trackAsync, EVT } from '../lib/klaviyo'
 
 /**
  * Admin grants a wallet credit to a customer (refund, gift, or adjustment).
@@ -141,6 +142,46 @@ export default async (request: Request) => {
       label: `Granted ${body.type} of €${(body.amountCents / 100).toFixed(2)} — ${body.descriptionEn}`,
       admin_user: caller.id,
     })
+
+    // ── Fire Klaviyo "Wallet Credit Granted" event ─────────────────────
+    // Fail-soft. Lang routes EL/EN Klaviyo template via flow's conditional
+    // split on event.lang. Admin-initiated → look up customer lang server-side.
+    try {
+      let custLang: 'el' | 'en' = 'el'
+      const { data: pref } = await svc
+        .from('user_prefs')
+        .select('lang')
+        .eq('user_id', body.targetUserId)
+        .maybeSingle()
+      const l = (pref as { lang?: string } | null)?.lang
+      if (l === 'el' || l === 'en') custLang = l
+
+      // Profile name + auth email for the Klaviyo profile match.
+      const { data: prof } = await svc
+        .from('profiles')
+        .select('name')
+        .eq('id', body.targetUserId)
+        .maybeSingle()
+      const { data: au } = await svc.auth.admin.getUserById(body.targetUserId)
+      const email = au?.user?.email ?? ''
+      const firstName = ((prof as { name?: string } | null)?.name ?? '').split(' ')[0]
+
+      if (email) {
+        trackAsync(EVT.WalletCreditGranted, {
+          email,
+          firstName,
+          externalId: body.targetUserId,
+        }, {
+          lang: custLang,
+          amount: body.amountCents / 100,
+          type: body.type,
+          reason: custLang === 'el' ? body.descriptionEl : body.descriptionEn,
+          newBalance: (walletRow as { balance: number } | null)?.balance != null
+            ? ((walletRow as { balance: number }).balance) / 100
+            : null,
+        })
+      }
+    } catch (e) { console.warn('[admin-grant-wallet-credit] klaviyo:', e) }
 
     return Response.json({
       transactionId: txId,

@@ -397,6 +397,30 @@ export async function setOrderStatus(id: string, current: OrderStatus, next: Ord
     oldValue: current, newValue: next, label: note ?? `status: ${current} → ${next}`,
     adminUser,
   })
+
+  // WEC-289: fire Klaviyo "Order Cancelled" transactional email on cancel
+  // transition. Server endpoint handles auth, lang lookup, and the Klaviyo
+  // call. Fail-soft — never block admin UI on email delivery, and the cancel
+  // has already committed at this point.
+  if (next === 'cancelled' && current !== 'cancelled') {
+    try {
+      const { data: sess } = await supabase.auth.getSession()
+      const token = sess?.session?.access_token
+      if (token) {
+        void fetch('/api/notify-order-cancelled', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({ orderId: id, reason: note ?? '' }),
+        }).catch((e) => console.warn('[setOrderStatus] notify-order-cancelled failed:', e))
+      }
+    } catch (e) {
+      console.warn('[setOrderStatus] notify-order-cancelled threw:', e)
+    }
+  }
+
   return { error: null }
 }
 

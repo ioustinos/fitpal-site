@@ -10,6 +10,7 @@ import { createClient, SupabaseClient } from '@supabase/supabase-js'
 import { getVivaAccessToken } from '../viva/auth'
 import { getVivaCreds } from '../viva/env'
 import { sendMetaCapiEvent, metaConfigured, hashLower, hashPhone } from '../metaCapi'
+import { trackAsync, EVT } from '../klaviyo'
 
 const SUPABASE_URL = process.env.VITE_SUPABASE_URL ?? ''
 const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY ?? ''
@@ -87,7 +88,7 @@ export async function verifyWalletPlanTransaction(
 
   const { data: plan } = await supabase
     .from('wallet_plans')
-    .select('id, amount_to_pay_cents, payment_status, viva_order_code')
+    .select('id, wallet_id, amount_to_pay_cents, bonus_credits_cents, wallet_credit_cents, plan_length, days_per_week, payment_status, viva_order_code')
     .eq('id', walletPlanId)
     .maybeSingle()
 
@@ -131,6 +132,9 @@ export async function verifyWalletPlanTransaction(
     // / reconcile re-verifies don't re-fire; also deduped at Meta by event_id.
     if (plan.payment_status === 'pending') {
       await fireSubscribeCapi(supabase, walletPlanId, amountCents)
+      // Fire Klaviyo "Subscription Purchased" event (card/link paid path).
+      // Mirror of the transfer-path fire in wallet-plan-purchase.ts. Fail-soft.
+      await fireSubscriptionPurchasedKlaviyo(supabase, plan, amountCents)
     }
     return { status: 'paid', walletPlanId, amountCents, transactionId }
   }
@@ -201,5 +205,71 @@ async function fireSubscribeCapi(
     })
   } catch (e) {
     console.error('[verifyWalletPlanTransaction] subscribe CAPI failed (non-fatal) planId=%s:', walletPlanId, e)
+  }
+}
+
+/**
+ * Fire Klaviyo "Subscription Purchased" event for a just-paid wallet plan
+ * (card / link path). Mirror of the transfer-path fire in
+ * netlify/functions/wallet-plan-purchase.ts. Fail-soft.
+ *
+ * Lang resolution: user_prefs.lang for the wallet owner. Server-side context,
+ * no client lang to pass through.
+ */
+async function fireSubscriptionPurchasedKlaviyo(
+  supabase: SupabaseClient,
+  plan: {
+    id: string
+    wallet_id?: string | null
+    bonus_credits_cents?: number | null
+    wallet_credit_cents?: number | null
+    plan_length?: string | null
+    days_per_week?: number | null
+  },
+  amountCents: number,
+): Promise<void> {
+  try {
+    const walletId = plan.wallet_id
+    if (!walletId) return
+    const { data: w } = await supabase
+      .from('wallets')
+      .select('user_id, balance')
+      .eq('id', walletId)
+      .maybeSingle()
+    const userId = (w as { user_id?: string } | null)?.user_id
+    const newBalanceCents = (w as { balance?: number } | null)?.balance ?? null
+    if (!userId) return
+
+    const { data: au } = await supabase.auth.admin.getUserById(userId)
+    const email = au?.user?.email ?? ''
+    const userMeta = (au?.user?.user_metadata ?? {}) as { name?: string }
+    const firstName = (userMeta.name ?? '').split(' ')[0]
+    if (!email) return
+
+    let custLang: 'el' | 'en' = 'el'
+    const { data: pref } = await supabase
+      .from('user_prefs')
+      .select('lang')
+      .eq('user_id', userId)
+      .maybeSingle()
+    const l = (pref as { lang?: string } | null)?.lang
+    if (l === 'el' || l === 'en') custLang = l
+
+    trackAsync(EVT.SubscriptionPurchased, {
+      email,
+      firstName,
+      externalId: userId,
+    }, {
+      lang: custLang,
+      walletPlanId: plan.id,
+      planLengthLabel: plan.plan_length ?? null,
+      mealsPerWeek: plan.days_per_week ?? null,
+      amountPaid: amountCents / 100,
+      bonusCredits: (plan.bonus_credits_cents ?? 0) / 100,
+      newBalance: newBalanceCents != null ? newBalanceCents / 100 : null,
+      paymentStatus: 'paid',
+    })
+  } catch (e) {
+    console.warn('[verifyWalletPlanTransaction] Subscription Purchased Klaviyo failed (non-fatal):', e)
   }
 }
