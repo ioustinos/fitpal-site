@@ -46,6 +46,8 @@ const PUBLIC_KEYS = [
 const CACHE_HEADERS = {
   'Cache-Control': 'public, max-age=0, must-revalidate',
   'Netlify-CDN-Cache-Control': 'public, s-maxage=300, stale-while-revalidate=86400',
+  // WEC-351: tag so admin settings/cutoff edits can purge this instantly.
+  'Netlify-Cache-Tag': 'settings',
   'Content-Type': 'application/json; charset=utf-8',
 } as const
 

@@ -28,6 +28,21 @@ export default async (request: Request): Promise<Response> => {
   const { data: isAdmin, error: adminErr } = await caller.rpc('is_admin')
   if (adminErr || !isAdmin) return Response.json({ error: 'Forbidden' }, { status: 403 })
 
+  // Which cache tags to purge (allowlisted). Defaults to 'menu' when no body.
+  let tags = ['menu']
+  try {
+    const reqBody = await request.json()
+    if (Array.isArray(reqBody?.tags) && reqBody.tags.length) {
+      const allowed = new Set(['menu', 'settings'])
+      const filtered = (reqBody.tags as unknown[]).filter(
+        (t): t is string => typeof t === 'string' && allowed.has(t),
+      )
+      if (filtered.length) tags = filtered
+    }
+  } catch {
+    /* no/invalid body → default ['menu'] */
+  }
+
   // Platform-injected token, or a manually-set Netlify PAT (NETLIFY_PURGE_TOKEN,
   // per the WEC-351 plan) — whichever is present.
   const purgeToken = process.env.NETLIFY_PURGE_API_TOKEN ?? process.env.NETLIFY_PURGE_TOKEN
@@ -41,7 +56,7 @@ export default async (request: Request): Promise<Response> => {
     const res = await fetch('https://api.netlify.com/api/v1/purge', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${purgeToken}` },
-      body: JSON.stringify({ site_id: siteId, cache_tags: ['menu'] }),
+      body: JSON.stringify({ site_id: siteId, cache_tags: tags }),
     })
     if (!res.ok) {
       const body = await res.text()

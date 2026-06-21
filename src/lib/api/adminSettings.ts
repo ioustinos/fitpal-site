@@ -1,5 +1,25 @@
 import { supabase } from '../supabase'
 
+/**
+ * WEC-351: purge the customer-facing `settings` cache (cutoff rules, time
+ * slots, min order, payment methods, contact) after an admin save. Fire-and-
+ * forget; if it no-ops, stale-while-revalidate refreshes within ~5 min.
+ */
+async function purgeSettingsCache(): Promise<void> {
+  try {
+    const { data } = await supabase.auth.getSession()
+    const token = data.session?.access_token
+    if (!token) return
+    await fetch('/api/purge-menu-cache', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ tags: ['settings'] }),
+    })
+  } catch {
+    /* non-fatal — SWR backstops */
+  }
+}
+
 export interface SettingRow {
   key: string
   value: unknown
@@ -30,6 +50,7 @@ export async function fetchAllSettings(): Promise<{ data: SettingRow[] | null; e
 
 export async function setSetting(key: string, value: unknown): Promise<{ error: string | null }> {
   const { error } = await supabase.from('settings').update({ value }).eq('key', key)
+  if (!error) void purgeSettingsCache()
   return { error: error?.message ?? null }
 }
 
