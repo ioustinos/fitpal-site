@@ -3,6 +3,7 @@ import { createVivaOrder } from '../lib/viva/createOrder'
 import { trackAsync } from '../lib/klaviyo'
 import { corsHeaders } from '../lib/cors'
 import { checkRateLimit, clientIp } from '../lib/rateLimit'
+import { isMirrorEligible } from '../lib/airtable/pushOrder'
 
 // ─── Greek ΑΦΜ checksum (WEC-354) ──────────────────────────────────────────
 // Duplicated from src/lib/vat.ts — cross-folder src/ ⇄ netlify/ imports
@@ -1200,6 +1201,29 @@ export default async (request: Request) => {
       // Day-by-day breakdown the email template can iterate over.
       days: klaviyoDays,
     })
+
+    // ─── WEC-477: mirror retail order into Airtable (decoupled) ─────────
+    // Flag dirty (reconcile backstop) + fire the background push so the
+    // kitchen sees it fast. Card+pending is NOT eligible here — it mirrors
+    // from markPaid once paid. Never blocks/breaks checkout: Airtable
+    // latency/outage is absorbed by the 5-min airtable-reconcile.
+    if (isMirrorEligible({ status: 'pending', payment_method: body.paymentMethod, payment_status: paidStatus })) {
+      try {
+        await supabase.from('orders').update({ airtable_dirty: true }).eq('id', orderId)
+        const origin = new URL(request.url).origin
+        const ctrl = new AbortController()
+        const to = setTimeout(() => ctrl.abort(), 2500)
+        await fetch(`${origin}/.netlify/functions/airtable-push-background`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ orderId }),
+          signal: ctrl.signal,
+        }).catch(() => {})
+        clearTimeout(to)
+      } catch (err) {
+        console.error('[submit-order] airtable trigger failed (reconcile will catch):', err)
+      }
+    }
 
     return Response.json({
       orderNumber,

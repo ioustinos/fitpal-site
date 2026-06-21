@@ -58,7 +58,11 @@ export async function markPaid(
 
   const { data, error } = await supabase
     .from('orders')
-    .update({ payment_status: 'paid', updated_at: new Date().toISOString() })
+    // WEC-477: a card order is only Airtable-mirror-eligible once paid. It was
+    // never flagged at submit (card+pending is skipped), and the dirty trigger
+    // won't auto-flag a never-mirrored row, so flag it explicitly here. The
+    // 5-min airtable-reconcile then pushes it.
+    .update({ payment_status: 'paid', airtable_dirty: true, updated_at: new Date().toISOString() })
     .eq('id', orderId)
     .eq('payment_status', 'pending')
     .select('id')
