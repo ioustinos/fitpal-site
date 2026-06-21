@@ -75,11 +75,20 @@ export const handler: Handler = async () => {
   })
 
   try {
-    // 1. Active weekly menus, chronological.
+    // 1. Active weekly menus, chronological. Only the recent past (for the
+    //    nav "← prev week" toggle) + current + future — NOT all history. The
+    //    customer can't order weeks that ended weeks ago (cutoffs long passed),
+    //    and pulling every week back to launch is what blew past the 1000-row
+    //    cap and truncated the newest week. 14-day lookback keeps a prev-week
+    //    context while bounding the payload.
+    const lookback = new Date()
+    lookback.setUTCDate(lookback.getUTCDate() - 14)
+    const cutoffIso = lookback.toISOString().slice(0, 10)
     const { data: menuRows, error: menuErr } = await supabase
       .from('weekly_menus')
       .select('id, name, from_date, to_date, active, inactive_dates, category_order')
       .eq('active', true)
+      .gte('to_date', cutoffIso)
       .order('from_date')
 
     if (menuErr) throw new Error(`weekly_menus: ${menuErr.message}`)
