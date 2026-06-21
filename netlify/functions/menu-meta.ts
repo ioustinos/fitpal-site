@@ -90,13 +90,23 @@ export const handler: Handler = async () => {
     const menuIds = menus.map((m) => m.id)
     let dayRows: { menu_id: string; date: string }[] = []
     if (menuIds.length > 0) {
-      const { data, error } = await supabase
-        .from('menu_day_dishes')
-        .select('menu_id, date')
-        .in('menu_id', menuIds)
-        .order('date')
-      if (error) throw new Error(`menu_day_dishes: ${error.message}`)
-      dayRows = (data ?? []) as { menu_id: string; date: string }[]
+      // Paginate: PostgREST caps a single response at ~1000 rows. Once enough
+      // weeks accumulate (>1000 total day-assignments) an un-paged query
+      // silently truncates the LATEST dates — dropping the newest week's days
+      // from the customer nav. Page through in 1000-row windows until drained.
+      const PAGE = 1000
+      for (let from = 0; ; from += PAGE) {
+        const { data, error } = await supabase
+          .from('menu_day_dishes')
+          .select('menu_id, date')
+          .in('menu_id', menuIds)
+          .order('date')
+          .range(from, from + PAGE - 1)
+        if (error) throw new Error(`menu_day_dishes: ${error.message}`)
+        const batch = (data ?? []) as { menu_id: string; date: string }[]
+        dayRows.push(...batch)
+        if (batch.length < PAGE) break
+      }
     }
 
     // 3. Group dates by menu_id (deduplicated).
