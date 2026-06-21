@@ -1,5 +1,25 @@
 import { supabase } from '../supabase'
 
+/**
+ * WEC-351: refresh the customer-facing menu cache after an admin edit.
+ * Fire-and-forget (`void purgeMenuCache()`) — never blocks or fails the admin
+ * action. If the purge no-ops, stale-while-revalidate still refreshes the
+ * customer view within ~5 min, so this only ever speeds things up.
+ */
+export async function purgeMenuCache(): Promise<void> {
+  try {
+    const { data } = await supabase.auth.getSession()
+    const token = data.session?.access_token
+    if (!token) return
+    await fetch('/api/purge-menu-cache', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}` },
+    })
+  } catch {
+    /* non-fatal — SWR backstops */
+  }
+}
+
 // ─── Types ────────────────────────────────────────────────────────────────
 
 export interface AdminWeeklyMenu {
@@ -103,6 +123,7 @@ export async function setMenuDateActive(menuId: string, dateIso: string, active:
   const next = Array.from(list).sort()
   const { error } = await supabase.from('weekly_menus').update({ inactive_dates: next }).eq('id', menuId)
   if (error) return { data: null, error: error.message }
+  void purgeMenuCache()
   return { data: next, error: null }
 }
 
@@ -149,6 +170,7 @@ export async function createWeeklyMenu(input: { fromDate: string; toDate: string
     .select('*')
     .single()
   if (error) return { data: null, error: error.message }
+  void purgeMenuCache()
   return { data: mapMenuRow(data), error: null }
 }
 
@@ -158,6 +180,7 @@ export async function setMenuCategoryOrder(id: string, categoryOrder: string[]):
     .from('weekly_menus')
     .update({ category_order: categoryOrder })
     .eq('id', id)
+  void purgeMenuCache()
   return { error: error?.message ?? null }
 }
 
@@ -165,16 +188,19 @@ export async function deleteWeeklyMenu(id: string): Promise<{ error: string | nu
   // Delete day-dishes first for safety (FK should cascade, but be explicit)
   await supabase.from('menu_day_dishes').delete().eq('menu_id', id)
   const { error } = await supabase.from('weekly_menus').delete().eq('id', id)
+  void purgeMenuCache()
   return { error: error?.message ?? null }
 }
 
 export async function setMenuActive(id: string, active: boolean): Promise<{ error: string | null }> {
   const { error } = await supabase.from('weekly_menus').update({ active }).eq('id', id)
+  void purgeMenuCache()
   return { error: error?.message ?? null }
 }
 
 export async function renameMenu(id: string, name: string | null): Promise<{ error: string | null }> {
   const { error } = await supabase.from('weekly_menus').update({ name }).eq('id', id)
+  void purgeMenuCache()
   return { error: error?.message ?? null }
 }
 
@@ -190,6 +216,7 @@ export async function addDishToDay(menuId: string, date: string, dishId: string,
     .single()
   if (error) return { data: null, error: error.message }
   const row = data as { id: string; menu_id: string; date: string; dish_id: string; sort_order: number | null }
+  void purgeMenuCache()
   return {
     data: { id: row.id, menuId: row.menu_id, date: row.date, dishId: row.dish_id, sortOrder: row.sort_order ?? 0 },
     error: null,
@@ -198,6 +225,7 @@ export async function addDishToDay(menuId: string, date: string, dishId: string,
 
 export async function removeMenuDayDish(id: string): Promise<{ error: string | null }> {
   const { error } = await supabase.from('menu_day_dishes').delete().eq('id', id)
+  void purgeMenuCache()
   return { error: error?.message ?? null }
 }
 
@@ -212,6 +240,7 @@ export async function reorderMenuDayDishes(items: Array<{ id: string; date: stri
       .eq('id', it.id)
     if (error) errs.push(error.message)
   }))
+  void purgeMenuCache()
   return { error: errs.length ? errs[0] : null }
 }
 
@@ -238,5 +267,6 @@ export async function duplicateMenuContent(sourceMenuId: string, targetMenuId: s
     }
   })
   const { error } = await supabase.from('menu_day_dishes').insert(rows)
+  void purgeMenuCache()
   return { error: error?.message ?? null }
 }

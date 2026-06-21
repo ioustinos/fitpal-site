@@ -23,6 +23,8 @@ const SUPABASE_ANON_KEY = process.env.VITE_SUPABASE_ANON_KEY ?? ''
 const CACHE_HEADERS = {
   'Cache-Control': 'public, max-age=0, must-revalidate',
   'Netlify-CDN-Cache-Control': 'public, s-maxage=300, stale-while-revalidate=86400',
+  // WEC-351: tag so admin menu edits can purge this instantly (else up to 5 min).
+  'Netlify-Cache-Tag': 'menu',
   'Content-Type': 'application/json; charset=utf-8',
 } as const
 
