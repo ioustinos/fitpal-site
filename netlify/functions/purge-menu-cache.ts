@@ -28,8 +28,10 @@ export default async (request: Request): Promise<Response> => {
   const { data: isAdmin, error: adminErr } = await caller.rpc('is_admin')
   if (adminErr || !isAdmin) return Response.json({ error: 'Forbidden' }, { status: 403 })
 
-  const purgeToken = process.env.NETLIFY_PURGE_API_TOKEN
-  const siteId = process.env.SITE_ID
+  // Platform-injected token, or a manually-set Netlify PAT (NETLIFY_PURGE_TOKEN,
+  // per the WEC-351 plan) — whichever is present.
+  const purgeToken = process.env.NETLIFY_PURGE_API_TOKEN ?? process.env.NETLIFY_PURGE_TOKEN
+  const siteId = process.env.SITE_ID ?? process.env.NETLIFY_SITE_ID
   if (!purgeToken || !siteId) {
     console.warn('[purge-menu-cache] no injected purge creds (token=%s site=%s) — relying on stale-while-revalidate', !!purgeToken, !!siteId)
     return Response.json({ purged: false, reason: 'no-injected-credentials' })
