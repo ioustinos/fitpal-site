@@ -59,6 +59,8 @@ interface DayPayload {
   addressArea: string
   addressZip?: string
   addressFloor?: string
+  addressDoorbell?: string
+  addressNotes?: string
   /** WEC-259: 'delivery' (default) or 'pickup'. */
   fulfillmentType?: 'delivery' | 'pickup'
   /** WEC-259: pickup-only — references settings.pickup_locations[i].id. */
@@ -806,6 +808,8 @@ export default async (request: Request) => {
         address_area: day.addressArea,
         address_zip: day.addressZip?.replace(/\s/g, '') ?? null,
         address_floor: day.addressFloor ?? null,
+        address_doorbell: day.addressDoorbell ?? null,
+        address_notes: day.addressNotes ?? null,
         fulfillment_type: day.fulfillmentType ?? 'delivery',
         pickup_location_id: day.fulfillmentType === 'pickup' ? (day.pickupLocationId ?? null) : null,
         items: day.items.map((item) => {
@@ -888,6 +892,8 @@ export default async (request: Request) => {
           // and any future analytics that filter by zip.
           address_zip: day.addressZip?.replace(/\s/g, '') ?? null,
           address_floor: day.addressFloor ?? null,
+          address_doorbell: day.addressDoorbell ?? null,
+          address_notes: day.addressNotes ?? null,
           // WEC-259: per-day fulfillment.
           fulfillment_type: day.fulfillmentType ?? 'delivery',
           pickup_location_id: day.fulfillmentType === 'pickup' ? (day.pickupLocationId ?? null) : null,

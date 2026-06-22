@@ -79,7 +79,7 @@ export async function pushOrderToAirtable(
   // 2. Load children + items
   const { data: children } = await supabase
     .from('child_orders')
-    .select('id, delivery_date, time_from, time_to, address_street, address_area, address_zip, address_floor')
+    .select('id, delivery_date, time_from, time_to, address_street, address_area, address_zip, address_floor, address_doorbell, address_notes')
     .eq('order_id', orderId)
   const childList = children ?? []
   const childIds = childList.map((c: any) => c.id)
@@ -173,6 +173,10 @@ export async function pushOrderToAirtable(
       'Post Code': c.address_zip ?? '',
       City: c.address_area ?? '',
       Floor: c.address_floor ?? '',
+      // Airtable "Doorbell" carries the delivery comments (ΣΧΟΛΙΑ ΠΑΡΑΔΟΣΗΣ),
+      // matching the GonnaOrder mapping. The doorbell number is stored on
+      // child_orders.address_doorbell (not yet surfaced in Airtable).
+      Doorbell: c.address_notes ?? '',
       'Parent Order Id': [orderRecId],
     }
     if (custLink) childFields['Customer'] = custLink

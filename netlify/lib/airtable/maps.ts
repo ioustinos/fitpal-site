@@ -27,7 +27,7 @@ export function mapPaymentMethod(method: string): { method: string; extra?: stri
     case 'link':
       return { method: 'CARD', extra: 'Sent Payment Link' }
     case 'wallet':
-      return { method: 'Freeba' }
+      return { method: 'Wallet' }
     default:
       return { method: 'CASH' }
   }

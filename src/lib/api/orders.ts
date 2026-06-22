@@ -417,6 +417,9 @@ export interface SubmitDayPayload {
   addressArea: string
   addressZip?: string
   addressFloor?: string
+  /** WEC-473: doorbell number + delivery notes (ΣΧΟΛΙΑ ΠΑΡΑΔΟΣΗΣ). */
+  addressDoorbell?: string
+  addressNotes?: string
   /** WEC-259: 'delivery' (default) or 'pickup'. */
   fulfillmentType?: 'delivery' | 'pickup'
   /** WEC-259: pickup-only — references settings.pickup_locations[i].id. */

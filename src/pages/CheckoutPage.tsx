@@ -480,6 +480,10 @@ export function CheckoutPage() {
         addressArea: ftype === 'pickup' ? '' : (del?.area ?? ''),
         addressZip: ftype === 'pickup' ? undefined : del?.zip,
         addressFloor: ftype === 'pickup' ? undefined : del?.floor,
+        // WEC-473: doorbell + delivery notes were captured in the form/store
+        // but never sent — they're carried through now.
+        addressDoorbell: ftype === 'pickup' ? undefined : del?.doorbell,
+        addressNotes: ftype === 'pickup' ? undefined : del?.notes,
         fulfillmentType: ftype,
         pickupLocationId: pickupLocId,
         items: items.map((item) => ({
