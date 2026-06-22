@@ -1211,8 +1211,13 @@ export default async (request: Request) => {
       try {
         await supabase.from('orders').update({ airtable_dirty: true }).eq('id', orderId)
         const origin = new URL(request.url).origin
+        // Generous timeout: a background function ACKs 202 fast when warm, but
+        // a cold start can take several seconds. Too tight an abort (was 2.5s)
+        // kills the invocation before it registers, and on dev there's no
+        // scheduled reconcile to rescue it. 9s bounds a truly hung connection
+        // without dropping cold-start pushes.
         const ctrl = new AbortController()
-        const to = setTimeout(() => ctrl.abort(), 2500)
+        const to = setTimeout(() => ctrl.abort(), 9000)
         await fetch(`${origin}/.netlify/functions/airtable-push-background`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
