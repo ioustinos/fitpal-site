@@ -1202,6 +1202,15 @@ export default async (request: Request) => {
       days: klaviyoDays,
     })
 
+    // Stamp the submit time — Airtable mirrors this as "Submitted at (GO)".
+    // created_at holds the draft/placement time; this records the actual
+    // submit/promote moment. Fail-soft: never block checkout.
+    try {
+      await supabase.from('orders').update({ submitted_at: new Date().toISOString() }).eq('id', orderId)
+    } catch (e) {
+      console.error('[submit-order] submitted_at stamp failed (non-fatal):', e)
+    }
+
     // ─── WEC-477: mirror retail order into Airtable (decoupled) ─────────
     // Flag dirty (reconcile backstop) + fire the background push so the
     // kitchen sees it fast. Card+pending is NOT eligible here — it mirrors

@@ -31,6 +31,8 @@ interface OrderRow {
   invoice_vat: string | null
   notes: string | null
   created_at?: string | null
+  submitted_at?: string | null
+  updated_at?: string | null
 }
 
 // Mirror an order once it is "confirmed enough": never a draft, and for online
@@ -66,7 +68,7 @@ export async function pushOrderToAirtable(
   const { data: order, error: oErr } = await supabase
     .from('orders')
     .select(
-      'id, order_number, customer_name, customer_email, customer_phone, subtotal, total, payment_method, payment_status, status, cutlery, invoice_type, invoice_vat, notes, created_at',
+      'id, order_number, customer_name, customer_email, customer_phone, subtotal, total, payment_method, payment_status, status, cutlery, invoice_type, invoice_vat, notes, created_at, submitted_at, updated_at',
     )
     .eq('id', orderId)
     .single<OrderRow>()
@@ -101,14 +103,16 @@ export async function pushOrderToAirtable(
     for (const v of vrows ?? []) extByVariant.set(v.id, v.external_id ?? v.id)
   }
   const catByDish = new Map<string, string>()
+  const descByDish = new Map<string, string>()
   if (dishIds.length) {
     const { data: drows } = await supabase
       .from('dishes')
-      .select('id, category_id, categories(name_el)')
+      .select('id, desc_el, category_id, categories(name_el)')
       .in('id', dishIds)
     for (const d of (drows ?? []) as any[]) {
       const cat = Array.isArray(d.categories) ? d.categories[0]?.name_el : d.categories?.name_el
       if (cat) catByDish.set(d.id, cat)
+      if (d.desc_el) descByDish.set(d.id, d.desc_el)
     }
   }
 
@@ -126,6 +130,9 @@ export async function pushOrderToAirtable(
   }
 
   // 6. Upsert Orders
+  // Airtable dateTime fields reject Postgres's 6-digit microsecond timestamps
+  // under typecast:false — normalize to millisecond ISO so they actually land.
+  const isoMs = (v?: string | null): string | undefined => (v ? new Date(v).toISOString() : undefined)
   const pm = mapPaymentMethod(order.payment_method)
   const orderFields: Record<string, unknown> = {
     'Order Id': order.id,
@@ -133,7 +140,11 @@ export async function pushOrderToAirtable(
     'Customer Name': order.customer_name ?? '',
     'Customer Phone': order.customer_phone ?? '',
     'Customer Email': order.customer_email ?? '',
-    'Order Placement Time': order.created_at ?? new Date().toISOString(),
+    // GonnaOrder parity: Placement = order/draft creation, Submitted = user
+    // submit, Updated At = last status change. (Airtable "Created" is internal.)
+    'Order Placement Time': isoMs(order.created_at) ?? new Date().toISOString(),
+    'Submitted at (GO)': isoMs(order.submitted_at) ?? isoMs(order.created_at),
+    'Updated At (GO)': isoMs(order.updated_at),
     'Total Order Value': toEuros(order.subtotal),
     'Total Order Price (After Discount)': toEuros(order.total),
     'Order Comments': order.notes ?? '',
@@ -182,6 +193,7 @@ export async function pushOrderToAirtable(
         'Item Price': toEuros(it.unit_price),
         'Items Full Price': toEuros(it.total_price),
         'Item Comment': it.comment ?? '',
+        'Item Long Description': descByDish.get(it.dish_id) ?? '',
         Category: catByDish.get(it.dish_id) ?? '',
         'Child/Day Order ID': [childRecId],
       }
