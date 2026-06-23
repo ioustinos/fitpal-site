@@ -1179,13 +1179,9 @@ export default async (request: Request) => {
       }))
       .filter((e) => e.iban.length > 0)
 
-    trackAsync('Order Placed', {
-      email: body.customerEmail,
-      firstName: body.customerName?.split(' ')[0],
-      lastName: body.customerName?.split(' ').slice(1).join(' '),
-      phone: body.customerPhone,
-      externalId: userId ?? undefined,
-    }, {
+    // WEC-486: extract the Order Placed payload into a const so we can reuse
+    // it for the admin BCC fan-out below without duplicating 30 lines.
+    const orderPlacedProperties = {
       // WEC-433+: lang routes EL vs EN templates inside the Klaviyo flow.
       // Comes from the request body (set by CheckoutPage from useUIStore.lang)
       // and falls back to 'el' (Greece-first default).
@@ -1216,7 +1212,51 @@ export default async (request: Request) => {
       }), { calories: 0, protein: 0, carbs: 0, fat: 0 }),
       // Day-by-day breakdown the email template can iterate over.
       days: klaviyoDays,
-    })
+    }
+
+    trackAsync('Order Placed', {
+      email: body.customerEmail,
+      firstName: body.customerName?.split(' ')[0],
+      lastName: body.customerName?.split(' ').slice(1).join(' '),
+      phone: body.customerPhone,
+      externalId: userId ?? undefined,
+    }, orderPlacedProperties)
+
+    // WEC-486: admin BCC fan-out. Admins listed in
+    // `settings.order_confirmation_admin_emails` (jsonb array) get a copy of
+    // every order confirmation. Each fires as its own Klaviyo profile +
+    // event, so the existing flow sends them the same templated email
+    // automatically. The `isAdminCopy: true` flag lets the template prefix
+    // the subject with "[ADMIN]" if you want — pure additive, no flow change
+    // needed. Fail-soft, never blocks the customer order.
+    try {
+      const rawAdmins = (settingsRes.data ?? [] as { key: string; value: unknown }[])
+        .find((r: { key: string }) => r.key === 'order_confirmation_admin_emails')?.value
+      const adminEmails = Array.isArray(rawAdmins)
+        ? (rawAdmins as unknown[])
+            .filter((v): v is string =>
+              typeof v === 'string' &&
+              /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v.trim()),
+            )
+            .map((v) => v.trim())
+        : []
+      // De-dup against the customer's own email so the customer doesn't get
+      // two copies if they happen to also be on the admin list.
+      const customerLower = body.customerEmail.toLowerCase()
+      for (const adminEmail of adminEmails) {
+        if (adminEmail.toLowerCase() === customerLower) continue
+        trackAsync('Order Placed', {
+          email: adminEmail,
+          firstName: 'Fitpal',
+          lastName: 'Admin notification',
+        }, {
+          ...orderPlacedProperties,
+          isAdminCopy: true,
+        })
+      }
+    } catch (e) {
+      console.warn('[submit-order] WEC-486 admin BCC fan-out failed (non-fatal):', e)
+    }
 
     // Stamp the submit time — Airtable mirrors this as "Submitted at (GO)".
     // created_at holds the draft/placement time; this records the actual

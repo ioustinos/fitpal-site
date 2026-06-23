@@ -104,6 +104,7 @@ export function Settings() {
           <MacrosDisplaySection value={(byKey.get('macros_display') === 'dots' ? 'dots' : 'numbers')} onSave={(v) => save('macros_display', v)} />
           <VariantPillThresholdSection value={Number(byKey.get('variant_pill_threshold') ?? 4)} onSave={(v) => save('variant_pill_threshold', v)} />
           <ContactInfoSection value={(byKey.get('contact') as ContactInfo) ?? {}} onSave={(v) => save('contact', v)} />
+          <AdminEmailRecipientsSection value={parseAdminEmails(byKey.get('order_confirmation_admin_emails'))} onSave={(v) => save('order_confirmation_admin_emails', v)} />
           <BankTransferInfoSection value={parseBankInfos(byKey.get('bank_transfer_info'))} onSave={(v) => save('bank_transfer_info', v)} />
           <RawJsonSection rows={all} onSaved={refresh} />
         </>
@@ -451,6 +452,70 @@ export function ContactInfoSection({ value, onSave }: { value: ContactInfo; onSa
       </div>
       <div className="admin-inline-form" style={{ marginTop: 12 }}>
         <button className="admin-btn-primary" disabled={!dirty} onClick={() => onSave(form)}>Save</button>
+      </div>
+    </SectionCard>
+  )
+}
+
+/**
+ * WEC-486: parse `settings.order_confirmation_admin_emails` into a clean
+ * array of trimmed email strings. Accepts:
+ *   - undefined/null → empty array
+ *   - array → filtered to strings that match a basic email regex
+ *   - anything else → empty array
+ */
+export function parseAdminEmails(raw: unknown): string[] {
+  if (!Array.isArray(raw)) return []
+  const out: string[] = []
+  for (const v of raw as unknown[]) {
+    if (typeof v !== 'string') continue
+    const trimmed = v.trim()
+    if (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed)) out.push(trimmed)
+  }
+  return out
+}
+
+export function AdminEmailRecipientsSection({ value, onSave }: { value: string[]; onSave: (v: string[]) => void }) {
+  // Editor uses a single textarea (one email per line OR comma-separated)
+  // because a chips input is more UI than this needs. Validation happens at
+  // save time — invalid entries are dropped silently with a count in the
+  // success message so the operator notices.
+  const initial = value.join('\n')
+  const [text, setText] = useState(initial)
+  useEffect(() => setText(value.join('\n')), [value])
+
+  // Split on newlines and commas; trim; drop empties; de-dup; validate.
+  const parsed = text
+    .split(/[\n,]+/)
+    .map((s) => s.trim())
+    .filter(Boolean)
+  const valid = parsed.filter((s) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s))
+  const invalid = parsed.filter((s) => !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s))
+  const dedup = Array.from(new Set(valid.map((s) => s.toLowerCase())))
+    // Preserve the user's typed casing by mapping back to the first occurrence.
+    .map((lower) => valid.find((s) => s.toLowerCase() === lower) as string)
+
+  const dirty = JSON.stringify(dedup) !== JSON.stringify(value)
+
+  return (
+    <SectionCard
+      title="Order confirmation — admin recipients"
+      desc="Each address listed here also receives a copy of every customer order confirmation email. One per line or comma-separated. Invalid entries are dropped silently on save. Empty list = customer-only (no admin copy)."
+    >
+      <textarea
+        className="admin-input admin-textarea"
+        rows={4}
+        value={text}
+        onChange={(e) => setText(e.target.value)}
+        placeholder="ops@fitpal.gr&#10;kitchen@fitpal.gr"
+        style={{ fontFamily: 'ui-monospace, Menlo, Consolas, monospace', fontSize: 13 }}
+      />
+      <div className="admin-text-muted" style={{ marginTop: 6, fontSize: 12 }}>
+        {dedup.length} valid email{dedup.length === 1 ? '' : 's'} will be saved
+        {invalid.length > 0 && ` (${invalid.length} invalid line${invalid.length === 1 ? '' : 's'} ignored)`}
+      </div>
+      <div className="admin-inline-form" style={{ marginTop: 10 }}>
+        <button className="admin-btn-primary" disabled={!dirty} onClick={() => onSave(dedup)}>Save</button>
       </div>
     </SectionCard>
   )
