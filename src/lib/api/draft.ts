@@ -4,6 +4,27 @@
 // returned `draft_id` is parked in useCartStore and reused on every subsequent
 // save (debounced trigger B + synchronous trigger C). Cleared on successful
 // order placement.
+//
+// ARCHITECTURAL INVARIANT (WEC-437 — do not break):
+//   saveDraft is **WRITE-ONLY** to the server. The response handler MUST
+//   only call `setDraftId(...)` / `setDraftLastSavedAt(...)` — fields no UI
+//   surface besides CheckoutPage subscribes to.
+//
+//   It MUST NEVER write back to cart / delivery / fulfillment / payment /
+//   voucher / contact based on the server response. Those stores are the
+//   single source of truth for the live form; any server-driven patch to
+//   them creates a race with the user's keystrokes / clicks — exactly the
+//   class of bug WEC-437 chased before we confirmed it didn't exist here.
+//
+//   If you ever need a "restore previous draft" flow:
+//     1. Show an explicit modal on mount ("we found a saved draft — restore?")
+//     2. On user confirm: load server state into the stores in one synchronous
+//        batch BEFORE the form is interactive
+//     3. NEVER hydrate silently while the user can already interact with the
+//        form. That is the bug the invariant exists to prevent.
+//
+//   See /Users/ioustinossarris/Documents/Claude/Projects/Fitpal\ New\ Site/skills/draft-form-state/SKILL.md
+//   for the broader pattern + recipe for new projects on this stack.
 
 import { supabase } from '../supabase'
 import { useCartStore } from '../../store/useCartStore'

@@ -139,6 +139,15 @@ export default function App() {
               })
             }
           } catch { /* non-fatal */ }
+          // WEC-453: drop the cart draftId on sign-out. It was scoped to the
+          // signed-out user's server-side draft row; carrying it forward
+          // means the next user (could be different) hits "Draft not owned
+          // by caller" on submit. WEC-452 made the server fail-soft, but
+          // a clean client never sends the stale value in the first place.
+          try {
+            const { useCartStore } = await import('./store/useCartStore')
+            useCartStore.getState().clearDraft()
+          } catch { /* non-fatal */ }
         } else if ((event === 'SIGNED_IN' || event === 'PASSWORD_RECOVERY') && session.user) {
           // WEC-272: PASSWORD_RECOVERY is fired when verifyOtp({type:'recovery'})
           // succeeds. On this Supabase project, signInWithOtp for an existing
@@ -168,6 +177,17 @@ export default function App() {
           // (login() already loaded the user, this handles external sign-ins)
           const current = useAuthStore.getState().user
           if (!current || current.id !== session.user.id) {
+            // WEC-453: user-switch case (current user changed under us).
+            // Clear the cart draft so we don't carry the previous user's
+            // server-side draftId into the new user's checkout flow.
+            // (Skip on first sign-in where current is null — there's no
+            // prior user, so no draft to carry.)
+            if (current && current.id !== session.user.id) {
+              try {
+                const { useCartStore } = await import('./store/useCartStore')
+                useCartStore.getState().clearDraft()
+              } catch { /* non-fatal */ }
+            }
             useAuthStore.getState().refreshUser(session.user.id)
           }
         }
