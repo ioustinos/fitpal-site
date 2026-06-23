@@ -303,10 +303,31 @@ export function CheckoutPage() {
     )
   }
 
+  // WEC-489: deliveryOk MUST mirror the fulfillment-type gating that the
+  // per-day validationIssues block uses (lines 206-263) — pickup days have
+  // empty street/area/zip (they carry a pickupLocationId instead), so the
+  // pre-WEC-489 unconditional street/area/zip check silently disabled the
+  // submit button for any cart with a pickup day while the validation
+  // banner correctly showed no error. Cart was unsubmittable + customer
+  // had no explanation.
   const deliveryOk = activeDates.every((dDate) => {
     const del = delivery[dDate]
     const amt = dayAmt(cart, dDate)
-    return del?.street && del?.area && del?.zip && del?.timeSlot && zipInZone(del.zip, zones) && amt >= minOrder
+    const dayFulfillment = fulfillment[dDate] ?? 'delivery'
+
+    // Per-day requirements for ANY fulfillment type
+    if (!del?.timeSlot) return false
+    if (amt < minOrder) return false
+
+    if (dayFulfillment === 'pickup') {
+      // WEC-410: pickup needs a location; auto-set when there's only one,
+      // explicit pick required for multi-location config. No address fields.
+      if (pickupLocations.length === 0) return false
+      if (pickupLocations.length > 1 && !del?.pickupLocationId) return false
+      return true
+    }
+    // Delivery path
+    return !!(del?.street && del?.area && del?.zip && zipInZone(del.zip, zones))
   })
 
   const paymentOk = !!payment.method
