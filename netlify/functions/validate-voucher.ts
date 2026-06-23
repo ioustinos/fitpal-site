@@ -57,11 +57,16 @@ export default async (request: Request) => {
     return Response.json({ error: 'Method not allowed' }, { status: 405 })
   }
 
-  // WEC-147: rate limit (fail-open) — 20 voucher checks / minute / IP, blunts
-  // brute-force enumeration of codes (the abuse vector behind cancelled WEC-148).
+  // WEC-147 + WEC-455: rate limit (fail-open) — 20 voucher checks / minute / IP.
+  // Per WEC-455 / `feedback_error_messaging` this IS the abuse mitigation
+  // against code enumeration. Specific error messages are intentional now.
   if (!(await checkRateLimit(`validate-voucher:${clientIp(request)}`, 20, 60))) {
     return Response.json(
-      { valid: false, error: 'Πολλές προσπάθειες. Δοκίμασε ξανά σε λίγο. / Too many attempts — please try again shortly.' },
+      {
+        valid: false,
+        errorCode: 'rate_limit',
+        error: 'Too many attempts — please try again shortly',
+      },
       { status: 429, headers: corsHeaders(request, 'POST, OPTIONS') },
     )
   }
@@ -93,29 +98,47 @@ export default async (request: Request) => {
 
     // ── Voucher lookup + reject path ────────────────────────────────────
     //
-    // WEC-148: don't leak which specific reason a voucher is unavailable.
-    // The previous behaviour exposed distinct strings for "doesn't exist",
-    // "expired", "max uses reached", "already used by this user", "not
-    // your voucher" — letting an attacker enumerate valid codes by error
-    // diff. Now every "invalid for this caller" reason returns the same
-    // generic message + the same shape, modulo the `min_order` case which
-    // is the one bit of information the legit user genuinely needs to act
-    // on (it's not a yes/no — it's "you'd be eligible if your cart hits
-    // the threshold"; same logic as a "free shipping above €X" badge).
+    // WEC-455 / feedback_error_messaging: explicitly OVERRULES WEC-148's
+    // collapse-to-generic strategy. The product decision is to surface
+    // specific, actionable error reasons to the customer so they understand
+    // why a code didn't apply (typo? already used? minimum not met?).
+    // Abuse mitigation against code enumeration is the rate limit above
+    // (20 attempts / min / IP) — not error-message obfuscation. See
+    // memory `feedback_error_messaging`.
     //
-    // Exception: the min-order case is allowed because:
-    //   (a) it doesn't confirm voucher existence beyond what cart total
-    //       reveals (an attacker could still try `cartTotal: 9999` to
-    //       bypass), and
-    //   (b) ux value to legit users is high.
+    // Response shape on rejection:
+    //   {
+    //     valid: false,
+    //     code: '<the submitted code, uppercased>',
+    //     errorCode: '<machine-readable code>',  // e.g. 'per_user_limit'
+    //     error: '<English fallback message>',    // for clients without i18n
+    //     ...optional structured fields (min order, etc.)
+    //   }
     //
-    // Server-side logging keeps the actual reason for ops debugging.
-    const REJECT_GENERIC = 'This voucher is invalid or unavailable.'
+    // The client maps errorCode → localized bilingual message.
+    const REJECT_MESSAGES: Record<string, string> = {
+      not_found:         "This voucher code doesn't exist",
+      inactive:          "This voucher is currently disabled",
+      expired:           "This voucher has expired",
+      max_uses_reached:  "This voucher has reached its maximum uses",
+      per_user_limit:    "You've already used this voucher",
+      user_mismatch:     "This voucher is not available for your account",
+      credit_exhausted:  "This voucher's credit balance is depleted",
+      no_eligible_items: "No items in your cart qualify for this voucher",
+      min_order_not_met: "Minimum order amount not met for this voucher",
+    }
 
-    function reject(reason: string) {
+    function reject(errorCode: keyof typeof REJECT_MESSAGES, extra: Record<string, unknown> = {}) {
+      // Server-side logging stays — useful for ops debugging.
       // eslint-disable-next-line no-console
-      console.log(`[validate-voucher] rejected ${code} for user=${userId ?? 'guest'}: ${reason}`)
-      return Response.json({ valid: false, code, error: REJECT_GENERIC })
+      console.log(`[validate-voucher] rejected ${code} for user=${userId ?? 'guest'}: ${errorCode}`)
+      return Response.json({
+        valid: false,
+        code,
+        errorCode,
+        error: REJECT_MESSAGES[errorCode],
+        ...extra,
+      })
     }
 
     // Fetch voucher
@@ -125,10 +148,14 @@ export default async (request: Request) => {
       .eq('code', code)
       .single()
 
-    if (vErr || !voucher) return reject('not found')
+    if (vErr || !voucher) return reject('not_found')
     if (!voucher.active) return reject('inactive')
-    if (voucher.expires_at && new Date(voucher.expires_at) < new Date()) return reject('expired')
-    if (voucher.max_uses != null && voucher.uses_count >= voucher.max_uses) return reject('max_uses reached')
+    if (voucher.expires_at && new Date(voucher.expires_at) < new Date()) {
+      return reject('expired', { expiresAt: voucher.expires_at })
+    }
+    if (voucher.max_uses != null && voucher.uses_count >= voucher.max_uses) {
+      return reject('max_uses_reached', { maxUses: voucher.max_uses, usesCount: voucher.uses_count })
+    }
 
     // Per-user limit
     if (userId && voucher.per_user_limit != null) {
@@ -137,26 +164,23 @@ export default async (request: Request) => {
         .select('id', { count: 'exact', head: true })
         .eq('voucher_id', voucher.id)
         .eq('user_id', userId)
-      if ((count ?? 0) >= voucher.per_user_limit) return reject('per-user limit reached')
+      if ((count ?? 0) >= voucher.per_user_limit) {
+        return reject('per_user_limit', { perUserLimit: voucher.per_user_limit, used: count ?? 0 })
+      }
     }
 
     // User-specific voucher with no match (or guest trying to use one)
-    if (voucher.user_id && voucher.user_id !== userId) return reject('user mismatch')
+    if (voucher.user_id && voucher.user_id !== userId) return reject('user_mismatch')
 
-    // Check minimum order — the ONE case where we DO leak the reason,
-    // because it's actionable for the customer ("add €X more").
+    // Check minimum order — structured payload includes cents so the
+    // client can format a localized "add €X more" hint.
     const cartTotalCents = Math.round((body.cartTotal ?? 0) * 100)
     if (voucher.min_order != null && cartTotalCents < voucher.min_order) {
-      const minEuros = (voucher.min_order / 100).toFixed(2)
-      return Response.json({
-        valid: false,
-        code,
-        error: `Minimum order €${minEuros} required for this voucher`,
-      })
+      return reject('min_order_not_met', { minOrderCents: voucher.min_order, cartTotalCents })
     }
 
-    // Credit voucher with zero remaining → generic.
-    if (voucher.type === 'credit' && (voucher.remaining ?? 0) <= 0) return reject('credit exhausted')
+    // Credit voucher with zero remaining
+    if (voucher.type === 'credit' && (voucher.remaining ?? 0) <= 0) return reject('credit_exhausted')
 
     // WEC-262: scoped vouchers — compute the eligible subtotal from the
     // cart items the client passed. Without an items array we can't filter,
@@ -182,7 +206,9 @@ export default async (request: Request) => {
         })
         .reduce((s, i) => s + i.lineTotal, 0)
       eligibleCents = Math.round(eligibleEuros * 100)
-      if (eligibleCents <= 0) return reject('no eligible items in cart')
+      if (eligibleCents <= 0) {
+        return reject('no_eligible_items', { applicableCategoryIds: scopedCats })
+      }
     }
 
     // Calculate discount on the eligible total (full cart for unscoped

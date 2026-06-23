@@ -7,6 +7,72 @@ import { useToast } from '../ui/Toast'
 import { activeDays, dayAmt, eligibleSubtotal } from '../../lib/helpers'
 
 /**
+ * WEC-455: localize the server's structured voucher rejection. Each errorCode
+ * maps to a bilingual user-facing message. Some codes use structured params
+ * from the server (e.g. min_order_not_met → minOrderCents → formatted euros).
+ *
+ * If we receive an errorCode we don't recognise (forward-compat with future
+ * server-side additions), we fall back to the server's English `error` field.
+ * If even that's missing, the user gets a generic "invalid code".
+ */
+function localizeVoucherError(
+  errorCode: string | undefined,
+  errorParams: Record<string, unknown> | undefined,
+  serverError: string | undefined,
+  lang: 'el' | 'en',
+): string {
+  if (!errorCode) {
+    return serverError ?? (lang === 'el' ? 'Μη έγκυρο κουπόνι' : 'Invalid voucher code')
+  }
+
+  const isEl = lang === 'el'
+
+  switch (errorCode) {
+    case 'not_found':
+      return isEl ? 'Ο κωδικός δεν βρέθηκε' : "This voucher code doesn't exist"
+    case 'inactive':
+      return isEl ? 'Ο κωδικός δεν είναι ενεργός' : 'This voucher is currently disabled'
+    case 'expired':
+      return isEl ? 'Ο κωδικός έχει λήξει' : 'This voucher has expired'
+    case 'max_uses_reached':
+      return isEl ? 'Ο κωδικός έχει εξαντληθεί' : 'This voucher has reached its maximum uses'
+    case 'per_user_limit':
+      return isEl ? 'Έχεις ήδη χρησιμοποιήσει αυτόν τον κωδικό' : "You've already used this voucher"
+    case 'user_mismatch':
+      return isEl ? 'Ο κωδικός δεν είναι διαθέσιμος για τον λογαριασμό σου' : 'This voucher is not available for your account'
+    case 'credit_exhausted':
+      return isEl ? 'Το υπόλοιπο του κωδικού έχει εξαντληθεί' : "This voucher's credit balance is depleted"
+    case 'no_eligible_items':
+      return isEl ? 'Κανένα προϊόν στο καλάθι σου δεν είναι επιλέξιμο για αυτόν τον κωδικό' : 'No items in your cart qualify for this voucher'
+    case 'rate_limit':
+      return isEl ? 'Πολλές προσπάθειες. Δοκίμασε ξανά σε λίγο' : 'Too many attempts — please try again shortly'
+    case 'network':
+      return isEl ? 'Σφάλμα δικτύου — δοκίμασε ξανά' : 'Network error — please try again'
+    case 'min_order_not_met': {
+      const minCents = typeof errorParams?.minOrderCents === 'number' ? (errorParams.minOrderCents as number) : null
+      const cartCents = typeof errorParams?.cartTotalCents === 'number' ? (errorParams.cartTotalCents as number) : null
+      if (minCents != null) {
+        const minEuros = (minCents / 100).toFixed(2)
+        const needEuros = cartCents != null
+          ? ((minCents - cartCents) / 100).toFixed(2)
+          : null
+        if (needEuros != null && +needEuros > 0) {
+          return isEl
+            ? `Ελάχιστη παραγγελία €${minEuros} για αυτόν τον κωδικό (χρειάζεσαι €${needEuros} ακόμα)`
+            : `Minimum order €${minEuros} required (add €${needEuros} more)`
+        }
+        return isEl
+          ? `Απαιτείται ελάχιστη παραγγελία €${minEuros}`
+          : `Minimum order €${minEuros} required`
+      }
+      return serverError ?? (isEl ? 'Δεν πληρείται η ελάχιστη παραγγελία' : 'Minimum order not met')
+    }
+    default:
+      return serverError ?? (isEl ? 'Μη έγκυρος κωδικός' : 'Invalid voucher code')
+  }
+}
+
+/**
  * Shared voucher logic for the two surfaces that render a voucher widget:
  *   - CartSidebar's <VoucherInput /> (compact pill in the sidebar footer)
  *   - OrderSummary's inline voucher block (checkout summary footer)
@@ -53,7 +119,12 @@ export function useVoucherWidget() {
     if (!trimmed) return
     const result = await applyVoucher(trimmed, rawTotal, user?.id)
     if (!result.ok) {
-      setError(result.error ?? (lang === 'el' ? 'Μη έγκυρο κουπόνι' : 'Invalid voucher code'))
+      // WEC-455: map server's structured errorCode to a localized,
+      // specific message. Fall back to the server's English message (or a
+      // generic "invalid code") if the errorCode is unknown — should never
+      // happen for clients on the same version as the server but kept as a
+      // defensive default.
+      setError(localizeVoucherError(result.errorCode, result.errorParams, result.error, lang))
     } else {
       setCode('')
       setError('')

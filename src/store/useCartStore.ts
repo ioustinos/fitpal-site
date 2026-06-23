@@ -121,7 +121,22 @@ interface CartStore {
 
   setPayment: (info: Partial<PaymentInfo>) => void
 
-  applyVoucher: (code: string, cartTotal: number, userId?: string) => Promise<{ ok: boolean; error?: string }>
+  applyVoucher: (code: string, cartTotal: number, userId?: string) => Promise<{
+    ok: boolean
+    /** Server-provided English fallback message — surface only if no errorCode mapping. */
+    error?: string
+    /**
+     * WEC-455: machine-readable rejection code so the UI can render a
+     * localized, specific message per failure mode. One of:
+     *   not_found | inactive | expired | max_uses_reached | per_user_limit |
+     *   user_mismatch | credit_exhausted | no_eligible_items |
+     *   min_order_not_met | rate_limit | network
+     * 'network' is client-synthesized when fetch itself fails.
+     */
+    errorCode?: string
+    /** Structured params per errorCode (e.g. min_order_not_met → minOrderCents). */
+    errorParams?: Record<string, unknown>
+  }>
   removeVoucher: () => void
   voucherLoading: boolean
 }
@@ -300,7 +315,17 @@ export const useCartStore = create<CartStore>()(
 
       if (!json.valid) {
         set({ voucherLoading: false })
-        return { ok: false, error: json.error ?? 'Invalid voucher code' }
+        // WEC-455: forward the server's structured rejection code so the
+        // UI can render a localized, specific message per failure mode.
+        // Strip the recognised fields from `errorParams` so the consumer
+        // can render templated values like "add €X more".
+        const { errorCode, error, valid: _v, code: _c, ...errorParams } = json as Record<string, unknown>
+        return {
+          ok: false,
+          error: typeof error === 'string' ? error : 'Invalid voucher code',
+          errorCode: typeof errorCode === 'string' ? errorCode : undefined,
+          errorParams,
+        }
       }
 
       set({
@@ -317,7 +342,7 @@ export const useCartStore = create<CartStore>()(
       return { ok: true }
     } catch {
       set({ voucherLoading: false })
-      return { ok: false, error: 'Network error' }
+      return { ok: false, error: 'Network error', errorCode: 'network' }
     }
   },
 
