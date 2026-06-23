@@ -219,9 +219,24 @@ export const getCutoffDate = (isoDate: string, settings: AppSettings): Date => {
   return cutoff
 }
 
-/** A day D is orderable when `now < getCutoffDate(D, settings)` */
+/**
+ * WEC-204: silent grace period applied AFTER the displayed cutoff.
+ *
+ * The user-facing cutoff (shown in CutoffBar countdown, returned by
+ * `getCutoffDate`) is unchanged — that's the time the customer sees.
+ * The actual GATE that decides "is this day still orderable?" gives them
+ * an additional 5 silent minutes so a customer who's already on /checkout
+ * at 17:58 typing their card details doesn't get rejected when 18:00
+ * passes mid-submit.
+ *
+ * Display 18:00 → effective gate 18:05. Don't surface this in UI.
+ * Must stay in sync with the server's matching constant in submit-order.ts.
+ */
+export const CUTOFF_GRACE_MS = 5 * 60 * 1000
+
+/** A day D is orderable when `now < getCutoffDate(D, settings) + grace`. */
 export const isDayOrderable = (isoDate: string, settings: AppSettings, now: Date = new Date()): boolean =>
-  now < getCutoffDate(isoDate, settings)
+  now.getTime() < getCutoffDate(isoDate, settings).getTime() + CUTOFF_GRACE_MS
 
 export interface LandingTarget {
   weekIndex: number
@@ -246,7 +261,9 @@ export const findLandingDay = (
     const days = weeks[wi].days
     for (let di = 0; di < days.length; di++) {
       last = { weekIndex: wi, dayIndex: di }
-      if (!firstOpen && now < getCutoffDate(days[di].date, settings)) {
+      // WEC-204: same grace period as isDayOrderable — landing target should
+      // not flip-flop when the cutoff just passes mid-session.
+      if (!firstOpen && now.getTime() < getCutoffDate(days[di].date, settings).getTime() + CUTOFF_GRACE_MS) {
         firstOpen = { weekIndex: wi, dayIndex: di }
       }
     }

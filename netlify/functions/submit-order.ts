@@ -13,6 +13,9 @@ import {
   type DaySnapshot,
   type DayIssue,
 } from '../../src/lib/dayValidation'
+// WEC-204: shared silent grace period for cutoffs (5 min). Must stay in
+// sync with the client — single constant imported on both sides.
+import { CUTOFF_GRACE_MS } from '../../src/lib/helpers'
 
 // ─── Greek ΑΦΜ checksum (WEC-354) ──────────────────────────────────────────
 // Duplicated from src/lib/vat.ts — cross-folder src/ ⇄ netlify/ imports
@@ -592,8 +595,11 @@ export default async (request: Request) => {
       if (day.deliveryDate < today) {
         addError(errors, k, `Delivery date ${day.deliveryDate} is in the past`)
       } else {
+        // WEC-204: silent 5-min grace after the displayed cutoff. A customer
+        // who pressed Place at 17:59 and whose submit lands at 18:01 should
+        // succeed — the visible cutoff says 18:00, the gate is 18:05.
         const cutoffMs = getCutoffMs(day.deliveryDate, cutoffCfg)
-        if (nowMs >= cutoffMs) {
+        if (nowMs >= cutoffMs + CUTOFF_GRACE_MS) {
           addError(errors, k, `Ordering cutoff for ${day.deliveryDate} has passed`)
         }
       }
