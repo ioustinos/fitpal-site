@@ -633,10 +633,10 @@
 .admin-dots-label { font-size: 12px; color: var(--a-text-muted); margin-bottom: 4px; }
 @media (max-width: 520px) { .admin-dots-grid { grid-template-columns: repeat(2, 1fr); } }
 
-/* Variants repeater */
+/* Variants repeater — WEC-474 added "Ext code" column (11 cols total) */
 .admin-variant-headers {
   display: grid;
-  grid-template-columns: 32px 90px 1.4fr 1.4fr 0.9fr repeat(4, 64px) 32px;
+  grid-template-columns: 32px 90px 90px 1.4fr 1.4fr 0.9fr repeat(4, 64px) 32px;
   gap: 6px; margin-bottom: 6px; padding: 0 4px;
 }
 .admin-variant-headers > span {
@@ -645,7 +645,7 @@
 }
 .admin-variant-row {
   display: grid;
-  grid-template-columns: 32px 90px 1.4fr 1.4fr 0.9fr repeat(4, 64px) 32px;
+  grid-template-columns: 32px 90px 90px 1.4fr 1.4fr 0.9fr repeat(4, 64px) 32px;
   gap: 6px; margin-bottom: 8px; align-items: center;
 }
 .admin-variant-row .admin-input { padding: 6px 8px; font-size: 13px; }

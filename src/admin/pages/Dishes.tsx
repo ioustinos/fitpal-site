@@ -86,6 +86,9 @@ export function Dishes() {
       imageUrl: null, emoji: null, discountPct: 0, active: true,
       previewCal: 3, previewPro: 3, previewCarb: 3, previewFat: 3,
       createdAt: '', updatedAt: '',
+      // WEC-474: null external_id at creation → backend defaults it to the
+      // generated dish id at save time. Admin can override before saving.
+      externalId: null,
       variants: [],
       tagIds: [],
     })
@@ -449,6 +452,8 @@ function DishDrawer({
         active: form.active,
         previewCal: form.previewCal, previewPro: form.previewPro,
         previewCarb: form.previewCarb, previewFat: form.previewFat,
+        // WEC-474: dish-level external matching code (Airtable Menu Reference, etc).
+        externalId: form.externalId,
         variants: form.variants,
         tagIds: form.tagIds,
       })
@@ -632,6 +637,23 @@ function DishDrawer({
             />
           </section>
 
+          {/* WEC-474: external code field — sits standalone so it's visible
+              without scrolling. Stable matching key against Airtable Menu
+              Reference and any other external system. Editable; defaults to
+              the dish id on save when blank. */}
+          <section className="admin-form-section">
+            <label className="admin-form-label">
+              External code <span style={{ fontWeight: 400, color: 'var(--a-text-muted)' }}>(Airtable Menu Reference, etc — leave blank to use the internal id)</span>
+            </label>
+            <input
+              className="admin-input"
+              value={form.externalId ?? ''}
+              onChange={(e) => patch('externalId', e.target.value || null)}
+              placeholder={form.id ? form.id : 'auto (= dish id on save)'}
+              style={{ fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace', fontSize: 13, maxWidth: 280 }}
+            />
+          </section>
+
           {/* Category + tags + emoji + discount + active */}
           <section className="admin-form-section admin-grid-2">
             <div>
@@ -715,7 +737,9 @@ function DishDrawer({
                 onClick={() =>
                   patch('variants', [
                     ...form.variants,
-                    { id: `new-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 5)}`, dishId: form.id, labelEl: '', labelEn: '', price: 0, calories: 0, protein: 0, carbs: 0, fat: 0, sortOrder: form.variants.length, isDefault: false },
+                    // WEC-474: new variant gets externalId=null; backend defaults
+                    // to the generated variant id on save when null/empty.
+                    { id: `new-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 5)}`, dishId: form.id, labelEl: '', labelEn: '', price: 0, calories: 0, protein: 0, carbs: 0, fat: 0, sortOrder: form.variants.length, isDefault: false, externalId: null },
                   ])
                 }
               >
@@ -726,7 +750,8 @@ function DishDrawer({
             {form.variants.length > 0 && (
               <div className="admin-variant-headers">
                 <span title="Default variant — the one selected when the dish modal opens"></span>
-                <span>Code</span>
+                <span title="Internal id — locked once persisted (past orders reference it)">Code</span>
+                <span title="WEC-474: matching code for Airtable Menu Reference + future integrations">Ext code</span>
                 <span>Label EL</span>
                 <span>Label EN</span>
                 <span>Price €</span>
@@ -827,6 +852,15 @@ function VariantRow({ v, onChange, onDelete, onSetDefault }: { v: AdminVariant; 
       <div className="admin-variant-code" title={persisted ? `Variant code (used in past orders): ${v.id}` : 'Auto-generated on save'}>
         {persisted ? v.id : '—'}
       </div>
+      {/* WEC-474: editable external_id. Blank → backend defaults to v.id on save. */}
+      <input
+        className="admin-input"
+        placeholder={persisted ? v.id : 'auto'}
+        value={v.externalId ?? ''}
+        onChange={(e) => onChange({ ...v, externalId: e.target.value || null })}
+        style={{ fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace', fontSize: 12 }}
+        title="External matching code (Airtable Menu Reference, etc). Leave blank to default to the internal code."
+      />
       <input className="admin-input" placeholder="Label EL" value={v.labelEl} onChange={(e) => onChange({ ...v, labelEl: e.target.value })} />
       <input className="admin-input" placeholder="Label EN" value={v.labelEn} onChange={(e) => onChange({ ...v, labelEn: e.target.value })} />
       <input className="admin-input numeric" type="number" step="0.01" min={0} placeholder="€"

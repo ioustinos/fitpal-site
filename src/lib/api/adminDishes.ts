@@ -14,6 +14,18 @@ export interface AdminVariant {
   fat: number
   sortOrder: number
   isDefault: boolean
+  /**
+   * WEC-474: stable matching code against external systems (Airtable Menu
+   * Reference, GonnaOrder, future integrations). Decoupled from `id` so we
+   * can rename / migrate dishes without breaking external joins.
+   *
+   * Backfilled to equal `id` for all existing rows; nullable in the schema
+   * for forward-compat. Admin can edit in `/admin/dishes` per dish + variant.
+   *
+   * Used by airtable-push-background → resolves Menu Reference `{Κωδικός}`
+   * via the variant_id → external_id map at push time.
+   */
+  externalId: string | null
 }
 
 export interface AdminDish {
@@ -37,6 +49,10 @@ export interface AdminDish {
   tagIds: string[]
   categoryNameEl?: string
   categoryNameEn?: string
+  /** WEC-474 — see AdminVariant.externalId. Dish-level external code (used
+   *  for parent-level joins; variant-level is what Airtable Menu Reference
+   *  cares about today, but we keep both layers symmetrical). */
+  externalId: string | null
 }
 
 export interface AdminCategory {
@@ -104,6 +120,7 @@ export async function fetchAdminDishes(): Promise<{ data: AdminDish[] | null; er
       id: string; dish_id: string; label_el: string; label_en: string; price: number;
       calories: number | null; protein: number | null; carbs: number | null; fat: number | null; sort_order: number;
       is_default: boolean | null;
+      external_id: string | null;
     }
     const arr = variantsByDish.get(row.dish_id) ?? []
     arr.push({
@@ -111,6 +128,7 @@ export async function fetchAdminDishes(): Promise<{ data: AdminDish[] | null; er
       price: row.price, calories: row.calories ?? 0, protein: row.protein ?? 0,
       carbs: row.carbs ?? 0, fat: row.fat ?? 0, sortOrder: row.sort_order ?? 0,
       isDefault: row.is_default ?? false,
+      externalId: row.external_id ?? null,
     })
     variantsByDish.set(row.dish_id, arr)
   }
@@ -128,6 +146,7 @@ export async function fetchAdminDishes(): Promise<{ data: AdminDish[] | null; er
       desc_el: string | null; desc_en: string | null; image_url: string | null; emoji: string | null;
       discount_pct: number | null; active: boolean; created_at: string; updated_at: string;
       preview_cal: number; preview_pro: number; preview_carb: number; preview_fat: number;
+      external_id: string | null;
     }
     const cat = catMap.get(r.category_id)
     return {
@@ -147,6 +166,7 @@ export async function fetchAdminDishes(): Promise<{ data: AdminDish[] | null; er
       variants: variantsByDish.get(r.id) ?? [],
       tagIds: tagsByDish.get(r.id) ?? [],
       categoryNameEl: cat?.nameEl, categoryNameEn: cat?.nameEn,
+      externalId: r.external_id ?? null,
     }
   })
   return { data: dishes, error: null }
@@ -215,6 +235,8 @@ interface SaveDishInput {
   previewPro: number
   previewCarb: number
   previewFat: number
+  /** WEC-474: dish-level external matching code. null/empty → not set. */
+  externalId?: string | null
   variants: Array<Omit<AdminVariant, 'dishId'> & { id?: string }>
   tagIds: string[]
 }
@@ -227,6 +249,12 @@ export async function saveDish(input: SaveDishInput): Promise<{ data: { id: stri
   const isNew = !input.id
   const id = input.id ?? makeDishId(input.nameEn || input.nameEl)
 
+  // WEC-474: trim external_id and treat empty string as null so the DB
+  // doesn't end up with a row of empty strings polluting future uniqueness
+  // checks. For NEW dishes, default external_id to the freshly-generated id
+  // so behaviour stays symmetric with the seeded data (where external_id
+  // equals id everywhere).
+  const externalIdTrimmed = (input.externalId ?? '').trim()
   const dishRow = {
     id,
     category_id: input.categoryId,
@@ -242,6 +270,7 @@ export async function saveDish(input: SaveDishInput): Promise<{ data: { id: stri
     preview_pro: input.previewPro,
     preview_carb: input.previewCarb,
     preview_fat: input.previewFat,
+    external_id: externalIdTrimmed.length > 0 ? externalIdTrimmed : (isNew ? id : null),
     updated_at: new Date().toISOString(),
   }
 
@@ -258,19 +287,25 @@ export async function saveDish(input: SaveDishInput): Promise<{ data: { id: stri
   if (delVarErr) return { data: null, error: delVarErr.message }
 
   if (input.variants.length > 0) {
-    const variantRows = input.variants.map((v, i) => ({
-      id: v.id ?? makeVariantId(id),
-      dish_id: id,
-      label_el: v.labelEl,
-      label_en: v.labelEn || null,
-      price: Math.round(v.price),
-      calories: Math.round(v.calories),
-      protein: Math.round(v.protein),
-      carbs: Math.round(v.carbs),
-      fat: Math.round(v.fat),
-      sort_order: i,
-      is_default: !!v.isDefault,
-    }))
+    const variantRows = input.variants.map((v, i) => {
+      const variantId = v.id ?? makeVariantId(id)
+      // WEC-474: same trim + default-to-id treatment as dish level.
+      const vExt = (v.externalId ?? '').trim()
+      return {
+        id: variantId,
+        dish_id: id,
+        label_el: v.labelEl,
+        label_en: v.labelEn || null,
+        price: Math.round(v.price),
+        calories: Math.round(v.calories),
+        protein: Math.round(v.protein),
+        carbs: Math.round(v.carbs),
+        fat: Math.round(v.fat),
+        sort_order: i,
+        is_default: !!v.isDefault,
+        external_id: vExt.length > 0 ? vExt : variantId,
+      }
+    })
     const { error: insVarErr } = await supabase.from('dish_variants').insert(variantRows)
     if (insVarErr) return { data: null, error: insVarErr.message }
   }
