@@ -944,16 +944,12 @@ function DayCard({
             </tbody>
           </table>
 
-          {/* WEC-488: one-line per-day macro totals — kcal / P / C / F summed
-              across every item × quantity in this child order. Hidden when
-              the day has no items (nothing to total). */}
+          {/* WEC-488: per-day macro totals. Visual mirrors the Order Placed
+              email template (.day-macros class) — one muted single-line
+              summary, not a card. Same wording, same separator dots. */}
           {child.items.length > 0 && (
             <div className="admin-od-day-macros">
-              <span className="admin-od-day-macros-k">Day totals</span>
-              <span className="admin-od-day-macro"><strong>{Math.round(dayMacros.calories)}</strong> kcal</span>
-              <span className="admin-od-day-macro"><strong>{Math.round(dayMacros.protein)}</strong>g protein</span>
-              <span className="admin-od-day-macro"><strong>{Math.round(dayMacros.carbs)}</strong>g carbs</span>
-              <span className="admin-od-day-macro"><strong>{Math.round(dayMacros.fat)}</strong>g fat</span>
+              Day macros: {Math.round(dayMacros.calories)} kcal · {Math.round(dayMacros.protein)} g protein · {Math.round(dayMacros.carbs)} g carbs · {Math.round(dayMacros.fat)} g fat
             </div>
           )}
 
