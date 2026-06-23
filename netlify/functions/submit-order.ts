@@ -4,6 +4,15 @@ import { trackAsync } from '../lib/klaviyo'
 import { corsHeaders } from '../lib/cors'
 import { checkRateLimit, clientIp } from '../lib/rateLimit'
 import { isMirrorEligible } from '../lib/airtable/pushOrder'
+// WEC-490: shared per-day validator. Same rules + codes as the client uses
+// in CheckoutPage's validationIssues + deliveryOk. Drift here was the root
+// cause of WEC-489 (pickup days silently disabling submit) — that bug is
+// structurally impossible while both sides go through this one helper.
+import {
+  validateDay,
+  type DaySnapshot,
+  type DayIssue,
+} from '../../src/lib/dayValidation'
 
 // ─── Greek ΑΦΜ checksum (WEC-354) ──────────────────────────────────────────
 // Duplicated from src/lib/vat.ts — cross-folder src/ ⇄ netlify/ imports
@@ -81,6 +90,24 @@ type Errors = Record<string, string[]>
 
 function addError(errors: Errors, key: string, msg: string) {
   errors[key] = [...(errors[key] ?? []), msg]
+}
+
+/**
+ * WEC-490: localize a shared DayIssue to the server's English-only error
+ * stream. Client side has its own bilingual localizer; the wire returns
+ * either flow with the same structured code so the UI can surface the
+ * right message either way.
+ */
+function formatDayIssueForServer(issue: DayIssue): string {
+  switch (issue.code) {
+    case 'no_address':                    return 'Address is required (street + area)'
+    case 'no_postcode':                   return 'Postcode is required'
+    case 'postcode_out_of_zone':          return `Postcode ${issue.params?.zip ?? ''} is not in any active delivery zone`
+    case 'no_pickup_location':            return 'Pickup location is required'
+    case 'no_pickup_locations_available': return 'No pickup locations configured'
+    case 'no_time_slot':                  return 'Delivery time window is required'
+    case 'below_min_order':               return `Below minimum order`
+  }
 }
 
 // ─── Cutoff helpers ─────────────────────────────────────────────────────────
@@ -295,21 +322,38 @@ function validatePayload(body: OrderPayload): Errors {
   for (let i = 0; i < (body.days ?? []).length; i++) {
     const day = body.days[i]
     const k = `day_${i}`
+    // Date + items are server-only structural rules — no client equivalent.
     if (!day.deliveryDate) addError(errors, k, 'Delivery date is required')
-    if (!day.timeFrom || !day.timeTo) addError(errors, k, 'Delivery time window is required')
-    // WEC-483: pickup days have no delivery address by definition — customer
-    // is going to the store. Require a pickupLocationId instead. Delivery
-    // days unchanged. Without this branch, every pickup order was rejected
-    // with "Address is required + Area is required". Slipped through the
-    // WEC-259 pickup epic; basic-field validation was never gated on
-    // fulfillmentType the way the zone-validation block was (line ~589).
-    if (day.fulfillmentType === 'pickup') {
-      if (!day.pickupLocationId) addError(errors, k, 'Pickup location is required')
-    } else {
-      if (!day.addressStreet?.trim()) addError(errors, k, 'Address is required')
-      if (!day.addressArea?.trim()) addError(errors, k, 'Area is required')
-    }
     if (!day.items || day.items.length === 0) addError(errors, k, 'Day must have at least one item')
+
+    // WEC-490: route fulfillment-typed structural checks (address vs pickup
+    // location, time slot) through the shared validateDay() helper so the
+    // server cannot drift from the client (WEC-489 was the lesson).
+    //
+    // Phase 1 passes BYPASS values for DB-bound rules: minOrderCents=0
+    // (skip — Phase 3 below applies the real min from settings) and
+    // zipInZone always-true (skip — Phase 3 matches against loaded zones).
+    // pickupLocationCount=99 means "treat as multi-location config", so
+    // a pickup day without a pickupLocationId is flagged — matching the
+    // pre-WEC-490 server behaviour and the client's effective rule.
+    const snap: DaySnapshot = {
+      hasItems: (day.items?.length ?? 0) > 0,
+      amountCents: 0,
+      fulfillmentType: day.fulfillmentType ?? 'delivery',
+      timeSlot: day.timeFrom && day.timeTo ? { from: day.timeFrom, to: day.timeTo } : null,
+      street: day.addressStreet ?? null,
+      area: day.addressArea ?? null,
+      zip: day.addressZip ?? null,
+      pickupLocationId: day.pickupLocationId ?? null,
+    }
+    const result = validateDay(snap, {
+      minOrderCents: 0,
+      pickupLocationCount: 99,
+      zipInZone: () => true,
+    })
+    for (const issue of result.issues) {
+      addError(errors, k, formatDayIssueForServer(issue))
+    }
   }
 
   return errors

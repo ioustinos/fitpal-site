@@ -12,6 +12,7 @@ import { CartDietWarning } from '../components/cart/CartDietWarning'
 import { ConfirmationScreen } from '../components/checkout/ConfirmationScreen'
 import { ContactSection, type ContactInfo } from '../components/checkout/ContactSection'
 import { activeDays, dayAmt, zipInZone } from '../lib/helpers'
+import { validateDay, type DayIssue, type DaySnapshot, type DayValidationCtx } from '../lib/dayValidation'
 import { dayLabel } from '../lib/datelabels'
 import { isValidPhone } from '../lib/phone'
 import { isValidGreekVat, vatDigits } from '../lib/vat'
@@ -48,6 +49,52 @@ function writeGuestContact(info: ContactInfo) {
     window.localStorage.setItem(GUEST_CONTACT_KEY, JSON.stringify(info))
   } catch {
     // Private mode / quota — non-critical
+  }
+}
+
+/**
+ * WEC-490: localize a structured DayIssue from `src/lib/dayValidation.ts`
+ * into the bilingual string the validation banner expects. Kept beside
+ * CheckoutPage because this is the only consumer that renders user-facing
+ * messages — server-side callers ship the raw code over the wire.
+ */
+function localizeDayIssue(label: string, issue: DayIssue, lang: 'el' | 'en'): string {
+  switch (issue.code) {
+    case 'no_address':
+      return lang === 'el'
+        ? `${label}: Δεν έχει επιλεγεί διεύθυνση`
+        : `${label}: No address selected`
+    case 'no_postcode':
+      return lang === 'el'
+        ? `${label}: Ο ταχυδρομικός κώδικας είναι απαραίτητος για τον έλεγχο ζώνης παράδοσης`
+        : `${label}: Postcode is required to determine delivery zone`
+    case 'postcode_out_of_zone': {
+      const zip = issue.params?.zip as string | undefined
+      return lang === 'el'
+        ? `${label}: Ο Τ.Κ. ${zip ?? ''} δεν ανήκει σε καμία ενεργή ζώνη παράδοσης`
+        : `${label}: Postcode ${zip ?? ''} is not in any active delivery zone`
+    }
+    case 'no_pickup_locations_available':
+      return lang === 'el'
+        ? `${label}: Δεν υπάρχουν διαθέσιμα σημεία παραλαβής`
+        : `${label}: No pickup locations available`
+    case 'no_pickup_location':
+      return lang === 'el'
+        ? `${label}: Δεν έχει επιλεγεί σημείο παραλαβής`
+        : `${label}: No pickup location selected`
+    case 'no_time_slot':
+      return lang === 'el'
+        ? `${label}: Δεν έχει επιλεγεί ώρα παράδοσης`
+        : `${label}: No delivery time selected`
+    case 'below_min_order': {
+      const minCents = (issue.params?.minOrderCents as number | undefined) ?? 0
+      const amtCents = (issue.params?.amountCents as number | undefined) ?? 0
+      const min = (minCents / 100).toFixed(2)
+      const amt = (amtCents / 100).toFixed(2)
+      return lang === 'el'
+        ? `${label}: Ελάχιστη παραγγελία €${min} (τρέχον: €${amt})`
+        : `${label}: Minimum order €${min} (current: €${amt})`
+    }
   }
 }
 
@@ -203,64 +250,45 @@ export function CheckoutPage() {
     )
   }
 
-  activeDates.forEach((dDate) => {
+  // WEC-490: per-day validation routed through shared validateDay() helper
+  // (src/lib/dayValidation.ts). Both this forEach (issue messages) and the
+  // deliveryOk boolean below consume the SAME validator call so they cannot
+  // drift — which is what burned us in WEC-489 (pickup days silently
+  // disabling the submit button while the banner showed no issue).
+  //
+  // perDayResults is the single computation; we render its `.issues` into
+  // localized strings here, and use its `.ok` for deliveryOk below.
+  const perDayResults = activeDates.map((dDate) => {
     const del = delivery[dDate]
-    const label = dayLabelForDate(dDate)
-    const amt = dayAmt(cart, dDate)
-    const dayFulfillment = fulfillment[dDate] ?? 'delivery'
-
-    if (dayFulfillment === 'pickup') {
-      // WEC-410: pickup days require a chosen location (auto-selected when
-      // there's only one configured; multi-location must be picked).
-      if (pickupLocations.length === 0) {
-        validationIssues.push(
-          lang === 'el'
-            ? `${label}: Δεν υπάρχουν διαθέσιμα σημεία παραλαβής`
-            : `${label}: No pickup locations available`
-        )
-      } else if (!del?.pickupLocationId && pickupLocations.length > 1) {
-        validationIssues.push(
-          lang === 'el'
-            ? `${label}: Δεν έχει επιλεγεί σημείο παραλαβής`
-            : `${label}: No pickup location selected`
-        )
-      }
-    } else if (!del?.street || !del?.area) {
-      validationIssues.push(
-        lang === 'el'
-          ? `${label}: Δεν έχει επιλεγεί διεύθυνση`
-          : `${label}: No address selected`
-      )
-    } else if (!del.zip?.trim()) {
-      validationIssues.push(
-        lang === 'el'
-          ? `${label}: Ο ταχυδρομικός κώδικας είναι απαραίτητος για τον έλεγχο ζώνης παράδοσης`
-          : `${label}: Postcode is required to determine delivery zone`
-      )
-    } else if (!zipInZone(del.zip, zones)) {
-      validationIssues.push(
-        lang === 'el'
-          ? `${label}: Ο Τ.Κ. ${del.zip} δεν ανήκει σε καμία ενεργή ζώνη παράδοσης`
-          : `${label}: Postcode ${del.zip} is not in any active delivery zone`
-      )
+    const snap: DaySnapshot = {
+      hasItems: (cart[dDate]?.length ?? 0) > 0,
+      amountCents: Math.round(dayAmt(cart, dDate) * 100),
+      fulfillmentType: fulfillment[dDate] ?? 'delivery',
+      timeSlot: del?.timeSlot
+        ? (() => {
+            const [from, to] = del.timeSlot.split(/[–-]/).map((s) => s.trim())
+            return from && to ? { from, to } : null
+          })()
+        : null,
+      street: del?.street ?? null,
+      area: del?.area ?? null,
+      zip: del?.zip ?? null,
+      pickupLocationId: del?.pickupLocationId ?? null,
     }
-
-    if (!del?.timeSlot) {
-      validationIssues.push(
-        lang === 'el'
-          ? `${label}: Δεν έχει επιλεγεί ώρα παράδοσης`
-          : `${label}: No delivery time selected`
-      )
+    const ctx: DayValidationCtx = {
+      minOrderCents: Math.round(minOrder * 100),
+      pickupLocationCount: pickupLocations.length,
+      zipInZone: (zip) => zipInZone(zip, zones),
     }
-
-    if (amt < minOrder) {
-      validationIssues.push(
-        lang === 'el'
-          ? `${label}: Ελάχιστη παραγγελία €${minOrder} (τρέχον: €${amt.toFixed(2)})`
-          : `${label}: Minimum order €${minOrder} (current: €${amt.toFixed(2)})`
-      )
-    }
+    return { dDate, result: validateDay(snap, ctx) }
   })
+
+  for (const { dDate, result } of perDayResults) {
+    const label = dayLabelForDate(dDate)
+    for (const issue of result.issues) {
+      validationIssues.push(localizeDayIssue(label, issue, lang))
+    }
+  }
 
   if (!payment.method) {
     validationIssues.push(
@@ -303,32 +331,11 @@ export function CheckoutPage() {
     )
   }
 
-  // WEC-489: deliveryOk MUST mirror the fulfillment-type gating that the
-  // per-day validationIssues block uses (lines 206-263) — pickup days have
-  // empty street/area/zip (they carry a pickupLocationId instead), so the
-  // pre-WEC-489 unconditional street/area/zip check silently disabled the
-  // submit button for any cart with a pickup day while the validation
-  // banner correctly showed no error. Cart was unsubmittable + customer
-  // had no explanation.
-  const deliveryOk = activeDates.every((dDate) => {
-    const del = delivery[dDate]
-    const amt = dayAmt(cart, dDate)
-    const dayFulfillment = fulfillment[dDate] ?? 'delivery'
-
-    // Per-day requirements for ANY fulfillment type
-    if (!del?.timeSlot) return false
-    if (amt < minOrder) return false
-
-    if (dayFulfillment === 'pickup') {
-      // WEC-410: pickup needs a location; auto-set when there's only one,
-      // explicit pick required for multi-location config. No address fields.
-      if (pickupLocations.length === 0) return false
-      if (pickupLocations.length > 1 && !del?.pickupLocationId) return false
-      return true
-    }
-    // Delivery path
-    return !!(del?.street && del?.area && del?.zip && zipInZone(del.zip, zones))
-  })
+  // WEC-490: deliveryOk consumes the same perDayResults the validationIssues
+  // block above uses. Two surfaces, ONE computation — they cannot drift
+  // (WEC-489 was the lesson: separate implementations of the same rule will
+  // always go out of sync eventually).
+  const deliveryOk = perDayResults.every((r) => r.result.ok)
 
   const paymentOk = !!payment.method
 
