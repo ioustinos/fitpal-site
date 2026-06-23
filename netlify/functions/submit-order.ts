@@ -297,8 +297,18 @@ function validatePayload(body: OrderPayload): Errors {
     const k = `day_${i}`
     if (!day.deliveryDate) addError(errors, k, 'Delivery date is required')
     if (!day.timeFrom || !day.timeTo) addError(errors, k, 'Delivery time window is required')
-    if (!day.addressStreet?.trim()) addError(errors, k, 'Address is required')
-    if (!day.addressArea?.trim()) addError(errors, k, 'Area is required')
+    // WEC-483: pickup days have no delivery address by definition — customer
+    // is going to the store. Require a pickupLocationId instead. Delivery
+    // days unchanged. Without this branch, every pickup order was rejected
+    // with "Address is required + Area is required". Slipped through the
+    // WEC-259 pickup epic; basic-field validation was never gated on
+    // fulfillmentType the way the zone-validation block was (line ~589).
+    if (day.fulfillmentType === 'pickup') {
+      if (!day.pickupLocationId) addError(errors, k, 'Pickup location is required')
+    } else {
+      if (!day.addressStreet?.trim()) addError(errors, k, 'Address is required')
+      if (!day.addressArea?.trim()) addError(errors, k, 'Area is required')
+    }
     if (!day.items || day.items.length === 0) addError(errors, k, 'Day must have at least one item')
   }
 
