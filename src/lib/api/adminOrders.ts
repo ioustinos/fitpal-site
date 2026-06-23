@@ -424,6 +424,43 @@ export async function setOrderStatus(id: string, current: OrderStatus, next: Ord
   return { error: null }
 }
 
+/**
+ * WEC-487: admin-triggered "your order has changed" email. Posts to the
+ * notify-order-updated function which validates admin, loads the current
+ * order state and fires the Klaviyo `Order Updated` event (+ optional
+ * admin BCC fan-out from WEC-486).
+ *
+ * Awaited (unlike notify-order-cancelled which is fire-and-forget) — the
+ * admin clicked a button, so they want to know if it actually went out.
+ */
+export async function sendOrderUpdateEmail(orderId: string): Promise<{ error: string | null }> {
+  try {
+    const { data: sess } = await supabase.auth.getSession()
+    const token = sess?.session?.access_token
+    if (!token) return { error: 'Not signed in' }
+
+    const res = await fetch('/api/notify-order-updated', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ orderId }),
+    })
+    if (!res.ok) {
+      let msg = `HTTP ${res.status}`
+      try {
+        const j = await res.json() as { error?: string }
+        if (j?.error) msg = j.error
+      } catch { /* not json */ }
+      return { error: msg }
+    }
+    return { error: null }
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : String(e) }
+  }
+}
+
 export async function setOrderPaymentStatus(id: string, current: PaymentStatus, next: PaymentStatus, adminUser: string): Promise<{ error: string | null }> {
   const { error } = await supabase.from('orders').update({ payment_status: next, updated_at: new Date().toISOString() }).eq('id', id)
   if (error) return { error: error.message }

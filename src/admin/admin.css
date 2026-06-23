@@ -1666,6 +1666,19 @@
 @media (max-width: 720px) { .admin-od-addr-grid { grid-template-columns: 1fr 1fr; } }
 .admin-od-addr-edit-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 12px; }
 .admin-od-items { margin-bottom: 8px; }
+/* WEC-488: per-day macro totals (kcal / P / C / F) under the items table. */
+.admin-od-day-macros {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 12px;
+  padding: 8px 12px; margin-bottom: 10px;
+  background: var(--a-bg); border-radius: 8px;
+  font-size: 12px; color: var(--a-fg-muted);
+}
+.admin-od-day-macros-k {
+  font-weight: 600; color: var(--a-fg); text-transform: uppercase;
+  letter-spacing: 0.04em; font-size: 11px; margin-right: 4px;
+}
+.admin-od-day-macro { display: inline-flex; gap: 4px; align-items: baseline; }
+.admin-od-day-macro strong { color: var(--a-fg); font-weight: 600; font-size: 13px; }
 .admin-od-itemx {
   background: none; border: none; color: #dc2626; font-size: 18px; line-height: 1;
   cursor: pointer; padding: 0 4px;

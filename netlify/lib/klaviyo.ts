@@ -66,6 +66,7 @@ export interface KlaviyoProfile {
 /** Canonical event names. Keep stable — Klaviyo flows trigger off the exact string. */
 export const EVT = {
   OrderPlaced:           'Order Placed',
+  OrderUpdated:          'Order Updated',           // WEC-487
   OrderRefunded:         'Order Refunded',
   OrderCancelled:        'Order Cancelled',
   PaymentLinkSent:       'Payment Link Sent',

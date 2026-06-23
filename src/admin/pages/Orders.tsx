@@ -6,6 +6,7 @@ import {
   setOrderStatus, setOrderPaymentStatus,
   updateOrderItemQuantity, updateChildOrderAddress, updateChildOrderTime,
   refundOrder, regenerateVivaPaymentLink,
+  sendOrderUpdateEmail,
   addOrderItem, fetchOnMenuDishIds,
   updateOrderItemVariant, cancelChildOrder, restoreChildOrder, updateOrderNotes,
   ORDER_STATUS_VALUES, PAYMENT_STATUS_VALUES, VALID_NEXT_STATUS,
@@ -312,6 +313,10 @@ function OrderDrawer({
   // the modal can show "€X paid via {card/link/wallet}" and route the admin
   // to the Refund tab if they choose to issue one.
   const [cancelPrompt, setCancelPrompt] = useState<{ orderId: string } | null>(null)
+  // WEC-487: state for the manual "Send update email" button. We show a
+  // tiny inline confirmation flow rather than a modal — one extra click is
+  // enough to prevent a fat-finger fire that emails the customer mid-edit.
+  const [updateEmailState, setUpdateEmailState] = useState<'idle' | 'confirm' | 'sending' | 'sent'>('idle')
 
   async function performStatusChange(next: OrderStatus) {
     if (!order) return
@@ -363,6 +368,26 @@ function OrderDrawer({
     setWorking(false)
     if (error) { setErr(error); return }
     onRefresh()
+  }
+
+  /**
+   * WEC-487: confirm-then-fire the "Send update email" button. Two-step UX:
+   *   click "Send update email" → button morphs into "Confirm send?"
+   *   click confirm → POST notify-order-updated → either "Sent ✓" pill or
+   *     inline error in the drawer's existing error banner.
+   * After 4s the "Sent ✓" pill resets so the admin can re-send if needed.
+   */
+  async function sendUpdateEmail() {
+    if (!order) return
+    setUpdateEmailState('sending'); setErr(null)
+    const { error } = await sendOrderUpdateEmail(order.id)
+    if (error) {
+      setUpdateEmailState('idle')
+      setErr(`Update email failed: ${error}`)
+      return
+    }
+    setUpdateEmailState('sent')
+    setTimeout(() => setUpdateEmailState('idle'), 4000)
   }
 
   return (
@@ -429,6 +454,45 @@ function OrderDrawer({
                       ))}
                     </div>
                   </details>
+                  {/* WEC-487: admin-triggered "your order has changed" email.
+                      Hidden on draft (customer hasn't seen the order yet) and
+                      on cancelled (use the auto-fire cancel email instead).
+                      Two-step UX: click → "Confirm" → fire. */}
+                  {order.status !== 'cancelled' && (
+                    updateEmailState === 'sent' ? (
+                      <span
+                        className="admin-od-statusbtn"
+                        style={{ background: '#10B98114', borderColor: '#10B98166', color: '#047857' }}
+                      >
+                        Update sent
+                      </span>
+                    ) : updateEmailState === 'confirm' ? (
+                      <>
+                        <button
+                          className="admin-btn-danger"
+                          disabled={updateEmailState !== 'confirm'}
+                          onClick={sendUpdateEmail}
+                        >
+                          Confirm send
+                        </button>
+                        <button
+                          className="admin-btn-ghost"
+                          onClick={() => setUpdateEmailState('idle')}
+                        >
+                          Cancel
+                        </button>
+                      </>
+                    ) : (
+                      <button
+                        className="admin-btn-ghost"
+                        disabled={updateEmailState === 'sending'}
+                        onClick={() => setUpdateEmailState('confirm')}
+                        title="Email the customer the current order state (Klaviyo Order Updated)"
+                      >
+                        {updateEmailState === 'sending' ? 'Sending…' : 'Send update email'}
+                      </button>
+                    )
+                  )}
                 </div>
               )}
             </div>
@@ -775,6 +839,18 @@ function DayCard({
     : '—'
   const addrLine = [child.addressStreet, child.addressZip, child.addressArea].filter(Boolean).join(', ') || '—'
   const daySubtotal = child.items.reduce((s, it) => s + it.unitPrice * it.quantity, 0)
+  // WEC-488: per-day macro totals. Multiply by quantity — the per-item
+  // calories/protein/carbs/fat snapshot is per-unit, taken from the
+  // variant at order time, and we sum across the day's items.
+  const dayMacros = child.items.reduce(
+    (acc, it) => ({
+      calories: acc.calories + it.calories * it.quantity,
+      protein:  acc.protein  + it.protein  * it.quantity,
+      carbs:    acc.carbs    + it.carbs    * it.quantity,
+      fat:      acc.fat      + it.fat      * it.quantity,
+    }),
+    { calories: 0, protein: 0, carbs: 0, fat: 0 },
+  )
 
   async function cancelDay() {
     if (!confirm(`Cancel the whole delivery day ${fmtDay(child.deliveryDate)}? Its ${child.items.length} item(s) stay on record but drop out of the total — you can Restore it later.`)) return
@@ -867,6 +943,19 @@ function DayCard({
               ))}
             </tbody>
           </table>
+
+          {/* WEC-488: one-line per-day macro totals — kcal / P / C / F summed
+              across every item × quantity in this child order. Hidden when
+              the day has no items (nothing to total). */}
+          {child.items.length > 0 && (
+            <div className="admin-od-day-macros">
+              <span className="admin-od-day-macros-k">Day totals</span>
+              <span className="admin-od-day-macro"><strong>{Math.round(dayMacros.calories)}</strong> kcal</span>
+              <span className="admin-od-day-macro"><strong>{Math.round(dayMacros.protein)}</strong>g protein</span>
+              <span className="admin-od-day-macro"><strong>{Math.round(dayMacros.carbs)}</strong>g carbs</span>
+              <span className="admin-od-day-macro"><strong>{Math.round(dayMacros.fat)}</strong>g fat</span>
+            </div>
+          )}
 
           {canEdit && (
             <AddItemPanel
