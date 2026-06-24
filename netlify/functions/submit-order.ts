@@ -510,10 +510,14 @@ export default async (request: Request) => {
         .eq('active', true),
 
       // Cutoff + min-order + enabled-methods + bank IBANs (WEC-267) settings
+      // WEC-492: also pull pickup_locations so a pickup-day child_order can
+      // be written with the store's address in address_street/area instead
+      // of NULLs. Without this, kitchen/admin/email can't tell pickup from a
+      // delivery whose address fill failed.
       supabase
         .from('settings')
         .select('key, value')
-        .in('key', ['cutoff_hour', 'cutoff_weekday_overrides', 'cutoff_date_overrides', 'min_order', 'payment_methods_enabled', 'bank_transfer_info']),
+        .in('key', ['cutoff_hour', 'cutoff_weekday_overrides', 'cutoff_date_overrides', 'min_order', 'payment_methods_enabled', 'bank_transfer_info', 'pickup_locations']),
     ])
 
     if (variantsRes.error) return Response.json({ error: 'Failed to look up item prices' }, { status: 500 })
@@ -578,6 +582,45 @@ export default async (request: Request) => {
     // Zone lookup: area name → zone (with time slots)
     // Zones have a `postcodes` array; we also match by area name for flexibility
     const zones = (zonesRes.data ?? []) as any[]
+
+    // WEC-492: pickup-location lookup. Used to populate address_street/area
+    // on child_orders for pickup days, so downstream consumers (admin drawer,
+    // emails, Airtable, kitchen) see a non-empty address instead of NULLs.
+    // The fulfillment_type column still distinguishes pickup from delivery
+    // — this just makes the row legible to anything that only reads address.
+    const rawPickupLocs = (settingsRes.data ?? []).find((r: { key: string }) => r.key === 'pickup_locations')?.value
+    const pickupLocsList: Array<{ id?: string; name_el?: string; name_en?: string; address?: string }> =
+      Array.isArray(rawPickupLocs) ? rawPickupLocs : []
+    const pickupLocById = new Map(pickupLocsList.filter((l) => typeof l.id === 'string').map((l) => [l.id!, l]))
+
+    /**
+     * Resolve the address fields to write into `child_orders` for one day.
+     * For delivery days: passes through the customer-entered values.
+     * For pickup days: writes the pickup location's name + address so the
+     * row is readable; address_zip stays null (pickup has no postcode).
+     */
+    function resolveAddressFields(day: OrderPayload['days'][number]) {
+      const isPickup = day.fulfillmentType === 'pickup'
+      if (isPickup) {
+        const loc = day.pickupLocationId ? pickupLocById.get(day.pickupLocationId) : null
+        return {
+          address_street: loc?.address?.trim() || '',     // e.g. "Δ. Σολωμού 24, Αθήνα"
+          address_area:   loc?.name_el?.trim() || loc?.name_en?.trim() || '', // e.g. "Fitpal Spot"
+          address_zip:    null,
+          address_floor:  null,
+          address_doorbell: null,
+          address_notes:  null,
+        }
+      }
+      return {
+        address_street: day.addressStreet,
+        address_area:   day.addressArea,
+        address_zip:    day.addressZip?.replace(/\s/g, '') ?? null,
+        address_floor:  day.addressFloor ?? null,
+        address_doorbell: day.addressDoorbell ?? null,
+        address_notes:  day.addressNotes ?? null,
+      }
+    }
 
     // ─── Phase 3: Deep validation ───────────────────────────────────────
 
@@ -864,12 +907,9 @@ export default async (request: Request) => {
         delivery_date: day.deliveryDate,
         time_from: fmtTime(day.timeFrom),
         time_to: fmtTime(day.timeTo),
-        address_street: day.addressStreet,
-        address_area: day.addressArea,
-        address_zip: day.addressZip?.replace(/\s/g, '') ?? null,
-        address_floor: day.addressFloor ?? null,
-        address_doorbell: day.addressDoorbell ?? null,
-        address_notes: day.addressNotes ?? null,
+        // WEC-492: address fields come from resolveAddressFields() so pickup
+        // days get the store's address instead of NULLs.
+        ...resolveAddressFields(day),
         fulfillment_type: day.fulfillmentType ?? 'delivery',
         pickup_location_id: day.fulfillmentType === 'pickup' ? (day.pickupLocationId ?? null) : null,
         items: day.items.map((item) => {
@@ -946,14 +986,11 @@ export default async (request: Request) => {
           delivery_date: day.deliveryDate,
           time_from: fmtTime(day.timeFrom),
           time_to: fmtTime(day.timeTo),
-          address_street: day.addressStreet,
-          address_area: day.addressArea,
-          // Normalize to no-whitespace so it matches delivery_zones.postcodes
-          // and any future analytics that filter by zip.
-          address_zip: day.addressZip?.replace(/\s/g, '') ?? null,
-          address_floor: day.addressFloor ?? null,
-          address_doorbell: day.addressDoorbell ?? null,
-          address_notes: day.addressNotes ?? null,
+          // WEC-492: same resolver as the promote-from-draft path above — pickup
+          // days write the store's address into address_street/area, delivery
+          // days pass through the customer-entered values. Address_zip is
+          // normalized inside the resolver.
+          ...resolveAddressFields(day),
           // WEC-259: per-day fulfillment.
           fulfillment_type: day.fulfillmentType ?? 'delivery',
           pickup_location_id: day.fulfillmentType === 'pickup' ? (day.pickupLocationId ?? null) : null,

@@ -246,11 +246,22 @@ export const useCartStore = create<CartStore>()(
     }),
 
   clearAll: () =>
+    // WEC-493: `fulfillment` and `draftId` were previously omitted from this
+    // reset. After a successful submit, the per-day pickup/delivery toggle
+    // map survived into the next cart — so customer who placed a Wed pickup,
+    // then built a fresh cart for Thu, found Thursday's section locked in
+    // pickup mode with no way to switch back to delivery. Same issue with
+    // draftId: a stale id pointed at the promoted (no-longer-draft) order.
+    // ConfirmationScreen calls this on success; everything that should die
+    // with the order goes here.
     set({
       cart: {},
       delivery: {},
+      fulfillment: {},
       payment: defaultPayment,
       voucher: defaultVoucher,
+      draftId: null,
+      draftLastSavedAt: null,
       lastTouchedAt: Date.now(),
     }),
 
