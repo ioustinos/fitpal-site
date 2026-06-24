@@ -8,7 +8,9 @@
 
 import { createClient } from '@supabase/supabase-js'
 import { refundVivaTransaction } from '../lib/viva/refund'
-import { trackAsync } from '../lib/klaviyo'
+// 2026-06-24 incident fix: same Netlify-microtask issue as submit-order.
+// trackAsync fire-and-forget could be killed before Klaviyo POST landed.
+import { track } from '../lib/klaviyo'
 
 const SUPABASE_URL = process.env.VITE_SUPABASE_URL ?? ''
 const SUPABASE_ANON_KEY = process.env.VITE_SUPABASE_ANON_KEY ?? ''
@@ -93,7 +95,7 @@ export default async (request: Request) => {
             custLang = (pref as { lang: 'el' | 'en' }).lang
           }
         }
-        trackAsync('Order Refunded', {
+        const refundFire = await track('Order Refunded', {
           email: o.customer_email,
           firstName: o.customer_name?.split(' ')[0],
           lastName: o.customer_name?.split(' ').slice(1).join(' '),
@@ -110,6 +112,7 @@ export default async (request: Request) => {
           isFullRefund: o.payment_status === 'refunded',
           reason: body.reason,
         })
+        if (!refundFire.ok) console.warn('[viva-refund] klaviyo:', refundFire.error)
       }
     } catch (klaviyoErr) {
       console.warn('[viva-refund] klaviyo dispatch failed (non-fatal):', klaviyoErr)

@@ -18,7 +18,9 @@ import { createClient, SupabaseClient } from '@supabase/supabase-js'
 import { calculateWalletPlan } from '../../src/lib/wallet/calculator'
 import { loadWalletConfig } from '../lib/wallet/loadSettings'
 import { createWalletPlanVivaOrder } from '../lib/wallet/createWalletPlanOrder'
-import { trackAsync } from '../lib/klaviyo'
+// 2026-06-24 incident fix: trackAsync was racing Netlify post-response kill.
+// Use awaited track() so Subscription Purchased events actually reach Klaviyo.
+import { track } from '../lib/klaviyo'
 import type { WalletCalcInput, PaymentMethod } from '../../src/lib/wallet/types'
 
 const SUPABASE_URL = process.env.VITE_SUPABASE_URL ?? ''
@@ -212,22 +214,21 @@ export default async (request: Request) => {
       // WEC-emails: fire Subscription Purchased event in 'pending payment'
       // mode (the email shows bank-transfer instructions). Klaviyo flow
       // routes EL/EN templates via event.lang. Fail-soft.
-      try {
-        trackAsync('Subscription Purchased', {
-          email: userEmail,
-          firstName: (userData.user.user_metadata?.name ?? '').split(' ')[0],
-          externalId: userData.user.id,
-        }, {
-          lang: (body.lang === 'en' || body.lang === 'el') ? body.lang : 'el',
-          walletPlanId,
-          planLengthLabel: body.planLength,
-          mealsPerWeek: body.daysPerWeek,
-          amountPaid: amountCents / 100,
-          bonusCredits: bonusCents / 100,
-          newBalance: walletCreditCents / 100,
-          paymentStatus: 'pending',
-        })
-      } catch (e) { console.warn('[wallet-plan-purchase] klaviyo:', e) }
+      const subFire = await track('Subscription Purchased', {
+        email: userEmail,
+        firstName: (userData.user.user_metadata?.name ?? '').split(' ')[0],
+        externalId: userData.user.id,
+      }, {
+        lang: (body.lang === 'en' || body.lang === 'el') ? body.lang : 'el',
+        walletPlanId,
+        planLengthLabel: body.planLength,
+        mealsPerWeek: body.daysPerWeek,
+        amountPaid: amountCents / 100,
+        bonusCredits: bonusCents / 100,
+        newBalance: walletCreditCents / 100,
+        paymentStatus: 'pending',
+      })
+      if (!subFire.ok) console.warn('[wallet-plan-purchase] klaviyo:', subFire.error)
       const response: PurchaseResultTransfer = {
         walletPlanId,
         paymentMethod: 'transfer',

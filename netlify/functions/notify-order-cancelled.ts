@@ -14,7 +14,10 @@
 // Linear: WEC-289 (Order Cancelled email).
 
 import { createClient } from '@supabase/supabase-js'
-import { trackAsync, EVT } from '../lib/klaviyo'
+// 2026-06-24 incident fix: same Netlify-microtask issue as submit-order.
+// Fast return path; trackAsync's fire-and-forget HTTP POST was racing
+// against the function being killed. Use awaited track() instead.
+import { track, EVT } from '../lib/klaviyo'
 
 const SUPABASE_URL = process.env.VITE_SUPABASE_URL ?? ''
 const SUPABASE_ANON_KEY = process.env.VITE_SUPABASE_ANON_KEY ?? ''
@@ -105,21 +108,20 @@ export default async (request: Request) => {
     if (l === 'el' || l === 'en') custLang = l
   }
 
-  try {
-    trackAsync(EVT.OrderCancelled, {
-      email: (order.customer_email as string) ?? '',
-      firstName: ((order.customer_name as string) ?? '').split(' ')[0],
-      externalId: (order.user_id as string | null) ?? undefined,
-    }, {
-      lang: custLang,
-      orderNumber: order.order_number,
-      total: (order.total as number) / 100,
-      paymentMethod: order.payment_method,
-      wasPaid: order.payment_status === 'paid',
-      reason: body.reason ?? '',
-    })
-  } catch (e) {
-    console.warn('[notify-order-cancelled] klaviyo:', e)
+  const klaviyoRes = await track(EVT.OrderCancelled, {
+    email: (order.customer_email as string) ?? '',
+    firstName: ((order.customer_name as string) ?? '').split(' ')[0],
+    externalId: (order.user_id as string | null) ?? undefined,
+  }, {
+    lang: custLang,
+    orderNumber: order.order_number,
+    total: (order.total as number) / 100,
+    paymentMethod: order.payment_method,
+    wasPaid: order.payment_status === 'paid',
+    reason: body.reason ?? '',
+  })
+  if (!klaviyoRes.ok) {
+    console.warn('[notify-order-cancelled] klaviyo:', klaviyoRes.error)
     // Still 200 — the cancel has already happened in the DB; we shouldn't
     // signal failure for an email side-effect.
   }
