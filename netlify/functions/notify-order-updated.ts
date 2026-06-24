@@ -250,12 +250,26 @@ export default async (request: Request) => {
   }
 
   // ── Fire the event for the customer + admin BCC list in parallel ────────
+  //
+  // 2026-06-24: per Ioustinos's original spec ("same template, conditional
+  // subject, one flow to maintain"), we fire the SAME `Order Placed` metric
+  // here — NOT a separate `Order Updated` metric. The `isUpdate: true` flag
+  // on event properties lets the Order Placed flow's email subject swap
+  // wording via Django ({% if event.isUpdate %}Updated...{% else %}...{% endif %})
+  // without needing a duplicate flow or template. One source of truth for
+  // the body; the only thing that differs between the two semantic events
+  // is the subject line.
+  //
+  // Analytics-side: `count(Order Placed where isUpdate is true)` = updates,
+  // `count(... where isUpdate is false)` = real orders. Same metric stream,
+  // separable via property filter when reporting.
+  //
   // All Klaviyo calls are awaited via Promise.all so Netlify doesn't kill
   // the function before the HTTP POSTs complete. track() already swallows
   // its own errors and returns { ok, error }, so this can't throw.
   const fires: Promise<{ ok: boolean; error?: string }>[] = []
 
-  fires.push(track(EVT.OrderUpdated, {
+  fires.push(track(EVT.OrderPlaced, {
     email: order.customer_email as string,
     firstName: ((order.customer_name as string) ?? '').split(' ')[0],
     lastName: ((order.customer_name as string) ?? '').split(' ').slice(1).join(' '),
@@ -274,7 +288,7 @@ export default async (request: Request) => {
     const customerLower = (order.customer_email as string).toLowerCase()
     for (const adminEmail of adminEmails) {
       if (adminEmail.toLowerCase() === customerLower) continue
-      fires.push(track(EVT.OrderUpdated, {
+      fires.push(track(EVT.OrderPlaced, {
         email: adminEmail,
         firstName: 'Fitpal',
         lastName: 'Admin notification',

@@ -1,7 +1,9 @@
 import {
   ContactInfoSection,
   PickupLocationsSection,
+  AdminEmailRecipientsSection,
   parsePickupLocations,
+  parseAdminEmails,
 } from './Settings'
 import type { ContactInfo } from '../../lib/api/settings'
 import { useAdminSettings } from '../hooks/useAdminSettings'
@@ -12,6 +14,14 @@ import { useAdminSettings } from '../hooks/useAdminSettings'
  * Sections:
  *   - Contact & social — supportEmail/Phone + Instagram/Facebook/TikTok/YouTube
  *   - Pickup locations — physical pickup points (name EL/EN, address, hours, days)
+ *   - Order confirmation admin recipients (WEC-486) — BCC list of admin emails
+ *     that get a copy of every customer order confirmation. WEC-486 shipped
+ *     the component into the old monolithic Settings page, but Settings was
+ *     subsequently broken into category sub-pages — the section ended up
+ *     orphaned (in code, not rendered anywhere reachable from the new
+ *     sidebar). 2026-06-24: re-wired here under Site Details since it's
+ *     about how the team is contacted on each order, same family as the
+ *     Contact section.
  */
 export function SiteDetails() {
   const { byKey, loading, err, savingMsg, save } = useAdminSettings()
@@ -32,6 +42,10 @@ export function SiteDetails() {
           <ContactInfoSection
             value={(byKey.get('contact') as ContactInfo) ?? {}}
             onSave={(v) => save('contact', v)}
+          />
+          <AdminEmailRecipientsSection
+            value={parseAdminEmails(byKey.get('order_confirmation_admin_emails'))}
+            onSave={(v) => save('order_confirmation_admin_emails', v)}
           />
           <PickupLocationsSection
             value={parsePickupLocations(byKey.get('pickup_locations'))}
