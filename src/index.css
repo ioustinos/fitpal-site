@@ -2899,10 +2899,21 @@ a.btn-conf-done { display: inline-block; text-decoration: none; }
 .wpv2-goal-img { width: 100%; aspect-ratio: 4 / 3; object-fit: cover; display: block; background: var(--fp-ink-100); }
 .wpv2-goal-body { padding: 12px 14px 14px; }
 
-/* Goal card art — custom duo-chrome illustrations replacing Unsplash food photos.
-   Each goal has a soft tinted background to give the SVG warmth + identity. */
-.goal-card-art { width: 100%; aspect-ratio: 4 / 3; display: flex; align-items: center; justify-content: center; padding: 18px; box-sizing: border-box; }
-.goal-card-art svg { width: 100%; height: 100%; max-width: 220px; max-height: 220px; }
+/* Goal card art — 2026-06-24 switched from duo-chrome SVG (with gradient
+   bg frame + 18px padding) to branded raster PNGs that already include
+   their own cream framing + colored circle. Image fills the card edge-
+   to-edge via object-fit: cover. Gradient backgrounds remain as a
+   defence-in-depth fallback only — they're fully covered by the image
+   in the happy path, and show only if /goals/{name}.png ever 404s. The
+   svg selector is kept around in case anyone restores the SVG version
+   from git history. */
+.goal-card-art {
+  width: 100%; aspect-ratio: 4 / 3;
+  display: flex; align-items: center; justify-content: center;
+  overflow: hidden;
+}
+.goal-card-art img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.goal-card-art svg { width: 100%; height: 100%; max-width: 220px; max-height: 220px; padding: 18px; box-sizing: border-box; }
 .goal-card-art-lose     { background: linear-gradient(135deg, #FDF5EC 0%, #F5EFE4 100%); }
 .goal-card-art-maintain { background: linear-gradient(135deg, #F1FAF4 0%, #E3F3EA 100%); }
 .goal-card-art-gain     { background: linear-gradient(135deg, #F5EFE4 0%, #E8DCC2 100%); }
