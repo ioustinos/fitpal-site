@@ -17,7 +17,14 @@
 // payload so the same template body just works (subject differs).
 
 import { createClient, SupabaseClient } from '@supabase/supabase-js'
-import { trackAsync, EVT } from '../lib/klaviyo'
+// WEC-487 followup (2026-06-24): use `track` (awaited) instead of `trackAsync`
+// (fire-and-forget). The function returns immediately after firing the event
+// and has no other awaited work afterwards — Netlify kills the Node runtime
+// before the trackAsync microtask gets a chance to do the actual HTTP POST,
+// so the Klaviyo event never lands. submit-order can use trackAsync because
+// it does hundreds of ms of DB writes after the call which keeps the runtime
+// alive long enough for the microtask to drain. Here we must await.
+import { track, EVT } from '../lib/klaviyo'
 
 const SUPABASE_URL = process.env.VITE_SUPABASE_URL ?? ''
 const SUPABASE_ANON_KEY = process.env.VITE_SUPABASE_ANON_KEY ?? ''
@@ -242,18 +249,19 @@ export default async (request: Request) => {
     sentAt: new Date().toISOString(),
   }
 
-  // ── Fire the event for the customer ──────────────────────────────────────
-  try {
-    trackAsync(EVT.OrderUpdated, {
-      email: order.customer_email as string,
-      firstName: ((order.customer_name as string) ?? '').split(' ')[0],
-      lastName: ((order.customer_name as string) ?? '').split(' ').slice(1).join(' '),
-      phone: (order.customer_phone as string | null) ?? undefined,
-      externalId: (order.user_id as string | null) ?? undefined,
-    }, orderUpdatedProperties)
-  } catch (e) {
-    console.warn('[notify-order-updated] klaviyo customer fire failed:', e)
-  }
+  // ── Fire the event for the customer + admin BCC list in parallel ────────
+  // All Klaviyo calls are awaited via Promise.all so Netlify doesn't kill
+  // the function before the HTTP POSTs complete. track() already swallows
+  // its own errors and returns { ok, error }, so this can't throw.
+  const fires: Promise<{ ok: boolean; error?: string }>[] = []
+
+  fires.push(track(EVT.OrderUpdated, {
+    email: order.customer_email as string,
+    firstName: ((order.customer_name as string) ?? '').split(' ')[0],
+    lastName: ((order.customer_name as string) ?? '').split(' ').slice(1).join(' '),
+    phone: (order.customer_phone as string | null) ?? undefined,
+    externalId: (order.user_id as string | null) ?? undefined,
+  }, orderUpdatedProperties))
 
   // ── WEC-486 reuse: fan out to admin BCC list ─────────────────────────────
   try {
@@ -266,17 +274,24 @@ export default async (request: Request) => {
     const customerLower = (order.customer_email as string).toLowerCase()
     for (const adminEmail of adminEmails) {
       if (adminEmail.toLowerCase() === customerLower) continue
-      trackAsync(EVT.OrderUpdated, {
+      fires.push(track(EVT.OrderUpdated, {
         email: adminEmail,
         firstName: 'Fitpal',
         lastName: 'Admin notification',
       }, {
         ...orderUpdatedProperties,
         isAdminCopy: true,
-      })
+      }))
     }
   } catch (e) {
-    console.warn('[notify-order-updated] admin BCC fan-out failed:', e)
+    console.warn('[notify-order-updated] admin BCC fan-out setup failed:', e)
+  }
+
+  const results = await Promise.all(fires)
+  const failed = results.filter((r) => !r.ok)
+  if (failed.length > 0) {
+    console.warn('[notify-order-updated] %d/%d Klaviyo fires failed: %s',
+      failed.length, results.length, failed.map((r) => r.error).join(' | '))
   }
 
   return Response.json({ ok: true }, { headers: headersOK })
