@@ -49,7 +49,13 @@ export async function fetchAllSettings(): Promise<{ data: SettingRow[] | null; e
 }
 
 export async function setSetting(key: string, value: unknown): Promise<{ error: string | null }> {
-  const { error } = await supabase.from('settings').update({ value }).eq('key', key)
+  // WEC-486 followup (2026-06-24): was UPDATE-only. Silently no-op'd for any
+  // setting key that didn't already exist in the table — caught when Ioustinos
+  // tried to save `order_confirmation_admin_emails` for the first time. The
+  // Save button showed success, the page reloaded, the value was gone, no
+  // row had been inserted, no error surfaced. Upsert fixes it for every
+  // future first-time setting key too.
+  const { error } = await supabase.from('settings').upsert({ key, value }, { onConflict: 'key' })
   if (!error) void purgeSettingsCache()
   return { error: error?.message ?? null }
 }
