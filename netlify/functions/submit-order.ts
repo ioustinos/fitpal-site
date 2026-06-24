@@ -1,6 +1,13 @@
 import { createClient } from '@supabase/supabase-js'
 import { createVivaOrder } from '../lib/viva/createOrder'
-import { trackAsync } from '../lib/klaviyo'
+// 2026-06-24 incident fix: was `trackAsync` (fire-and-forget Promise.resolve
+// + microtask). Even though there's awaited work after the call (DB update,
+// airtable fetch), the microtask doesn't always get a chance to complete its
+// HTTP POST to Klaviyo before Netlify ends the function. Result: order
+// confirmation emails not arriving despite the function returning 200 and
+// the order being persisted. Switching to awaited track() — slightly slower
+// per response (~150ms extra) but events actually land.
+import { track } from '../lib/klaviyo'
 import { corsHeaders } from '../lib/cors'
 import { checkRateLimit, clientIp } from '../lib/rateLimit'
 import { isMirrorEligible } from '../lib/airtable/pushOrder'
@@ -1301,13 +1308,19 @@ export default async (request: Request) => {
       days: klaviyoDays,
     }
 
-    trackAsync('Order Placed', {
+    // 2026-06-24 incident fix: collect customer + admin BCC Klaviyo events,
+    // await them all via Promise.all so Netlify can't kill the function
+    // before the HTTP POSTs to Klaviyo complete. track() already swallows
+    // errors and returns { ok, error } so Promise.all never rejects.
+    const klaviyoFires: Promise<{ ok: boolean; error?: string }>[] = []
+
+    klaviyoFires.push(track('Order Placed', {
       email: body.customerEmail,
       firstName: body.customerName?.split(' ')[0],
       lastName: body.customerName?.split(' ').slice(1).join(' '),
       phone: body.customerPhone,
       externalId: userId ?? undefined,
-    }, orderPlacedProperties)
+    }, orderPlacedProperties))
 
     // WEC-486: admin BCC fan-out. Admins listed in
     // `settings.order_confirmation_admin_emails` (jsonb array) get a copy of
@@ -1332,17 +1345,27 @@ export default async (request: Request) => {
       const customerLower = body.customerEmail.toLowerCase()
       for (const adminEmail of adminEmails) {
         if (adminEmail.toLowerCase() === customerLower) continue
-        trackAsync('Order Placed', {
+        klaviyoFires.push(track('Order Placed', {
           email: adminEmail,
           firstName: 'Fitpal',
           lastName: 'Admin notification',
         }, {
           ...orderPlacedProperties,
           isAdminCopy: true,
-        })
+        }))
       }
     } catch (e) {
-      console.warn('[submit-order] WEC-486 admin BCC fan-out failed (non-fatal):', e)
+      console.warn('[submit-order] WEC-486 admin BCC fan-out setup failed (non-fatal):', e)
+    }
+
+    // Await all Klaviyo events together. If any fail, log but continue
+    // (the order is already persisted; email is a best-effort side effect).
+    const klaviyoResults = await Promise.all(klaviyoFires)
+    const klaviyoFailed = klaviyoResults.filter((r) => !r.ok)
+    if (klaviyoFailed.length > 0) {
+      console.warn('[submit-order] Klaviyo: %d/%d events failed: %s',
+        klaviyoFailed.length, klaviyoResults.length,
+        klaviyoFailed.map((r) => r.error).join(' | '))
     }
 
     // Stamp the submit time — Airtable mirrors this as "Submitted at (GO)".
