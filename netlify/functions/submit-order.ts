@@ -7,7 +7,7 @@ import { createVivaOrder } from '../lib/viva/createOrder'
 // confirmation emails not arriving despite the function returning 200 and
 // the order being persisted. Switching to awaited track() — slightly slower
 // per response (~150ms extra) but events actually land.
-import { track } from '../lib/klaviyo'
+import { track, subscribeProfileToMarketing } from '../lib/klaviyo'
 import { corsHeaders } from '../lib/cors'
 import { checkRateLimit, clientIp } from '../lib/rateLimit'
 import { isMirrorEligible } from '../lib/airtable/pushOrder'
@@ -1187,6 +1187,39 @@ export default async (request: Request) => {
     // any DB lookups. It iterates `event.days` and `day.items` and the
     // template variables substitute display name, variant label, prices,
     // macros, daily totals, etc.
+    //
+    // 2026-06-26 launch-blocker fix: the Klaviyo template (SMwaE8 Greek,
+    // VB3CqW English) was authored using snake_case field names matching
+    // notify-order-updated.ts (e.g. `name_el`, `total_price`, `qty`,
+    // `day_label_el`, `time_window`, `address`, `order_number`,
+    // `payment_method`, `discount_amount`, `bank_name`). submit-order
+    // previously sent camelCase (`nameEl`, `lineTotal`, `quantity`,
+    // `deliveryDate`, `orderNumber`, `paymentMethod`, etc.) so the
+    // template's `{% if item.qty > 1 %}` and `{% if event.discount_amount > 0 %}`
+    // raised TypeError (None > int) and Klaviyo silently skipped every
+    // single send under the misleading reason "Skipped: Email Syntax Error".
+    // Verified by hitting the render-template API directly: snake_case
+    // payload renders cleanly, camelCase payload errors. See the fix in
+    // both `klaviyoDays` and `orderPlacedProperties` below.
+    // We emit BOTH naming schemes so any downstream consumer (Airtable
+    // mirror, ad-hoc analytics, debugging) keeps working.
+
+    // Helpers mirror notify-order-updated.ts so both event payloads
+    // present identically to the template engine.
+    function _dayLabelFor(iso: string): { el: string; en: string } {
+      const d = new Date(iso + 'T12:00:00Z')
+      const dow = d.getUTCDay() // 0=Sun..6=Sat
+      const elDow = ['Κυριακή','Δευτέρα','Τρίτη','Τετάρτη','Πέμπτη','Παρασκευή','Σάββατο'][dow]
+      const enDow = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'][dow]
+      const dd = d.getUTCDate().toString().padStart(2, '0')
+      const mm = (d.getUTCMonth() + 1).toString().padStart(2, '0')
+      return { el: `${elDow} ${dd}/${mm}`, en: `${enDow} ${dd}/${mm}` }
+    }
+    function _fmtTime(t: string): string {
+      // 'HH:MM:SS' or 'HH:MM' → 'HH:MM'. Tolerant of either input.
+      return typeof t === 'string' ? t.slice(0, 5) : ''
+    }
+
     const klaviyoDays = body.days.map((d) => {
       const enrichedItems = d.items.map((it) => {
         const variant = variantMap.get(it.variantId) as
@@ -1200,6 +1233,15 @@ export default async (request: Request) => {
         const carbs   = (variant?.carbs    ?? 0) * it.quantity
         const fat     = (variant?.fat      ?? 0) * it.quantity
         return {
+          // ── snake_case (template expects these) ──────────────────────
+          name_el: dish?.name_el ?? '',
+          name_en: dish?.name_en ?? '',
+          variant_label_el: variant?.label_el ?? '',
+          variant_label_en: variant?.label_en ?? '',
+          qty: it.quantity,
+          unit_price: unitPriceCents / 100,
+          total_price: lineTotalCents / 100,
+          // ── camelCase (legacy / downstream compat) ───────────────────
           dishId: it.dishId,
           variantId: it.variantId,
           nameEl: dish?.name_el ?? '',
@@ -1221,20 +1263,41 @@ export default async (request: Request) => {
             carbs: variant?.carbs ?? 0,
             fat: variant?.fat ?? 0,
           },
-          comment: it.comment ?? null,
+          comment: it.comment ?? '',
         }
       })
 
       // Daily roll-ups so the template can show day-level totals without
       // re-summing in Django syntax (which is awkward).
-      const daySubtotalCents = enrichedItems.reduce((s, i) => s + Math.round(i.lineTotal * 100), 0)
+      const daySubtotalCents = enrichedItems.reduce((s, i) => s + Math.round(i.total_price * 100), 0)
       const dayCalories = enrichedItems.reduce((s, i) => s + i.calories, 0)
       const dayProtein  = enrichedItems.reduce((s, i) => s + i.protein, 0)
       const dayCarbs    = enrichedItems.reduce((s, i) => s + i.carbs, 0)
       const dayFat      = enrichedItems.reduce((s, i) => s + i.fat, 0)
-      const dayItemCount = enrichedItems.reduce((s, i) => s + i.quantity, 0)
+      const dayItemCount = enrichedItems.reduce((s, i) => s + i.qty, 0)
+      const dayLabels = _dayLabelFor(d.deliveryDate)
+      const timeWindow = d.timeFrom && d.timeTo
+        ? `${_fmtTime(d.timeFrom)}–${_fmtTime(d.timeTo)}`
+        : ''
+      const addressLine = [d.addressStreet, d.addressZip, d.addressArea]
+        .filter(Boolean)
+        .join(', ')
 
       return {
+        // ── snake_case (template expects these) ──────────────────────
+        date: d.deliveryDate,
+        day_label_el: dayLabels.el,
+        day_label_en: dayLabels.en,
+        time_window: timeWindow,
+        address: addressLine,
+        day_total: daySubtotalCents / 100,
+        day_macros: {
+          calories: dayCalories,
+          protein: dayProtein,
+          carbs: dayCarbs,
+          fat: dayFat,
+        },
+        // ── camelCase (legacy / downstream compat) ───────────────────
         deliveryDate: d.deliveryDate,
         timeFrom: d.timeFrom,
         timeTo: d.timeTo,
@@ -1242,7 +1305,6 @@ export default async (request: Request) => {
         addressArea: d.addressArea,
         addressZip: d.addressZip ?? null,
         items: enrichedItems,
-        // Daily roll-ups for the template
         subtotal: daySubtotalCents / 100,
         itemCount: dayItemCount,
         macros: {
@@ -1264,46 +1326,81 @@ export default async (request: Request) => {
     const bankList = Array.isArray(rawBankInfos)
       ? (rawBankInfos as unknown[])
       : (rawBankInfos && typeof rawBankInfos === 'object' ? [rawBankInfos] : [])
+    // Bank transfer entries — emit BOTH bank_name (snake, what the
+    // template iterates) and bankName (camel, legacy/downstream).
     const bankTransferInfos = bankList
       .filter((e): e is Record<string, unknown> => !!e && typeof e === 'object')
-      .map((o) => ({
-        iban: typeof o.iban === 'string' ? o.iban : '',
-        beneficiary: typeof o.beneficiary === 'string' ? o.beneficiary : '',
-        bankName: typeof o.bankName === 'string' ? o.bankName : null,
-      }))
+      .map((o) => {
+        const name = typeof o.bankName === 'string' ? o.bankName : null
+        return {
+          iban: typeof o.iban === 'string' ? o.iban : '',
+          beneficiary: typeof o.beneficiary === 'string' ? o.beneficiary : '',
+          bank_name: name,
+          bankName: name,
+        }
+      })
       .filter((e) => e.iban.length > 0)
+
+    const totalItems = body.days.reduce(
+      (s, d) => s + d.items.reduce((ss, it) => ss + it.quantity, 0),
+      0,
+    )
+    const allDaysMacros = klaviyoDays.reduce(
+      (acc, d) => ({
+        calories: acc.calories + d.day_macros.calories,
+        protein:  acc.protein  + d.day_macros.protein,
+        carbs:    acc.carbs    + d.day_macros.carbs,
+        fat:      acc.fat      + d.day_macros.fat,
+      }),
+      { calories: 0, protein: 0, carbs: 0, fat: 0 },
+    )
 
     // WEC-486: extract the Order Placed payload into a const so we can reuse
     // it for the admin BCC fan-out below without duplicating 30 lines.
+    //
+    // Template expects snake_case top-level fields (order_number,
+    // discount_amount, payment_method, first_name, etc.). camelCase is
+    // also emitted for downstream compat. See klaviyoDays comment above
+    // for the full backstory of the naming-mismatch bug (2026-06-26).
+    const firstName = (body.customerName ?? '').split(' ')[0] ?? ''
     const orderPlacedProperties = {
       // WEC-433+: lang routes EL vs EN templates inside the Klaviyo flow.
       // Comes from the request body (set by CheckoutPage from useUIStore.lang)
       // and falls back to 'el' (Greece-first default).
       lang: (body.lang === 'en' || body.lang === 'el') ? body.lang : 'el',
-      orderId,
-      orderNumber,
+      // ── snake_case (template-expected) ────────────────────────────
+      first_name: firstName,
+      order_number: orderNumber,
       total: orderTotal / 100,
       subtotal: orderSubtotal / 100,
+      discount_amount: discountAmount / 100,
+      payment_method: body.paymentMethod,
+      payment_status: paidStatus,
+      placed_by_admin: isImpersonating,
+      admin_user_id: adminUserId ?? null,
+      day_count: body.days.length,
+      item_count: totalItems,
+      total_macros: allDaysMacros,
+      // Default isUpdate=false so the {% if event.isUpdate %} subject
+      // branch behaves predictably on first-send.
+      isUpdate: false,
+      // ── camelCase (legacy / downstream compat) ────────────────────
+      orderId,
+      orderNumber,
       discountAmount: discountAmount / 100,
       paymentMethod: body.paymentMethod,
       paymentStatus: paidStatus,
       placedByAdmin: isImpersonating,
       adminUserId: adminUserId ?? null,
       dayCount: body.days.length,
-      itemCount: body.days.reduce((s, d) => s + d.items.reduce((ss, it) => ss + it.quantity, 0), 0),
+      itemCount: totalItems,
+      totalMacros: allDaysMacros,
       // WEC-267: array of IBAN entries — template iterates with the
       // {% for iban_entry in event.bank_transfer_infos %} loop.
       bank_transfer_infos: bankTransferInfos,
       // Back-compat: keep the singular field too in case the old template
       // is still live in some environments. First IBAN, or empty object.
       bank_transfer_info: bankTransferInfos[0] ?? null,
-      // Order-wide macro totals (sum across all days).
-      totalMacros: klaviyoDays.reduce((acc, d) => ({
-        calories: acc.calories + d.macros.calories,
-        protein:  acc.protein  + d.macros.protein,
-        carbs:    acc.carbs    + d.macros.carbs,
-        fat:      acc.fat      + d.macros.fat,
-      }), { calories: 0, protein: 0, carbs: 0, fat: 0 }),
       // Day-by-day breakdown the email template can iterate over.
       days: klaviyoDays,
     }
@@ -1313,6 +1410,18 @@ export default async (request: Request) => {
     // before the HTTP POSTs to Klaviyo complete. track() already swallows
     // errors and returns { ok, error } so Promise.all never rejects.
     const klaviyoFires: Promise<{ ok: boolean; error?: string }>[] = []
+
+    // 2026-06-25 launch fix: subscribe customer profile to email marketing
+    // BEFORE firing the event. Klaviyo silently blocks flow sends to profiles
+    // with consent: NEVER_SUBSCRIBED when the email is marketing-classified
+    // (our order-confirmation flow is `transactional: false` until Klaviyo
+    // support enables true-transactional sending on the account).
+    // Order placement = implicit opt-in to receive order-related comms.
+    // See klaviyo.ts → subscribeProfileToMarketing for full reasoning.
+    klaviyoFires.push(subscribeProfileToMarketing(
+      body.customerEmail,
+      'Fitpal order placed (auto-subscribe)',
+    ))
 
     klaviyoFires.push(track('Order Placed', {
       email: body.customerEmail,
@@ -1345,6 +1454,11 @@ export default async (request: Request) => {
       const customerLower = body.customerEmail.toLowerCase()
       for (const adminEmail of adminEmails) {
         if (adminEmail.toLowerCase() === customerLower) continue
+        // Same subscribe-then-track pattern for admin BCC profiles.
+        klaviyoFires.push(subscribeProfileToMarketing(
+          adminEmail,
+          'Fitpal admin BCC (auto-subscribe)',
+        ))
         klaviyoFires.push(track('Order Placed', {
           email: adminEmail,
           firstName: 'Fitpal',

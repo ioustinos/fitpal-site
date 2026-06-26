@@ -24,7 +24,7 @@ import { createClient, SupabaseClient } from '@supabase/supabase-js'
 // so the Klaviyo event never lands. submit-order can use trackAsync because
 // it does hundreds of ms of DB writes after the call which keeps the runtime
 // alive long enough for the microtask to drain. Here we must await.
-import { track, EVT } from '../lib/klaviyo'
+import { track, subscribeProfileToMarketing, EVT } from '../lib/klaviyo'
 
 const SUPABASE_URL = process.env.VITE_SUPABASE_URL ?? ''
 const SUPABASE_ANON_KEY = process.env.VITE_SUPABASE_ANON_KEY ?? ''
@@ -213,36 +213,60 @@ export default async (request: Request) => {
   const bankList = Array.isArray(rawBankInfos)
     ? rawBankInfos
     : (rawBankInfos && typeof rawBankInfos === 'object' ? [rawBankInfos] : [])
+  // Emit BOTH bank_name (snake — template) and bankName (camel — legacy).
   const bankTransferInfos = (bankList as Array<Record<string, unknown>>)
     .filter((e) => !!e && typeof e === 'object')
-    .map((o) => ({
-      iban: typeof o.iban === 'string' ? o.iban : '',
-      beneficiary: typeof o.beneficiary === 'string' ? o.beneficiary : '',
-      bankName: typeof o.bankName === 'string' ? o.bankName : null,
-    }))
+    .map((o) => {
+      const name = typeof o.bankName === 'string' ? o.bankName : null
+      return {
+        iban: typeof o.iban === 'string' ? o.iban : '',
+        beneficiary: typeof o.beneficiary === 'string' ? o.beneficiary : '',
+        bank_name: name,
+        bankName: name,
+      }
+    })
     .filter((e) => e.iban.length > 0)
 
   // ── Build the event properties (same shape as Order Placed, plus
   //    isUpdate so the Klaviyo template can swap the subject prefix) ────────
+  //
+  // 2026-06-26: Klaviyo template uses snake_case (order_number,
+  // payment_method, discount_amount, first_name, etc.) — see the
+  // submit-order.ts comment for the full naming-mismatch story.
+  // Emit BOTH snake and camel keys so the template renders and any
+  // downstream camelCase consumer keeps working.
+  const totalItemsForMacros = items.reduce((s, it) => s + it.quantity, 0)
+  const allDaysMacros = klaviyoDays.reduce((acc, d) => ({
+    calories: acc.calories + d.day_macros.calories,
+    protein:  acc.protein  + d.day_macros.protein,
+    carbs:    acc.carbs    + d.day_macros.carbs,
+    fat:      acc.fat      + d.day_macros.fat,
+  }), { calories: 0, protein: 0, carbs: 0, fat: 0 })
+  const firstNameUpd = (((order.customer_name as string) ?? '').split(' ')[0]) ?? ''
   const orderUpdatedProperties = {
     lang: custLang,
-    orderId: order.id,
-    orderNumber: order.order_number,
+    // ── snake_case (template-expected) ───────────────────────────────────
+    first_name: firstNameUpd,
+    order_number: order.order_number,
     total: (order.total as number) / 100,
     subtotal: (order.subtotal as number) / 100,
+    discount_amount: (order.discount_amount as number) / 100,
+    payment_method: order.payment_method,
+    payment_status: order.payment_status,
+    day_count: childOrders.length,
+    item_count: totalItemsForMacros,
+    total_macros: allDaysMacros,
+    // ── camelCase (legacy / downstream compat) ───────────────────────────
+    orderId: order.id,
+    orderNumber: order.order_number,
     discountAmount: (order.discount_amount as number) / 100,
     paymentMethod: order.payment_method,
     paymentStatus: order.payment_status,
     dayCount: childOrders.length,
-    itemCount: items.reduce((s, it) => s + it.quantity, 0),
+    itemCount: totalItemsForMacros,
+    totalMacros: allDaysMacros,
     bank_transfer_infos: bankTransferInfos,
     bank_transfer_info: bankTransferInfos[0] ?? null,
-    totalMacros: klaviyoDays.reduce((acc, d) => ({
-      calories: acc.calories + d.day_macros.calories,
-      protein:  acc.protein  + d.day_macros.protein,
-      carbs:    acc.carbs    + d.day_macros.carbs,
-      fat:      acc.fat      + d.day_macros.fat,
-    }), { calories: 0, protein: 0, carbs: 0, fat: 0 }),
     days: klaviyoDays,
     isUpdate: true,                 // template can prefix subject with "Updated:"
     sentByAdminId: who.userId,
@@ -269,6 +293,14 @@ export default async (request: Request) => {
   // its own errors and returns { ok, error }, so this can't throw.
   const fires: Promise<{ ok: boolean; error?: string }>[] = []
 
+  // 2026-06-25 launch fix: subscribe profile to marketing before firing.
+  // See klaviyo.ts → subscribeProfileToMarketing. Without this, Klaviyo
+  // silently drops the email for NEVER_SUBSCRIBED profiles even on Live flows.
+  fires.push(subscribeProfileToMarketing(
+    order.customer_email as string,
+    'Fitpal order updated (auto-subscribe)',
+  ))
+
   fires.push(track(EVT.OrderPlaced, {
     email: order.customer_email as string,
     firstName: ((order.customer_name as string) ?? '').split(' ')[0],
@@ -288,6 +320,10 @@ export default async (request: Request) => {
     const customerLower = (order.customer_email as string).toLowerCase()
     for (const adminEmail of adminEmails) {
       if (adminEmail.toLowerCase() === customerLower) continue
+      fires.push(subscribeProfileToMarketing(
+        adminEmail,
+        'Fitpal admin BCC (auto-subscribe)',
+      ))
       fires.push(track(EVT.OrderPlaced, {
         email: adminEmail,
         firstName: 'Fitpal',

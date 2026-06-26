@@ -157,3 +157,70 @@ export function trackAsync(
   // but defence-in-depth.
   Promise.resolve().then(() => track(eventName, profile, properties)).catch(() => {})
 }
+
+/**
+ * 2026-06-25 LAUNCH FIX: Klaviyo silently drops `transactional: false` flow
+ * sends to profiles with `consent: NEVER_SUBSCRIBED`. Our order-confirmation
+ * flow is `transactional: false` (Klaviyo support hasn't enabled true-trans
+ * sending on the account yet) so EVERY first-time customer's email was
+ * being dropped at Klaviyo without warning. Months of mystery emails.
+ *
+ * Fix: when we fire an Order Placed (or similar transactional-by-intent)
+ * event, also mark the profile as SUBSCRIBED to email marketing. Order
+ * placement is an implicit opt-in to receive order-related comms — every
+ * e-commerce platform does this. Legal-fine in EU/GDPR for transactional
+ * purposes (the customer just gave us their email + paid us).
+ *
+ * Idempotent: calling subscribe on an already-subscribed profile is a
+ * no-op. Fail-soft: if subscribe fails, the track event still fires.
+ */
+export async function subscribeProfileToMarketing(
+  email: string,
+  source = 'Fitpal order confirmation',
+): Promise<{ ok: boolean; error?: string }> {
+  if (!KLAVIYO_API_KEY) return { ok: false, error: 'KLAVIYO_API_KEY not set' }
+  if (!email) return { ok: false, error: 'email required' }
+
+  try {
+    const body = {
+      data: {
+        type: 'profile-subscription-bulk-create-job',
+        attributes: {
+          custom_source: source,
+          profiles: {
+            data: [
+              {
+                type: 'profile',
+                attributes: {
+                  email,
+                  subscriptions: {
+                    email: { marketing: { consent: 'SUBSCRIBED' } },
+                  },
+                },
+              },
+            ],
+          },
+        },
+      },
+    }
+    const res = await fetch(`${KLAVIYO_API_BASE}/profile-subscription-bulk-create-jobs/`, {
+      method: 'POST',
+      headers: {
+        accept: 'application/vnd.api+json',
+        'content-type': 'application/vnd.api+json',
+        Authorization: `Klaviyo-API-Key ${KLAVIYO_API_KEY}`,
+        revision: KLAVIYO_REVISION,
+      },
+      body: JSON.stringify(body),
+    })
+    if (!res.ok) {
+      const text = await res.text().catch(() => '')
+      console.warn(`[klaviyo] subscribe ${email} failed:`, res.status, text.slice(0, 300))
+      return { ok: false, error: `${res.status}` }
+    }
+    return { ok: true }
+  } catch (err) {
+    console.warn(`[klaviyo] subscribe ${email} threw:`, err)
+    return { ok: false, error: err instanceof Error ? err.message : 'unknown' }
+  }
+}
