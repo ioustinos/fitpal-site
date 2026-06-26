@@ -8,7 +8,9 @@
 
 import { createClient } from '@supabase/supabase-js'
 import { createVivaOrder } from '../lib/viva/createOrder'
-import { trackAsync, EVT } from '../lib/klaviyo'
+// 2026-06-26: switched to awaited track() + subscribeProfileToMarketing
+// (same fix as submit-order — fire-and-forget was being killed by Netlify).
+import { track, subscribeProfileToMarketing, EVT } from '../lib/klaviyo'
 
 const SUPABASE_URL = process.env.VITE_SUPABASE_URL ?? ''
 const SUPABASE_ANON_KEY = process.env.VITE_SUPABASE_ANON_KEY ?? ''
@@ -107,16 +109,35 @@ export default async (request: Request) => {
         const l = (pref as { lang?: string } | null)?.lang
         if (l === 'el' || l === 'en') custLang = l
       }
-      trackAsync(EVT.PaymentLinkSent, {
-        email: (order.customer_email as string) ?? '',
-        firstName: ((order.customer_name as string) ?? '').split(' ')[0],
-        externalId: (order.user_id as string | null) ?? undefined,
-      }, {
+      // 2026-06-26: template UTa3ND/RuKhzb uses snake_case
+      // (event.order_number, event.payment_url). Emit BOTH.
+      const linkFirstName = ((order.customer_name as string) ?? '').split(' ')[0]
+      const linkEmail = (order.customer_email as string) ?? ''
+      const linkProps = {
         lang: custLang,
-        orderNumber: order.order_number,
+        // snake_case (template-expected)
+        first_name: linkFirstName,
+        order_number: order.order_number,
+        payment_url: result.paymentUrl,
         total: (order.total as number) / 100,
+        // camelCase (legacy / downstream)
+        orderNumber: order.order_number,
         paymentUrl: result.paymentUrl,
-      })
+      }
+      const linkFires = await Promise.all([
+        subscribeProfileToMarketing(linkEmail, 'Fitpal payment link sent (auto-subscribe)'),
+        track(EVT.PaymentLinkSent, {
+          email: linkEmail,
+          firstName: linkFirstName,
+          externalId: (order.user_id as string | null) ?? undefined,
+        }, linkProps),
+      ])
+      const linkFailed = linkFires.filter((r) => !r.ok)
+      if (linkFailed.length > 0) {
+        console.warn('[viva-regenerate-link] klaviyo: %d/%d failed: %s',
+          linkFailed.length, linkFires.length,
+          linkFailed.map((r) => r.error).join(' | '))
+      }
     } catch (e) { console.warn('[viva-regenerate-link] klaviyo:', e) }
 
     return Response.json(result)

@@ -10,7 +10,11 @@ import { createClient, SupabaseClient } from '@supabase/supabase-js'
 import { getVivaAccessToken } from '../viva/auth'
 import { getVivaCreds } from '../viva/env'
 import { sendMetaCapiEvent, metaConfigured, hashLower, hashPhone } from '../metaCapi'
-import { trackAsync, EVT } from '../klaviyo'
+// 2026-06-26: switched to awaited track() + subscribeProfileToMarketing
+// so the Klaviyo Subscription Purchased event isn't killed mid-flight
+// after the wallet plan is verified. See submit-order.ts for the full
+// backstory of why fire-and-forget was unreliable on Netlify.
+import { track, subscribeProfileToMarketing, EVT } from '../klaviyo'
 
 const SUPABASE_URL = process.env.VITE_SUPABASE_URL ?? ''
 const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY ?? ''
@@ -255,12 +259,20 @@ async function fireSubscriptionPurchasedKlaviyo(
     const l = (pref as { lang?: string } | null)?.lang
     if (l === 'el' || l === 'en') custLang = l
 
-    trackAsync(EVT.SubscriptionPurchased, {
-      email,
-      firstName,
-      externalId: userId,
-    }, {
+    // 2026-06-26: template W3v8Bf/TgGF2L uses snake_case
+    // (event.first_name, event.plan_length_label, event.meals_per_week,
+    // event.amount_paid, event.bonus_credits, event.new_balance). Emit BOTH.
+    const subProps = {
       lang: custLang,
+      // snake_case (template-expected)
+      first_name: firstName,
+      plan_length_label: plan.plan_length ?? null,
+      meals_per_week: plan.days_per_week ?? null,
+      amount_paid: amountCents / 100,
+      bonus_credits: (plan.bonus_credits_cents ?? 0) / 100,
+      new_balance: newBalanceCents != null ? newBalanceCents / 100 : null,
+      payment_status: 'paid',
+      // camelCase (legacy / downstream)
       walletPlanId: plan.id,
       planLengthLabel: plan.plan_length ?? null,
       mealsPerWeek: plan.days_per_week ?? null,
@@ -268,7 +280,21 @@ async function fireSubscriptionPurchasedKlaviyo(
       bonusCredits: (plan.bonus_credits_cents ?? 0) / 100,
       newBalance: newBalanceCents != null ? newBalanceCents / 100 : null,
       paymentStatus: 'paid',
-    })
+    }
+    const subFires = await Promise.all([
+      subscribeProfileToMarketing(email, 'Fitpal subscription purchased (auto-subscribe)'),
+      track(EVT.SubscriptionPurchased, {
+        email,
+        firstName,
+        externalId: userId,
+      }, subProps),
+    ])
+    const subFailed = subFires.filter((r) => !r.ok)
+    if (subFailed.length > 0) {
+      console.warn('[verifyWalletPlanTransaction] Subscription Purchased klaviyo: %d/%d failed: %s',
+        subFailed.length, subFires.length,
+        subFailed.map((r) => r.error).join(' | '))
+    }
   } catch (e) {
     console.warn('[verifyWalletPlanTransaction] Subscription Purchased Klaviyo failed (non-fatal):', e)
   }

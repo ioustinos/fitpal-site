@@ -1,5 +1,7 @@
 import { createClient } from '@supabase/supabase-js'
-import { trackAsync, EVT } from '../lib/klaviyo'
+// 2026-06-26: switched to awaited track() + subscribeProfileToMarketing
+// (Netlify was killing the fire-and-forget mid-flight, see submit-order.ts).
+import { track, subscribeProfileToMarketing, EVT } from '../lib/klaviyo'
 
 /**
  * Admin grants a wallet credit to a customer (refund, gift, or adjustment).
@@ -167,19 +169,37 @@ export default async (request: Request) => {
       const firstName = ((prof as { name?: string } | null)?.name ?? '').split(' ')[0]
 
       if (email) {
-        trackAsync(EVT.WalletCreditGranted, {
-          email,
-          firstName,
-          externalId: body.targetUserId,
-        }, {
+        // 2026-06-26: template Vz2QB5/XezdAc uses snake_case
+        // (event.amount, event.new_balance, event.reason,
+        // event.bonus_expires_at). Emit BOTH.
+        const newBalEuro = (walletRow as { balance: number } | null)?.balance != null
+          ? ((walletRow as { balance: number }).balance) / 100
+          : null
+        const creditProps = {
           lang: custLang,
+          // snake_case (template-expected)
+          first_name: firstName,
           amount: body.amountCents / 100,
-          type: body.type,
+          new_balance: newBalEuro,
           reason: custLang === 'el' ? body.descriptionEl : body.descriptionEn,
-          newBalance: (walletRow as { balance: number } | null)?.balance != null
-            ? ((walletRow as { balance: number }).balance) / 100
-            : null,
-        })
+          type: body.type,
+          // camelCase (legacy / downstream)
+          newBalance: newBalEuro,
+        }
+        const creditFires = await Promise.all([
+          subscribeProfileToMarketing(email, 'Fitpal wallet credit (auto-subscribe)'),
+          track(EVT.WalletCreditGranted, {
+            email,
+            firstName,
+            externalId: body.targetUserId,
+          }, creditProps),
+        ])
+        const creditFailed = creditFires.filter((r) => !r.ok)
+        if (creditFailed.length > 0) {
+          console.warn('[admin-grant-wallet-credit] klaviyo: %d/%d failed: %s',
+            creditFailed.length, creditFires.length,
+            creditFailed.map((r) => r.error).join(' | '))
+        }
       }
     } catch (e) { console.warn('[admin-grant-wallet-credit] klaviyo:', e) }
 

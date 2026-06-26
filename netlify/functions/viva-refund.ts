@@ -10,7 +10,7 @@ import { createClient } from '@supabase/supabase-js'
 import { refundVivaTransaction } from '../lib/viva/refund'
 // 2026-06-24 incident fix: same Netlify-microtask issue as submit-order.
 // trackAsync fire-and-forget could be killed before Klaviyo POST landed.
-import { track } from '../lib/klaviyo'
+import { track, subscribeProfileToMarketing } from '../lib/klaviyo'
 
 const SUPABASE_URL = process.env.VITE_SUPABASE_URL ?? ''
 const SUPABASE_ANON_KEY = process.env.VITE_SUPABASE_ANON_KEY ?? ''
@@ -95,24 +95,48 @@ export default async (request: Request) => {
             custLang = (pref as { lang: 'el' | 'en' }).lang
           }
         }
-        const refundFire = await track('Order Refunded', {
-          email: o.customer_email,
-          firstName: o.customer_name?.split(' ')[0],
-          lastName: o.customer_name?.split(' ').slice(1).join(' '),
-          phone: o.customer_phone ?? undefined,
-          externalId: o.user_id ?? undefined,
-        }, {
+        const firstName = o.customer_name?.split(' ')[0] ?? ''
+        const refundAmountCents = body.amountCents ?? o.total
+        // 2026-06-26: template RLqyLW/WHHrvC uses snake_case
+        // (event.order_number, event.refund_amount, event.order_total,
+        // event.cumulative_refund_amount, event.is_full_refund). Emit BOTH
+        // schemes so the render succeeds without breaking downstream
+        // consumers. See submit-order.ts for full backstory.
+        const refundProps = {
           lang: custLang,
+          // snake_case (template-expected)
+          first_name: firstName,
+          order_number: o.order_number,
+          refund_amount: refundAmountCents / 100,
+          order_total: o.total / 100,
+          cumulative_refund_amount: o.refund_amount / 100,
+          is_full_refund: o.payment_status === 'refunded',
+          reason: body.reason,
+          // camelCase (legacy / downstream)
           orderId: body.orderId,
           orderNumber: o.order_number,
-          refundAmountCents: body.amountCents ?? o.total,
-          refundAmount: ((body.amountCents ?? o.total) / 100),
+          refundAmountCents,
+          refundAmount: refundAmountCents / 100,
           orderTotal: o.total / 100,
           cumulativeRefundAmount: o.refund_amount / 100,
           isFullRefund: o.payment_status === 'refunded',
-          reason: body.reason,
-        })
-        if (!refundFire.ok) console.warn('[viva-refund] klaviyo:', refundFire.error)
+        }
+        const refundFires = await Promise.all([
+          subscribeProfileToMarketing(o.customer_email, 'Fitpal refund (auto-subscribe)'),
+          track('Order Refunded', {
+            email: o.customer_email,
+            firstName,
+            lastName: o.customer_name?.split(' ').slice(1).join(' '),
+            phone: o.customer_phone ?? undefined,
+            externalId: o.user_id ?? undefined,
+          }, refundProps),
+        ])
+        const refundFailed = refundFires.filter((r) => !r.ok)
+        if (refundFailed.length > 0) {
+          console.warn('[viva-refund] klaviyo: %d/%d failed: %s',
+            refundFailed.length, refundFires.length,
+            refundFailed.map((r) => r.error).join(' | '))
+        }
       }
     } catch (klaviyoErr) {
       console.warn('[viva-refund] klaviyo dispatch failed (non-fatal):', klaviyoErr)
