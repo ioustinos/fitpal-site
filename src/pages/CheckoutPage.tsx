@@ -457,6 +457,15 @@ export function CheckoutPage() {
   // explicit re-confirm so the customer doesn't get a surprise charge.
   const [priceConfirm, setPriceConfirm] = useState<{ serverCents: number; clientCents: number } | null>(null)
 
+  // WEC-494: synchronous reentrancy guard. `submitting` is async React state,
+  // so three .click()s fired in a single tick all pass the `disabled` check and
+  // each call submitOrder. The DB dedupe still yields exactly ONE persisted
+  // order, but every attempt returns a response and the LAST one to resolve
+  // (often a losing attempt whose row never committed) overwrites the
+  // success-screen order_number — producing a number absent from the DB. A ref
+  // flips synchronously before the first await, so reentrant calls bail.
+  const submitInFlight = useRef(false)
+
   async function handlePlaceOrder(opts: { skipQuoteCheck?: boolean } = {}) {
     if (!contactOk) {
       setContactAttempted(true)
@@ -474,6 +483,14 @@ export function CheckoutPage() {
       scrollToSection(paymentRef)
       return
     }
+
+    // WEC-494: bail if a submit is already in flight (set synchronously, before
+    // any await, so rapid multi-clicks in one tick can't get past here). Placed
+    // AFTER the validation returns above so a failed validation never locks the
+    // button. Released on every non-success exit below; on success the page
+    // unmounts into <ConfirmationScreen>.
+    if (submitInFlight.current) return
+    submitInFlight.current = true
 
     setSubmitting(true)
 
@@ -557,6 +574,7 @@ export function CheckoutPage() {
           )
           if (serverCents > 0 && Math.abs(serverCents - clientCents) > 1) {
             setPriceConfirm({ serverCents, clientCents })
+            submitInFlight.current = false  // WEC-494: allow the explicit "Confirm" re-submit
             setSubmitting(false)
             return
           }
@@ -600,6 +618,10 @@ export function CheckoutPage() {
     })
 
     setSubmitting(false)
+    // WEC-494: released here, before the error/success branches. The error path
+    // returns just below (button re-enabled for a retry); the success path
+    // unmounts into <ConfirmationScreen>, so this reset is harmless there.
+    submitInFlight.current = false
 
     if (error) {
       // Flatten server-side validationErrors into the red block. Keep a

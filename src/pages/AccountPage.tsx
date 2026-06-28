@@ -178,7 +178,7 @@ export function AccountPage() {
           {tab === 'orders' && <OrdersTab user={user} lang={lang} />}
           {tab === 'subscription' && <SubscriptionTab user={user} lang={lang} />}
           {tab === 'wallet' && <WalletTab user={user} lang={lang} />}
-          {tab === 'addresses' && <AddressesTab user={user} lang={lang} updateAddresses={updateAddresses} />}
+          {tab === 'addresses' && <AddressesTab user={user} lang={lang} updateAddresses={updateAddresses} onGoToPrefs={() => setTab('prefs')} />}
           {tab === 'goals' && <GoalsTab user={user} lang={lang} updateGoals={updateGoals} />}
           {tab === 'diet' && <DietTab user={user} lang={lang} />}
           {tab === 'prefs' && <PrefsTab user={user} lang={lang} updatePrefs={updatePrefs} />}
@@ -707,7 +707,7 @@ function WalletTab({ user, lang }: any) {
    WEC-79 — ADDRESSES TAB (labels, edit/delete, add form)
 ═══════════════════════════════════════════════════════════════════════════════ */
 
-function AddressesTab({ user, lang, updateAddresses }: any) {
+function AddressesTab({ user, lang, updateAddresses, onGoToPrefs }: any) {
   const addresses: Address[] = user.addresses ?? []
   const [editing, setEditing] = useState<string | null>(null)
   const [showAdd, setShowAdd] = useState(false)
@@ -869,6 +869,24 @@ function AddressesTab({ user, lang, updateAddresses }: any) {
   return (
     <div className="tab-section">
       <h2 className="tab-title">{lang === 'el' ? 'Οι Διευθύνσεις μου' : 'My Addresses'}</h2>
+      {/* WEC-210: discoverability affordance. Saved addresses are only
+          auto-selected at checkout via per-weekday preferences (user_day_prefs).
+          Per Ioustinos's 2026-06-27 decision we do NOT introduce a separate
+          default-address setting; instead we point the user to the Preferences
+          tab to set the address/time per weekday in the proper place. */}
+      <button
+        type="button"
+        className="addr-prefs-link"
+        onClick={onGoToPrefs}
+        style={{
+          background: 'none', border: 'none', padding: 0, marginBottom: 14,
+          color: 'var(--green)', cursor: 'pointer', font: 'inherit', textAlign: 'left',
+        }}
+      >
+        {lang === 'el'
+          ? 'Θέλεις μια διεύθυνση να προεπιλέγεται αυτόματα ανά ημέρα; Ρύθμισέ το στις Προτιμήσεις →'
+          : 'Want an address auto-selected per day? Set it in Preferences →'}
+      </button>
       {addresses.length === 0 && !showAdd ? (
         <p className="tab-empty">{lang === 'el' ? 'Δεν υπάρχουν αποθηκευμένες διευθύνσεις.' : 'No saved addresses.'}</p>
       ) : (
