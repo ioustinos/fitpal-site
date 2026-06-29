@@ -8,6 +8,7 @@
 
 import { createClient, SupabaseClient } from '@supabase/supabase-js'
 import { sendMetaCapiEvent, metaConfigured, hashLower, hashPhone } from '../metaCapi'
+import { fireOrderConfirmationFromDb } from '../orderConfirmationEmail'
 
 const SUPABASE_URL = process.env.VITE_SUPABASE_URL ?? ''
 const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY ?? ''
@@ -83,6 +84,12 @@ export async function markPaid(
   // pending→paid guard above). Same event_id as the client (`purchase:<order#>`)
   // so any overlap with link/wallet orders deduplicates at Meta. Fail-soft.
   await firePurchaseCapi(supabase, orderId, amountCents)
+
+  // WEC-498: card / link orders skip the "Order Placed" confirmation email at
+  // submit (the order was still pending then). Now that payment is confirmed,
+  // fire it here. Runs only on the call that won the pending→paid race above,
+  // so it sends exactly once across all three Viva layers. Fail-soft.
+  await fireOrderConfirmationFromDb(supabase, orderId)
   return true
 }
 

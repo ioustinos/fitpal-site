@@ -112,6 +112,11 @@ export function CheckoutPage() {
   const draftId = useCartStore((s) => s.draftId)
   const clearDraft = useCartStore((s) => s.clearDraft)
   const user = useAuthStore((s) => s.user)
+  // WEC-495: reactive impersonation flag. Under session-swap impersonation
+  // `user` IS the impersonated customer, but the contact prefill below must
+  // know to source authoritatively from that customer (never let a latched
+  // admin value win) — see the prefill effect.
+  const isImpersonating = useImpersonationStore((s) => s.active)
   const toast = useToast((s) => s.show)
   // WEC-422: these three MUST be declared above the WEC-410 auto-pickup
   // useEffect (its dep array reads pickupLocations.length). Previously they
@@ -361,15 +366,31 @@ export function CheckoutPage() {
   // in-progress edit isn't clobbered by an auth refresh.
   const contactPrefilledForUser = useRef<string | 'guest' | null>(null)
   useEffect(() => {
-    const key = user?.id ?? 'guest'
+    // WEC-495: fold the impersonation flag into the key so the prefill
+    // RE-RUNS if impersonation flips active after this page mounted (the
+    // session-swap → refreshUser → store.active transitions don't all land
+    // in the same tick, so `user` may already be the customer before
+    // `active` is true). Without this the effect's once-per-identity guard
+    // could skip the authoritative re-apply.
+    const key = `${user?.id ?? 'guest'}:${isImpersonating ? 'imp' : 'self'}`
     if (contactPrefilledForUser.current === key) return
     contactPrefilledForUser.current = key
 
     if (user) {
       setContact((prev) => ({
-        name: prev.name || user.name || '',
-        email: prev.email || user.email || '',
-        phone: prev.phone || user.phone || '',
+        // WEC-495: under impersonation, source the contact authoritatively
+        // from the impersonated customer (`user` IS that customer after the
+        // session swap), OVERRIDING any value already in `prev`. The normal
+        // `prev.x || ...` guard exists to protect an in-progress guest/self
+        // edit — but during impersonation that same guard would keep the
+        // admin's email/name/phone if it had been latched into the contact
+        // fields during the brief window before refreshUser swapped `user`
+        // to the customer, and that admin value then gets stored as
+        // orders.customer_email (root cause of WEC-495). Admins can still
+        // edit the fields afterwards; this only changes the default.
+        name: isImpersonating ? (user.name || '') : (prev.name || user.name || ''),
+        email: isImpersonating ? (user.email || '') : (prev.email || user.email || ''),
+        phone: isImpersonating ? (user.phone || '') : (prev.phone || user.phone || ''),
       }))
     } else {
       const guest = readGuestContact()
@@ -379,7 +400,7 @@ export function CheckoutPage() {
         phone: prev.phone || guest.phone,
       }))
     }
-  }, [user])
+  }, [user, isImpersonating])
 
   const prepopulatedFor = useRef<string | null>(null)
   useEffect(() => {

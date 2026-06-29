@@ -1411,6 +1411,15 @@ export default async (request: Request) => {
     // errors and returns { ok, error } so Promise.all never rejects.
     const klaviyoFires: Promise<{ ok: boolean; error?: string }>[] = []
 
+    // WEC-498: only email at SUBMIT for methods where the order is genuinely
+    // placed at submission — cash / transfer (pay-later) and wallet (paid
+    // synchronously above). For card / link the order is still `pending` and
+    // the customer is about to be redirected to Viva; emailing "confirmed" now
+    // would falsely confirm an order to anyone who abandons payment. For those
+    // methods the SAME confirmation is fired later from `markPaid()` (the
+    // idempotent paid-convergence point) via fireOrderConfirmationFromDb.
+    const emailAtSubmit = body.paymentMethod !== 'card' && body.paymentMethod !== 'link'
+
     // 2026-06-25 launch fix: subscribe customer profile to email marketing
     // BEFORE firing the event. Klaviyo silently blocks flow sends to profiles
     // with consent: NEVER_SUBSCRIBED when the email is marketing-classified
@@ -1418,18 +1427,20 @@ export default async (request: Request) => {
     // support enables true-transactional sending on the account).
     // Order placement = implicit opt-in to receive order-related comms.
     // See klaviyo.ts → subscribeProfileToMarketing for full reasoning.
-    klaviyoFires.push(subscribeProfileToMarketing(
-      body.customerEmail,
-      'Fitpal order placed (auto-subscribe)',
-    ))
+    if (emailAtSubmit) {
+      klaviyoFires.push(subscribeProfileToMarketing(
+        body.customerEmail,
+        'Fitpal order placed (auto-subscribe)',
+      ))
 
-    klaviyoFires.push(track('Order Placed', {
-      email: body.customerEmail,
-      firstName: body.customerName?.split(' ')[0],
-      lastName: body.customerName?.split(' ').slice(1).join(' '),
-      phone: body.customerPhone,
-      externalId: userId ?? undefined,
-    }, orderPlacedProperties))
+      klaviyoFires.push(track('Order Placed', {
+        email: body.customerEmail,
+        firstName: body.customerName?.split(' ')[0],
+        lastName: body.customerName?.split(' ').slice(1).join(' '),
+        phone: body.customerPhone,
+        externalId: userId ?? undefined,
+      }, orderPlacedProperties))
+    }
 
     // WEC-486: admin BCC fan-out. Admins listed in
     // `settings.order_confirmation_admin_emails` (jsonb array) get a copy of
@@ -1441,7 +1452,10 @@ export default async (request: Request) => {
     try {
       const rawAdmins = (settingsRes.data ?? [] as { key: string; value: unknown }[])
         .find((r: { key: string }) => r.key === 'order_confirmation_admin_emails')?.value
-      const adminEmails = Array.isArray(rawAdmins)
+      // WEC-498: admin BCC rides along with the customer email — so for
+      // card / link it also moves to markPaid (fireOrderConfirmationFromDb
+      // replays the same BCC fan-out). Gate on emailAtSubmit here.
+      const adminEmails = (emailAtSubmit && Array.isArray(rawAdmins))
         ? (rawAdmins as unknown[])
             .filter((v): v is string =>
               typeof v === 'string' &&
