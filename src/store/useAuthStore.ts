@@ -78,9 +78,6 @@ export interface UserWallet {
 }
 
 export interface UserPrefs {
-  vegetarian?: boolean
-  glutenFree?: boolean
-  lowCarb?: boolean
   paymentMethod?: string
   cutlery?: boolean
   invoice?: boolean

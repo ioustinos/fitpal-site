@@ -45,7 +45,6 @@ export interface AdminUserDetail extends AdminUserRow {
   } | null
   prefs: {
     paymentMethod: string | null; cutlery: boolean; invoice: boolean
-    vegetarian: boolean; glutenFree: boolean; lowCarb: boolean
     lang: string | null; newsletter: boolean; onlyAdminOrders: boolean
     goalTracking: boolean
   } | null
@@ -170,7 +169,7 @@ export async function fetchAdminUserDetail(userId: string): Promise<{
       .select('enabled, cal_min, cal_max, protein_min, protein_max, carbs_min, carbs_max, fat_min, fat_max')
       .eq('user_id', userId).maybeSingle(),
     supabase.from('user_prefs')
-      .select('payment_method, cutlery, invoice, vegetarian, gluten_free, low_carb, lang, newsletter, only_admin_orders, goal_tracking')
+      .select('payment_method, cutlery, invoice, lang, newsletter, only_admin_orders, goal_tracking')
       .eq('user_id', userId).maybeSingle(),
     supabase.from('wallets')
       .select('id, active_plan_id, balance, base_balance, bonus_balance, auto_renew, next_renewal, active, admin_managed')
@@ -243,9 +242,6 @@ export async function fetchAdminUserDetail(userId: string): Promise<{
       paymentMethod: (prefsRes.data as { payment_method: string | null }).payment_method,
       cutlery: (prefsRes.data as { cutlery: boolean }).cutlery,
       invoice: (prefsRes.data as { invoice: boolean }).invoice,
-      vegetarian: (prefsRes.data as { vegetarian: boolean }).vegetarian,
-      glutenFree: (prefsRes.data as { gluten_free: boolean }).gluten_free,
-      lowCarb: (prefsRes.data as { low_carb: boolean }).low_carb,
       lang: (prefsRes.data as { lang: string | null }).lang,
       newsletter: (prefsRes.data as { newsletter: boolean }).newsletter,
       onlyAdminOrders: (prefsRes.data as { only_admin_orders: boolean }).only_admin_orders,
