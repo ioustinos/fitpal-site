@@ -3,6 +3,7 @@ import {
   fetchAllSettings, setSetting,
   type SettingRow,
 } from '../../lib/api/adminSettings'
+import { PAYMENT_METHODS as PM } from '../../lib/paymentMethods'
 
 const DAY_NAMES_FULL = ['', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
 
@@ -11,12 +12,10 @@ type DateOverrides = Record<string, { cutoffDate: string; hour: number }>
 
 type PaymentMethod = 'cash' | 'card' | 'link' | 'transfer' | 'wallet'
 const ALL_PAYMENT_METHODS: PaymentMethod[] = ['cash', 'card', 'link', 'transfer', 'wallet']
+// WEC-499: admin-facing English labels now sourced from the shared map.
 const PAYMENT_METHOD_LABELS: Record<PaymentMethod, string> = {
-  cash: 'Cash on delivery',
-  card: 'Card online (Viva)',
-  link: 'Payment link (sent later)',
-  transfer: 'Bank transfer',
-  wallet: 'Fitpal wallet',
+  cash: PM.cash.adminEn, card: PM.card.adminEn, link: PM.link.adminEn,
+  transfer: PM.transfer.adminEn, wallet: PM.wallet.adminEn,
 }
 
 /** WEC-255: per-method visibility — { public, admin } each. */

@@ -1,4 +1,5 @@
 import { supabase } from '../supabase'
+import { paymentShort } from '../paymentMethods'
 
 // ─── DB row shapes ───────────────────────────────────────────────────────────
 
@@ -105,13 +106,7 @@ const STATUS_LABELS: Record<string, { el: string; en: string }> = {
   cancelled:   { el: 'Ακυρώθηκε', en: 'Cancelled' },
 }
 
-const PAYMENT_LABELS: Record<string, { el: string; en: string }> = {
-  cash:     { el: 'Μετρητά', en: 'Cash' },
-  card:     { el: 'Κάρτα', en: 'Card' },
-  link:     { el: 'Link πληρωμής', en: 'Payment Link' },
-  transfer: { el: 'Μεταφορά', en: 'Transfer' },
-  wallet:   { el: 'Πορτοφόλι', en: 'Wallet' },
-}
+// WEC-499: payment labels now sourced from src/lib/paymentMethods (paymentShort).
 
 const fmtTimeSlot = (from: string | null, to: string | null): string => {
   if (!from || !to) return ''
@@ -252,7 +247,7 @@ export async function fetchUserOrders(userId: string, limit = 50, offset = 0): P
     })
 
     const sLabel = STATUS_LABELS[o.status] ?? { el: o.status, en: o.status }
-    const pLabel = PAYMENT_LABELS[o.payment_method] ?? { el: o.payment_method, en: o.payment_method }
+    const pLabel = { el: paymentShort(o.payment_method, 'el'), en: paymentShort(o.payment_method, 'en') }
 
     return {
       id: o.order_number,

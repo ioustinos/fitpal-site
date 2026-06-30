@@ -4,13 +4,17 @@ import { useAuthStore } from '../../store/useAuthStore'
 import { useMenuStore } from '../../store/useMenuStore'
 import { useImpersonationStore } from '../../store/useImpersonationStore'
 import { subTotal } from '../../lib/helpers'
+import { PAYMENT_METHODS as PM } from '../../lib/paymentMethods'
 
+// WEC-499: labels + descriptions now come from the shared payment-methods
+// source. This array only carries the per-method icon + display order; the
+// labelEl/descEl field names are preserved so the render below is untouched.
 const PAYMENT_METHODS = [
-  { id: 'wallet',   iconPath: 'M2 9h20M2 5h20v14H2zM16 12h.01',  labelEl: 'Fitpal Wallet',               labelEn: 'Fitpal Wallet', descEl: 'Χρέωση από το υπόλοιπο Wallet', descEn: 'Deduct from your Wallet balance' },
-  { id: 'card',     iconPath: 'M3 9h18M7 15h.01M11 15h2',        labelEl: 'Κάρτα online',               labelEn: 'Credit card online',   descEl: 'Ασφαλής πληρωμή με χρεωστική/πιστωτική κάρτα', descEn: 'Secure credit/debit card payment' },
-  { id: 'cash',     iconPath: 'M12 12a4 4 0 100-8 4 4 0 000 8zM3 20c0-4 3.6-7 9-7s9 3 9 7', labelEl: 'Μετρητά κατά την παράδοση', labelEn: 'Cash on delivery', descEl: 'Πληρωμή με μετρητά κατά την παράδοση', descEn: 'Pay with cash at delivery' },
-  { id: 'link',     iconPath: 'M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71', labelEl: 'Link πληρωμής αργότερα', labelEn: 'Payment link later', descEl: 'Θα λάβετε link πληρωμής μετά την επιβεβαίωση', descEn: 'You\'ll receive a payment link after confirmation' },
-  { id: 'transfer', iconPath: 'M4 6h16M4 12h16M4 18h16',         labelEl: 'Τραπεζική μεταφορά',         labelEn: 'Bank transfer', descEl: 'Κατάθεση σε τραπεζικό λογαριασμό', descEn: 'Deposit to bank account' },
+  { id: 'wallet',   iconPath: 'M2 9h20M2 5h20v14H2zM16 12h.01',  labelEl: PM.wallet.titleEl,   labelEn: PM.wallet.titleEn,   descEl: PM.wallet.descEl,   descEn: PM.wallet.descEn },
+  { id: 'card',     iconPath: 'M3 9h18M7 15h.01M11 15h2',        labelEl: PM.card.titleEl,     labelEn: PM.card.titleEn,     descEl: PM.card.descEl,     descEn: PM.card.descEn },
+  { id: 'cash',     iconPath: 'M12 12a4 4 0 100-8 4 4 0 000 8zM3 20c0-4 3.6-7 9-7s9 3 9 7', labelEl: PM.cash.titleEl, labelEn: PM.cash.titleEn, descEl: PM.cash.descEl, descEn: PM.cash.descEn },
+  { id: 'link',     iconPath: 'M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71', labelEl: PM.link.titleEl, labelEn: PM.link.titleEn, descEl: PM.link.descEl, descEn: PM.link.descEn },
+  { id: 'transfer', iconPath: 'M4 6h16M4 12h16M4 18h16',         labelEl: PM.transfer.titleEl, labelEn: PM.transfer.titleEn, descEl: PM.transfer.descEl, descEn: PM.transfer.descEn },
 ] as const
 
 export function PaymentSection() {

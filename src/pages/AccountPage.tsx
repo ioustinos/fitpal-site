@@ -10,6 +10,7 @@ import { useMenuStore } from '../store/useMenuStore'
 import { Toggle } from '../components/ui/Toggle'
 import { MacroIcon, MacroValuesRow } from '../components/ui/MacroDots'
 import { WALLET_PLANS } from '../data/menu'
+import { PAYMENT_METHODS as PAYMENT_COPY } from '../lib/paymentMethods'
 import { COUNTRIES, DEFAULT_COUNTRY, isValidPhone, phoneLabels } from '../lib/phone'
 import { showGoalProgress, goalStatus, goalPct } from '../lib/goals'
 import { matchesRange, type RangePreset } from '../lib/dateRange'
@@ -401,12 +402,12 @@ function PrefsTab({ user, lang, updatePrefs }: any) {
     { key: 4, el: 'Παρασκευή', en: 'Friday' },
   ]
 
-  const paymentMethods = [
-    { id: 'cash', el: 'Μετρητά', en: 'Cash' },
-    { id: 'card', el: 'Κάρτα', en: 'Card' },
-    { id: 'wallet', el: 'Πορτοφόλι', en: 'Wallet' },
-    { id: 'bank', el: 'Τράπεζα', en: 'Bank' },
-  ]
+  // WEC-499: payment options sourced from the shared payment-methods map. Ids
+  // are the canonical payment_method enum values (was non-enum 'bank' → now
+  // 'transfer'). 'link' is intentionally omitted as a saved preference.
+  const paymentMethods = (['cash', 'card', 'transfer', 'wallet'] as const).map(
+    (id) => ({ id, el: PAYMENT_COPY[id].shortEl, en: PAYMENT_COPY[id].shortEn }),
+  )
 
   const setDayAddr = (dayIdx: number, addrId: string) => {
     const p = { ...prefs, dayAddress: { ...prefs.dayAddress, [dayIdx]: addrId } }
