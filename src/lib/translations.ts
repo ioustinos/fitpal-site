@@ -49,15 +49,8 @@ const T = {
     changeAddr: 'Αλλαγή',
     useForAll: 'Χρήση ίδιας διεύθυνσης για όλες τις ημέρες',
     newAddress: '+ Νέα Διεύθυνση',
-    // Payment methods
-    cash: 'Αντικαταβολή',
-    cashD: 'Πληρωμή κατά την παράδοση',
-    card: 'Κάρτα Online',
-    cardD: 'Ασφαλής πληρωμή με κάρτα',
-    link: 'Payment Link',
-    linkD: 'Θα σας αποστείλουμε σύνδεσμο πληρωμής',
-    bank: 'Τραπεζική Μεταφορά',
-    bankD: 'IBAN & στοιχεία θα αποσταλούν στο email σας',
+    // (dead payment-method keys removed — WEC-499: no t() consumer. Checkout
+    //  uses PaymentSection's own labels; order history uses orders.ts.)
     // Extras
     extras: 'Επιπλέον Επιλογές',
     cutlery: 'Χρειάζομαι Μαχαιροπήρουνα',
@@ -220,14 +213,7 @@ const T = {
     changeAddr: 'Change',
     useForAll: 'Use same address for all days',
     newAddress: '+ New Address',
-    cash: 'Cash on Delivery',
-    cashD: 'Pay when your order arrives',
-    card: 'Online Card',
-    cardD: 'Secure credit/debit card payment',
-    link: 'Payment Link',
-    linkD: "We'll send a payment link via email",
-    bank: 'Bank Transfer',
-    bankD: 'IBAN & details will be emailed to you',
+    // (dead payment-method keys removed — WEC-499)
     extras: 'Extra Options',
     cutlery: 'Include cutlery',
     orderComment: 'Order comment',
