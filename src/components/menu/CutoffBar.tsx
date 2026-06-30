@@ -3,9 +3,11 @@ import { useUIStore } from '../../store/useUIStore'
 import { useMenuStore } from '../../store/useMenuStore'
 import { getCutoffDate } from '../../lib/helpers'
 import { dayLabelFromJsDow } from '../../lib/datelabels'
+import { makeTr } from '../../lib/translations'
 
 export function CutoffBar() {
   const lang = useUIStore((s) => s.lang)
+  const t = makeTr(lang)
   const activeDay = useUIStore((s) => s.activeDay)
   const activeWeek = useUIStore((s) => s.activeWeek)
   const [, forceUpdate] = useState(0)
@@ -32,9 +34,7 @@ export function CutoffBar() {
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
           <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0110 0v4"/>
         </svg>
-        {lang === 'el'
-          ? 'Οι παραγγελίες για αυτή την ημέρα έχουν κλείσει'
-          : 'Orders for this day are closed'}
+        {t('mnOrdersClosedForDay')}
       </div>
     )
   }

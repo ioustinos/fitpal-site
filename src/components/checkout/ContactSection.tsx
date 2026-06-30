@@ -3,6 +3,7 @@ import PhoneInput from 'react-phone-number-input'
 import flags from 'react-phone-number-input/flags'
 import 'react-phone-number-input/style.css'
 import { useUIStore } from '../../store/useUIStore'
+import { makeTr } from '../../lib/translations'
 import { COUNTRIES, DEFAULT_COUNTRY, isValidPhone, phoneLabels } from '../../lib/phone'
 import { isValidEmail } from '../../lib/email'
 
@@ -37,6 +38,7 @@ interface ContactSectionProps {
  */
 export function ContactSection({ value, onChange, showErrors = false }: ContactSectionProps) {
   const lang = useUIStore((s) => s.lang)
+  const t = makeTr(lang)
 
   // WEC-220: keep these in sync with the validator in CheckoutPage.
   // Name ≥ 2 chars (was just non-empty — accepted "X"). Email pattern
@@ -55,7 +57,7 @@ export function ContactSection({ value, onChange, showErrors = false }: ContactS
     <div className="co-contact-grid">
       <div className="co-contact-field">
         <label className="co-contact-label" htmlFor="co-contact-name">
-          {lang === 'el' ? 'Ονοματεπώνυμο' : 'Full name'}
+          {t('coFullName')}
           <span className="co-required">*</span>
         </label>
         <input
@@ -64,7 +66,7 @@ export function ContactSection({ value, onChange, showErrors = false }: ContactS
           className={`form-input${nameInvalid ? ' is-invalid' : ''}`}
           value={value.name}
           onChange={(e) => onChange({ name: e.target.value })}
-          placeholder={lang === 'el' ? 'π.χ. Γιάννης Παπαδόπουλος' : 'e.g. John Smith'}
+          placeholder={t('coNamePh')}
           autoComplete="name"
           aria-invalid={nameInvalid || undefined}
         />
@@ -72,7 +74,7 @@ export function ContactSection({ value, onChange, showErrors = false }: ContactS
 
       <div className="co-contact-field">
         <label className="co-contact-label" htmlFor="co-contact-email">
-          {lang === 'el' ? 'Email' : 'Email'}
+          {t('email')}
           <span className="co-required">*</span>
         </label>
         <input
@@ -89,7 +91,7 @@ export function ContactSection({ value, onChange, showErrors = false }: ContactS
 
       <div className="co-contact-field">
         <label className="co-contact-label" htmlFor="co-contact-phone">
-          {lang === 'el' ? 'Τηλέφωνο' : 'Phone'}
+          {t('coPhone')}
           <span className="co-required">*</span>
         </label>
         <PhoneInput
@@ -103,7 +105,7 @@ export function ContactSection({ value, onChange, showErrors = false }: ContactS
           countryCallingCodeEditable={false}
           value={value.phone || undefined}
           onChange={(v) => onChange({ phone: v ?? '' })}
-          placeholder={lang === 'el' ? '69X XXX XXXX' : '69X XXX XXXX'}
+          placeholder={t('coPhonePh')}
           autoComplete="tel"
         />
       </div>

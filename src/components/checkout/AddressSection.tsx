@@ -262,7 +262,7 @@ export function AddressSection({ dayDate }: AddressSectionProps) {
       notes: form.notes || '',
       addrId: selectedAddr.id,
     })
-    toast(lang === 'el' ? 'Διεύθυνση ενημερώθηκε!' : 'Address updated!')
+    toast(t('coAddressUpdated'))
     setMode('selected')
   }
 
@@ -289,7 +289,7 @@ export function AddressSection({ dayDate }: AddressSectionProps) {
   // "Use for all days"
   function handleCopyToAll() {
     copyDeliveryToAll(dayDate)
-    toast(lang === 'el' ? 'Διεύθυνση αντιγράφηκε σε όλες τις ημέρες' : 'Address copied to all days')
+    toast(t('coAddressCopiedAll'))
   }
 
   // Save new address to profile.
@@ -334,7 +334,7 @@ export function AddressSection({ dayDate }: AddressSectionProps) {
     setSavingName(false)
     setAddrName('')
     setMode('selected')
-    toast(lang === 'el' ? 'Διεύθυνση αποθηκεύτηκε!' : 'Address saved!')
+    toast(t('coAddressSaved'))
   }
 
   // Detect whether edit form has changed from original
@@ -370,10 +370,10 @@ export function AddressSection({ dayDate }: AddressSectionProps) {
           </div>
           <div className="addr-card-actions">
             <button className="addr-action-link" onClick={handleEdit}>
-              {lang === 'el' ? 'Επεξεργασία' : 'Edit'}
+              {t('coEdit')}
             </button>
             <button className="addr-action-link addr-action-secondary" onClick={handleChange}>
-              {lang === 'el' ? 'Αλλαγή' : 'Change'}
+              {t('changeAddr')}
             </button>
           </div>
         </div>
@@ -381,7 +381,7 @@ export function AddressSection({ dayDate }: AddressSectionProps) {
         {activeDayCount > 1 && (
           <div className="addr-copy-row">
             <button className="btn-copy-addr" onClick={handleCopyToAll}>
-              ↻ {lang === 'el' ? 'Χρήση σε όλες τις ημέρες' : 'Use for all days'}
+              ↻ {t('coUseAllDays')}
             </button>
           </div>
         )}
@@ -395,7 +395,7 @@ export function AddressSection({ dayDate }: AddressSectionProps) {
     <div className="addr-form">
       <div className="addr-form-back">
         <button className="addr-form-back-link" onClick={handleBackToSelected}>
-          ← {lang === 'el' ? 'Πίσω' : 'Back'}
+          ← {t('back')}
         </button>
       </div>
 
@@ -403,7 +403,7 @@ export function AddressSection({ dayDate }: AddressSectionProps) {
 
       {editHasChanges && formComplete && (
         <button className="btn-save-changes" onClick={handleSaveEdit}>
-          {lang === 'el' ? 'Αποθήκευση αλλαγών' : 'Save changes'}
+          {t('coSaveChanges')}
         </button>
       )}
     </div>
@@ -434,7 +434,7 @@ export function AddressSection({ dayDate }: AddressSectionProps) {
 
       <button className="addr-card addr-card-new" onClick={handleNewAddress}>
         <span className="addr-new-label">
-          + {lang === 'el' ? 'Νέα διεύθυνση' : 'New address'}
+          + {t('coNewAddressPlain')}
         </span>
       </button>
     </div>
@@ -447,7 +447,7 @@ export function AddressSection({ dayDate }: AddressSectionProps) {
       {savedAddresses.length > 0 && (
         <div className="addr-form-back">
           <button className="addr-form-back-link" onClick={handleBackFromForm}>
-            ← {lang === 'el' ? 'Πίσω' : 'Back'}
+            ← {t('back')}
           </button>
         </div>
       )}
@@ -457,24 +457,24 @@ export function AddressSection({ dayDate }: AddressSectionProps) {
       {/* Save address to profile — only for logged-in users */}
       {user && formComplete && !savingName && (
         <button className="btn-save-addr-profile" onClick={() => setSavingName(true)}>
-          {lang === 'el' ? '💾 Αποθήκευση στις διευθύνσεις μου' : '💾 Save to my addresses'}
+          {t('coSaveToMyAddresses')}
         </button>
       )}
 
       {user && savingName && (
         <div className="addr-save-prompt">
-          <label className="form-label">{lang === 'el' ? 'Ονομα διεύθυνσης' : 'Address name'}</label>
+          <label className="form-label">{t('coAddressName')}</label>
           <div className="addr-save-row">
             <input
               className="form-input"
               value={addrName}
               onChange={(e) => setAddrName(e.target.value)}
-              placeholder={lang === 'el' ? 'π.χ. Σπίτι, Γραφείο' : 'e.g. Home, Office'}
+              placeholder={t('coAddressNamePh')}
               autoFocus
               onKeyDown={(e) => e.key === 'Enter' && handleSaveAddress()}
             />
             <button className="btn-save-addr" onClick={handleSaveAddress} disabled={!addrName.trim()}>
-              {lang === 'el' ? 'Αποθήκευση' : 'Save'}
+              {t('saveAddr')}
             </button>
             <button className="btn-cancel-save" onClick={() => { setSavingName(false); setAddrName('') }}>
               ✕
@@ -487,7 +487,7 @@ export function AddressSection({ dayDate }: AddressSectionProps) {
       {formComplete && activeDayCount > 1 && (
         <div className="addr-copy-row">
           <button className="btn-copy-addr" onClick={handleCopyToAll}>
-            ↻ {lang === 'el' ? 'Χρήση σε όλες τις ημέρες' : 'Use for all days'}
+            ↻ {t('coUseAllDays')}
           </button>
         </div>
       )}
@@ -506,7 +506,7 @@ export function AddressSection({ dayDate }: AddressSectionProps) {
             value={form.street}
             onChange={(v) => setForm((f) => ({ ...f, street: v }))}
             onSelect={handlePlaceSelect}
-            placeholder={lang === 'el' ? 'π.χ. Ερμού 12' : 'e.g. 12 Main Street'}
+            placeholder={t('coStreetPh')}
             country="gr"
           />
         ) : (
@@ -514,7 +514,7 @@ export function AddressSection({ dayDate }: AddressSectionProps) {
             className="form-input"
             value={form.street}
             onChange={(e) => setForm((f) => ({ ...f, street: e.target.value }))}
-            placeholder={lang === 'el' ? 'π.χ. Ερμού 12' : 'e.g. 12 Main Street'}
+            placeholder={t('coStreetPh')}
           />
         )}
       </div>
@@ -531,8 +531,8 @@ export function AddressSection({ dayDate }: AddressSectionProps) {
           {zoneStatus && (
             <div className={`zone-feedback ${zoneStatus === 'valid' ? 'zone-ok' : 'zone-err'}`}>
               {zoneStatus === 'valid'
-                ? lang === 'el' ? '✓ Διανομή διαθέσιμη στη ζώνη σου' : '✓ Delivery zone confirmed'
-                : lang === 'el' ? '✗ Εκτός ζώνης παράδοσης για αυτό τον Τ.Κ.' : '✗ Outside delivery zone for this postcode'}
+                ? t('coZoneConfirmed')
+                : t('coZoneOutForPostcode')}
             </div>
           )}
         </div>
@@ -542,39 +542,39 @@ export function AddressSection({ dayDate }: AddressSectionProps) {
             className="form-input"
             value={form.area}
             onChange={(e) => handleAreaChange(e.target.value)}
-            placeholder={lang === 'el' ? 'Περιοχή' : 'Area'}
+            placeholder={t('area')}
           />
         </div>
       </div>
 
       <div className="form-row two-col">
         <div>
-          <label className="form-label">{lang === 'el' ? 'ΟΡΟΦΟΣ' : 'FLOOR'}</label>
+          <label className="form-label">{t('coFloorUpper')}</label>
           <input
             className="form-input"
             value={form.floor}
             onChange={(e) => setForm((f) => ({ ...f, floor: e.target.value }))}
-            placeholder={lang === 'el' ? 'π.χ. 3ος' : 'e.g. 3rd'}
+            placeholder={t('coFloorPh')}
           />
         </div>
         <div>
-          <label className="form-label">{lang === 'el' ? 'ΚΟΥΔΟΥΝΙ' : 'DOORBELL'}</label>
+          <label className="form-label">{t('coDoorbellUpper')}</label>
           <input
             className="form-input"
             value={form.doorbell}
             onChange={(e) => setForm((f) => ({ ...f, doorbell: e.target.value }))}
-            placeholder={lang === 'el' ? 'π.χ. Σαρρής' : 'e.g. Sarris'}
+            placeholder={t('coDoorbellPh')}
           />
         </div>
       </div>
 
       <div className="form-row">
-        <label className="form-label">{lang === 'el' ? 'ΣΧΟΛΙΑ ΠΑΡΑΔΟΣΗΣ' : 'DELIVERY NOTES'}</label>
+        <label className="form-label">{t('coDeliveryNotesUpper')}</label>
         <input
           className="form-input"
           value={form.notes}
           onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))}
-          placeholder={lang === 'el' ? 'π.χ. Κουδούνι αριστερά' : 'e.g. Ring left bell'}
+          placeholder={t('coDeliveryNotesPh')}
         />
       </div>
     </>

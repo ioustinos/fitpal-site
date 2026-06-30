@@ -170,7 +170,7 @@ export function AccountPage() {
             onClick={handleSignOut}
           >
             {icons.logout}
-            {lang === 'el' ? 'Αποσύνδεση' : 'Sign Out'}
+            {t('signOut')}
           </button>
         </nav>
 
@@ -195,6 +195,7 @@ export function AccountPage() {
 ═══════════════════════════════════════════════════════════════════════════════ */
 
 function ProfileTab({ user, lang }: any) {
+  const t = makeTr(lang)
   const setUser = useAuthStore((s) => s.setUser)
   const [name, setName] = useState(user.name ?? '')
   const [email] = useState(user.email ?? '')
@@ -230,10 +231,10 @@ function ProfileTab({ user, lang }: any) {
 
   return (
     <div className="tab-section">
-      <h2 className="tab-title">{lang === 'el' ? 'Τα Στοιχεία μου' : 'My Details'}</h2>
+      <h2 className="tab-title">{t('acMyDetails')}</h2>
       <div className="profile-form">
         <div className="form-row">
-          <label className="form-label">{lang === 'el' ? 'Ονοματεπώνυμο' : 'Full Name'}</label>
+          <label className="form-label">{t('fullName')}</label>
           <input
             className={`form-input${nameInvalid ? ' is-invalid' : ''}`}
             type="text"
@@ -248,7 +249,7 @@ function ProfileTab({ user, lang }: any) {
           <input className="form-input" type="email" value={email} disabled style={{ opacity: 0.6 }} />
         </div>
         <div className="form-row">
-          <label className="form-label">{lang === 'el' ? 'Τηλέφωνο' : 'Phone'}</label>
+          <label className="form-label">{t('acPhone')}</label>
           <PhoneInput
             className={`co-phone-input${phoneInvalid ? ' is-invalid' : ''}`}
             international
@@ -264,15 +265,15 @@ function ProfileTab({ user, lang }: any) {
           />
           {phoneInvalid && (
             <div className="form-hint form-hint-error">
-              {lang === 'el' ? 'Μη έγκυρος αριθμός τηλεφώνου' : 'Invalid phone number'}
+              {t('acInvalidPhone')}
             </div>
           )}
         </div>
       </div>
       <button className="btn-save-green" onClick={handleSave} disabled={saving}>
         {saving ? '...' : saved
-          ? (lang === 'el' ? '✓ Αποθηκεύτηκε' : '✓ Saved')
-          : (lang === 'el' ? 'Αποθήκευση' : 'Save')}
+          ? t('acSavedCheck')
+          : t('saveAddr')}
       </button>
 
       <SetPasswordSection lang={lang} />
@@ -285,7 +286,7 @@ function ProfileTab({ user, lang }: any) {
 ─────────────────────────────────────────────────────────────────────────── */
 
 function SetPasswordSection({ lang }: { lang: 'el' | 'en' }) {
-  const isEl = lang === 'el'
+  const t = makeTr(lang)
   const [open, setOpen] = useState(false)
   const [pwd, setPwd] = useState('')
   const [pwd2, setPwd2] = useState('')
@@ -295,11 +296,11 @@ function SetPasswordSection({ lang }: { lang: 'el' | 'en' }) {
   async function handleSave() {
     setMsg(null)
     if (pwd.length < 6) {
-      setMsg({ type: 'err', text: isEl ? 'Τουλάχιστον 6 χαρακτήρες' : 'At least 6 characters' })
+      setMsg({ type: 'err', text: t('acPwdMin6') })
       return
     }
     if (pwd !== pwd2) {
-      setMsg({ type: 'err', text: isEl ? 'Οι κωδικοί δεν ταιριάζουν' : 'Passwords do not match' })
+      setMsg({ type: 'err', text: t('acPwdMismatch') })
       return
     }
     setBusy(true)
@@ -307,7 +308,7 @@ function SetPasswordSection({ lang }: { lang: 'el' | 'en' }) {
     const { ok, error } = await updatePassword(pwd)
     setBusy(false)
     if (!ok) { setMsg({ type: 'err', text: error ?? 'Could not save password' }); return }
-    setMsg({ type: 'ok', text: isEl ? '✓ Ο κωδικός αποθηκεύτηκε' : '✓ Password saved' })
+    setMsg({ type: 'ok', text: t('acPwdSaved') })
     setPwd(''); setPwd2('')
     setTimeout(() => setMsg(null), 3000)
   }
@@ -317,17 +318,15 @@ function SetPasswordSection({ lang }: { lang: 'el' | 'en' }) {
       <div className="set-password-head">
         <div>
           <div className="set-password-title">
-            {isEl ? 'Κωδικός σύνδεσης' : 'Sign-in password'}
+            {t('acSignInPassword')}
           </div>
           <div className="set-password-desc">
-            {isEl
-              ? 'Προαιρετικός. Με κωδικό συνδέεσαι ταχύτερα από συσκευή που σε θυμάται.'
-              : 'Optional. Lets you sign in faster on devices that remember you.'}
+            {t('acSignInPasswordDesc')}
           </div>
         </div>
         {!open && (
           <button className="btn-link-green" type="button" onClick={() => setOpen(true)}>
-            {isEl ? 'Ορισμός / αλλαγή' : 'Set / change'}
+            {t('acSetChange')}
           </button>
         )}
       </div>
@@ -335,7 +334,7 @@ function SetPasswordSection({ lang }: { lang: 'el' | 'en' }) {
       {open && (
         <div className="set-password-form">
           <div className="form-row">
-            <label className="form-label">{isEl ? 'Νέος κωδικός' : 'New password'}</label>
+            <label className="form-label">{t('acNewPassword')}</label>
             <input
               className="form-input"
               type="password"
@@ -347,7 +346,7 @@ function SetPasswordSection({ lang }: { lang: 'el' | 'en' }) {
             />
           </div>
           <div className="form-row">
-            <label className="form-label">{isEl ? 'Επιβεβαίωση' : 'Confirm'}</label>
+            <label className="form-label">{t('acConfirm')}</label>
             <input
               className="form-input"
               type="password"
@@ -365,14 +364,14 @@ function SetPasswordSection({ lang }: { lang: 'el' | 'en' }) {
           )}
           <div className="set-password-actions">
             <button className="btn-save-green" type="button" onClick={handleSave} disabled={busy || !pwd || !pwd2}>
-              {busy ? '...' : (isEl ? 'Αποθήκευση' : 'Save')}
+              {busy ? '...' : t('saveAddr')}
             </button>
             <button
               className="btn-link-muted"
               type="button"
               onClick={() => { setOpen(false); setPwd(''); setPwd2(''); setMsg(null) }}
             >
-              {isEl ? 'Άκυρο' : 'Cancel'}
+              {t('acCancelShort')}
             </button>
           </div>
         </div>
@@ -518,12 +517,10 @@ function PrefsTab({ user, lang, updatePrefs }: any) {
           </svg>
           <div>
             <div className="prefs-section-title">
-              {lang === 'el' ? 'Γλώσσα' : 'Language'}
+              {t('languageLbl')}
             </div>
             <div className="prefs-section-desc">
-              {lang === 'el'
-                ? 'Η προεπιλεγμένη γλώσσα για όταν συνδέεσαι.'
-                : 'Default language when you sign in.'}
+              {t('acLangDefaultDesc')}
             </div>
           </div>
         </div>
@@ -558,7 +555,7 @@ function PrefsTab({ user, lang, updatePrefs }: any) {
         </div>
         <div className="prefs-list">
           <div className="extra-row">
-            <span className="extra-label">{lang === 'el' ? 'Ενεργοποίηση στη σελίδα' : 'Enable on page'}</span>
+            <span className="extra-label">{t('acEnableOnPage')}</span>
             <Toggle
               checked={prefs.goalTracking ?? false}
               onChange={(v) => setPrefs({ ...prefs, goalTracking: v })}
@@ -568,7 +565,7 @@ function PrefsTab({ user, lang, updatePrefs }: any) {
       </div>
 
       <button className="btn-save-green" onClick={handleSave} disabled={saving}>
-        {saving ? '...' : saved ? (lang === 'el' ? '✓ Αποθηκεύτηκαν' : '✓ Saved') : (lang === 'el' ? 'Αποθήκευση' : 'Save')}
+        {saving ? '...' : saved ? t('acSavedCheckPlural') : t('saveAddr')}
       </button>
     </div>
   )
@@ -579,6 +576,7 @@ function PrefsTab({ user, lang, updatePrefs }: any) {
 ═══════════════════════════════════════════════════════════════════════════════ */
 
 function WalletTab({ user, lang }: any) {
+  const t = makeTr(lang)
   const wallet = user.wallet
   const goToWalletPage = useUIStore((s) => s.goToWalletPage)
   const closeAccount = useUIStore((s) => s.closeAccount)
@@ -590,15 +588,13 @@ function WalletTab({ user, lang }: any) {
         <div className="aw-empty">
           <div className="aw-empty-icon">👛</div>
           <div className="aw-empty-title">
-            {lang === 'el' ? 'Δεν έχεις ακόμα πορτοφόλι' : "You don't have a wallet yet"}
+            {t('acNoWalletYet')}
           </div>
           <div className="aw-empty-desc">
-            {lang === 'el'
-              ? 'Ξεκίνα μια συνδρομή και κέρδισε bonus credits σε κάθε αναπλήρωση!'
-              : 'Start a subscription and earn bonus credits on every top-up!'}
+            {t('acNoWalletDesc')}
           </div>
           <button className="aw-btn aw-btn-topup" onClick={() => { closeAccount(); setTimeout(() => goToWalletPage(), 300) }}>
-            {lang === 'el' ? 'Ξεκίνα τη συνδρομή →' : 'Start subscription →'}
+            {t('acStartSubscription')}
           </button>
         </div>
       </div>
@@ -617,9 +613,9 @@ function WalletTab({ user, lang }: any) {
 
   return (
     <div className="tab-section">
-      <h2 className="tab-title">{lang === 'el' ? 'Πορτοφόλι Fitpal' : 'Fitpal Wallet'}</h2>
+      <h2 className="tab-title">{t('acWalletTitle')}</h2>
       <div className="acct-wallet-card">
-        <div className="aw-label">{lang === 'el' ? 'Διαθέσιμο υπόλοιπο' : 'Available balance'}</div>
+        <div className="aw-label">{t('acAvailableBalance')}</div>
         <div className="aw-balance">€{wallet.balance.toFixed(2)}</div>
         <div className="aw-detail">
           {lang === 'el'
@@ -631,8 +627,8 @@ function WalletTab({ user, lang }: any) {
             <rect x="2" y="5" width="20" height="14" rx="2"/><path d="M16 12h.01"/><path d="M2 10h20"/>
           </svg>
           {plan ? (lang === 'el' ? plan.nameEl : plan.nameEn) : wallet.planId} · {wallet.autoRenew
-            ? (lang === 'el' ? 'Αυτόματη ανανέωση' : 'Auto-renewal')
-            : (lang === 'el' ? 'Χειροκίνητη ανανέωση' : 'Manual renewal')}
+            ? t('acAutoRenewal')
+            : t('acManualRenewal')}
         </div>
         {renewDate && (
           <div className="aw-detail" style={{ marginTop: 6 }}>
@@ -640,14 +636,14 @@ function WalletTab({ user, lang }: any) {
           </div>
         )}
         <div className="aw-actions">
-          <button className="aw-btn aw-btn-topup">{lang === 'el' ? 'Αναπλήρωση' : 'Top up'}</button>
+          <button className="aw-btn aw-btn-topup">{t('acTopUp')}</button>
           <button className="aw-btn aw-btn-manage" onClick={() => { closeAccount(); setTimeout(() => goToWalletPage(), 300) }}>
-            {lang === 'el' ? 'Αλλαγή πλάνου' : 'Change plan'}
+            {t('acChangePlan')}
           </button>
         </div>
       </div>
       <div className="aw-history">
-        <div className="aw-history-title">{lang === 'el' ? 'Ιστορικό συναλλαγών' : 'Transaction history'}</div>
+        <div className="aw-history-title">{t('acTransactionHistory')}</div>
         {wallet.transactions && wallet.transactions.length > 0 ? (
           wallet.transactions.map((tx: any, i: number) => {
             const isCredit = tx.type === 'credit' || tx.amount > 0
@@ -667,7 +663,7 @@ function WalletTab({ user, lang }: any) {
             )
           })
         ) : (
-          <div className="aw-empty-txns">{lang === 'el' ? 'Δεν υπάρχουν συναλλαγές ακόμα' : 'No transactions yet'}</div>
+          <div className="aw-empty-txns">{t('acNoTransactions')}</div>
         )}
       </div>
     </div>
@@ -679,6 +675,7 @@ function WalletTab({ user, lang }: any) {
 ═══════════════════════════════════════════════════════════════════════════════ */
 
 function AddressesTab({ user, lang, updateAddresses, onGoToPrefs }: any) {
+  const t = makeTr(lang)
   const addresses: Address[] = user.addresses ?? []
   const [editing, setEditing] = useState<string | null>(null)
   const [showAdd, setShowAdd] = useState(false)
@@ -687,9 +684,7 @@ function AddressesTab({ user, lang, updateAddresses, onGoToPrefs }: any) {
   const [form, setForm] = useState(emptyAddr)
 
   const handleDelete = async (id: string) => {
-    const msg = lang === 'el'
-      ? 'Είστε σίγουροι ότι θέλετε να διαγράψετε αυτή τη διεύθυνση;'
-      : 'Are you sure you want to delete this address?'
+    const msg = t('acConfirmDeleteAddress')
     if (!window.confirm(msg)) return
     setSaving(true)
     // Legacy local-only addresses (`'a' + Date.now()` ids from the old
@@ -770,19 +765,19 @@ function AddressesTab({ user, lang, updateAddresses, onGoToPrefs }: any) {
     <div className="addr-form">
       <div className="addr-form-row">
         <div className="form-row">
-          <label className="form-label">{lang === 'el' ? 'Ετικέτα' : 'Label'}</label>
+          <label className="form-label">{t('acLabel')}</label>
           {/* WEC-134: title-size input so the user feels they're naming
               the address rather than filling a side field. */}
           <input
             className="form-input form-input-title"
-            placeholder={lang === 'el' ? 'π.χ. Σπίτι, Γραφείο, Γιαγιά' : 'e.g. Home, Office, Grandma'}
+            placeholder={t('acLabelPlaceholder')}
             value={lang === 'el' ? form.labelEl : form.labelEn}
             onChange={(e) => setForm({ ...form, [lang === 'el' ? 'labelEl' : 'labelEn']: e.target.value })}
           />
         </div>
       </div>
       <div className="form-row">
-        <label className="form-label">{lang === 'el' ? 'Οδός & Αριθμός' : 'Street & Number'}</label>
+        <label className="form-label">{t('street')}</label>
         {googleMapsAvailable() ? (
           <PlacesAutocomplete
             className="form-input"
@@ -794,44 +789,44 @@ function AddressesTab({ user, lang, updateAddresses, onGoToPrefs }: any) {
               area: p.area || form.area,
               zip: p.zip || form.zip,
             })}
-            placeholder={lang === 'el' ? 'π.χ. Λεωφ. Κηφισίας 45' : 'e.g. 45 Kifisias Ave'}
+            placeholder={t('acStreetPlaceholder')}
             country="gr"
           />
         ) : (
-          <input className="form-input" placeholder={lang === 'el' ? 'π.χ. Λεωφ. Κηφισίας 45' : 'e.g. 45 Kifisias Ave'}
+          <input className="form-input" placeholder={t('acStreetPlaceholder')}
             value={form.street} onChange={(e) => setForm({ ...form, street: e.target.value })} />
         )}
       </div>
       <div className="addr-form-2col">
         <div className="form-row">
-          <label className="form-label">{lang === 'el' ? 'Τ.Κ.' : 'Postcode'}</label>
+          <label className="form-label">{t('acPostcodeDotted')}</label>
           <input className="form-input" value={form.zip} onChange={(e) => setForm({ ...form, zip: e.target.value })} />
         </div>
         <div className="form-row">
-          <label className="form-label">{lang === 'el' ? 'Πόλη' : 'City'}</label>
+          <label className="form-label">{t('city')}</label>
           <input className="form-input" value={form.area} onChange={(e) => setForm({ ...form, area: e.target.value })} />
         </div>
       </div>
       <div className="addr-form-2col">
         <div className="form-row">
-          <label className="form-label">{lang === 'el' ? 'Όροφος' : 'Floor'}</label>
+          <label className="form-label">{t('floor')}</label>
           <input className="form-input" value={form.floor} onChange={(e) => setForm({ ...form, floor: e.target.value })} />
         </div>
         <div className="form-row">
-          <label className="form-label">{lang === 'el' ? 'Κουδούνι' : 'Doorbell'}</label>
+          <label className="form-label">{t('doorbell')}</label>
           <input className="form-input" value={form.doorbell} onChange={(e) => setForm({ ...form, doorbell: e.target.value })} />
         </div>
       </div>
       <div className="form-row">
-        <label className="form-label">{lang === 'el' ? 'Σημειώσεις παράδοσης' : 'Delivery notes'}</label>
+        <label className="form-label">{t('acDeliveryNotes')}</label>
         <input className="form-input" value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} />
       </div>
       <div className="addr-form-actions">
         <button className="btn-save-green" onClick={onSave} disabled={saving}>
-          {saving ? '...' : (lang === 'el' ? 'Αποθήκευση' : 'Save')}
+          {saving ? '...' : t('saveAddr')}
         </button>
         <button className="btn-cancel" onClick={() => { setEditing(null); setShowAdd(false) }} disabled={saving}>
-          {lang === 'el' ? 'Ακύρωση' : 'Cancel'}
+          {t('acCancel')}
         </button>
       </div>
     </div>
@@ -839,7 +834,7 @@ function AddressesTab({ user, lang, updateAddresses, onGoToPrefs }: any) {
 
   return (
     <div className="tab-section">
-      <h2 className="tab-title">{lang === 'el' ? 'Οι Διευθύνσεις μου' : 'My Addresses'}</h2>
+      <h2 className="tab-title">{t('acMyAddresses')}</h2>
       {/* WEC-210: discoverability affordance. Saved addresses are only
           auto-selected at checkout via per-weekday preferences (user_day_prefs).
           Per Ioustinos's 2026-06-27 decision we do NOT introduce a separate
@@ -854,12 +849,10 @@ function AddressesTab({ user, lang, updateAddresses, onGoToPrefs }: any) {
           color: 'var(--green)', cursor: 'pointer', font: 'inherit', textAlign: 'left',
         }}
       >
-        {lang === 'el'
-          ? 'Θέλεις μια διεύθυνση να προεπιλέγεται αυτόματα ανά ημέρα; Ρύθμισέ το στις Προτιμήσεις →'
-          : 'Want an address auto-selected per day? Set it in Preferences →'}
+        {t('acAddrPrefsLink')}
       </button>
       {addresses.length === 0 && !showAdd ? (
-        <p className="tab-empty">{lang === 'el' ? 'Δεν υπάρχουν αποθηκευμένες διευθύνσεις.' : 'No saved addresses.'}</p>
+        <p className="tab-empty">{t('acNoSavedAddresses')}</p>
       ) : (
         <div className="addr-list">
           {addresses.map((addr) => (
@@ -879,9 +872,9 @@ function AddressesTab({ user, lang, updateAddresses, onGoToPrefs }: any) {
                         <div className="addr-detail-row">
                           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--text-muted)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 3v18M3 9h6M3 15h6"/></svg>
                           <span>
-                            {addr.floor && <>{lang === 'el' ? 'Όροφος' : 'Floor'}: {addr.floor}</>}
+                            {addr.floor && <>{t('floor')}: {addr.floor}</>}
                             {addr.floor && addr.doorbell && ' · '}
-                            {addr.doorbell && <>{lang === 'el' ? 'Κουδούνι' : 'Doorbell'}: {addr.doorbell}</>}
+                            {addr.doorbell && <>{t('doorbell')}: {addr.doorbell}</>}
                           </span>
                         </div>
                       )}
@@ -896,11 +889,11 @@ function AddressesTab({ user, lang, updateAddresses, onGoToPrefs }: any) {
                   <div className="addr-card-actions">
                     <button className="addr-action-btn" onClick={() => handleEdit(addr)}>
                       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
-                      {lang === 'el' ? 'Επεξεργασία' : 'Edit'}
+                      {t('acEdit')}
                     </button>
                     <button className="addr-action-btn danger" onClick={() => handleDelete(addr.id)}>
                       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/><path d="M10 11v6M14 11v6"/></svg>
-                      {lang === 'el' ? 'Διαγραφή' : 'Delete'}
+                      {t('acDelete')}
                     </button>
                   </div>
                 </div>
@@ -912,12 +905,12 @@ function AddressesTab({ user, lang, updateAddresses, onGoToPrefs }: any) {
 
       {showAdd ? (
         <div className="addr-card new-addr-card">
-          <h3 className="addr-new-title">{lang === 'el' ? '+ Νέα Διεύθυνση' : '+ New Address'}</h3>
+          <h3 className="addr-new-title">{t('newAddress')}</h3>
           {renderForm(true, handleAdd)}
         </div>
       ) : (
         <button className="btn-add-addr" onClick={() => { setForm(emptyAddr); setShowAdd(true) }}>
-          {lang === 'el' ? '+ Νέα Διεύθυνση' : '+ New Address'}
+          {t('newAddress')}
         </button>
       )}
     </div>
@@ -975,7 +968,7 @@ function GoalsTab({ user, lang, updateGoals }: any) {
           onChange={(v) => setGoals({ ...goals, enabled: v })}
         />
         <div>
-          <div className="goals-enable-label">{lang === 'el' ? 'Ενεργοποίηση στόχων' : 'Enable goals'}</div>
+          <div className="goals-enable-label">{t('acEnableGoals')}</div>
           <div className="goals-enable-desc">{t('goalsDesc')}</div>
         </div>
       </div>
@@ -1019,7 +1012,7 @@ function GoalsTab({ user, lang, updateGoals }: any) {
       </div>
 
       <button className="btn-save-green" onClick={handleSave} disabled={saving}>
-        {saving ? '...' : saved ? (lang === 'el' ? '✓ Αποθηκεύτηκαν' : '✓ Saved') : (lang === 'el' ? 'Αποθήκευση' : 'Save')}
+        {saving ? '...' : saved ? t('acSavedCheckPlural') : t('saveAddr')}
       </button>
 
       {/* ── Intake history — always visible for users with orders (WEC-80
@@ -1142,7 +1135,7 @@ function GoalsHistory({ user, goals, lang, t }: { user: any; goals: any; lang: '
         ? `${pastBuckets.length} ημέρες · ${forecastBuckets.length} πρόβλεψη`
         : `${pastBuckets.length} days · ${forecastBuckets.length} forecast`)
     : (pastBuckets.length === 1
-        ? (lang === 'el' ? '1 ημέρα' : '1 day')
+        ? t('acOneDay')
         : (lang === 'el' ? `${pastBuckets.length} ημέρες` : `${pastBuckets.length} days`))
 
   const macroBars: Array<{ k: 'cal' | 'protein' | 'carbs' | 'fat'; icon: React.ReactElement; short: { el: string; en: string } }> = [
@@ -1157,7 +1150,7 @@ function GoalsHistory({ user, goals, lang, t }: { user: any; goals: any; lang: '
       <h3 className="tab-subtitle">
         {showGoalBars
           ? t('goalIntakeHistory')
-          : (lang === 'el' ? 'Διατροφική πρόσληψη' : 'Nutritional intake')}
+          : t('acNutritionalIntake')}
       </h3>
 
       <DateRangeFilter
@@ -1215,7 +1208,7 @@ function GoalsHistory({ user, goals, lang, t }: { user: any; goals: any; lang: '
       {/* Daily rows */}
       {filteredBuckets.length === 0 ? (
         <p className="tab-empty" style={{ marginTop: 12 }}>
-          {lang === 'el' ? 'Κανένα δεδομένο στο επιλεγμένο διάστημα.' : 'No data in the selected range.'}
+          {t('acNoDataInRange')}
         </p>
       ) : (
         <div className="goals-history-list">
@@ -1230,7 +1223,7 @@ function GoalsHistory({ user, goals, lang, t }: { user: any; goals: any; lang: '
                   <span className="gh-day-date">{dateLabel}</span>
                   {b.forecast && (
                     <span className="gh-forecast-pill">
-                      {lang === 'el' ? 'Πρόβλεψη' : 'Forecast'}
+                      {t('acForecast')}
                     </span>
                   )}
                 </div>
@@ -1245,10 +1238,10 @@ function GoalsHistory({ user, goals, lang, t }: { user: any; goals: any; lang: '
                     carb={b.macros.carbs}
                     fat={b.macros.fat}
                     labels={{
-                      kcal: lang === 'el' ? 'Θερμίδες' : 'Calories',
-                      pro:  lang === 'el' ? 'Πρωτ.'    : 'Protein',
-                      carb: lang === 'el' ? 'Υδατ.'    : 'Carbs',
-                      fat:  lang === 'el' ? 'Λιπαρά'   : 'Fat',
+                      kcal: t('goalCalories'),
+                      pro:  t('acProteinAbbr'),
+                      carb: t('acCarbsAbbr'),
+                      fat:  t('acFatLong'),
                     }}
                   />
                   {showGoalBars && (
@@ -1284,6 +1277,7 @@ function GoalsHistory({ user, goals, lang, t }: { user: any; goals: any; lang: '
 ═══════════════════════════════════════════════════════════════════════════════ */
 
 function OrdersTab({ user, lang }: any) {
+  const t = makeTr(lang)
   const orders = user.orders ?? []
   const [expanded, setExpanded] = useState<string | null>(null)
   const [expandedDays, setExpandedDays] = useState<Record<string, boolean>>({})
@@ -1318,14 +1312,14 @@ function OrdersTab({ user, lang }: any) {
   function setTo(v: string) { setCustomTo(v); setPage(1) }
 
   const summary = filtered.length === 1
-    ? (lang === 'el' ? '1 παραγγελία' : '1 order')
+    ? t('acOneOrder')
     : (lang === 'el' ? `${filtered.length} παραγγελίες` : `${filtered.length} orders`)
 
   return (
     <div className="tab-section">
-      <h2 className="tab-title">{lang === 'el' ? 'Οι Παραγγελίες μου' : 'My Orders'}</h2>
+      <h2 className="tab-title">{t('myOrders')}</h2>
       {orders.length === 0 ? (
-        <p className="tab-empty">{lang === 'el' ? 'Δεν υπάρχουν παραγγελίες.' : 'No orders yet.'}</p>
+        <p className="tab-empty">{t('acNoOrdersYet')}</p>
       ) : (
         <>
           <DateRangeFilter
@@ -1338,7 +1332,7 @@ function OrdersTab({ user, lang }: any) {
             summary={summary}
           />
           {filtered.length === 0 ? (
-            <p className="tab-empty">{lang === 'el' ? 'Καμία παραγγελία στο επιλεγμένο διάστημα.' : 'No orders in the selected range.'}</p>
+            <p className="tab-empty">{t('acNoOrdersInRange')}</p>
           ) : (
         <div className="orders-list">
           {pageOrders.map((order: any) => {
@@ -1375,9 +1369,9 @@ function OrdersTab({ user, lang }: any) {
                 {isOpen && (
                   <div className="order-card-body">
                     <div className="order-summary-line">
-                      <span>📅 {totalDays} {lang === 'el' ? 'ημέρες' : 'days'}</span>
+                      <span>📅 {totalDays} {t('acDays')}</span>
                       <span>·</span>
-                      <span>🍽 {totalItems} {lang === 'el' ? 'πιάτα' : 'dishes'}</span>
+                      <span>🍽 {totalItems} {t('acDishes')}</span>
                       <span>·</span>
                       <span>💳 {paymentLabel}</span>
                     </div>
@@ -1387,7 +1381,7 @@ function OrdersTab({ user, lang }: any) {
                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                           <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/>
                         </svg>
-                        {lang === 'el' ? 'Αίτημα αλλαγής' : 'Request change'}
+                        {t('acRequestChange')}
                       </button>
                     )}
 
@@ -1427,10 +1421,10 @@ function OrdersTab({ user, lang }: any) {
                                   val: number
                                   unit?: string
                                 }> = [
-                                  { cls: 'cal',     key: 'cal',     icon: 'cal',  label: lang === 'el' ? 'Θερμίδες' : 'Calories',     val: child.macros.cal },
-                                  { cls: 'carbs',   key: 'carbs',   icon: 'carb', label: lang === 'el' ? 'Υδατάνθρακες' : 'Carbs',   val: child.macros.carbs,   unit: 'g' },
-                                  { cls: 'protein', key: 'protein', icon: 'pro',  label: lang === 'el' ? 'Πρωτεΐνη' : 'Protein',     val: child.macros.protein, unit: 'g' },
-                                  { cls: 'fat',     key: 'fat',     icon: 'fat',  label: lang === 'el' ? 'Λιπαρά' : 'Fat',           val: child.macros.fat,     unit: 'g' },
+                                  { cls: 'cal',     key: 'cal',     icon: 'cal',  label: t('goalCalories'),     val: child.macros.cal },
+                                  { cls: 'carbs',   key: 'carbs',   icon: 'carb', label: t('goalCarbs'),   val: child.macros.carbs,   unit: 'g' },
+                                  { cls: 'protein', key: 'protein', icon: 'pro',  label: t('goalProtein'),     val: child.macros.protein, unit: 'g' },
+                                  { cls: 'fat',     key: 'fat',     icon: 'fat',  label: t('acFatLong'),           val: child.macros.fat,     unit: 'g' },
                                 ]
                                 return (
                                   <div className={`order-macros-row${withBars ? '' : ' order-macros-row--numbers-only'}`}>
@@ -1513,6 +1507,7 @@ function OrdersTab({ user, lang }: any) {
  */
 function DietTab({ user, lang }: { user: any; lang: 'el' | 'en' }) {
   const isEl = lang === 'el'
+  const t = makeTr(lang)
   const dietCatalog = useMenuStore((s) => s.dietCatalog)
   const updateDiet = useAuthStore((s) => s.updateDiet)
 
@@ -1581,7 +1576,7 @@ function DietTab({ user, lang }: { user: any; lang: 'el' | 'en' }) {
     ])
     if (a.error || b.error) { setErr(a.error ?? b.error ?? 'Save failed'); return }
     updateDiet({ allergyIds: [...allergyIds], avoidedIngredientIds: [...avoidedIds] })
-    setSavingMsg(isEl ? 'Αποθηκεύτηκε.' : 'Saved.')
+    setSavingMsg(t('acSavedDot'))
     setTimeout(() => setSavingMsg(null), 1800)
   }
 
@@ -1594,11 +1589,9 @@ function DietTab({ user, lang }: { user: any; lang: 'el' | 'en' }) {
   return (
     <div className="tab-pane">
       <div className="tab-head">
-        <h2>{isEl ? 'Διατροφή & αλλεργίες' : 'Diet & allergies'}</h2>
+        <h2>{t('acDietAllergiesTitle')}</h2>
         <p className="tab-sub">
-          {isEl
-            ? 'Επίλεξε τις αλλεργίες σου και συγκεκριμένα συστατικά που δεν θέλεις να καταναλώνεις. Θα σου επισημαίνουμε διακριτικά τα πιάτα που σε αφορούν.'
-            : 'Pick your allergies and any ingredients you want to avoid. We will flag matching dishes for you discreetly.'}
+          {t('acDietAllergiesSub')}
         </p>
       </div>
 
@@ -1607,17 +1600,13 @@ function DietTab({ user, lang }: { user: any; lang: 'el' | 'en' }) {
 
       {/* Allergies */}
       <section className="diet-section">
-        <h3>{isEl ? 'Αλλεργίες' : 'Allergies'}</h3>
+        <h3>{t('acAllergies')}</h3>
         <p className="diet-section-sub">
-          {isEl
-            ? 'Οι αλλεργίες συνδέονται με συστατικά — όταν διαλέξεις μια αλλεργία, επισημαίνουμε κάθε πιάτο που περιέχει συστατικά αυτής της κατηγορίας.'
-            : 'Allergies are tied to ingredients — picking one flags every dish whose recipe contains matching ingredients.'}
+          {t('acAllergiesSub')}
         </p>
         {allergies.length === 0 ? (
           <div className="diet-empty">
-            {isEl
-              ? 'Δεν υπάρχουν διαθέσιμες αλλεργίες ακόμα.'
-              : 'No allergies configured yet.'}
+            {t('acNoAllergiesConfigured')}
           </div>
         ) : (
           <div className="diet-allergy-grid">
@@ -1640,11 +1629,9 @@ function DietTab({ user, lang }: { user: any; lang: 'el' | 'en' }) {
 
       {/* Avoided ingredients */}
       <section className="diet-section">
-        <h3>{isEl ? 'Συστατικά προς αποφυγή' : 'Ingredients to avoid'}</h3>
+        <h3>{t('acIngredientsToAvoid')}</h3>
         <p className="diet-section-sub">
-          {isEl
-            ? 'Συγκεκριμένα συστατικά που δεν θέλεις στο πιάτο σου (γεύση, θρησκευτικοί λόγοι, ό,τι άλλο).'
-            : 'Specific ingredients you do not want on your plate (taste, religious reasons, anything else).'}
+          {t('acIngredientsToAvoidSub')}
         </p>
 
         {avoidedIds.length > 0 && (
@@ -1658,7 +1645,7 @@ function DietTab({ user, lang }: { user: any; lang: 'el' | 'en' }) {
                   type="button"
                   className="diet-chip"
                   onClick={() => removeAvoided(id)}
-                  title={isEl ? 'Αφαίρεση' : 'Remove'}
+                  title={t('voucherRemove')}
                 >
                   {label}
                   <span aria-hidden="true" style={{ marginLeft: 6 }}>×</span>
@@ -1673,14 +1660,14 @@ function DietTab({ user, lang }: { user: any; lang: 'el' | 'en' }) {
           type="text"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          placeholder={isEl ? 'Αναζήτησε συστατικό…' : 'Search for an ingredient…'}
+          placeholder={t('acSearchIngredient')}
           disabled={optionsLoading}
         />
         {search.trim() && (
           <div className="diet-suggestions">
             {ingredientMatches.length === 0 ? (
               <div className="diet-empty" style={{ marginTop: 8 }}>
-                {isEl ? 'Δεν βρέθηκε κανένα συστατικό.' : 'No ingredients matched.'}
+                {t('acNoIngredientsMatched')}
               </div>
             ) : (
               ingredientMatches.map((i) => (
@@ -1708,7 +1695,7 @@ function DietTab({ user, lang }: { user: any; lang: 'el' | 'en' }) {
         <button className="btn-save-green" disabled={!dirty} onClick={save}>
           {savingMsg
             ? '...'
-            : (isEl ? 'Αποθήκευση' : 'Save')}
+            : t('saveAddr')}
         </button>
         {err && <div className="tab-err" role="alert">{err}</div>}
       </div>
@@ -1742,6 +1729,7 @@ function SubscriptionTab({ user, lang }: any) {
   const goToWalletPage = useUIStore((s) => s.goToWalletPage)
   const closeAccount = useUIStore((s) => s.closeAccount)
   const isEl = lang === 'el'
+  const t = makeTr(lang)
 
   // Empty state — no active subscription. Mirrors WalletTab's empty
   // pattern (same .aw-* classes) so guests see consistent treatment
@@ -1755,22 +1743,20 @@ function SubscriptionTab({ user, lang }: any) {
   if (!wallet?.planId) {
     return (
       <div className="tab-section">
-        <h2 className="tab-title">{isEl ? 'Η συνδρομή μου' : 'My subscription'}</h2>
+        <h2 className="tab-title">{t('acMySubscription')}</h2>
         <div className="aw-empty">
           <div className="aw-empty-icon">🎯</div>
           <div className="aw-empty-title">
-            {isEl ? 'Δεν έχεις συνδρομή ακόμα' : "You don't have a subscription yet"}
+            {t('acNoSubscriptionYet')}
           </div>
           <div className="aw-empty-desc">
-            {isEl
-              ? 'Φτιάξε ένα εξατομικευμένο πλάνο και κέρδισε bonus credits σε κάθε ανανέωση.'
-              : 'Build a personalised plan and earn bonus credits on every renewal.'}
+            {t('acNoSubscriptionDesc')}
           </div>
           <button
             className="aw-btn aw-btn-topup"
             onClick={() => { closeAccount(); setTimeout(() => goToWalletPage(), 300) }}
           >
-            {isEl ? 'Φτιάξε το πλάνο σου →' : 'Build your plan →'}
+            {t('acBuildYourPlan')}
           </button>
         </div>
       </div>
@@ -1784,7 +1770,7 @@ function SubscriptionTab({ user, lang }: any) {
     (isEl ? wallet.planEl : wallet.planEn) ??
     (legacyPlan ? (isEl ? legacyPlan.nameEl : legacyPlan.nameEn) : undefined) ??
     wallet.planId ??
-    (isEl ? 'Συνδρομή' : 'Subscription')
+    t('acSubscriptionFallback')
 
   // Date formatter — same shape WalletTab uses for parity.
   const fmtDate = (iso?: string | null) => {
@@ -1832,7 +1818,7 @@ function SubscriptionTab({ user, lang }: any) {
 
   return (
     <div className="tab-section">
-      <h2 className="tab-title">{isEl ? 'Η συνδρομή μου' : 'My subscription'}</h2>
+      <h2 className="tab-title">{t('acMySubscription')}</h2>
 
       {/* HERO — plan name + active badge + key dates inline */}
       <div className="subs-hero">
@@ -1840,22 +1826,22 @@ function SubscriptionTab({ user, lang }: any) {
           <div className="subs-hero-name">{planName}</div>
           <span className="subs-status subs-status-active">
             <span className="subs-status-dot" />
-            {isEl ? 'Ενεργή' : 'Active'}
+            {t('acActive')}
           </span>
         </div>
         <div className="subs-hero-meta">
           <div className="subs-meta-item">
-            <span className="subs-meta-label">{isEl ? 'Έναρξη' : 'Start'}</span>
+            <span className="subs-meta-label">{t('acStart')}</span>
             <span className="subs-meta-value">{startDateStr ?? TODO_DASH}</span>
           </div>
           <div className="subs-meta-divider" aria-hidden />
           <div className="subs-meta-item">
-            <span className="subs-meta-label">{isEl ? 'Επόμενη ανανέωση' : 'Next renewal'}</span>
+            <span className="subs-meta-label">{t('acNextRenewal')}</span>
             <span className="subs-meta-value">{renewDate ?? TODO_DASH}</span>
           </div>
           <div className="subs-meta-divider" aria-hidden />
           <div className="subs-meta-item">
-            <span className="subs-meta-label">{isEl ? 'Bonus λήγει' : 'Bonus expires'}</span>
+            <span className="subs-meta-label">{t('acBonusExpires')}</span>
             <span className="subs-meta-value">{bonusExpiresStr ?? TODO_DASH}</span>
           </div>
         </div>
@@ -1865,11 +1851,11 @@ function SubscriptionTab({ user, lang }: any) {
       <div className="subs-grid">
         <div className="subs-card">
           <div className="subs-card-title">
-            {isEl ? 'Σύνθεση πλάνου' : 'Plan composition'}
+            {t('acPlanComposition')}
           </div>
           <div className="subs-rows">
             <div className="subs-row">
-              <span className="subs-row-key">{isEl ? 'Γεύματα' : 'Meals'}</span>
+              <span className="subs-row-key">{t('acMeals')}</span>
               <span className="subs-row-val">
                 {selectedMeals.length > 0 ? (
                   selectedMeals.map((m) => (
@@ -1881,15 +1867,15 @@ function SubscriptionTab({ user, lang }: any) {
               </span>
             </div>
             <div className="subs-row">
-              <span className="subs-row-key">{isEl ? 'Άτομα' : 'People'}</span>
+              <span className="subs-row-key">{t('acPeople')}</span>
               <span className="subs-row-val">{wallet.people ?? TODO_DASH}</span>
             </div>
             <div className="subs-row">
-              <span className="subs-row-key">{isEl ? 'Μέρες/εβδομάδα' : 'Days/week'}</span>
+              <span className="subs-row-key">{t('acDaysPerWeek')}</span>
               <span className="subs-row-val">{wallet.daysPerWeek ?? TODO_DASH}</span>
             </div>
             <div className="subs-row">
-              <span className="subs-row-key">{isEl ? 'Συχνότητα' : 'Frequency'}</span>
+              <span className="subs-row-key">{t('acFrequency')}</span>
               <span className="subs-row-val">{freqLabel ?? TODO_DASH}</span>
             </div>
           </div>
@@ -1897,27 +1883,27 @@ function SubscriptionTab({ user, lang }: any) {
 
         <div className="subs-card">
           <div className="subs-card-title">
-            {isEl ? 'Τιμή & Bonus' : 'Pricing & Bonus'}
+            {t('acPricingBonus')}
           </div>
           <div className="subs-rows">
             <div className="subs-row">
-              <span className="subs-row-key">{isEl ? 'Κόστος κύκλου' : 'Cycle cost'}</span>
+              <span className="subs-row-key">{t('acCycleCost')}</span>
               <span className="subs-row-val">{eur(cycleCost)}</span>
             </div>
             <div className="subs-row">
-              <span className="subs-row-key">{isEl ? 'Bonus' : 'Bonus'}</span>
+              <span className="subs-row-key">{t('acBonus')}</span>
               <span className="subs-row-val subs-emph">{pct(bonusPctValue)}</span>
             </div>
             <div className="subs-row">
-              <span className="subs-row-key">{isEl ? 'Σύνολο credits' : 'Total credits'}</span>
+              <span className="subs-row-key">{t('acTotalCredits')}</span>
               <span className="subs-row-val">{eur(cycleCredits)}</span>
             </div>
             <div className="subs-row">
-              <span className="subs-row-key">{isEl ? 'Αυτόματη ανανέωση' : 'Auto-renew'}</span>
+              <span className="subs-row-key">{t('acAutoRenew')}</span>
               <span className="subs-row-val">
                 {wallet.autoRenew
-                  ? (isEl ? 'Ναι' : 'Yes')
-                  : (isEl ? 'Όχι' : 'No')}
+                  ? t('acYes')
+                  : t('acNo')}
               </span>
             </div>
           </div>
@@ -1928,7 +1914,7 @@ function SubscriptionTab({ user, lang }: any) {
       <div className="subs-balance">
         <div className="subs-balance-left">
           <div className="subs-balance-label">
-            {isEl ? 'Υπόλοιπο πορτοφολιού' : 'Wallet balance'}
+            {t('acWalletBalance')}
           </div>
           <div className="subs-balance-amt">{eur(wallet.balance)}</div>
           <div className="subs-balance-split">
@@ -1942,16 +1928,14 @@ function SubscriptionTab({ user, lang }: any) {
             className="aw-btn aw-btn-topup"
             onClick={() => { closeAccount(); setTimeout(() => goToWalletPage(), 300) }}
           >
-            {isEl ? 'Αλλαγή πλάνου' : 'Change plan'}
+            {t('acChangePlan')}
           </button>
         </div>
       </div>
 
       {/* Help footer — no destructive actions in V1, just a note. */}
       <div className="subs-help">
-        {isEl
-          ? 'Για ακυρώσεις ή αλλαγές κύκλου, επικοινώνησε στο '
-          : 'For cancellations or cycle changes, contact '}
+        {t('acSubsHelpContact')}
         <a href="mailto:support@fitpal.gr">support@fitpal.gr</a>.
       </div>
     </div>

@@ -1,5 +1,6 @@
 import { useCartStore } from '../../store/useCartStore'
 import { useUIStore } from '../../store/useUIStore'
+import { makeTr } from '../../lib/translations'
 import { Toggle } from '../ui/Toggle'
 import { isValidGreekVat, vatDigits } from '../../lib/vat'
 
@@ -22,7 +23,7 @@ export function ExtrasSection({ attempted = false }: ExtrasSectionProps) {
   const lang = useUIStore((s) => s.lang)
   const payment = useCartStore((s) => s.payment)
   const setPayment = useCartStore((s) => s.setPayment)
-  const isEl = lang === 'el'
+  const t = makeTr(lang)
 
   // ── Validation rules ─────────────────────────────────────────────
   // Keep these in sync with CheckoutPage.tsx's `validationIssues` block.
@@ -47,7 +48,7 @@ export function ExtrasSection({ attempted = false }: ExtrasSectionProps) {
               <path d="M12 20h9" />
               <path d="M16.5 3.5a2.121 2.121 0 1 1 3 3L7 19l-4 1 1-4 12.5-12.5z" />
             </svg>
-            {isEl ? 'Σχόλια για την παραγγελία σας' : 'Notes for your order'}
+            {t('coOrderNotesLabel')}
           </label>
           <span className={`order-notes-counter${(payment.notes?.length ?? 0) >= 500 ? ' is-max' : ''}`}>
             {payment.notes?.length ?? 0} / 500
@@ -60,9 +61,7 @@ export function ExtrasSection({ attempted = false }: ExtrasSectionProps) {
           maxLength={500}
           onChange={(e) => setPayment({ notes: e.target.value.slice(0, 500) })}
           rows={2}
-          placeholder={isEl
-            ? 'π.χ. χτυπήστε δύο φορές το κουδούνι, αφήστε στη θυρωρό…'
-            : 'e.g. ring the bell twice, leave with the doorman…'}
+          placeholder={t('coOrderNotesPh')}
         />
       </div>
 
@@ -75,7 +74,7 @@ export function ExtrasSection({ attempted = false }: ExtrasSectionProps) {
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <path d="M3 11V7a9 9 0 0118 0v4"/><path d="M21 11H3l1 10h16z"/>
           </svg>
-          <span>{isEl ? 'Μαχαιροπίρουνα' : 'Cutlery'}</span>
+          <span>{t('coCutlery')}</span>
         </div>
         <Toggle
           checked={payment.cutlery ?? false}
@@ -88,7 +87,7 @@ export function ExtrasSection({ attempted = false }: ExtrasSectionProps) {
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/>
           </svg>
-          <span>{isEl ? 'Τιμολόγιο' : 'Invoice'}</span>
+          <span>{t('prefInvoice')}</span>
         </div>
         <Toggle
           checked={payment.invoice ?? false}
@@ -99,7 +98,7 @@ export function ExtrasSection({ attempted = false }: ExtrasSectionProps) {
       {payment.invoice && (
         <div className="invoice-fields">
           <div className="form-row">
-            <label className="form-label">{isEl ? 'Επωνυμία / Όνομα' : 'Company / Name'}</label>
+            <label className="form-label">{t('coCompanyOrName')}</label>
             <input
               className={`form-input${showNameErr ? ' is-invalid' : ''}`}
               value={payment.invoiceName ?? ''}
@@ -107,12 +106,12 @@ export function ExtrasSection({ attempted = false }: ExtrasSectionProps) {
             />
             {showNameErr && (
               <div className="form-hint form-hint-error">
-                {isEl ? 'Συμπλήρωσε την επωνυμία ή το όνομα' : 'Enter a company or name'}
+                {t('coEnterCompanyName')}
               </div>
             )}
           </div>
           <div className="form-row">
-            <label className="form-label">{isEl ? 'ΑΦΜ' : 'VAT Number'}</label>
+            <label className="form-label">{t('vat')}</label>
             <input
               className={`form-input${showVatErr ? ' is-invalid' : ''}`}
               value={vatStripped}
@@ -125,10 +124,10 @@ export function ExtrasSection({ attempted = false }: ExtrasSectionProps) {
             {showVatErr && (
               <div className="form-hint form-hint-error">
                 {vatMissing
-                  ? (isEl ? 'Το ΑΦΜ είναι υποχρεωτικό' : 'VAT number is required')
+                  ? t('coVatRequired')
                   : vatBadLength
-                    ? (isEl ? 'Το ΑΦΜ πρέπει να έχει 9 ψηφία' : 'VAT must be 9 digits')
-                    : (isEl ? 'Μη έγκυρο ΑΦΜ — έλεγξε τα ψηφία' : 'Invalid VAT — check the digits')}
+                    ? t('coVat9Digits')
+                    : t('coVatInvalid')}
               </div>
             )}
           </div>

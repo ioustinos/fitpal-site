@@ -71,7 +71,7 @@ export function Header() {
             className="hdr-admin-link"
             onClick={() => navigate('/admin')}
             title="Admin panel"
-            aria-label={lang === 'el' ? 'Πίνακας διαχείρισης' : 'Admin panel'}
+            aria-label={t('adminPanel')}
           >
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" focusable="false">
               <path d="M12 2l8 4v6c0 5-3.5 9-8 10-4.5-1-8-5-8-10V6l8-4z"/>
@@ -116,7 +116,7 @@ export function Header() {
               type="button"
               className="lang-globe"
               onClick={() => setLangOpen((v) => !v)}
-              aria-label={lang === 'el' ? 'Γλώσσα' : 'Language'}
+              aria-label={t('languageLbl')}
               aria-expanded={langOpen}
               aria-haspopup="menu"
             >
@@ -175,7 +175,7 @@ export function Header() {
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" focusable="false">
                       <path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="1"/><path d="M9 14l2 2 4-4"/>
                     </svg>
-                    {lang === 'el' ? 'Οι Παραγγελίες μου' : 'My Orders'}
+                    {t('myOrders')}
                   </button>
                   {/* WEC-297: only show the wallet menu item when wallet
                       is an enabled payment method site-wide. */}
@@ -199,7 +199,7 @@ export function Header() {
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" focusable="false">
                       <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/>
                     </svg>
-                    {lang === 'el' ? 'Διευθύνσεις' : 'Addresses'}
+                    {t('addressesNav')}
                   </button>
                   <button
                     className="user-menu-item"
@@ -208,7 +208,7 @@ export function Header() {
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" focusable="false">
                       <circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/>
                     </svg>
-                    {lang === 'el' ? 'Τα Στοιχεία μου' : 'My Profile'}
+                    {t('myProfile')}
                   </button>
                   <button
                     className="user-menu-item"
@@ -217,7 +217,7 @@ export function Header() {
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" focusable="false">
                       <circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/>
                     </svg>
-                    {lang === 'el' ? 'Στόχοι' : 'Goals'}
+                    {t('goals')}
                   </button>
                   <button
                     className="user-menu-item"
@@ -226,7 +226,7 @@ export function Header() {
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" focusable="false">
                       <circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
                     </svg>
-                    {lang === 'el' ? 'Προτιμήσεις' : 'Preferences'}
+                    {t('preferences')}
                   </button>
                   <div className="user-menu-divider" />
                   <button
@@ -236,7 +236,7 @@ export function Header() {
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" focusable="false">
                       <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/>
                     </svg>
-                    {lang === 'el' ? 'Αποσύνδεση' : 'Sign Out'}
+                    {t('signOut')}
                   </button>
                 </div>
               </>

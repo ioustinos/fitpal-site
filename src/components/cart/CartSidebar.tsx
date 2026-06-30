@@ -95,7 +95,7 @@ export function CartSidebar() {
                 <>
                   <div className="cart-total-row" style={{ marginBottom: 6 }}>
                     <span className="cart-total-lbl" style={{ fontSize: 12, color: 'var(--text-muted)' }}>
-                      {lang === 'el' ? 'Υποσύνολο' : 'Subtotal'}
+                      {t('subtotal')}
                     </span>
                     <span style={{ fontSize: 13, fontWeight: 800, color: 'var(--text-muted)' }}>
                       {fmt(rawTotal)}

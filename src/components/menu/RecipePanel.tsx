@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { fetchDishRecipeCached, effectiveIngredients, type DishRecipe } from '../../lib/api/dishRecipe'
+import { makeTr } from '../../lib/translations'
 
 /**
  * Recipe panel on the dish modal (WEC-245).
@@ -26,6 +27,7 @@ interface Props {
 }
 
 export function RecipePanel({ dishId, variantId, lang }: Props) {
+  const t = makeTr(lang)
   const [recipe, setRecipe] = useState<DishRecipe | null>(null)
   const [loading, setLoading] = useState(false)
   const [expanded, setExpanded] = useState(false)
@@ -75,7 +77,7 @@ export function RecipePanel({ dishId, variantId, lang }: Props) {
         </svg>
       </button>
       {expanded && (
-        <ul className="dm-recipe-pills" aria-label={lang === 'el' ? 'Συστατικά' : 'Ingredients'}>
+        <ul className="dm-recipe-pills" aria-label={t('mnIngredients')}>
           {items.map((it) => {
             const name = lang === 'en' ? (it.nameEn || it.nameEl) : it.nameEl
             return (

@@ -3,6 +3,7 @@ import { useCartStore, type CartItem } from '../../store/useCartStore'
 import { useUIStore } from '../../store/useUIStore'
 import { showGoalProgress, goalStatus, goalPct, type MacroKey } from '../../lib/goals'
 import { MacroIcon } from '../ui/MacroDots'
+import { makeTr } from '../../lib/translations'
 
 /**
  * Per-day macro summary for the live cart day. Compact horizontal layout.
@@ -54,6 +55,7 @@ function sumDay(items: CartItem[]) {
 export function DayMacrosBlock({ dayDate }: { dayDate: string }) {
   const user = useAuthStore((s) => s.user)
   const lang = useUIStore((s) => s.lang)
+  const t = makeTr(lang)
   const cart = useCartStore((s) => s.cart)
 
   // WEC-336: cart is keyed by date (YYYY-MM-DD), not by day-index.
@@ -66,11 +68,7 @@ export function DayMacrosBlock({ dayDate }: { dayDate: string }) {
   return (
     <div
       className={`dmb-row${showBars ? ' dmb-row--with-bars' : ''}`}
-      aria-label={
-        showBars
-          ? (lang === 'el' ? 'Πρόοδος στόχων' : 'Goal progress')
-          : (lang === 'el' ? 'Διατροφικά στοιχεία' : 'Nutrition')
-      }
+      aria-label={showBars ? t('shGoalProgress') : t('shNutrition')}
     >
       {CELLS.map((c) => {
         const value = m[c.key]

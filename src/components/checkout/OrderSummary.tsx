@@ -80,7 +80,7 @@ export function OrderSummary() {
           <>
             <div className="cart-total-row" style={{ marginBottom: 6 }}>
               <span className="cart-total-lbl" style={{ fontSize: 12, color: 'var(--text-muted)' }}>
-                {lang === 'el' ? 'Υποσύνολο' : 'Subtotal'}
+                {t('subtotal')}
               </span>
               <span style={{ fontSize: 13, fontWeight: 800, color: 'var(--text-muted)' }}>
                 {fmt(rawTotal)}
@@ -102,14 +102,14 @@ export function OrderSummary() {
             </div>
             {/* WEC-217: single-voucher policy hint (matches CartSidebar). */}
             <div className="voucher-policy" style={{ marginBottom: 10 }}>
-              {lang === 'el' ? 'Μόνο 1 κουπόνι ανά παραγγελία' : '1 voucher per order'}
+              {t('coOneVoucherPerOrder')}
             </div>
           </>
         ) : (
           <div className="voucher-row" style={{ marginBottom: 10 }}>
             <input
               className="voucher-input"
-              placeholder={lang === 'el' ? 'π.χ. FITPAL10' : 'e.g. FITPAL10'}
+              placeholder={t('voucherPh')}
               value={code}
               onChange={(e) => { setCode(e.target.value); setError('') }}
               onKeyDown={(e) => e.key === 'Enter' && apply()}
@@ -121,7 +121,7 @@ export function OrderSummary() {
               disabled={!code.trim() || loading}
               style={{ fontSize: 11, padding: '7px 12px' }}
             >
-              {loading ? '...' : (lang === 'el' ? 'Εφαρμογή' : 'Apply')}
+              {loading ? '...' : t('voucherApply')}
             </button>
           </div>
         )}
@@ -137,7 +137,7 @@ export function OrderSummary() {
 
         {/* Back to menu */}
         <button className="btn-back-menu" onClick={closeCheckout}>
-          {lang === 'el' ? '← Επιστροφή στο Μενού' : '← Back to Menu'}
+          {t('backMenu')}
         </button>
       </div>
     </div>

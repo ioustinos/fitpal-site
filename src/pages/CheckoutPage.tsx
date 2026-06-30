@@ -23,6 +23,7 @@ import { useToast } from '../components/ui/Toast'
 import { submitOrder } from '../lib/api/orders'
 import { saveDraft } from '../lib/api/draft'
 import { useImpersonationStore } from '../store/useImpersonationStore'
+import { makeTr } from '../lib/translations'
 import { track } from '../lib/tracking'
 
 const GUEST_CONTACT_KEY = 'fitpal_guest_contact'
@@ -100,6 +101,7 @@ function localizeDayIssue(label: string, issue: DayIssue, lang: 'el' | 'en'): st
 
 export function CheckoutPage() {
   const lang = useUIStore((s) => s.lang)
+  const t = makeTr(lang)
   const closeCheckout = useUIStore((s) => s.closeCheckout)
   const cart = useCartStore((s) => s.cart)
   const delivery = useCartStore((s) => s.delivery)
@@ -240,18 +242,18 @@ export function CheckoutPage() {
   if (!contactNameOk) {
     validationIssues.push(
       contactName.length === 0
-        ? (lang === 'el' ? 'Λείπει το ονοματεπώνυμο' : 'Name is required')
-        : (lang === 'el' ? 'Το ονοματεπώνυμο πρέπει να έχει τουλάχιστον 2 χαρακτήρες' : 'Name must be at least 2 characters')
+        ? t('coNameRequired')
+        : t('coNameMin2')
     )
   }
   if (!contactEmailOk) {
     validationIssues.push(
-      lang === 'el' ? 'Λείπει ή είναι λάθος το email' : 'Email is missing or invalid'
+      t('coEmailInvalid')
     )
   }
   if (!contactPhoneOk) {
     validationIssues.push(
-      lang === 'el' ? 'Λείπει ή είναι λάθος ο αριθμός τηλεφώνου' : 'Phone is missing or invalid'
+      t('coPhoneInvalid')
     )
   }
 
@@ -297,9 +299,7 @@ export function CheckoutPage() {
 
   if (!payment.method) {
     validationIssues.push(
-      lang === 'el'
-        ? 'Δεν έχει επιλεγεί τρόπος πληρωμής'
-        : 'No payment method selected'
+      t('coNoPaymentMethod')
     )
   }
 
@@ -313,26 +313,20 @@ export function CheckoutPage() {
     || (!!payment.invoiceName?.trim() && invoiceVatChecksumOk)
   if (payment.invoice && !payment.invoiceName?.trim()) {
     validationIssues.push(
-      lang === 'el'
-        ? 'Τιμολόγιο: λείπει η επωνυμία ή το όνομα'
-        : 'Invoice: company or name is missing'
+      t('coInvoiceNameMissing')
     )
   }
   if (payment.invoice && invoiceVatStripped.length === 0) {
     validationIssues.push(
-      lang === 'el' ? 'Τιμολόγιο: λείπει το ΑΦΜ' : 'Invoice: VAT number is missing'
+      t('coInvoiceVatMissing')
     )
   } else if (payment.invoice && invoiceVatStripped.length !== 9) {
     validationIssues.push(
-      lang === 'el'
-        ? 'Τιμολόγιο: το ΑΦΜ πρέπει να έχει 9 ψηφία'
-        : 'Invoice: VAT must be 9 digits'
+      t('coInvoiceVat9')
     )
   } else if (payment.invoice && !invoiceVatChecksumOk) {
     validationIssues.push(
-      lang === 'el'
-        ? 'Τιμολόγιο: μη έγκυρο ΑΦΜ — έλεγξε τα ψηφία'
-        : 'Invoice: invalid VAT — check the digits'
+      t('coInvoiceVatInvalid')
     )
   }
 
@@ -490,17 +484,17 @@ export function CheckoutPage() {
   async function handlePlaceOrder(opts: { skipQuoteCheck?: boolean } = {}) {
     if (!contactOk) {
       setContactAttempted(true)
-      toast(lang === 'el' ? 'Συμπλήρωσε τα στοιχεία επικοινωνίας' : 'Please complete contact info')
+      toast(t('coCompleteContact'))
       scrollToSection(contactRef)
       return
     }
     if (!deliveryOk) {
-      toast(lang === 'el' ? 'Παρακαλώ συμπλήρωσε τα στοιχεία παράδοσης' : 'Please complete delivery details')
+      toast(t('coCompleteDelivery'))
       scrollToSection(deliveryRef)
       return
     }
     if (!paymentOk) {
-      toast(lang === 'el' ? 'Παρακαλώ επίλεξε τρόπο πληρωμής' : 'Please select a payment method')
+      toast(t('coSelectPayment'))
       scrollToSection(paymentRef)
       return
     }
@@ -669,7 +663,7 @@ export function CheckoutPage() {
           for (const msg of msgs) flat.push(prefix + msg)
         }
         setServerIssues(flat)
-        toast(lang === 'el' ? 'Η παραγγελία απορρίφθηκε — δες τα σφάλματα' : 'Order rejected — see errors below')
+        toast(t('coOrderRejected'))
       } else {
         setServerIssues([error])
         toast(error)
@@ -742,11 +736,7 @@ export function CheckoutPage() {
       return
     }
     if (data?.paymentSetupFailed) {
-      toast(
-        lang === 'el'
-          ? 'Η παραγγελία καταχωρήθηκε αλλά η πληρωμή δεν διαμορφώθηκε — θα επικοινωνήσουμε μαζί σου.'
-          : "Order saved, but we couldn't set up payment — we'll reach out shortly.",
-      )
+      toast(t('coPaymentSetupFailed'))
     }
 
     // If we placed this order via impersonation, exit impersonation now —
@@ -790,25 +780,25 @@ export function CheckoutPage() {
   const sections = [
     {
       id: 'sec-contact',
-      label: lang === 'el' ? '1.Επικοινωνία' : '1.Contact',
+      label: t('coSec1Contact'),
       ok: contactOk,
       ref: contactRef,
     },
     {
       id: 'sec-delivery',
-      label: lang === 'el' ? '2.Παράδοση' : '2.Delivery',
+      label: t('coSec2Delivery'),
       ok: deliveryOk,
       ref: deliveryRef,
     },
     {
       id: 'sec-payment',
-      label: lang === 'el' ? '3.Πληρωμή' : '3.Payment',
+      label: t('coSec3Payment'),
       ok: paymentOk,
       ref: paymentRef,
     },
     {
       id: 'sec-extras',
-      label: lang === 'el' ? '4.Επιπλέον Επιλογές' : '4.Extras',
+      label: t('coSec4Extras'),
       ok: extrasOk,
       ref: extrasRef,
     },
@@ -820,7 +810,7 @@ export function CheckoutPage() {
       <div className="co-page-top">
         <button className="btn-co-back" onClick={closeCheckout}>←</button>
         <h1 className="co-page-title">
-          {lang === 'el' ? 'Ολοκλήρωση Παραγγελίας' : 'Checkout'}
+          {t('checkout')}
         </h1>
       </div>
 
@@ -843,7 +833,7 @@ export function CheckoutPage() {
           {/* SECTION 1: Contact info (WEC-130) */}
           <div className="co-section" ref={contactRef} id="sec-contact">
             <h2 className="co-section-title">
-              {lang === 'el' ? 'ΣΤΟΙΧΕΙΑ ΕΠΙΚΟΙΝΩΝΙΑΣ' : 'CONTACT INFO'}
+              {t('coContactInfoUpper')}
             </h2>
             <ContactSection
               value={contact}
@@ -855,7 +845,7 @@ export function CheckoutPage() {
           {/* SECTION 2: Delivery */}
           <div className="co-section" ref={deliveryRef} id="sec-delivery">
             <h2 className="co-section-title">
-              {lang === 'el' ? 'ΣΤΟΙΧΕΙΑ ΠΑΡΑΔΟΣΗΣ' : 'DELIVERY DETAILS'}
+              {t('coDeliveryDetailsUpper')}
             </h2>
             {activeDates.map((dDate) => {
               const label = dayLabelForDate(dDate)
@@ -879,7 +869,7 @@ export function CheckoutPage() {
                   {pickupLoc && (
                     <div className="ddb-zone">
                       <div className="ddb-section-hdr">
-                        {lang === 'el' ? 'ΤΡΟΠΟΣ ΠΑΡΑΔΟΣΗΣ' : 'FULFILLMENT'}
+                        {t('coFulfillmentUpper')}
                       </div>
                       <div className="ddb-fulfillment-toggle" role="radiogroup">
                         <button
@@ -889,7 +879,7 @@ export function CheckoutPage() {
                           className={`ddb-fulfillment-opt${ftype === 'delivery' ? ' selected' : ''}`}
                           onClick={() => setFulfillment(dDate, 'delivery')}
                         >
-                          {lang === 'el' ? 'Παράδοση στο σπίτι' : 'Home delivery'}
+                          {t('coHomeDelivery')}
                         </button>
                         <button
                           type="button"
@@ -899,10 +889,10 @@ export function CheckoutPage() {
                           className={`ddb-fulfillment-opt${ftype === 'pickup' ? ' selected' : ''}${!pickupAvailable ? ' disabled' : ''}`}
                           onClick={() => pickupAvailable && setFulfillment(dDate, 'pickup')}
                           title={!pickupAvailable
-                            ? (lang === 'el' ? 'Παραλαβή μη διαθέσιμη αυτή την ημέρα' : 'Pickup not available on this day')
+                            ? t('coPickupNotAvailableDay')
                             : undefined}
                         >
-                          {lang === 'el' ? 'Παραλαβή από κατάστημα' : 'Pickup'}
+                          {t('coPickupFromStore')}
                         </button>
                       </div>
                     </div>
@@ -917,8 +907,8 @@ export function CheckoutPage() {
                         </svg>
                       </span>
                       {ftype === 'pickup'
-                        ? (lang === 'el' ? 'ΠΑΡΑΘΥΡΟ ΠΑΡΑΛΑΒΗΣ' : 'PICKUP WINDOW')
-                        : (lang === 'el' ? 'ΠΑΡΑΘΥΡΟ ΠΑΡΑΔΟΣΗΣ' : 'DELIVERY WINDOW')}
+                        ? t('coPickupWindowUpper')
+                        : t('coDeliveryWindowUpper')}
                     </div>
                     <TimeSlotPicker dayDate={dDate} inline />
                   </div>
@@ -932,7 +922,7 @@ export function CheckoutPage() {
                             <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/>
                           </svg>
                         </span>
-                        {lang === 'el' ? 'ΣΗΜΕΙΟ ΠΑΡΑΛΑΒΗΣ' : 'PICKUP LOCATION'}
+                        {t('coPickupLocationUpper')}
                       </div>
                       {/* WEC-410: render zero/single/multi pickup states explicitly so a
                           customer in pickup mode always sees WHERE to go (or a
@@ -942,9 +932,7 @@ export function CheckoutPage() {
                         if (pickupLocations.length === 0) {
                           return (
                             <div className="pickup-loc-warning">
-                              {lang === 'el'
-                                ? 'Δεν υπάρχουν διαμορφωμένα σημεία παραλαβής. Επικοινώνησε μαζί μας.'
-                                : 'No pickup locations configured. Please contact us.'}
+                              {t('coNoPickupConfigured')}
                             </div>
                           )
                         }
@@ -986,7 +974,7 @@ export function CheckoutPage() {
                                     target="_blank"
                                     rel="noreferrer noopener"
                                   >
-                                    {lang === 'el' ? 'Άνοιγμα στον χάρτη ↗' : 'Open in maps ↗'}
+                                    {t('coOpenInMaps')}
                                   </a>
                                 </div>
                                 {((lang === 'el' ? selectedLoc.hoursNoteEl : selectedLoc.hoursNoteEn) ?? '').length > 0 && (
@@ -995,7 +983,7 @@ export function CheckoutPage() {
                               </div>
                             ) : (
                               <div className="pickup-loc-hint">
-                                {lang === 'el' ? 'Διάλεξε σημείο παραλαβής παραπάνω' : 'Pick a location above'}
+                                {t('coPickLocationAbove')}
                               </div>
                             )}
                           </>
@@ -1010,7 +998,7 @@ export function CheckoutPage() {
                             <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/>
                           </svg>
                         </span>
-                        {lang === 'el' ? 'ΔΙΕΥΘΥΝΣΗ' : 'ADDRESS'}
+                        {t('coAddressUpper')}
                       </div>
                       <AddressSection dayDate={dDate} />
                     </div>
@@ -1023,7 +1011,7 @@ export function CheckoutPage() {
           {/* SECTION 3: Payment */}
           <div className="co-section" ref={paymentRef} id="sec-payment">
             <h2 className="co-section-title">
-              {lang === 'el' ? 'ΤΡΟΠΟΣ ΠΛΗΡΩΜΗΣ' : 'PAYMENT METHOD'}
+              {t('coPaymentMethodUpper')}
             </h2>
             <PaymentSection />
           </div>
@@ -1031,7 +1019,7 @@ export function CheckoutPage() {
           {/* SECTION 4: Extras */}
           <div className="co-section" ref={extrasRef} id="sec-extras">
             <h2 className="co-section-title">
-              {lang === 'el' ? 'ΕΠΙΠΛΕΟΝ ΕΠΙΛΟΓΕΣ' : 'EXTRAS'}
+              {t('coExtrasUpper')}
             </h2>
             <ExtrasSection attempted={contactAttempted} />
           </div>
@@ -1045,7 +1033,7 @@ export function CheckoutPage() {
           {/* Footer with action buttons */}
           <div className="checkout-footer">
             <button className="btn-back" onClick={closeCheckout}>
-              {lang === 'el' ? '← Πίσω' : '← Back'}
+              {t('coBackArrow')}
             </button>
             <button
               className="btn-place-order"
@@ -1053,8 +1041,8 @@ export function CheckoutPage() {
               disabled={!allOk || submitting}
             >
               {submitting
-                ? (lang === 'el' ? 'Υποβολή...' : 'Submitting...')
-                : (lang === 'el' ? 'Ολοκλήρωση παραγγελίας →' : 'Place order →')}
+                ? t('coSubmitting')
+                : t('coPlaceOrderArrow')}
             </button>
           </div>
 
@@ -1063,7 +1051,7 @@ export function CheckoutPage() {
             <div className="checkout-validation">
               {serverIssues.length > 0 && (
                 <div className="validation-issue" style={{ fontWeight: 800, marginBottom: 4 }}>
-                  {lang === 'el' ? 'Ο διακομιστής απέρριψε την παραγγελία:' : 'Server rejected the order:'}
+                  {t('coServerRejected')}
                 </div>
               )}
               {serverIssues.map((issue, idx) => (
@@ -1110,7 +1098,7 @@ export function CheckoutPage() {
             onClick={(e) => e.stopPropagation()}
           >
             <h3 style={{ margin: '0 0 8px', fontSize: 17 }}>
-              {lang === 'el' ? 'Η τιμή ενημερώθηκε' : 'Price updated'}
+              {t('coPriceUpdated')}
             </h3>
             <p style={{ margin: '0 0 16px', color: '#4b5563', fontSize: 14, lineHeight: 1.5 }}>
               {lang === 'el'
@@ -1122,13 +1110,13 @@ export function CheckoutPage() {
                 className="admin-btn-ghost"
                 onClick={() => { setPriceConfirm(null); setSubmitting(false) }}
               >
-                {lang === 'el' ? 'Άκυρο' : 'Cancel'}
+                {t('coCancel')}
               </button>
               <button
                 className="admin-btn-danger"
                 onClick={() => { setPriceConfirm(null); void handlePlaceOrder({ skipQuoteCheck: true }) }}
               >
-                {lang === 'el' ? 'Συνέχεια' : 'Continue'}
+                {t('continue')}
               </button>
             </div>
           </div>

@@ -2,10 +2,12 @@ import { useState } from 'react'
 import { Modal } from '../ui/Modal'
 import { useUIStore } from '../../store/useUIStore'
 import { useAuthStore } from '../../store/useAuthStore'
+import { makeTr } from '../../lib/translations'
 import { WALLET_PLANS } from '../../data/menu'
 
 export function WalletModal() {
   const lang = useUIStore((s) => s.lang)
+  const t = makeTr(lang)
   const openModal = useUIStore((s) => s.openModal)
   const closeModal = useUIStore((s) => s.closeModal)
   const openAuthModal = useUIStore((s) => s.openAuthModal)
@@ -32,7 +34,7 @@ export function WalletModal() {
       {user && (
         <div className="wm-balance-card">
           <div className="wm-balance-label">
-            {lang === 'el' ? 'Διαθέσιμο υπόλοιπο' : 'Available balance'}
+            {t('cwAvailableBalance')}
           </div>
           <div className="wm-balance-amt">€{(wallet?.balance ?? 0).toFixed(2)}</div>
           {wallet?.active && wallet.planId && (
@@ -60,17 +62,17 @@ export function WalletModal() {
         <div className="wm-overview">
           {!wallet?.active ? (
             <div className="wm-inactive">
-              <p>{lang === 'el' ? 'Δεν έχεις ενεργό συνδρομή wallet.' : 'You have no active wallet subscription.'}</p>
+              <p>{t('cwNoActiveWalletSub')}</p>
               <button className="wm-tab-switch-btn" onClick={() => setTab('topup')}>
-                {lang === 'el' ? 'Αγορά πακέτου' : 'Get a package'}
+                {t('cwGetPackage')}
               </button>
             </div>
           ) : (
             <div className="wm-plan-info">
               <div className="wm-plan-name">{lang === 'el' ? wallet.planEl ?? '' : wallet.planEn ?? ''}</div>
               <div className="wm-plan-row">
-                <span>{lang === 'el' ? 'Ανανέωση:' : 'Renewal:'}</span>
-                <strong>{wallet.autoRenew ? (lang === 'el' ? 'Αυτόματη' : 'Automatic') : (lang === 'el' ? 'Χειροκίνητη' : 'Manual')}</strong>
+                <span>{t('cwRenewalLabel')}</span>
+                <strong>{wallet.autoRenew ? t('cwRenewalAutomatic') : t('cwRenewalManual')}</strong>
               </div>
             </div>
           )}
@@ -80,9 +82,7 @@ export function WalletModal() {
       {tab === 'topup' && (
         <div className="wm-topup">
           <p className="wm-topup-intro">
-            {lang === 'el'
-              ? 'Επίλεξε ένα πακέτο και απόλαυσε bonus credits.'
-              : 'Choose a package to get bonus credits.'}
+            {t('cwChoosePackageIntro')}
           </p>
           <div className="wallet-plans">
             {WALLET_PLANS.map((plan) => (
@@ -121,7 +121,7 @@ export function WalletModal() {
       {tab === 'history' && (
         <div className="wm-history">
           {!wallet?.transactions?.length ? (
-            <p className="wm-empty">{lang === 'el' ? 'Δεν υπάρχουν συναλλαγές.' : 'No transactions yet.'}</p>
+            <p className="wm-empty">{t('cwNoTransactions')}</p>
           ) : (
             wallet.transactions.map((tx, i) => (
               <div key={i} className="wm-tx">

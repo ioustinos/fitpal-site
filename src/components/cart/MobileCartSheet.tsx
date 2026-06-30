@@ -138,7 +138,7 @@ export function MobileCartSheet({ mode = 'menu' }: Props) {
               the cue helps first-timers know that. Hidden when expanded. */}
           {!expanded && (
             <span className="mcs-bar-cta">
-              {lang === 'el' ? 'ΑΝΟΙΓΜΑ' : 'OPEN'}
+              {t('cwOpen')}
             </span>
           )}
           <span className="mcs-bar-chev" aria-hidden="true">
@@ -209,7 +209,7 @@ export function MobileCartSheet({ mode = 'menu' }: Props) {
                   <>
                     <div className="cart-total-row" style={{ marginBottom: 6 }}>
                       <span className="cart-total-lbl" style={{ fontSize: 12, color: 'var(--text-muted)' }}>
-                        {lang === 'el' ? 'Υποσύνολο' : 'Subtotal'}
+                        {t('subtotal')}
                       </span>
                       <span style={{ fontSize: 13, fontWeight: 800, color: 'var(--text-muted)' }}>
                         {fmt(rawTotal)}

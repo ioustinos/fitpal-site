@@ -261,7 +261,7 @@ function DropdownsPicker({ dish, selectedVariantId, onChange, lang }: Props) {
                   // the customer the OTHER dropdowns will shift to a matching
                   // variant when they pick it.
                   const status = optionStatus(g.ing.ingredientId, grams)
-                  const adjustHint = lang === 'el' ? ' · προσαρμογή' : ' · adjusts'
+                  const adjustHint = t('mnAdjustHint')
                   return (
                     <option key={grams} value={grams}>
                       {fmtGrams(grams)}γρ{status === 'requires-adjust' ? adjustHint : ''}

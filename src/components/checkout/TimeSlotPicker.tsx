@@ -70,12 +70,8 @@ export function TimeSlotPicker({ dayDate, inline = false }: TimeSlotPickerProps)
   const grid = !hasAnyEnabled ? (
     <div className="time-grid-empty">
       {currentZone
-        ? (lang === 'el'
-            ? 'Δεν υπάρχουν διαθέσιμα ωράρια παράδοσης για τη ζώνη σου. Επικοινώνησε μαζί μας.'
-            : 'No delivery windows available in your zone — please contact support.')
-        : (lang === 'el'
-            ? 'Συμπλήρωσε πρώτα τον Τ.Κ. για να δεις τα διαθέσιμα ωράρια.'
-            : 'Enter your postcode first to see available time windows.')}
+        ? t('coNoSlotsInZone')
+        : t('coEnterPostcodeFirst')}
     </div>
   ) : (
     <div className="time-grid">
@@ -96,7 +92,7 @@ export function TimeSlotPicker({ dayDate, inline = false }: TimeSlotPickerProps)
             // automation alike. aria-pressed is the right pattern for buttons
             // acting like toggles (vs aria-selected which is for listbox/tab).
             aria-pressed={isSelected}
-            title={unavailable ? (lang === 'el' ? 'Δεν είναι διαθέσιμο στη ζώνη σου' : 'Not available in your delivery zone') : undefined}
+            title={unavailable ? t('coSlotNotAvailable') : undefined}
           >
             {slot}
           </button>

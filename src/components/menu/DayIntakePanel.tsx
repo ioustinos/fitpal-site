@@ -4,6 +4,7 @@ import { useUIStore } from '../../store/useUIStore'
 import { useMenuStore } from '../../store/useMenuStore'
 import { showGoalProgress, goalStatus, goalPct, type MacroKey } from '../../lib/goals'
 import { MacroIcon } from '../ui/MacroDots'
+import { makeTr } from '../../lib/translations'
 
 /**
  * Per-day intake strip (WEC-166 v2).
@@ -45,6 +46,7 @@ function sumDay(items: CartItem[]) {
 
 export function DayIntakePanel() {
   const lang = useUIStore((s) => s.lang)
+  const t = makeTr(lang)
   const activeDay = useUIStore((s) => s.activeDay)
   const activeWeek = useUIStore((s) => s.activeWeek)
   const cart = useCartStore((s) => s.cart)
@@ -68,7 +70,7 @@ export function DayIntakePanel() {
   return (
     <div
       className={`menu-intake-strip${withBars ? '' : ' menu-intake-strip--numbers-only'}`}
-      aria-label={lang === 'el' ? 'Διατροφική ανάλυση ημέρας' : "Nutrition breakdown for this day"}
+      aria-label={t('mnNutritionBreakdown')}
     >
       {cells.map((c) => {
         const s = withBars ? goalStatus(c.k, c.v, user?.goals) : 'none'

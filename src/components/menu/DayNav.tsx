@@ -3,6 +3,7 @@ import { useCartStore } from '../../store/useCartStore'
 import { useMenuStore } from '../../store/useMenuStore'
 import { totalCount, isDayOrderable } from '../../lib/helpers'
 import { dayLabel } from '../../lib/datelabels'
+import { makeTr } from '../../lib/translations'
 
 /**
  * Weekly day navigation.
@@ -36,6 +37,7 @@ const MONTH_EN_3 = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP
 
 export function DayNav() {
   const lang = useUIStore((s) => s.lang)
+  const t = makeTr(lang)
   const activeDay = useUIStore((s) => s.activeDay)
   const activeWeek = useUIStore((s) => s.activeWeek)
   const setActiveDay = useUIStore((s) => s.setActiveDay)
@@ -112,7 +114,7 @@ export function DayNav() {
             // Past-cutoff days remain clickable so customers can browse.
             onClick={isClosed ? undefined : () => setActiveDay(i)}
             aria-disabled={isClosed || undefined}
-            title={isClosed ? (lang === 'el' ? 'Κλειστό' : 'Closed') : undefined}
+            title={isClosed ? t('mnClosed') : undefined}
           >
             {/* X badge in the corner of closed-day tabs (WEC-273) — same
                 concept in both styles, dedicated class per style for
@@ -139,7 +141,7 @@ export function DayNav() {
                     corner badge and the date number remain fully visible. */}
                 {isClosed ? (
                   <span className="day-card-closed-tag" aria-hidden="true">
-                    {isEl ? 'ΚΛΕΙΣΤΟ' : 'CLOSED'}
+                    {t('mnClosedCaps')}
                   </span>
                 ) : (
                   <span className="day-card-mon">{mon3}</span>
@@ -156,7 +158,7 @@ export function DayNav() {
                 <div className="dn">{dayLabel(day.date, lang, 'short')}</div>
                 <div className="dd">{formatDate(day.date, lang)}</div>
                 {isClosed
-                  ? <div className="day-tab-closed-note">{isEl ? 'Κλειστό' : 'Closed'}</div>
+                  ? <div className="day-tab-closed-note">{t('mnClosed')}</div>
                   : (count > 0 && <div className="day-badge">{count}</div>)}
               </>
             )}
@@ -181,9 +183,9 @@ export function DayNav() {
         <div
           className="week-toggle coming-soon"
           aria-disabled="true"
-          title={lang === 'el' ? 'Σύντομα διαθέσιμο' : 'Coming soon'}
+          title={t('mnComingSoon')}
         >
-          <div className="wt-label">{lang === 'el' ? 'Σύντομα διαθέσιμο' : 'Coming soon'}</div>
+          <div className="wt-label">{t('mnComingSoon')}</div>
           <div className="wt-arrow">→</div>
         </div>
       )}

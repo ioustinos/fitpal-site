@@ -173,7 +173,7 @@ export function DishModal() {
       macros: variant.macros,
       comment: comment.trim() || undefined,
     })
-    toast(lang === 'el' ? 'Αποθηκεύτηκε!' : 'Saved!')
+    toast(t('savedToast'))
     closeModal()
   }
 
@@ -230,11 +230,11 @@ export function DishModal() {
             </span>
             <div className="dm-diet-warn-body">
               <div className="dm-diet-warn-head">
-                {lang === 'el' ? 'Με βάση τη διατροφή σου:' : 'Based on your diet:'}
+                {t('dietBasedOn')}
               </div>
               {dietFlags.matchedAllergies.length > 0 && (
                 <div className="dm-diet-warn-line">
-                  {lang === 'el' ? 'Αλλεργιογόνα: ' : 'Allergens: '}
+                  {t('dietAllergens')}
                   <strong>
                     {dietFlags.matchedAllergies
                       .map((a) => (lang === 'el' ? a.nameEl : (a.nameEn ?? a.nameEl)))
@@ -244,11 +244,11 @@ export function DishModal() {
               )}
               {dietFlags.matchedAvoidedIngredientIds.length > 0 && (
                 <div className="dm-diet-warn-line">
-                  {lang === 'el' ? 'Συστατικά προς αποφυγή: ' : 'Ingredients you avoid: '}
+                  {t('dietAvoidedIngredients')}
                   <strong>{dietFlags.matchedAvoidedIngredientIds.length}</strong>
                   {' '}
                   <span className="dm-diet-warn-hint">
-                    {lang === 'el' ? '(δες τη συνταγή πιο κάτω)' : '(see the recipe below)'}
+                    {t('dietSeeRecipe')}
                   </span>
                 </div>
               )}
@@ -354,7 +354,7 @@ export function DishModal() {
               disabled={unavailable}
             >
               {unavailable
-                ? (lang === 'el' ? 'Οι παραγγελίες έχουν κλείσει' : 'Orders closed')
+                ? t('ordersClosed')
                 : (lang === 'el'
                     ? `Αποθήκευση αλλαγών • €${(finalPrice * qty).toFixed(2)}`
                     : `Save changes • €${(finalPrice * qty).toFixed(2)}`)}
@@ -366,7 +366,7 @@ export function DishModal() {
               disabled={unavailable}
             >
               {unavailable
-                ? (lang === 'el' ? 'Οι παραγγελίες έχουν κλείσει' : 'Orders closed')
+                ? t('ordersClosed')
                 : existingInCart > 0
                   // WEC-141: when the dish is already in the cart for this day,
                   // framing matters — the user is knowingly adding *another one
@@ -389,7 +389,7 @@ export function DishModal() {
             className="btn-dm-remove"
             onClick={handleRemoveFromCart}
           >
-            {lang === 'el' ? 'Αφαίρεση από το καλάθι' : 'Remove from cart'}
+            {t('removeFromCart')}
           </button>
         )}
         </div>{/* /.dm-footer (WEC-353) */}

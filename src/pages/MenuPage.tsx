@@ -107,7 +107,7 @@ export function MenuPage() {
   const subscribed = !!user?.wallet?.planId
   const walletBalance = user?.wallet?.balance ?? 0
   const dateRange = weekMetaForRange ? weekDateRange(weekMetaForRange.days, lang) : ''
-  const weekWord = lang === 'el' ? 'Εβδομάδα' : 'Week'
+  const weekWord = t('weekWord')
 
   // ── Loading / error states ──
   if (isLoading) {
@@ -115,7 +115,7 @@ export function MenuPage() {
       <div className="page-wrap">
         <div className="layout">
           <div className="main">
-            <FpLoader label={lang === 'el' ? 'Φόρτωση μενού…' : 'Loading menu…'} />
+            <FpLoader label={t('loadingMenu')} />
           </div>
         </div>
       </div>
@@ -129,7 +129,7 @@ export function MenuPage() {
           <div className="main">
             <div className="menu-empty">
               <div className="menu-empty-text">
-                {lang === 'el' ? 'Σφάλμα φόρτωσης μενού' : 'Error loading menu'}
+                {t('menuLoadError')}
               </div>
               <div className="menu-empty-text" style={{ fontSize: '0.85rem', opacity: 0.7 }}>
                 {menuError}
@@ -216,7 +216,7 @@ export function MenuPage() {
                     <div className="sub-promo-inner">
                       <div className="sub-promo-eyebrow">
                         <span className="sub-promo-dot" aria-hidden="true" />
-                        {lang === 'el' ? 'FITPAL ΣΤΟΧΟΙ' : 'FITPAL GOALS'}
+                        {t('subPromoGoalsEyebrow')}
                       </div>
                       <h3 className="sub-promo-headline">
                         {lang === 'el' ? (
@@ -226,16 +226,14 @@ export function MenuPage() {
                         )}
                       </h3>
                       <div className="sub-promo-sub">
-                        {lang === 'el'
-                          ? 'Δες τη συνδρομή σου, την πρόοδό σου και τα γεύματα που σου ταιριάζουν.'
-                          : 'Track your plan, your progress, and the meals that fit you.'}
+                        {t('subPromoGoalsSub')}
                       </div>
                       <button
                         type="button"
                         className="sub-promo-cta"
                         onClick={(e) => { e.stopPropagation(); goToAccount('goals') }}
                       >
-                        {lang === 'el' ? 'Δες τους στόχους μου' : 'View my goals'}
+                        {t('subPromoGoalsCta')}
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" width="12" height="12" aria-hidden="true">
                           <line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/>
                         </svg>
@@ -245,7 +243,7 @@ export function MenuPage() {
                     <div className="sub-promo-inner">
                       <div className="sub-promo-eyebrow">
                         <span className="sub-promo-dot" aria-hidden="true" />
-                        {lang === 'el' ? 'ΣΥΝΔΡΟΜΗ FITPAL' : 'FITPAL SUBSCRIPTION'}
+                        {t('subPromoSubEyebrow')}
                       </div>
                       <h3 className="sub-promo-headline">
                         {lang === 'el' ? (
@@ -255,16 +253,14 @@ export function MenuPage() {
                         )}
                       </h3>
                       <div className="sub-promo-sub">
-                        {lang === 'el'
-                          ? 'Εξατομικευμένο πλάνο διατροφής. Έκπτωση έως 18%.'
-                          : 'A meal plan made for you. Save up to 18%.'}
+                        {t('subPromoSubSub')}
                       </div>
                       <button
                         type="button"
                         className="sub-promo-cta"
                         onClick={(e) => { e.stopPropagation(); goToWalletPage() }}
                       >
-                        {lang === 'el' ? 'Φτιάξε το πλάνο μου' : 'Build my plan'}
+                        {t('subPromoSubCta')}
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" width="12" height="12" aria-hidden="true">
                           <line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/>
                         </svg>
@@ -303,7 +299,7 @@ export function MenuPage() {
 
           {/* Menu grid (or loader while active week lazy-loads) */}
           {activeWeekLoading ? (
-            <FpLoader label={lang === 'el' ? 'Φόρτωση μενού…' : 'Loading menu…'} />
+            <FpLoader label={t('loadingMenu')} />
           ) : (
             <MenuSection dishes={allDishes} dayIndex={activeDay} />
           )}

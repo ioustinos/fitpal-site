@@ -3,6 +3,7 @@ import { useUIStore } from '../../store/useUIStore'
 import { useCartStore } from '../../store/useCartStore'
 import { activeDays, dayAmt, fmt, subTotal } from '../../lib/helpers'
 import { useMenuStore } from '../../store/useMenuStore'
+import { makeTr } from '../../lib/translations'
 import { dayLabel } from '../../lib/datelabels'
 
 function formatDate(iso: string, lang: 'el' | 'en') {
@@ -31,8 +32,8 @@ function formatDate(iso: string, lang: 'el' | 'en') {
  */
 export function ConfirmationScreen({ orderNumber }: { orderNumber?: string }) {
   const lang = useUIStore((s) => s.lang)
+  const t = makeTr(lang)
   const closeCheckout = useUIStore((s) => s.closeCheckout)
-  const weeks = useMenuStore((s) => s.weeks)
   const clearAll = useCartStore((s) => s.clearAll)
 
   // Snapshot everything we need for the summary ONCE, on mount. After
@@ -77,22 +78,20 @@ export function ConfirmationScreen({ orderNumber }: { orderNumber?: string }) {
       </div>
 
       <h2 className="conf-title">
-        {lang === 'el' ? 'Η παραγγελία σου καταχωρήθηκε!' : 'Your order has been placed!'}
+        {t('coOrderPlaced')}
       </h2>
 
       {orderNumber && (
         <div className="conf-order-hero">
           <div className="conf-order-hero-label">
-            {lang === 'el' ? 'Αριθμός παραγγελίας' : 'Order number'}
+            {t('coOrderNumber')}
           </div>
           <div className="conf-order-hero-number">{orderNumber}</div>
         </div>
       )}
 
       <p className="conf-sub">
-        {lang === 'el'
-          ? 'Θα λάβεις σύντομα email επιβεβαίωσης. Αν δεν εμφανιστεί στα εισερχόμενα, έλεγξε και τον φάκελο ανεπιθύμητης αλληλογραφίας.'
-          : "You'll receive a confirmation email shortly. If it doesn't show up in your inbox, check your spam folder too."}
+        {t('coConfEmailNote')}
       </p>
 
       <div className="conf-summary">
@@ -141,7 +140,7 @@ export function ConfirmationScreen({ orderNumber }: { orderNumber?: string }) {
               </div>
 
               <div className="conf-day-amt">
-                {lang === 'el' ? 'Σύνολο ημέρας' : 'Day total'}: {fmt(dayTotal)}
+                {t('coDayTotal')}: {fmt(dayTotal)}
               </div>
             </div>
           )
@@ -154,14 +153,14 @@ export function ConfirmationScreen({ orderNumber }: { orderNumber?: string }) {
         )}
 
         <div className="conf-total">
-          <span>{lang === 'el' ? 'Σύνολο' : 'Total'}</span>
+          <span>{t('total')}</span>
           <span>{fmt(snapshot.total)}</span>
         </div>
       </div>
 
       <div className="conf-actions">
         <button className="btn-conf-done" onClick={handleDone}>
-          {lang === 'el' ? 'Επιστροφή στο μενού' : 'Back to menu'}
+          {t('coBackToMenu')}
         </button>
       </div>
     </div>

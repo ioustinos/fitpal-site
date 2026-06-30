@@ -29,7 +29,7 @@ export function VoucherInput() {
             isn't left wondering why typing a second code does nothing.
             Decided 2026-05-27: no stacking (industry standard, predictable margin). */}
         <div className="voucher-policy">
-          {lang === 'el' ? 'Μόνο 1 κουπόνι ανά παραγγελία' : '1 voucher per order'}
+          {t('cwOneVoucherPerOrder')}
         </div>
       </>
     )

@@ -4,6 +4,7 @@ import { useAuthStore } from '../../store/useAuthStore'
 import { useMenuStore } from '../../store/useMenuStore'
 import { useImpersonationStore } from '../../store/useImpersonationStore'
 import { subTotal } from '../../lib/helpers'
+import { makeTr } from '../../lib/translations'
 import { PAYMENT_METHODS as PM } from '../../lib/paymentMethods'
 
 // WEC-499: labels + descriptions now come from the shared payment-methods
@@ -19,6 +20,7 @@ const PAYMENT_METHODS = [
 
 export function PaymentSection() {
   const lang = useUIStore((s) => s.lang)
+  const t = makeTr(lang)
   const payment = useCartStore((s) => s.payment)
   const setPayment = useCartStore((s) => s.setPayment)
   const cart = useCartStore((s) => s.cart)
@@ -94,7 +96,7 @@ export function PaymentSection() {
               className={`payment-opt${payment.method === m.id ? ' active' : ''}${walletDisabled ? ' insufficient' : ''}`}
               onClick={() => setPayment({ ...payment, method: m.id })}
               disabled={walletDisabled}
-              title={noWallet ? (lang === 'el' ? 'Ο πελάτης δεν έχει wallet' : 'Customer has no wallet') : undefined}
+              title={noWallet ? t('coCustomerNoWallet') : undefined}
             >
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <path d={m.iconPath}/>
@@ -104,12 +106,12 @@ export function PaymentSection() {
                   {lang === 'el' ? m.labelEl : m.labelEn}
                   {isWallet && walletActive && (
                     <span className={`wallet-bal-badge${!walletSufficient ? ' insufficient' : ''}`}>
-                      {!walletSufficient ? `€${walletBalance.toFixed(2)} — ${lang === 'el' ? 'Ανεπαρκές' : 'Insufficient'}` : `€${walletBalance.toFixed(2)}`}
+                      {!walletSufficient ? `€${walletBalance.toFixed(2)} — ${t('coInsufficient')}` : `€${walletBalance.toFixed(2)}`}
                     </span>
                   )}
                   {isWallet && noWallet && (
                     <span className="wallet-bal-badge insufficient">
-                      {lang === 'el' ? 'Χωρίς wallet' : 'No wallet'}
+                      {t('coNoWallet')}
                     </span>
                   )}
                 </span>
@@ -128,22 +130,20 @@ export function PaymentSection() {
       {payment.method === 'transfer' && bankInfos.length > 0 && (
         <div className="bank-info-box">
           <div className="bank-info-title">
-            {lang === 'el' ? 'Στοιχεία τραπεζικής μεταφοράς' : 'Bank transfer details'}
+            {t('coBankTransferDetails')}
           </div>
           {/* WEC-260: render every configured IBAN. Customer can pick whichever
               bank is most convenient. Each entry is its own definition list so
               the visual grouping survives long IBANs and odd ordering. */}
           {bankInfos.map((b, i) => (
             <dl key={`${b.iban}-${i}`} className="bank-info-list" style={i > 0 ? { marginTop: 12, paddingTop: 12, borderTop: '1px dashed var(--border)' } : undefined}>
-              {b.bankName && (<><dt>{lang === 'el' ? 'Τράπεζα' : 'Bank'}</dt> <dd>{b.bankName}</dd></>)}
+              {b.bankName && (<><dt>{t('coBank')}</dt> <dd>{b.bankName}</dd></>)}
               <dt>IBAN</dt> <dd>{b.iban}</dd>
-              <dt>{lang === 'el' ? 'Δικαιούχος' : 'Beneficiary'}</dt> <dd>{b.beneficiary}</dd>
+              <dt>{t('coBeneficiary')}</dt> <dd>{b.beneficiary}</dd>
             </dl>
           ))}
           <div className="bank-info-note">
-            {lang === 'el'
-              ? 'Η παραγγελία σου θα επιβεβαιωθεί όταν λάβουμε το ποσό. Χρησιμοποίησε τον αριθμό παραγγελίας ως αιτιολογία.'
-              : 'Your order is confirmed once we receive the funds. Use your order number as the wire reference.'}
+            {t('coBankTransferNote')}
           </div>
         </div>
       )}

@@ -197,12 +197,12 @@ export function DishCard({ dish, dayIndex }: DishCardProps) {
         {/* Price badge — bottom right */}
         {dish.discount ? (
           <div className="price-badge has-disc">
-            <span className="price-badge-was">{lang === 'el' ? 'από' : 'from'} €{minPrice.toFixed(2)}</span>
+            <span className="price-badge-was">{t('mnFromNoSpace')} €{minPrice.toFixed(2)}</span>
             <span className="price-badge-now">€{finalPrice.toFixed(2)}</span>
           </div>
         ) : (
           <div className="price-badge">
-            <span className="from">{lang === 'el' ? 'από ' : 'from '}</span>
+            <span className="from">{t('from')}</span>
             €{finalPrice.toFixed(2)}
           </div>
         )}
@@ -280,10 +280,10 @@ export function DishCard({ dish, dayIndex }: DishCardProps) {
         <button
           className={`btn-add${inCart > 0 ? ' in-cart' : ''}${unavailable ? ' closed' : ''}`}
           onClick={handleAdd}
-          title={unavailable ? (lang === 'el' ? 'Οι παραγγελίες για αυτή την ημέρα έχουν κλείσει' : 'Orders for this day are closed') : undefined}
+          title={unavailable ? t('mnOrdersClosedForDay') : undefined}
         >
           {unavailable
-            ? (lang === 'el' ? 'Κλειστό' : 'Closed')
+            ? t('mnClosed')
             : inCart > 0
               ? `${inCart > 1 ? `${inCart}× ` : ''}+ ${t('addCart')}`
               : `+ ${t('addCart')}`}

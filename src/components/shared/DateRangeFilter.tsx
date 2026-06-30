@@ -1,4 +1,5 @@
 import { useUIStore } from '../../store/useUIStore'
+import { makeTr } from '../../lib/translations'
 import type { RangePreset } from '../../lib/dateRange'
 
 /**
@@ -35,10 +36,11 @@ export function DateRangeFilter({
   preset, from, to, onPresetChange, onFromChange, onToChange, summary,
 }: DateRangeFilterProps) {
   const lang = useUIStore((s) => s.lang)
+  const t = makeTr(lang)
 
   return (
     <div className="date-range-filter">
-      <div className="drf-pills" role="tablist" aria-label={lang === 'el' ? 'Φίλτρο ημερομηνιών' : 'Date filter'}>
+      <div className="drf-pills" role="tablist" aria-label={t('shDateFilter')}>
         {PRESETS.map((p) => (
           <button
             key={p.id}
@@ -57,7 +59,7 @@ export function DateRangeFilter({
       {preset === 'custom' && (
         <div className="drf-custom">
           <label className="drf-field">
-            <span>{lang === 'el' ? 'Από' : 'From'}</span>
+            <span>{t('shFrom')}</span>
             <input
               type="date"
               value={from}
@@ -66,7 +68,7 @@ export function DateRangeFilter({
             />
           </label>
           <label className="drf-field">
-            <span>{lang === 'el' ? 'Έως' : 'To'}</span>
+            <span>{t('shTo')}</span>
             <input
               type="date"
               value={to}

@@ -19,6 +19,7 @@ import { supabase } from '../lib/supabase'
 import { useUIStore } from '../store/useUIStore'
 import { fetchOrderForConfirmation, type ConfirmationOrder } from '../lib/api/orders'
 import { fmt } from '../lib/helpers'
+import { makeTr } from '../lib/translations'
 
 type Outcome =
   | { status: 'paid';     orderId: string; orderNumber: string; amountCents: number }
@@ -187,6 +188,7 @@ export function OrderReturn({ mode }: Props) {
 function PaidView({
   orderNumber, details, lang,
 }: { orderNumber: string; details: ConfirmationOrder | null; lang: 'el' | 'en' }) {
+  const t = makeTr(lang)
   return (
     <div className="confirmation-screen">
       <div className="conf-icon">
@@ -197,20 +199,18 @@ function PaidView({
       </div>
 
       <h2 className="conf-title">
-        {lang === 'el' ? 'Η παραγγελία σου καταχωρήθηκε!' : 'Your order has been placed!'}
+        {t('coOrderPlaced')}
       </h2>
 
       <div className="conf-order-hero">
         <div className="conf-order-hero-label">
-          {lang === 'el' ? 'Αριθμός παραγγελίας' : 'Order number'}
+          {t('coOrderNumber')}
         </div>
         <div className="conf-order-hero-number">{orderNumber}</div>
       </div>
 
       <p className="conf-sub">
-        {lang === 'el'
-          ? 'Θα λάβεις σύντομα email επιβεβαίωσης. Αν δεν εμφανιστεί στα εισερχόμενα, έλεγξε και τον φάκελο ανεπιθύμητης αλληλογραφίας.'
-          : "You'll receive a confirmation email shortly. If it doesn't show up in your inbox, check your spam folder too."}
+        {t('coConfEmailNote')}
       </p>
 
       {details ? (
@@ -245,7 +245,7 @@ function PaidView({
                 })}
               </div>
               <div className="conf-day-amt">
-                {lang === 'el' ? 'Σύνολο ημέρας' : 'Day total'}: {fmt(d.dayTotal)}
+                {t('coDayTotal')}: {fmt(d.dayTotal)}
               </div>
             </div>
           ))}
@@ -255,19 +255,19 @@ function PaidView({
           )}
 
           <div className="conf-total">
-            <span>{lang === 'el' ? 'Σύνολο' : 'Total'}</span>
+            <span>{t('total')}</span>
             <span>{fmt(details.total)}</span>
           </div>
         </div>
       ) : (
         <p className="conf-loading-detail">
-          {lang === 'el' ? 'Φόρτωση λεπτομερειών παραγγελίας…' : 'Loading order details…'}
+          {t('coLoadingOrderDetails')}
         </p>
       )}
 
       <div className="conf-actions">
         <a className="btn-conf-done" href="/">
-          {lang === 'el' ? 'Επιστροφή στο μενού' : 'Back to menu'}
+          {t('coBackToMenu')}
         </a>
       </div>
     </div>
@@ -277,11 +277,12 @@ function PaidView({
 /* ─── Non-paid states (loading, pending, failed, mismatch, error, unknown) ─── */
 
 function NonPaidView({ outcome, lang }: { outcome: Outcome; lang: 'el' | 'en' }) {
+  const t = makeTr(lang)
   if (outcome.status === 'loading') {
     return (
       <div className="order-return-state">
         <div className="ors-spinner" aria-hidden="true" />
-        <h2>{lang === 'el' ? 'Επαλήθευση πληρωμής…' : 'Verifying your payment…'}</h2>
+        <h2>{t('coVerifyingPayment')}</h2>
       </div>
     )
   }
@@ -290,20 +291,18 @@ function NonPaidView({ outcome, lang }: { outcome: Outcome; lang: 'el' | 'en' })
     return (
       <div className="order-return-state">
         <div className="ors-spinner" aria-hidden="true" />
-        <h2>{lang === 'el' ? 'Ολοκλήρωση πληρωμής…' : 'Finalising payment…'}</h2>
+        <h2>{t('coFinalisingPayment')}</h2>
         <p>
-          {lang === 'el'
-            ? 'Η τράπεζα επεξεργάζεται την πληρωμή. Θα λάβεις email επιβεβαίωσης μόλις ολοκληρωθεί.'
-            : "Your bank is processing the payment. You'll receive a confirmation email as soon as it completes."}
+          {t('coPendingBankNote')}
         </p>
         {outcome.orderNumber && (
           <p className="ors-ref">
-            {lang === 'el' ? 'Αριθμός παραγγελίας: ' : 'Order number: '}
+            {t('coOrderNumberColon')}
             <strong>{outcome.orderNumber}</strong>
           </p>
         )}
         <a className="btn-conf-done" href="/">
-          {lang === 'el' ? 'Επιστροφή στο μενού' : 'Back to menu'}
+          {t('coBackToMenu')}
         </a>
       </div>
     )
@@ -317,19 +316,17 @@ function NonPaidView({ outcome, lang }: { outcome: Outcome; lang: 'el' | 'en' })
             <circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/>
           </svg>
         </div>
-        <h2>{lang === 'el' ? 'Η πληρωμή δεν ολοκληρώθηκε' : 'Payment did not complete'}</h2>
+        <h2>{t('coPaymentNotComplete')}</h2>
         <p>
-          {lang === 'el'
-            ? 'Η παραγγελία σου δεν χρεώθηκε. Μπορείς να δοκιμάσεις ξανά.'
-            : 'Your order was not charged. You can try again.'}
+          {t('coNotCharged')}
         </p>
         {outcome.orderNumber && (
           <p className="ors-ref">
-            {lang === 'el' ? 'Αναφορά: ' : 'Reference: '} {outcome.orderNumber}
+            {t('coReferenceColon')} {outcome.orderNumber}
           </p>
         )}
         <a className="btn-conf-done" href="/">
-          {lang === 'el' ? 'Επιστροφή στο μενού' : 'Back to menu'}
+          {t('coBackToMenu')}
         </a>
       </div>
     )
@@ -338,14 +335,12 @@ function NonPaidView({ outcome, lang }: { outcome: Outcome; lang: 'el' | 'en' })
   if (outcome.status === 'mismatch') {
     return (
       <div className="order-return-state ors-error">
-        <h2>{lang === 'el' ? 'Κάτι δεν πάει καλά' : 'Something went wrong'}</h2>
+        <h2>{t('coSomethingWrong')}</h2>
         <p>
-          {lang === 'el'
-            ? 'Υπάρχει ασυμφωνία ποσού. Η ομάδα μας έχει ειδοποιηθεί.'
-            : 'There is an amount mismatch. Our team has been notified.'}
+          {t('coAmountMismatch')}
         </p>
         <p className="ors-ref">
-          {lang === 'el' ? 'Αναφορά: ' : 'Reference: '} {outcome.orderNumber}
+          {t('coReferenceColon')} {outcome.orderNumber}
         </p>
       </div>
     )
@@ -354,7 +349,7 @@ function NonPaidView({ outcome, lang }: { outcome: Outcome; lang: 'el' | 'en' })
   if (outcome.status === 'error') {
     return (
       <div className="order-return-state ors-error">
-        <h2>{lang === 'el' ? 'Σφάλμα' : 'Error'}</h2>
+        <h2>{t('coErrorTitle')}</h2>
         <p>{outcome.message}</p>
       </div>
     )
@@ -364,7 +359,7 @@ function NonPaidView({ outcome, lang }: { outcome: Outcome; lang: 'el' | 'en' })
   const msg = outcome.status === 'unknown' ? outcome.message : ''
   return (
     <div className="order-return-state">
-      <h2>{lang === 'el' ? 'Η σελίδα απαιτεί παραμέτρους' : 'Missing parameters'}</h2>
+      <h2>{t('coMissingParams')}</h2>
       <p>{msg}</p>
     </div>
   )

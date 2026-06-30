@@ -1,4 +1,5 @@
 import { useUIStore } from '../../store/useUIStore'
+import { makeTr } from '../../lib/translations'
 
 /**
  * Pagination bar (WEC-168 / WEC-169).
@@ -16,18 +17,19 @@ export interface PaginationProps {
 
 export function Pagination({ page, pageCount, onChange }: PaginationProps) {
   const lang = useUIStore((s) => s.lang)
+  const t = makeTr(lang)
   if (pageCount <= 1) return null
 
   const pages = windowAround(page, pageCount, 7)
 
   return (
-    <nav className="pagination" aria-label={lang === 'el' ? 'Πλοήγηση σελίδων' : 'Pagination'}>
+    <nav className="pagination" aria-label={t('shPagination')}>
       <button
         type="button"
         className="page-btn"
         disabled={page <= 1}
         onClick={() => onChange(page - 1)}
-        aria-label={lang === 'el' ? 'Προηγούμενη' : 'Previous'}
+        aria-label={t('shPrevious')}
       >
         ‹
       </button>
@@ -51,7 +53,7 @@ export function Pagination({ page, pageCount, onChange }: PaginationProps) {
         className="page-btn"
         disabled={page >= pageCount}
         onClick={() => onChange(page + 1)}
-        aria-label={lang === 'el' ? 'Επόμενη' : 'Next'}
+        aria-label={t('shNext')}
       >
         ›
       </button>

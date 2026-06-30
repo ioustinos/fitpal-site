@@ -1,6 +1,7 @@
 import { DishCard } from './DishCard'
 import { useUIStore } from '../../store/useUIStore'
 import { useMenuStore } from '../../store/useMenuStore'
+import { makeTr } from '../../lib/translations'
 import type { Dish, CategoryDef } from '../../data/menu'
 
 interface MenuSectionProps {
@@ -10,6 +11,7 @@ interface MenuSectionProps {
 
 export function MenuSection({ dishes, dayIndex }: MenuSectionProps) {
   const lang = useUIStore((s) => s.lang)
+  const t = makeTr(lang)
   const categories = useMenuStore((s) => s.categories)
   // WEC-253: per-menu category ordering. Read from the active week.
   const activeWeek = useUIStore((s) => s.activeWeek)
@@ -47,7 +49,7 @@ export function MenuSection({ dishes, dayIndex }: MenuSectionProps) {
     return (
       <div className="menu-empty">
         <div className="menu-empty-text">
-          {lang === 'el' ? 'Δεν υπάρχουν πιάτα σήμερα' : 'No dishes today'}
+          {t('mnNoDishesToday')}
         </div>
       </div>
     )
@@ -57,7 +59,7 @@ export function MenuSection({ dishes, dayIndex }: MenuSectionProps) {
     <div id="menu-grid">
       {entries.map(({ cat, dishes: catDishes }) => {
         const catLabel = lang === 'el' ? cat.labelEl : cat.labelEn
-        const dishWord = lang === 'el' ? 'πιάτα' : 'dishes'
+        const dishWord = t('mnDishesWord')
 
         return (
           <div key={cat.id} className="cat-section" id={`cat-sec-${cat.id}`}>
