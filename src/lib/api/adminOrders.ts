@@ -825,9 +825,11 @@ export async function refundOrder(
   const { data: walletRow } = await supabase.from('wallets').select('*').eq('user_id', order.userId).maybeSingle()
   let walletId: string
   let currentBalance = 0
+  let currentBonus = 0
   if (walletRow) {
     walletId = (walletRow as { id: string; balance: number }).id
     currentBalance = (walletRow as { balance: number }).balance
+    currentBonus = (walletRow as { bonus_balance: number }).bonus_balance
   } else {
     const { data: created, error: walletErr } = await supabase
       .from('wallets')
@@ -848,7 +850,9 @@ export async function refundOrder(
   if (txErr) return { error: txErr.message }
   const { error: balErr } = await supabase
     .from('wallets')
-    .update({ balance: currentBalance + amountCents })
+    // WEC-208: refunds are bonus credit (per convention) — increment bonus_balance
+    // alongside balance so balance = base_balance + bonus_balance stays consistent.
+    .update({ balance: currentBalance + amountCents, bonus_balance: currentBonus + amountCents })
     .eq('id', walletId)
   if (balErr) return { error: balErr.message }
 
