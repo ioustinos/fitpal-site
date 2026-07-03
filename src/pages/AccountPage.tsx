@@ -646,7 +646,7 @@ function WalletTab({ user, lang }: any) {
         <div className="aw-history-title">{t('acTransactionHistory')}</div>
         {wallet.transactions && wallet.transactions.length > 0 ? (
           wallet.transactions.map((tx: any, i: number) => {
-            const isCredit = tx.type === 'credit' || tx.amount > 0
+            const isCredit = tx.type === 'credit'
             const txDate = new Date(tx.date + 'T12:00:00').toLocaleDateString(
               lang === 'el' ? 'el-GR' : 'en-GB', { day: 'numeric', month: 'short' })
             return (
@@ -657,7 +657,7 @@ function WalletTab({ user, lang }: any) {
                   <div className="aw-tx-date">{txDate}</div>
                 </div>
                 <div className={`aw-tx-amt ${isCredit ? 'credit' : 'debit'}`}>
-                  {isCredit ? '+' : ''}€{Math.abs(tx.amount).toFixed(2)}
+                  {isCredit ? '+' : '−'}€{Math.abs(tx.amount).toFixed(2)}
                 </div>
               </div>
             )

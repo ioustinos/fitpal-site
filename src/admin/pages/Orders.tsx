@@ -1442,7 +1442,9 @@ function TimelineTab({ order }: { order: AdminOrder }) {
             <td>Order placed</td>
             <td className="admin-sub">customer</td>
           </tr>
-          {order.changeLog.map((l) => (
+          {[...order.changeLog]
+            .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime())
+            .map((l) => (
             <tr key={l.id}>
               <td className="admin-sub">{new Date(l.createdAt).toLocaleString('en-GB')}</td>
               <td>{l.tableName}.{l.fieldName}</td>
