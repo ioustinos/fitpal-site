@@ -22,7 +22,9 @@ import { fmt } from '../lib/helpers'
 import { makeTr } from '../lib/translations'
 
 type Outcome =
-  | { status: 'paid';     orderId: string; orderNumber: string; amountCents: number }
+  | { status: 'paid';     kind: 'order'; orderId: string; orderNumber: string; amountCents: number }
+  // WEC-504: wallet-plan (package) purchase — no meal order to render.
+  | { status: 'paid';     kind: 'wallet'; amountCents: number }
   | { status: 'failed';   orderNumber: string; reason: string }
   | { status: 'pending';  orderNumber?: string }
   | { status: 'mismatch'; orderNumber: string }
@@ -74,12 +76,18 @@ export function OrderReturn({ mode }: Props) {
         }
 
         if (data.status === 'paid') {
-          setOutcome({
-            status: 'paid',
-            orderId: data.orderId,
-            orderNumber: data.orderNumber,
-            amountCents: data.amountCents,
-          })
+          if (data.kind === 'wallet') {
+            // WEC-504: package purchase confirmed + wallet credited server-side.
+            setOutcome({ status: 'paid', kind: 'wallet', amountCents: data.amountCents })
+          } else {
+            setOutcome({
+              status: 'paid',
+              kind: 'order',
+              orderId: data.orderId,
+              orderNumber: data.orderNumber,
+              amountCents: data.amountCents,
+            })
+          }
           return
         }
         if (data.status === 'failed') {
@@ -123,6 +131,7 @@ export function OrderReturn({ mode }: Props) {
         if (data?.payment_status === 'paid') {
           setOutcome({
             status: 'paid',
+            kind: 'order',
             orderId: data.id as string,
             orderNumber: data.order_number as string,
             amountCents: data.total as number,
@@ -165,7 +174,9 @@ export function OrderReturn({ mode }: Props) {
   // When we land on `paid`, fetch the full order so we can render the rich
   // confirmation UI (matching the cash flow's ConfirmationScreen).
   useEffect(() => {
-    if (outcome.status !== 'paid') return
+    // WEC-504: only meal orders have a rich confirmation to fetch; wallet-plan
+    // purchases render their own (no order/children/items).
+    if (outcome.status !== 'paid' || outcome.kind !== 'order') return
     let cancelled = false
     ;(async () => {
       const { data } = await fetchOrderForConfirmation(outcome.orderId)
@@ -177,7 +188,9 @@ export function OrderReturn({ mode }: Props) {
   return (
     <div className="order-return-page">
       {outcome.status === 'paid'
-        ? <PaidView orderNumber={outcome.orderNumber} details={orderDetails} lang={lang} />
+        ? (outcome.kind === 'wallet'
+            ? <WalletPaidView amountCents={outcome.amountCents} lang={lang} />
+            : <PaidView orderNumber={outcome.orderNumber} details={orderDetails} lang={lang} />)
         : <NonPaidView outcome={outcome} lang={lang} />}
     </div>
   )
@@ -269,6 +282,32 @@ function PaidView({
         <a className="btn-conf-done" href="/">
           {t('coBackToMenu')}
         </a>
+      </div>
+    </div>
+  )
+}
+
+/* ─── Paid wallet-plan (package) purchase — WEC-504 ───
+   The wallet was credited server-side by verifyWalletPlanTransaction during the
+   return verify. No meal order to render, so we show a compact success card. */
+
+function WalletPaidView({ amountCents, lang }: { amountCents: number; lang: 'el' | 'en' }) {
+  const t = makeTr(lang)
+  return (
+    <div className="confirmation-screen">
+      <div className="conf-icon">
+        <svg width="56" height="56" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M22 11.08V12a10 10 0 11-5.93-9.14"/>
+          <polyline points="22 4 12 14.01 9 11.01"/>
+        </svg>
+      </div>
+      <h2 className="conf-title">{t('coPackagePaidTitle')}</h2>
+      <p className="conf-sub">
+        {t('coWalletCredited')} €{(amountCents / 100).toFixed(2)}
+      </p>
+      <p className="conf-sub">{t('coConfEmailNote')}</p>
+      <div className="conf-actions">
+        <a className="btn-conf-done" href="/">{t('coBackToMenu')}</a>
       </div>
     </div>
   )

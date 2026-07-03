@@ -9,6 +9,7 @@
 // WEC-172: part of the Viva Payments integration epic (WEC-125).
 
 import { verifyVivaTransaction } from '../lib/viva/verify'
+import { verifyWalletPlanTransaction } from '../lib/wallet/verifyWalletPlanTransaction'
 
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin': '*',
@@ -42,7 +43,20 @@ export default async (request: Request) => {
   }
 
   try {
-    const outcome = await verifyVivaTransaction(transactionId)
+    let outcome: Record<string, unknown> = await verifyVivaTransaction(transactionId)
+    // WEC-504: the meal verifier returns 'unknown' for wallet-plan (`wp:`)
+    // payments — those live in `wallet_plans`, not `payment_links`. The
+    // customer return-URL is the only confirmation layer working on dev
+    // (webhook + reconcile are both down — WEC-497 / WEC-485 / WEC-413), so
+    // fall back to the wallet verifier here. Without this, package purchases
+    // could never be confirmed on return. Meal orders are untouched: the
+    // fallback only runs when the meal verifier itself couldn't match.
+    if (outcome.status === 'unknown') {
+      const w = await verifyWalletPlanTransaction(transactionId)
+      if (w.status !== 'unknown') {
+        outcome = { ...w, kind: 'wallet' }
+      }
+    }
     return Response.json(outcome, { headers: CORS_HEADERS })
   } catch (err) {
     const msg = err instanceof Error ? err.message : 'Unknown error'
