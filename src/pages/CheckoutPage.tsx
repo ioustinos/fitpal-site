@@ -114,11 +114,14 @@ export function CheckoutPage() {
   const draftId = useCartStore((s) => s.draftId)
   const clearDraft = useCartStore((s) => s.clearDraft)
   const user = useAuthStore((s) => s.user)
-  // WEC-495: reactive impersonation flag. Under session-swap impersonation
-  // `user` IS the impersonated customer, but the contact prefill below must
-  // know to source authoritatively from that customer (never let a latched
-  // admin value win) — see the prefill effect.
+  // WEC-495: during impersonation the CLIENT store `user` stays the ADMIN — the
+  // session/JWT swaps to the customer (so server-side user_id + wallet are the
+  // customer's), but useAuthStore.user is not repopulated to them. So the
+  // impersonated customer's identity must come from the server-provided
+  // `target`; sourcing `user.email` stored the admin's address as
+  // orders.customer_email and the confirmation email went to the admin.
   const isImpersonating = useImpersonationStore((s) => s.active)
+  const impersonationTarget = useImpersonationStore((s) => s.target)
   const toast = useToast((s) => s.show)
   // WEC-422: these three MUST be declared above the WEC-410 auto-pickup
   // useEffect (its dep array reads pickupLocations.length). Previously they
@@ -370,21 +373,24 @@ export function CheckoutPage() {
     if (contactPrefilledForUser.current === key) return
     contactPrefilledForUser.current = key
 
-    if (user) {
+    if (isImpersonating && impersonationTarget) {
+      // WEC-495: `user` is the ADMIN here — seed the contact from the
+      // impersonated customer's server-provided identity so the field shows
+      // (and stores) the customer, not the admin. Phone isn't part of the
+      // target; keep the admin's for form validation (customer_phone under
+      // impersonation is a smaller, separate gap — the reported bug is the
+      // confirmation email). Submit also hard-overrides name/email from the
+      // target, so the stored customer_email is correct regardless of timing.
       setContact((prev) => ({
-        // WEC-495: under impersonation, source the contact authoritatively
-        // from the impersonated customer (`user` IS that customer after the
-        // session swap), OVERRIDING any value already in `prev`. The normal
-        // `prev.x || ...` guard exists to protect an in-progress guest/self
-        // edit — but during impersonation that same guard would keep the
-        // admin's email/name/phone if it had been latched into the contact
-        // fields during the brief window before refreshUser swapped `user`
-        // to the customer, and that admin value then gets stored as
-        // orders.customer_email (root cause of WEC-495). Admins can still
-        // edit the fields afterwards; this only changes the default.
-        name: isImpersonating ? (user.name || '') : (prev.name || user.name || ''),
-        email: isImpersonating ? (user.email || '') : (prev.email || user.email || ''),
-        phone: isImpersonating ? (user.phone || '') : (prev.phone || user.phone || ''),
+        name: impersonationTarget.name || '',
+        email: impersonationTarget.email || '',
+        phone: prev.phone || user?.phone || '',
+      }))
+    } else if (user) {
+      setContact((prev) => ({
+        name: prev.name || user.name || '',
+        email: prev.email || user.email || '',
+        phone: prev.phone || user.phone || '',
       }))
     } else {
       const guest = readGuestContact()
@@ -394,7 +400,7 @@ export function CheckoutPage() {
         phone: prev.phone || guest.phone,
       }))
     }
-  }, [user, isImpersonating])
+  }, [user, isImpersonating, impersonationTarget])
 
   const prepopulatedFor = useRef<string | null>(null)
   useEffect(() => {
@@ -614,8 +620,12 @@ export function CheckoutPage() {
       userId: user?.id,
       // Routes EL/EN Klaviyo template inside the Order Placed flow.
       lang,
-      customerName: contactName,
-      customerEmail: contactEmail,
+      // WEC-495: during impersonation, force the customer identity from the
+      // server-provided target (useAuthStore.user is the admin), so the order
+      // stores the customer's email and the confirmation reaches THEM, not the
+      // admin. Belt-and-suspenders with the prefill above.
+      customerName: (isImpersonating && impersonationTarget) ? impersonationTarget.name : contactName,
+      customerEmail: (isImpersonating && impersonationTarget) ? impersonationTarget.email : contactEmail,
       customerPhone: contact.phone,  // E.164 from <PhoneInput>
       paymentMethod: payment.method as 'cash' | 'card' | 'link' | 'transfer' | 'wallet',
       cutlery: payment.cutlery ?? false,
