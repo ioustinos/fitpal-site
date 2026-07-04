@@ -441,7 +441,13 @@ export default async (request: Request) => {
     // the order to another user. Guests legitimately resolve to userId = null.
     let userId: string | null = null
     if (token) {
-      const { data: { user } } = await supabase.auth.getUser()
+      // WEC-511: pass the token EXPLICITLY. No-arg getUser() resolves from the
+      // client's stored session, but this per-request client has
+      // persistSession:false and no session set, so it could return null even
+      // with a valid Authorization header — leaving a logged-in customer
+      // treated as a guest (→ "Wallet payment requires login"). getUser(token)
+      // validates the passed JWT directly against Supabase.
+      const { data: { user } } = await supabase.auth.getUser(token)
       userId = user?.id ?? null
     }
 

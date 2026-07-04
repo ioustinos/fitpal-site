@@ -408,13 +408,13 @@ function PrefsTab({ user, lang, updatePrefs }: any) {
     (id) => ({ id, el: PAYMENT_COPY[id].shortEl, en: PAYMENT_COPY[id].shortEn }),
   )
 
+  // WEC-513: functional updates so editing a day-pref doesn't clobber an unsaved
+  // payment-method / language change captured in a stale `prefs` closure.
   const setDayAddr = (dayIdx: number, addrId: string) => {
-    const p = { ...prefs, dayAddress: { ...prefs.dayAddress, [dayIdx]: addrId } }
-    setPrefs(p)
+    setPrefs((prev: any) => ({ ...prev, dayAddress: { ...prev.dayAddress, [dayIdx]: addrId } }))
   }
   const setDaySlot = (dayIdx: number, slot: string) => {
-    const p = { ...prefs, slots: { ...prefs.slots, [dayIdx]: slot } }
-    setPrefs(p)
+    setPrefs((prev: any) => ({ ...prev, slots: { ...prev.slots, [dayIdx]: slot } }))
   }
 
   const [saving, setSaving] = useState(false)
@@ -496,7 +496,7 @@ function PrefsTab({ user, lang, updatePrefs }: any) {
             <button
               key={pm.id}
               className={`prefs-payment-btn${prefs.paymentMethod === pm.id ? ' active' : ''}`}
-              onClick={() => setPrefs({ ...prefs, paymentMethod: pm.id })}
+              onClick={() => setPrefs((prev: any) => ({ ...prev, paymentMethod: pm.id }))}
             >
               {lang === 'el' ? pm.el : pm.en}
             </button>
@@ -528,14 +528,14 @@ function PrefsTab({ user, lang, updatePrefs }: any) {
           <button
             type="button"
             className={`prefs-payment-btn${prefs.lang === 'el' ? ' active' : ''}`}
-            onClick={() => setPrefs({ ...prefs, lang: 'el' })}
+            onClick={() => setPrefs((prev: any) => ({ ...prev, lang: 'el' }))}
           >
             Ελληνικά
           </button>
           <button
             type="button"
             className={`prefs-payment-btn${prefs.lang === 'en' ? ' active' : ''}`}
-            onClick={() => setPrefs({ ...prefs, lang: 'en' })}
+            onClick={() => setPrefs((prev: any) => ({ ...prev, lang: 'en' }))}
           >
             English
           </button>
@@ -558,7 +558,7 @@ function PrefsTab({ user, lang, updatePrefs }: any) {
             <span className="extra-label">{t('acEnableOnPage')}</span>
             <Toggle
               checked={prefs.goalTracking ?? false}
-              onChange={(v) => setPrefs({ ...prefs, goalTracking: v })}
+              onChange={(v) => setPrefs((prev: any) => ({ ...prev, goalTracking: v }))}
             />
           </div>
         </div>
@@ -586,7 +586,9 @@ function WalletTab({ user, lang }: any) {
       <div className="tab-section">
         <h2 className="tab-title">Fitpal Wallet</h2>
         <div className="aw-empty">
-          <div className="aw-empty-icon">👛</div>
+          <div className="aw-empty-icon">
+            <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20M16 14h.01"/></svg>
+          </div>
           <div className="aw-empty-title">
             {t('acNoWalletYet')}
           </div>
@@ -626,7 +628,9 @@ function WalletTab({ user, lang }: any) {
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" width="14" height="14">
             <rect x="2" y="5" width="20" height="14" rx="2"/><path d="M16 12h.01"/><path d="M2 10h20"/>
           </svg>
-          {plan ? (lang === 'el' ? plan.nameEl : plan.nameEn) : wallet.planId} · {wallet.autoRenew
+          {/* WEC-512: resolve the real plan name (never the raw UUID). Mirror
+              SubscriptionTab: wallet.planEl/planEn → legacy name → em-dash. */}
+          {((lang === 'el' ? wallet.planEl : wallet.planEn) ?? (plan ? (lang === 'el' ? plan.nameEl : plan.nameEn) : null) ?? '—')} · {wallet.autoRenew
             ? t('acAutoRenewal')
             : t('acManualRenewal')}
         </div>
@@ -651,7 +655,14 @@ function WalletTab({ user, lang }: any) {
               lang === 'el' ? 'el-GR' : 'en-GB', { day: 'numeric', month: 'short' })
             return (
               <div key={i} className="aw-tx">
-                <div className={`aw-tx-icon ${isCredit ? 'credit' : 'debit'}`}>{isCredit ? '💰' : '🛒'}</div>
+                <div className={`aw-tx-icon ${isCredit ? 'credit' : 'debit'}`}>
+                  {/* WEC-514: monochrome SVG (+ credit / − debit) instead of emoji */}
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                    {isCredit
+                      ? <><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></>
+                      : <line x1="5" y1="12" x2="19" y2="12"/>}
+                  </svg>
+                </div>
                 <div className="aw-tx-info">
                   <div className="aw-tx-desc">{lang === 'el' ? tx.descEl : tx.descEn}</div>
                   <div className="aw-tx-date">{txDate}</div>
@@ -1369,11 +1380,21 @@ function OrdersTab({ user, lang }: any) {
                 {isOpen && (
                   <div className="order-card-body">
                     <div className="order-summary-line">
-                      <span>📅 {totalDays} {t('acDays')}</span>
+                      {/* WEC-514: SVG icons (house style) + count-aware Greek plural */}
+                      <span>
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ verticalAlign: '-2px' }}><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
+                        {' '}{totalDays} {totalDays === 1 ? t('acDay') : t('acDays')}
+                      </span>
                       <span>·</span>
-                      <span>🍽 {totalItems} {t('acDishes')}</span>
+                      <span>
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ verticalAlign: '-2px' }}><path d="M3 2v7a2 2 0 002 2 2 2 0 002-2V2M5 11v11"/><path d="M17 2a4 4 0 00-2 7v13"/></svg>
+                        {' '}{totalItems} {totalItems === 1 ? t('acDish') : t('acDishes')}
+                      </span>
                       <span>·</span>
-                      <span>💳 {paymentLabel}</span>
+                      <span>
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ verticalAlign: '-2px' }}><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/></svg>
+                        {' '}{paymentLabel}
+                      </span>
                     </div>
 
                     {isActive && (
@@ -1745,7 +1766,9 @@ function SubscriptionTab({ user, lang }: any) {
       <div className="tab-section">
         <h2 className="tab-title">{t('acMySubscription')}</h2>
         <div className="aw-empty">
-          <div className="aw-empty-icon">🎯</div>
+          <div className="aw-empty-icon">
+            <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>
+          </div>
           <div className="aw-empty-title">
             {t('acNoSubscriptionYet')}
           </div>
@@ -1792,7 +1815,12 @@ function SubscriptionTab({ user, lang }: any) {
   const bonusBalance = wallet.bonusBalance ?? 0
   const bonusPctValue = wallet.bonusPct ?? (legacyPlan?.bonusPct ?? null)
   const cycleCost = wallet.monthlyAmount ?? legacyPlan?.price ?? null
-  const cycleCredits = wallet.creditAmount ?? legacyPlan?.credits ?? null
+  // WEC-510: total credits = base + bonus (the credited wallet_credit), NOT the
+  // bonus % re-applied to an already-credited figure (that double-counted and
+  // showed €505.35 instead of €459.41). Use the real base/bonus split when present.
+  const cycleCredits = (wallet.baseBalance != null || wallet.bonusBalance != null)
+    ? (wallet.baseBalance ?? 0) + (wallet.bonusBalance ?? 0)
+    : (wallet.creditAmount ?? legacyPlan?.credits ?? null)
 
   // WEC-349: plan composition + dates, now joined from wallet_plans via
   // fetchWallet(). Fall back to a dash only when a field is genuinely absent.

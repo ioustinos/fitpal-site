@@ -68,7 +68,11 @@ async function getJwtUserId(request: Request): Promise<string | null> {
       global: { headers: { Authorization: `Bearer ${token}` } },
       auth: { persistSession: false, autoRefreshToken: false },
     })
-    const { data } = await c.auth.getUser()
+    // WEC-511: pass the token explicitly — no-arg getUser() can return null on a
+    // sessionless per-request client even with a valid Authorization header,
+    // which produced the false "user_id present but no bearer token provided"
+    // 403 for logged-in customers (and silently broke draft persistence).
+    const { data } = await c.auth.getUser(token)
     return data.user?.id ?? null
   } catch {
     return null
