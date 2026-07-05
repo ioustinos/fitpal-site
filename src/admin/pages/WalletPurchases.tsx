@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import {
-  fetchAdminWalletPlans, fetchAdminWalletPlanDetail, refundAdminWalletPlan,
+  fetchAdminWalletPlans, fetchAdminWalletPlanDetail, refundAdminWalletPlan, markAdminWalletPlanPaid,
   type AdminWalletPlanRow, type AdminWalletPlanDetail,
 } from '../../lib/api/adminWalletPlans'
 
@@ -140,6 +140,19 @@ function Drawer({ detail, loading, onClose, onRefunded }: DrawerProps) {
   const [refundAmount, setRefundAmount] = useState('') // empty = full refund of remaining
   const [refunding, setRefunding] = useState(false)
   const [refundErr, setRefundErr] = useState<string | null>(null)
+  // WEC-509: manual "mark bank-transfer paid".
+  const [marking, setMarking] = useState(false)
+  const [markErr, setMarkErr] = useState<string | null>(null)
+
+  async function doMarkPaid() {
+    if (!detail) return
+    if (!confirm(`Mark this bank-transfer plan as PAID? This immediately credits €${(detail.amountToPayCents / 100).toFixed(2)} (+ bonus) to the customer's wallet and activates it.`)) return
+    setMarking(true); setMarkErr(null)
+    const { error } = await markAdminWalletPlanPaid(detail.id)
+    setMarking(false)
+    if (error) { setMarkErr(error); return }
+    onRefunded() // reuse the refresh-after-mutation callback
+  }
 
   async function doRefund() {
     if (!detail) return
@@ -219,6 +232,18 @@ function Drawer({ detail, loading, onClose, onRefunded }: DrawerProps) {
                 <KV k="Created" v={new Date(detail.createdAt).toLocaleString('el-GR')} />
                 <KV k="Confirmed" v={detail.confirmedAt ? new Date(detail.confirmedAt).toLocaleString('el-GR') : '—'} />
               </Section>
+
+              {detail.paymentStatus === 'pending' && detail.paymentMethod === 'transfer' && (
+                <Section title="Bank transfer">
+                  <p className="admin-page-sub" style={{ margin: '0 0 8px' }}>
+                    Funds received? Mark the plan paid to credit €{(detail.amountToPayCents / 100).toFixed(2)} (+ bonus) to the customer's wallet and activate it.
+                  </p>
+                  {markErr && <div className="admin-error-banner">{markErr}</div>}
+                  <button className="admin-btn-primary" onClick={doMarkPaid} disabled={marking}>
+                    {marking ? 'Marking…' : 'Mark transfer as paid'}
+                  </button>
+                </Section>
+              )}
 
               {detail.paymentStatus === 'paid' && detail.refundAmountCents < detail.amountToPayCents && (
                 <Section title="Refund">

@@ -177,6 +177,29 @@ export async function fetchAdminWalletStats(): Promise<{ data: WalletPlanStats |
   }
 }
 
+/**
+ * WEC-509: mark a bank-transfer wallet plan as paid (admin, funds received).
+ * Credits the customer's wallet via the Netlify function (transfer-only there).
+ */
+export async function markAdminWalletPlanPaid(
+  walletPlanId: string,
+): Promise<{ error: string | null; data?: { ok: boolean; alreadyPaid?: boolean } }> {
+  const { data: sessionData } = await supabase.auth.getSession()
+  const token = sessionData?.session?.access_token
+  if (!token) return { error: 'Not authenticated' }
+
+  const res = await fetch('/api/wallet-plan-mark-paid', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ walletPlanId }),
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: 'Request failed' }))
+    return { error: err.error ?? `HTTP ${res.status}` }
+  }
+  return { data: await res.json(), error: null }
+}
+
 /** Refund a wallet plan via the Netlify function (admin-only there too). */
 export async function refundAdminWalletPlan(
   walletPlanId: string,
