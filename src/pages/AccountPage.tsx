@@ -639,12 +639,8 @@ function WalletTab({ user, lang }: any) {
             {lang === 'el' ? `Επόμενη ανανέωση: ${renewDate}` : `Next renewal: ${renewDate}`}
           </div>
         )}
-        <div className="aw-actions">
-          <button className="aw-btn aw-btn-topup">{t('acTopUp')}</button>
-          <button className="aw-btn aw-btn-manage" onClick={() => { closeAccount(); setTimeout(() => goToWalletPage(), 300) }}>
-            {t('acChangePlan')}
-          </button>
-        </div>
+        {/* WEC (2026-07): 'Αναπλήρωση' + 'Αλλαγή πλάνου' buttons removed from the
+            wallet card per Ioustinos — plan changes/top-ups are driven elsewhere. */}
       </div>
       <div className="aw-history">
         <div className="aw-history-title">{t('acTransactionHistory')}</div>
@@ -1789,10 +1785,11 @@ function SubscriptionTab({ user, lang }: any) {
   // Resolve fields. The legacy 3-tier WALLET_PLANS lookup gives us a
   // human plan name fallback when wallet.planEl/planEn are missing.
   const legacyPlan = WALLET_PLANS.find((p) => p.id === wallet.planId)
+  // WEC-512: never fall back to the raw plan UUID in the heading — v2 plans
+  // have no stored name, so land on the generic label instead of the id.
   const planName =
     (isEl ? wallet.planEl : wallet.planEn) ??
     (legacyPlan ? (isEl ? legacyPlan.nameEl : legacyPlan.nameEn) : undefined) ??
-    wallet.planId ??
     t('acSubscriptionFallback')
 
   // Date formatter — same shape WalletTab uses for parity.
@@ -1827,14 +1824,8 @@ function SubscriptionTab({ user, lang }: any) {
   const TODO_DASH = '—'
   const startDateStr = fmtDate(wallet.startDate)
   const bonusExpiresStr = fmtDate(wallet.bonusExpiresAt)
-  const FREQ_LABELS: Record<string, { el: string; en: string }> = {
-    biweekly:  { el: 'Κάθε 2 εβδομάδες', en: 'Every 2 weeks' },
-    monthly:   { el: 'Μηνιαία', en: 'Monthly' },
-    quarterly: { el: 'Κάθε 3 μήνες', en: 'Quarterly' },
-  }
-  const freqLabel = wallet.frequency
-    ? (FREQ_LABELS[wallet.frequency]?.[isEl ? 'el' : 'en'] ?? wallet.frequency)
-    : null
+  // WEC-512 follow-up: FREQ_LABELS / freqLabel removed with the deprecated
+  // 'Συχνότητα' row (v2 plans never set wallet.frequency).
   const mealNames: { key: 'breakfast' | 'lunch' | 'dinner'; el: string; en: string }[] = [
     { key: 'breakfast', el: 'Πρωινό', en: 'Breakfast' },
     { key: 'lunch',     el: 'Μεσημεριανό', en: 'Lunch' },
@@ -1902,10 +1893,8 @@ function SubscriptionTab({ user, lang }: any) {
               <span className="subs-row-key">{t('acDaysPerWeek')}</span>
               <span className="subs-row-val">{wallet.daysPerWeek ?? TODO_DASH}</span>
             </div>
-            <div className="subs-row">
-              <span className="subs-row-key">{t('acFrequency')}</span>
-              <span className="subs-row-val">{freqLabel ?? TODO_DASH}</span>
-            </div>
+            {/* WEC-512 follow-up: 'Συχνότητα' (frequency) removed — a deprecated
+                wallet-v1 field never written by v2 plans (always showed '—'). */}
           </div>
         </div>
 
