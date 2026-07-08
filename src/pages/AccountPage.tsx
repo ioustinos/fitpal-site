@@ -18,6 +18,7 @@ import { DateRangeFilter } from '../components/shared/DateRangeFilter'
 import { Pagination } from '../components/shared/Pagination'
 import { PlacesAutocomplete } from '../components/ui/PlacesAutocomplete'
 import { googleMapsAvailable } from '../lib/googleMaps'
+import { ACCOUNT_TABS, accountTabLabel, logoutIcon, type AccountTab } from '../lib/accountNav'
 import {
   fetchIngredientOptions,
   saveProfileAllergies,
@@ -29,63 +30,9 @@ import {
  *  when the filtered list fits on one page. */
 const ORDERS_PAGE_SIZE = 50
 
-// WEC-349: 'subscription' tab — plan composition, discounts, and dates.
-// Distinct concern from 'wallet' which focuses on balance + transactions.
-type AccountTab = 'orders' | 'subscription' | 'wallet' | 'addresses' | 'goals' | 'diet' | 'prefs' | 'profile'
-
-/* ─── SVG icon helpers ──────────────────────────────────────────────────────── */
-
-const icons: Record<AccountTab | 'logout', React.ReactElement> = {
-  orders: (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <rect x="3" y="3" width="18" height="18" rx="2"/><path d="M8 7h8M8 12h8M8 17h5"/>
-    </svg>
-  ),
-  subscription: (
-    // WEC-349: rosette/ribbon glyph — distinct from .wallet's card icon so
-    // the nav reads "plan" vs "money" at a glance.
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <circle cx="12" cy="8" r="6"/><polyline points="8.21 13.89 7 23 12 19 17 23 15.79 13.88"/>
-    </svg>
-  ),
-  wallet: (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <rect x="2" y="5" width="20" height="14" rx="2"/><path d="M16 12h.01"/><path d="M2 10h20"/>
-    </svg>
-  ),
-  addresses: (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/>
-    </svg>
-  ),
-  goals: (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/>
-    </svg>
-  ),
-  diet: (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
-      <line x1="12" y1="9" x2="12" y2="13"/>
-      <line x1="12" y1="17" x2="12.01" y2="17"/>
-    </svg>
-  ),
-  prefs: (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 01-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/>
-    </svg>
-  ),
-  profile: (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/>
-    </svg>
-  ),
-  logout: (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/>
-    </svg>
-  ),
-}
+// AccountTab, the tab order, labels and icons now live in one place —
+// ../lib/accountNav (ACCOUNT_TABS) — shared with the header user menu so the
+// two navigations can never drift (WEC-518).
 
 /* macroIcons — now uses <MacroIcon> from MacroDots.tsx for consistency with menu cards */
 
@@ -119,19 +66,6 @@ export function AccountPage() {
     .join('')
     .slice(0, 2) || '?'
 
-  const tabLabels: Record<AccountTab, { el: string; en: string }> = {
-    orders:       { el: 'Παραγγελίες', en: 'Orders' },
-    // WEC-349: positioned right after Orders — it's the most consulted
-    // post-purchase summary for subscribers.
-    subscription: { el: 'Συνδρομή', en: 'Subscription' },
-    wallet:       { el: 'Πορτοφόλι', en: 'Wallet' },
-    addresses:    { el: 'Διευθύνσεις', en: 'Addresses' },
-    goals:        { el: 'Στόχοι', en: 'Goals' },
-    diet:         { el: 'Διατροφή', en: 'Diet' },
-    prefs:        { el: 'Προτιμήσεις', en: 'Preferences' },
-    profile:      { el: 'Στοιχεία', en: 'Details' },
-  }
-
   return (
     <div className="account-page">
       <div className="account-header">
@@ -155,21 +89,21 @@ export function AccountPage() {
       <div className="account-layout">
         {/* Tab nav with icons */}
         <nav className="account-nav">
-          {(Object.keys(tabLabels) as AccountTab[]).map((k) => (
+          {ACCOUNT_TABS.map((tb) => (
             <button
-              key={k}
-              className={`account-nav-item${tab === k ? ' active' : ''}`}
-              onClick={() => setTab(k)}
+              key={tb.key}
+              className={`account-nav-item${tab === tb.key ? ' active' : ''}`}
+              onClick={() => setTab(tb.key)}
             >
-              {icons[k]}
-              {lang === 'el' ? tabLabels[k].el : tabLabels[k].en}
+              {tb.icon}
+              {accountTabLabel(tb.key, lang)}
             </button>
           ))}
           <button
             className="account-nav-item danger"
             onClick={handleSignOut}
           >
-            {icons.logout}
+            {logoutIcon}
             {t('signOut')}
           </button>
         </nav>
