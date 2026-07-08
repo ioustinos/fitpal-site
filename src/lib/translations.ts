@@ -149,6 +149,8 @@ const T = {
     addressesNav: 'Διευθύνσεις',
     myProfile: 'Τα Στοιχεία μου',
     signOut: 'Αποσύνδεση',
+    navSubscription: 'Συνδρομή',
+    navDiet: 'Διατροφή',
     adminPanel: 'Πίνακας διαχείρισης',
     languageLbl: 'Γλώσσα',
     // MenuPage (WEC-499)
@@ -549,6 +551,8 @@ const T = {
     addressesNav: 'Addresses',
     myProfile: 'My Profile',
     signOut: 'Sign Out',
+    navSubscription: 'Subscription',
+    navDiet: 'Diet',
     adminPanel: 'Admin panel',
     languageLbl: 'Language',
     // MenuPage (WEC-499)
