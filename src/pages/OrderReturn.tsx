@@ -45,6 +45,9 @@ function formatDate(iso: string, lang: 'el' | 'en') {
 export function OrderReturn({ mode }: Props) {
   const [params] = useSearchParams()
   const lang = useUIStore((s) => s.lang)
+  // WEC-522: keep the Viva transactionId for the wallet success card to look
+  // up the purchased plan and show the customer's selections.
+  const transactionId = params.get('t') ?? params.get('transactionId') ?? ''
   const [outcome, setOutcome] = useState<Outcome>({ status: 'loading' })
   const [orderDetails, setOrderDetails] = useState<ConfirmationOrder | null>(null)
   const pollingRef = useRef(false)
@@ -189,7 +192,7 @@ export function OrderReturn({ mode }: Props) {
     <div className="order-return-page">
       {outcome.status === 'paid'
         ? (outcome.kind === 'wallet'
-            ? <WalletPaidView amountCents={outcome.amountCents} lang={lang} />
+            ? <WalletPaidView amountCents={outcome.amountCents} transactionId={transactionId} lang={lang} />
             : <PaidView orderNumber={outcome.orderNumber} details={orderDetails} lang={lang} />)
         : <NonPaidView outcome={outcome} lang={lang} />}
     </div>
@@ -291,8 +294,65 @@ function PaidView({
    The wallet was credited server-side by verifyWalletPlanTransaction during the
    return verify. No meal order to render, so we show a compact success card. */
 
-function WalletPaidView({ amountCents, lang }: { amountCents: number; lang: 'el' | 'en' }) {
+interface WalletPlanSummary {
+  id: string
+  goal: string | null
+  plan_length: string | null
+  plan_length_weeks: number | string | null
+  days_per_week: number | null
+  meal_breakfast: boolean | null
+  meal_lunch: boolean | null
+  meal_dinner: boolean | null
+  meal_snack: boolean | null
+  amount_to_pay_cents: number | null
+  wallet_credit_cents: number | null
+  bonus_credits_cents: number | null
+  daily_kcal: number | null
+}
+
+function WalletPaidView({
+  amountCents, transactionId, lang,
+}: { amountCents: number; transactionId: string; lang: 'el' | 'en' }) {
   const t = makeTr(lang)
+  const el = lang === 'el'
+  const [plan, setPlan] = useState<WalletPlanSummary | null>(null)
+
+  // WEC-522: fetch the purchased plan for the reference + selections summary.
+  // The active session is the customer's, so RLS lets them read their own row.
+  useEffect(() => {
+    if (!transactionId) return
+    let cancelled = false
+    ;(async () => {
+      const { data } = await supabase
+        .from('wallet_plans')
+        .select('id, goal, plan_length, plan_length_weeks, days_per_week, meal_breakfast, meal_lunch, meal_dinner, meal_snack, amount_to_pay_cents, wallet_credit_cents, bonus_credits_cents, daily_kcal')
+        .eq('viva_transaction_id', transactionId)
+        .maybeSingle()
+      if (!cancelled && data) setPlan(data as WalletPlanSummary)
+    })()
+    return () => { cancelled = true }
+  }, [transactionId])
+
+  const goalLabel = plan?.goal
+    ? ({ lose: el ? 'Απώλεια βάρους' : 'Weight loss', maintain: el ? 'Διατήρηση' : 'Maintain', gain: el ? 'Αύξηση μυϊκής μάζας' : 'Muscle gain' } as Record<string, string>)[plan.goal] ?? plan.goal
+    : '—'
+  const lenLabel = plan
+    ? (({ '2w': el ? '2 εβδομάδες' : '2 weeks', '1mo': el ? '1 μήνας' : '1 month', '3mo': el ? '3 μήνες' : '3 months' } as Record<string, string>)[plan.plan_length ?? '']
+        ?? (plan.plan_length_weeks ? `${Math.round(Number(plan.plan_length_weeks))} ${el ? 'εβδομάδες' : 'weeks'}` : (plan.plan_length ?? '—')))
+    : '—'
+  const meals = plan
+    ? [
+        plan.meal_breakfast && (el ? 'Πρωινό' : 'Breakfast'),
+        plan.meal_lunch && (el ? 'Μεσημεριανό' : 'Lunch'),
+        plan.meal_dinner && (el ? 'Βραδινό' : 'Dinner'),
+        plan.meal_snack && (el ? 'Σνακ' : 'Snack'),
+      ].filter(Boolean).join(', ')
+    : ''
+
+  // The wallet is credited the FULL base+bonus (wallet_credit_cents), not the
+  // amount paid. Fall back to the transaction amount until the plan loads.
+  const creditedCents = plan?.wallet_credit_cents ?? amountCents
+
   return (
     <div className="confirmation-screen">
       <div className="conf-icon">
@@ -303,12 +363,39 @@ function WalletPaidView({ amountCents, lang }: { amountCents: number; lang: 'el'
       </div>
       <h2 className="conf-title">{t('coPackagePaidTitle')}</h2>
       <p className="conf-sub">
-        {t('coWalletCredited')} €{(amountCents / 100).toFixed(2)}
+        {t('coWalletCredited')} €{(creditedCents / 100).toFixed(2)}
       </p>
+
+      {plan && (
+        <div className="conf-summary" style={{ textAlign: 'left' }}>
+          <div className="conf-order-hero" style={{ marginBottom: 12 }}>
+            <div className="conf-order-hero-label">{el ? 'Κωδικός συνδρομής' : 'Subscription reference'}</div>
+            <div className="conf-order-hero-number" style={{ fontSize: 13, fontFamily: 'monospace', wordBreak: 'break-all' }}>{plan.id}</div>
+          </div>
+          <WalletKV k={el ? 'Στόχος' : 'Goal'} v={goalLabel} />
+          <WalletKV k={el ? 'Διάρκεια' : 'Duration'} v={lenLabel} />
+          <WalletKV k={el ? 'Ημέρες / εβδομάδα' : 'Days per week'} v={plan.days_per_week != null ? String(plan.days_per_week) : '—'} />
+          <WalletKV k={el ? 'Γεύματα' : 'Meals'} v={meals || '—'} />
+          {plan.daily_kcal != null && <WalletKV k={el ? 'Ημερήσιες θερμίδες' : 'Daily calories'} v={`${plan.daily_kcal} kcal`} />}
+          {plan.amount_to_pay_cents != null && <WalletKV k={el ? 'Πλήρωσες' : 'Amount paid'} v={`€${(plan.amount_to_pay_cents / 100).toFixed(2)}`} />}
+          {plan.wallet_credit_cents != null && <WalletKV k={el ? 'Πίστωση πορτοφολιού' : 'Wallet credited'} v={`€${(plan.wallet_credit_cents / 100).toFixed(2)}`} />}
+          {(plan.bonus_credits_cents ?? 0) > 0 && <WalletKV k={el ? 'Δώρο (bonus)' : 'Bonus credit'} v={`€${((plan.bonus_credits_cents ?? 0) / 100).toFixed(2)}`} />}
+        </div>
+      )}
+
       <p className="conf-sub">{t('coConfEmailNote')}</p>
       <div className="conf-actions">
         <a className="btn-conf-done" href="/">{t('coBackToMenu')}</a>
       </div>
+    </div>
+  )
+}
+
+function WalletKV({ k, v }: { k: string; v: string }) {
+  return (
+    <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, padding: '6px 0', borderBottom: '1px solid var(--border)' }}>
+      <span style={{ color: 'var(--text-muted)', fontWeight: 600, fontSize: 13 }}>{k}</span>
+      <span style={{ fontWeight: 800, fontSize: 13, textAlign: 'right' }}>{v}</span>
     </div>
   )
 }
