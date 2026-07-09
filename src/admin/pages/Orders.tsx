@@ -1399,7 +1399,7 @@ function PaymentLinkBlock({ order, onChanged }: { order: AdminOrder; onChanged: 
       {link && (
         <>
           <div style={{ marginBottom: 8 }}>
-            <span className={`admin-pill admin-pill-${link.status === 'success' ? 'ok' : link.status === 'failure' ? 'err' : 'warn'}`}>
+            <span className={`admin-pill-${link.status === 'success' ? 'ok' : link.status === 'failure' ? 'err' : 'warn'}`}>
               {link.status}
             </span>
             {link.statusId && <span className="admin-text-muted" style={{ marginLeft: 8 }}>Viva statusId: {link.statusId}</span>}

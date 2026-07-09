@@ -106,7 +106,7 @@ export function WalletPurchases() {
                 <td>{r.goal ?? '—'}</td>
                 <td>{r.planLength ?? '—'} · {r.daysPerWeek ?? '?'}d/wk · {r.selectedMeals.length} meals</td>
                 <td>{r.paymentMethod ?? '—'}</td>
-                <td><span className={`admin-pill admin-pill-${r.paymentStatus}`}>{STATUS_LABELS[r.paymentStatus] ?? r.paymentStatus}</span></td>
+                <td><span className={`admin-pill-${r.paymentStatus}`}>{STATUS_LABELS[r.paymentStatus] ?? r.paymentStatus}</span></td>
                 <td>€{(r.amountToPayCents / 100).toFixed(2)}</td>
                 <td>€{(r.walletCreditCents / 100).toFixed(2)}</td>
                 <td><button className="admin-btn-secondary admin-btn-sm" onClick={() => openDrawer(r.id)}>Details</button></td>
