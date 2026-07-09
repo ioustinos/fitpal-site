@@ -103,6 +103,7 @@ export interface AdminOrder {
   notes: string | null
   adminOrderId: string | null
   adminNotes: string | null
+  cancelReason: string | null
   createdAt: string
   updatedAt: string
   childOrders: AdminChildOrder[]
@@ -347,6 +348,7 @@ function mapOrderRow(r: unknown, childOrders: AdminChildOrder[], voucherUses: Ad
     payment_method: PaymentMethod | null; payment_status: PaymentStatus | null; status: OrderStatus | null;
     cutlery: boolean | null; invoice_type: string | null; invoice_name: string | null; invoice_vat: string | null;
     notes: string | null; admin_order_id: string | null; admin_notes: string | null;
+    cancel_reason: string | null;
     created_at: string; updated_at: string;
   }
   return {
@@ -359,6 +361,7 @@ function mapOrderRow(r: unknown, childOrders: AdminChildOrder[], voucherUses: Ad
     cutlery: row.cutlery ?? false, invoiceType: row.invoice_type,
     invoiceName: row.invoice_name, invoiceVat: row.invoice_vat,
     notes: row.notes, adminOrderId: row.admin_order_id, adminNotes: row.admin_notes,
+    cancelReason: (row.cancel_reason as string | null) ?? null,
     createdAt: row.created_at, updatedAt: row.updated_at,
     childOrders, voucherUses, changeLog,
     paymentLink,
@@ -390,7 +393,10 @@ async function writeChangeLog(args: {
 
 export async function setOrderStatus(id: string, current: OrderStatus, next: OrderStatus, adminUser: string, note?: string): Promise<{ error: string | null }> {
   // Allow any transition with force, but warn on invalid ones (called from UI)
-  const { error } = await supabase.from('orders').update({ status: next, updated_at: new Date().toISOString() }).eq('id', id)
+  // WEC-526: on cancel, persist the (optional) admin reason on the order.
+  const patch: Record<string, unknown> = { status: next, updated_at: new Date().toISOString() }
+  if (next === 'cancelled') patch.cancel_reason = note && note.trim() ? note.trim() : null
+  const { error } = await supabase.from('orders').update(patch).eq('id', id)
   if (error) return { error: error.message }
   await writeChangeLog({
     orderId: id, tableName: 'orders', fieldName: 'status',

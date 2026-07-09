@@ -328,53 +328,54 @@ function OrderDrawer({
   // 'cancelled' transition + the order snapshot it was raised against, so
   // the modal can show "€X paid via {card/link/wallet}" and route the admin
   // to the Refund tab if they choose to issue one.
-  const [cancelPrompt, setCancelPrompt] = useState<{ orderId: string } | null>(null)
+  const [cancelPrompt, setCancelPrompt] = useState<{ orderId: string; mode: 'refund' | 'plain' } | null>(null)
+  // WEC-526: optional cancellation reason captured in the cancel modal.
+  const [cancelReason, setCancelReason] = useState('')
   // WEC-487: state for the manual "Send update email" button. We show a
   // tiny inline confirmation flow rather than a modal — one extra click is
   // enough to prevent a fat-finger fire that emails the customer mid-edit.
   const [updateEmailState, setUpdateEmailState] = useState<'idle' | 'confirm' | 'sending' | 'sent'>('idle')
 
-  async function performStatusChange(next: OrderStatus) {
+  async function performStatusChange(next: OrderStatus, reason?: string) {
     if (!order) return
     setWorking(true); setErr(null)
-    const { error } = await setOrderStatus(order.id, order.status, next, adminUser)
+    const trimmed = reason && reason.trim() ? reason.trim() : undefined
+    const { error } = await setOrderStatus(order.id, order.status, next, adminUser, trimmed)
     setWorking(false)
     if (error) { setErr(error); return }
     onRefresh()
   }
 
-  async function changeStatus(next: OrderStatus) {
+  // WEC-526: every cancel routes through a modal that captures an OPTIONAL
+  // reason (emailed to the customer + persisted). Paid refundable orders get
+  // the WEC-431 refund-choice variant; everything else a plain confirm.
+  function changeStatus(next: OrderStatus) {
     if (!order) return
-    // WEC-431: if cancelling a paid order on a refundable method, intercept
-    // and show the refund-prompt modal first. Anything else takes the
-    // normal path. Wallet refunds = credit-back; card/link refunds via Viva.
-    const refundableMethods: PaymentMethod[] = ['card', 'link', 'wallet']
-    if (
-      next === 'cancelled' &&
-      order.paymentStatus === 'paid' &&
-      refundableMethods.includes(order.paymentMethod) &&
-      (order.refundAmount ?? 0) < order.total
-    ) {
-      setCancelPrompt({ orderId: order.id })
+    if (next === 'cancelled') {
+      const refundableMethods: PaymentMethod[] = ['card', 'link', 'wallet']
+      const refundable =
+        order.paymentStatus === 'paid' &&
+        refundableMethods.includes(order.paymentMethod) &&
+        (order.refundAmount ?? 0) < order.total
+      setCancelReason('')
+      setCancelPrompt({ orderId: order.id, mode: refundable ? 'refund' : 'plain' })
       return
     }
-    await performStatusChange(next)
+    void performStatusChange(next)
   }
 
-  /** WEC-431: admin chose "Issue refund" in the soft prompt — perform the
-   *  cancel transition, then switch the drawer to the Refund tab so the
-   *  admin can complete the refund in one continuous flow. */
+  /** WEC-431/526: cancel + jump to the Refund tab so the admin completes the
+   *  refund in one flow. Reason (if any) rides along to the email + record. */
   async function confirmCancelAndOpenRefund() {
     setCancelPrompt(null)
-    await performStatusChange('cancelled')
+    await performStatusChange('cancelled', cancelReason)
     setTab('refund')
   }
-  /** WEC-431: admin chose "Cancel without refund". Same path as a normal
-   *  cancel — no Refund tab switch. Future: capture the reason in
-   *  admin_notes (open question in the ticket). */
-  async function confirmCancelNoRefund() {
+  /** Cancel without a refund tab switch (unpaid orders, or "cancel without
+   *  refund" on a paid one). Reason threads through the same way. */
+  async function confirmCancel() {
     setCancelPrompt(null)
-    await performStatusChange('cancelled')
+    await performStatusChange('cancelled', cancelReason)
   }
 
   async function changePayment(next: PaymentStatus) {
@@ -513,6 +514,13 @@ function OrderDrawer({
               )}
             </div>
 
+            {/* WEC-526: surface the saved cancellation reason on the order. */}
+            {order.status === 'cancelled' && order.cancelReason && (
+              <div className="admin-error-banner" style={{ margin: '10px 20px 0', background: '#FFF7ED', borderColor: '#FED7AA', color: '#9A3412' }}>
+                <strong>Cancellation reason:</strong> {order.cancelReason}
+              </div>
+            )}
+
             <nav className="admin-order-tabs">
               {(['details', 'refund', 'timeline'] as const)
                 // WEC-420: Refund tab makes no sense on a draft (nothing was paid).
@@ -558,12 +566,28 @@ function OrderDrawer({
               }}
               onClick={(e) => e.stopPropagation()}
             >
-              <h3 style={{ margin: '0 0 8px', fontSize: 17 }}>Cancel this paid order?</h3>
-              <p style={{ margin: '0 0 16px', color: '#4b5563', fontSize: 14, lineHeight: 1.45 }}>
-                This order has <strong>€{((order.total - (order.refundAmount ?? 0)) / 100).toFixed(2)}</strong>
-                {' '}still paid via <strong>{order.paymentMethod}</strong>. Cancelling without a
-                refund leaves the funds with{order.paymentMethod === 'wallet' ? ' your wallet ledger' : ' Viva'}.
-              </p>
+              <h3 style={{ margin: '0 0 8px', fontSize: 17 }}>
+                {cancelPrompt.mode === 'refund' ? 'Cancel this paid order?' : 'Cancel this order?'}
+              </h3>
+              {cancelPrompt.mode === 'refund' && (
+                <p style={{ margin: '0 0 14px', color: '#4b5563', fontSize: 14, lineHeight: 1.45 }}>
+                  This order has <strong>€{((order.total - (order.refundAmount ?? 0)) / 100).toFixed(2)}</strong>
+                  {' '}still paid via <strong>{order.paymentMethod}</strong>. Cancelling without a
+                  refund leaves the funds with{order.paymentMethod === 'wallet' ? ' your wallet ledger' : ' Viva'}.
+                </p>
+              )}
+              {/* WEC-526: optional reason → cancellation email + kept on record */}
+              <label style={{ display: 'block', fontSize: 13, fontWeight: 600, color: '#374151', marginBottom: 6 }}>
+                Reason (optional) — shown to the customer in the cancellation email
+              </label>
+              <textarea
+                className="admin-input"
+                value={cancelReason}
+                onChange={(e) => setCancelReason(e.target.value)}
+                placeholder="e.g. Sold out for this date"
+                rows={3}
+                style={{ width: '100%', resize: 'vertical', marginBottom: 16 }}
+              />
               <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', flexWrap: 'wrap' }}>
                 <button
                   className="admin-btn-ghost"
@@ -572,20 +596,32 @@ function OrderDrawer({
                 >
                   Keep order
                 </button>
-                <button
-                  className="admin-btn-ghost"
-                  disabled={working}
-                  onClick={() => void confirmCancelNoRefund()}
-                >
-                  Cancel without refund
-                </button>
-                <button
-                  className="admin-btn-danger"
-                  disabled={working}
-                  onClick={() => void confirmCancelAndOpenRefund()}
-                >
-                  Cancel + issue refund
-                </button>
+                {cancelPrompt.mode === 'refund' ? (
+                  <>
+                    <button
+                      className="admin-btn-ghost"
+                      disabled={working}
+                      onClick={() => void confirmCancel()}
+                    >
+                      Cancel without refund
+                    </button>
+                    <button
+                      className="admin-btn-danger"
+                      disabled={working}
+                      onClick={() => void confirmCancelAndOpenRefund()}
+                    >
+                      Cancel + issue refund
+                    </button>
+                  </>
+                ) : (
+                  <button
+                    className="admin-btn-danger"
+                    disabled={working}
+                    onClick={() => void confirmCancel()}
+                  >
+                    Cancel order
+                  </button>
+                )}
               </div>
             </div>
           </div>
