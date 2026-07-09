@@ -92,7 +92,7 @@ export async function verifyWalletPlanTransaction(
 
   const { data: plan } = await supabase
     .from('wallet_plans')
-    .select('id, wallet_id, amount_to_pay_cents, bonus_credits_cents, wallet_credit_cents, plan_length, days_per_week, payment_status, viva_order_code')
+    .select('id, wallet_id, amount_to_pay_cents, bonus_credits_cents, wallet_credit_cents, plan_length, days_per_week, goal, daily_kcal, meal_breakfast, meal_lunch, meal_dinner, meal_snack, services, payment_status, viva_order_code')
     .eq('id', walletPlanId)
     .maybeSingle()
 
@@ -229,6 +229,13 @@ async function fireSubscriptionPurchasedKlaviyo(
     wallet_credit_cents?: number | null
     plan_length?: string | null
     days_per_week?: number | null
+    goal?: string | null
+    daily_kcal?: number | null
+    meal_breakfast?: boolean | null
+    meal_lunch?: boolean | null
+    meal_dinner?: boolean | null
+    meal_snack?: boolean | null
+    services?: { dieticianManaged?: boolean } | null
   },
   amountCents: number,
 ): Promise<void> {
@@ -259,15 +266,36 @@ async function fireSubscriptionPurchasedKlaviyo(
     const l = (pref as { lang?: string } | null)?.lang
     if (l === 'el' || l === 'en') custLang = l
 
-    // 2026-06-26: template W3v8Bf/TgGF2L uses snake_case
+    // Localized labels for the email (templates XxNNci/XbgLEd are chosen by
+    // lang, so a single custLang-localized string works for each).
+    const isEl = custLang === 'el'
+    const mealsLabel = [
+      plan.meal_breakfast && (isEl ? 'Πρωινό' : 'Breakfast'),
+      plan.meal_lunch && (isEl ? 'Μεσημεριανό' : 'Lunch'),
+      plan.meal_dinner && (isEl ? 'Βραδινό' : 'Dinner'),
+      plan.meal_snack && (isEl ? 'Σνακ' : 'Snack'),
+    ].filter(Boolean).join(', ') || null
+    const goalMap: Record<string, string> = isEl
+      ? { lose: 'Απώλεια βάρους', maintain: 'Διατήρηση', gain: 'Αύξηση μυϊκής μάζας' }
+      : { lose: 'Weight loss', maintain: 'Maintain', gain: 'Muscle gain' }
+    const goalLabel = plan.goal ? (goalMap[plan.goal] ?? plan.goal) : null
+    const dieticianManaged = !!plan.services?.dieticianManaged
+
+    // 2026-06-26: templates XxNNci (EL) / XbgLEd (EN) use snake_case
     // (event.first_name, event.plan_length_label, event.meals_per_week,
-    // event.amount_paid, event.bonus_credits, event.new_balance). Emit BOTH.
+    // event.amount_paid, event.bonus_credits, event.new_balance,
+    // event.goal_label, event.meals_label, event.daily_kcal,
+    // event.dietician_managed). Emit BOTH cases.
     const subProps = {
       lang: custLang,
       // snake_case (template-expected)
       first_name: firstName,
       plan_length_label: plan.plan_length ?? null,
       meals_per_week: plan.days_per_week ?? null,
+      goal_label: goalLabel,
+      meals_label: mealsLabel,
+      daily_kcal: plan.daily_kcal ?? null,
+      dietician_managed: dieticianManaged,
       amount_paid: amountCents / 100,
       bonus_credits: (plan.bonus_credits_cents ?? 0) / 100,
       new_balance: newBalanceCents != null ? newBalanceCents / 100 : null,

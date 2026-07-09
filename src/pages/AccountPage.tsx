@@ -1874,14 +1874,6 @@ function SubscriptionTab({ user, lang }: any) {
               : `Base ${eur(baseBalance)} · Bonus ${eur(bonusBalance)}`}
           </div>
         </div>
-        <div className="subs-balance-actions">
-          <button
-            className="aw-btn aw-btn-topup"
-            onClick={() => { closeAccount(); setTimeout(() => goToWalletPage(), 300) }}
-          >
-            {t('acChangePlan')}
-          </button>
-        </div>
       </div>
 
       {/* Help footer — no destructive actions in V1, just a note. */}

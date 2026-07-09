@@ -214,12 +214,39 @@ export default async (request: Request) => {
       // WEC-emails: fire Subscription Purchased event in 'pending payment'
       // mode (the email shows bank-transfer instructions). Klaviyo flow
       // routes EL/EN templates via event.lang. Fail-soft.
+      const subLang = (body.lang === 'en' || body.lang === 'el') ? body.lang : 'el'
+      const subIsEl = subLang === 'el'
+      const subFirstName = (userData.user.user_metadata?.name ?? '').split(' ')[0]
+      const subMealsLabel = [
+        body.meals.breakfast && (subIsEl ? 'Πρωινό' : 'Breakfast'),
+        body.meals.lunch && (subIsEl ? 'Μεσημεριανό' : 'Lunch'),
+        body.meals.dinner && (subIsEl ? 'Βραδινό' : 'Dinner'),
+        body.meals.snack && (subIsEl ? 'Σνακ' : 'Snack'),
+      ].filter(Boolean).join(', ') || null
+      const subGoalMap: Record<string, string> = subIsEl
+        ? { lose: 'Απώλεια βάρους', maintain: 'Διατήρηση', gain: 'Αύξηση μυϊκής μάζας' }
+        : { lose: 'Weight loss', maintain: 'Maintain', gain: 'Muscle gain' }
+      const subGoalLabel = body.goal ? (subGoalMap[body.goal] ?? body.goal) : null
+      const subDieticianManaged = !!body.services?.dieticianManaged
       const subFire = await track('Subscription Purchased', {
         email: userEmail,
-        firstName: (userData.user.user_metadata?.name ?? '').split(' ')[0],
+        firstName: subFirstName,
         externalId: userData.user.id,
       }, {
-        lang: (body.lang === 'en' || body.lang === 'el') ? body.lang : 'el',
+        lang: subLang,
+        // snake_case (template-expected)
+        first_name: subFirstName,
+        plan_length_label: body.planLength,
+        meals_per_week: body.daysPerWeek,
+        goal_label: subGoalLabel,
+        meals_label: subMealsLabel,
+        daily_kcal: result.dailyKcal ?? null,
+        dietician_managed: subDieticianManaged,
+        amount_paid: amountCents / 100,
+        bonus_credits: bonusCents / 100,
+        new_balance: walletCreditCents / 100,
+        payment_status: 'pending',
+        // camelCase (legacy / downstream)
         walletPlanId,
         planLengthLabel: body.planLength,
         mealsPerWeek: body.daysPerWeek,
