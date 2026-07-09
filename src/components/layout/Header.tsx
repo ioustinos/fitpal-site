@@ -22,7 +22,6 @@ export function Header() {
     return () => document.removeEventListener('mousedown', onDoc)
   }, [langOpen])
   const openAuthModal = useUIStore((s) => s.openAuthModal)
-  const openWalletModal = useUIStore((s) => s.openWalletModal)
   const goToAccount = useUIStore((s) => s.goToAccount)
   const goToMenu = useUIStore((s) => s.goToMenu)
   const { user, logout } = useAuthStore()
@@ -81,13 +80,17 @@ export function Header() {
           </button>
         )}
 
-        {/* Wallet badge (only when logged in AND wallet payment is enabled — WEC-297) */}
+        {/* Wallet badge (only when logged in AND wallet payment is enabled — WEC-297).
+            WEC-519: display-only for now — the click used to open the deprecated
+            WalletModal, but there are no self-serve wallet purchases yet (balance
+            comes only from subscriptions). To re-enable later, make this a <button>
+            again with onClick={goToWalletPage} (NOT the old openWalletModal). */}
         {user?.wallet?.active && walletEnabled && (
-          <button
+          <div
             className="wallet-hdr-badge"
-            onClick={openWalletModal}
+            style={{ cursor: 'default' }}
             title="Fitpal Wallet"
-            aria-label={lang === 'el' ? `Άνοιγμα πορτοφολιού, υπόλοιπο ${user.wallet.balance.toFixed(2)} ευρώ` : `Open wallet, balance ${user.wallet.balance.toFixed(2)} euros`}
+            aria-label={lang === 'el' ? `Υπόλοιπο πορτοφολιού ${user.wallet.balance.toFixed(2)} ευρώ` : `Wallet balance ${user.wallet.balance.toFixed(2)} euros`}
           >
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" focusable="false">
               <rect x="2" y="5" width="20" height="14" rx="2"/>
@@ -95,7 +98,7 @@ export function Header() {
               <path d="M2 10h20"/>
             </svg>
             <span className="wallet-hdr-amt">€{user.wallet.balance.toFixed(2)}</span>
-          </button>
+          </div>
         )}
 
         {/* Language toggle — WEC-406: dual pills on desktop; mobile (<640) gets
