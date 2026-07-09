@@ -165,10 +165,23 @@ export const zipInZone = (zip: string | undefined, zones: DeliveryZone[]): boole
 
 // ─── Time slots (loaded from Supabase via useMenuStore) ───────────────────────
 
-/** Build display strings from DB time slots. Returns unique sorted strings like "9:00–11:00". */
+/** Minutes-since-midnight from a "H:MM" / "HH:MM[:SS]" time string. */
+const slotMinutes = (t: string): number => {
+  const [h, m] = t.split(':').map((n) => parseInt(n, 10))
+  return (h || 0) * 60 + (m || 0)
+}
+
+/** Build display strings from DB time slots. Returns unique strings sorted by
+ *  actual start time (e.g. "9:00–11:00" before "10:00–12:00"). NB: a plain
+ *  string sort put "9:00" after "13:00" because '9' > '1' — hence the numeric sort. */
 export const formatSlots = (slots: TimeSlot[]): string[] => {
-  const unique = new Set(slots.map((s) => `${s.timeFrom}–${s.timeTo}`))
-  return [...unique].sort()
+  const seen = new Set<string>()
+  const out: string[] = []
+  for (const s of [...slots].sort((a, b) => slotMinutes(a.timeFrom) - slotMinutes(b.timeFrom))) {
+    const label = `${s.timeFrom}–${s.timeTo}`
+    if (!seen.has(label)) { seen.add(label); out.push(label) }
+  }
+  return out
 }
 
 // ─── Cutoff ───────────────────────────────────────────────────────────────────
