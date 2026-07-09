@@ -411,6 +411,14 @@
 @keyframes admin-drawer-in { from { opacity: 0; transform: translateX(16px); } to { opacity: 1; transform: translateX(0); } }
 
 .admin-drawer-head {
+  /* WEC-524: this is a <header> element, so the customer site's global
+     `header { position: sticky; top:0; z-index:100 }` (index.css) leaks onto
+     it. On Safari that sticky header overlaps + paints over the status bar
+     directly below it (Confirm/Cancel/Payment buttons vanish). It's already a
+     flex sibling above the scrollable body, so it never needed sticky — pin it
+     back to static. */
+  position: static;
+  z-index: auto;
   padding: 12px 20px;
   border-bottom: 1px solid var(--a-border);
   display: flex; align-items: center; justify-content: space-between;
