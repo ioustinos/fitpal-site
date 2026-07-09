@@ -62,7 +62,8 @@ export interface OrderHistoryItem {
   date: string               // created_at ISO
   statusEl: string
   statusEn: string
-  status: string             // raw enum
+  status: string             // collapsed: active | completed | cancelled (isActive logic)
+  statusRaw: string          // raw DB enum: pending | confirmed | preparing | delivering | delivered | cancelled (drives colour)
   total: number              // euros
   paymentEl: string
   paymentEn: string
@@ -255,6 +256,10 @@ export async function fetchUserOrders(userId: string, limit = 50, offset = 0): P
       statusEl: sLabel.el,
       statusEn: sLabel.en,
       status: o.status === 'delivered' ? 'completed' : o.status === 'cancelled' ? 'cancelled' : 'active',
+      // WEC-520: raw DB status drives the badge/card colour so pending,
+      // confirmed, preparing, delivering etc. each read distinctly (the
+      // collapsed `status` above still gates the isActive UI logic).
+      statusRaw: o.status,
       total: centsToEuros(o.total),
       paymentEl: pLabel.el,
       paymentEn: pLabel.en,

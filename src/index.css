@@ -2580,23 +2580,29 @@ a.btn-conf-done { display: inline-block; text-decoration: none; }
 .orders-list { display: flex; flex-direction: column; gap: 12px; }
 .order-card { border: 1px solid var(--border); border-radius: var(--radius-sm); overflow: hidden; }
 .order-card.open { border-color: var(--green); }
-/* WEC-520: card left accent = status colour (matches the badge), so the line
-   now clearly indicates status instead of an unexplained green marker. */
-.order-card.active    { border-left: 3px solid #D97706; }
-.order-card.completed { border-left: 3px solid var(--green); }
-.order-card.cancelled { border-left: 3px solid #DC2626; }
+/* WEC-520: card left accent = status colour (matches the badge). Coloured by
+   the RAW order status so every status reads distinctly (pending≠confirmed). */
+.order-card.st-pending    { border-left: 3px solid #D97706; }
+.order-card.st-confirmed  { border-left: 3px solid #2563EB; }
+.order-card.st-preparing  { border-left: 3px solid #7C3AED; }
+.order-card.st-delivering { border-left: 3px solid #0891B2; }
+.order-card.st-delivered  { border-left: 3px solid var(--green); }
+.order-card.st-cancelled  { border-left: 3px solid #DC2626; }
 .order-card-header { display: flex; align-items: center; justify-content: space-between; padding: 14px 16px; background: none; border: none; width: 100%; cursor: pointer; text-align: left; transition: background 0.15s; }
 .order-card-header:hover { background: var(--green-pale); }
 .order-card-left { display: flex; flex-direction: column; gap: 2px; }
 .order-card-id { font-size: 15px; font-weight: 900; color: var(--green-dark); }
 .order-card-date { font-size: 12px; font-weight: 600; color: var(--text-muted); }
 .order-card-right { display: flex; align-items: center; gap: 12px; }
-/* WEC-520: distinct colour per collapsed status (active | completed | cancelled).
-   Default is neutral grey so an unknown status never masquerades as "done". */
+/* WEC-520: distinct colour per RAW order status. Default is neutral grey so an
+   unknown status never masquerades as "done". pending≠confirmed by design. */
 .order-status-badge { padding: 3px 12px; background: #F3F4F6; border-radius: 999px; font-size: 11px; font-weight: 800; color: #4B5563; /* uppercase removed — WEC-187 */ }
-.order-status-badge.active    { background: #FEF3C7; color: #D97706; }  /* in progress — amber */
-.order-status-badge.completed { background: var(--green-pale); color: var(--green-dark); }  /* delivered — green */
-.order-status-badge.cancelled { background: #FEE2E2; color: #B91C1C; }  /* cancelled — red */
+.order-status-badge.st-pending    { background: #FEF3C7; color: #B45309; }  /* awaiting confirmation — amber */
+.order-status-badge.st-confirmed  { background: #DBEAFE; color: #1D4ED8; }  /* confirmed — blue */
+.order-status-badge.st-preparing  { background: #EDE9FE; color: #6D28D9; }  /* preparing — violet */
+.order-status-badge.st-delivering { background: #CFFAFE; color: #0E7490; }  /* out for delivery — teal */
+.order-status-badge.st-delivered  { background: var(--green-pale); color: var(--green-dark); }  /* delivered — green */
+.order-status-badge.st-cancelled  { background: #FEE2E2; color: #B91C1C; }  /* cancelled — red */
 .order-card-total { font-size: 16px; font-weight: 900; color: var(--text); }
 .order-card-body { padding: 0 16px 16px; }
 .order-summary-line { display: flex; align-items: center; gap: 8px; font-size: 12px; font-weight: 600; color: var(--text-muted); padding: 8px 0 12px; border-bottom: 1px solid var(--border); }

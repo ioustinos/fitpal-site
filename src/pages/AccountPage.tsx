@@ -1285,7 +1285,7 @@ function OrdersTab({ user, lang }: any) {
             const paymentLabel = lang === 'el' ? order.paymentEl : order.paymentEn
 
             return (
-              <div key={order.id} className={`order-card${isOpen ? ' open' : ''}${order.status ? ' ' + order.status : ''}`}>
+              <div key={order.id} className={`order-card${isOpen ? ' open' : ''}${order.statusRaw ? ' st-' + order.statusRaw : ''}`}>
                 {/* Order header */}
                 <button className="order-card-header" onClick={() => setExpanded(isOpen ? null : order.id)}>
                   <div className="order-card-left">
@@ -1298,7 +1298,7 @@ function OrdersTab({ user, lang }: any) {
                     </span>
                   </div>
                   <div className="order-card-right">
-                    <span className={`order-status-badge${order.status ? ' ' + order.status : ''}`}>{statusLabel}</span>
+                    <span className={`order-status-badge${order.statusRaw ? ' st-' + order.statusRaw : ''}`}>{statusLabel}</span>
                     <span className="order-card-total">€{order.total?.toFixed(2)}</span>
                     <svg className={`order-acc-arrow${isOpen ? ' open' : ''}`} width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                       <polyline points="6 9 12 15 18 9"/>
