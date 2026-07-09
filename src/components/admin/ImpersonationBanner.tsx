@@ -20,7 +20,8 @@ import { supabase } from '../../lib/supabase'
  */
 
 interface PlanSummary {
-  costEur: number
+  baseEur: number
+  bonusEur: number
   endStr: string
   workingDaysLeft: number
   dailyLimitEur: number
@@ -91,12 +92,12 @@ export function ImpersonationBanner() {
 
         const { data: planRow } = await supabase
           .from('wallet_plans')
-          .select('amount_to_pay_cents, wallet_credit_cents, meal_breakfast, meal_lunch, meal_dinner, plan_length_weeks, created_at')
+          .select('wallet_credit_cents, bonus_credits_cents, meal_breakfast, meal_lunch, meal_dinner, plan_length_weeks, created_at')
           .eq('id', w.active_plan_id)
           .maybeSingle()
         if (cancelled || !planRow) { setSummary(null); return }
         const plan = planRow as {
-          amount_to_pay_cents: number | null; wallet_credit_cents: number | null
+          wallet_credit_cents: number | null; bonus_credits_cents: number | null
           meal_breakfast: boolean | null; meal_lunch: boolean | null; meal_dinner: boolean | null
           plan_length_weeks: number | null; created_at: string
         }
@@ -122,6 +123,10 @@ export function ImpersonationBanner() {
         const clampedToday = today < end ? today : end
 
         const creditedTotal = (plan.wallet_credit_cents ?? 0) / 100
+        const bonus = (plan.bonus_credits_cents ?? 0) / 100
+        // Base = credited total minus the bonus portion, so base + bonus always
+        // equals the total the Left/Spent math below runs on (creditedTotal).
+        const base = Math.max(0, creditedTotal - bonus)
         const remaining = (w.balance ?? 0) / 100
         const spent = Math.max(0, creditedTotal - remaining)
 
@@ -141,7 +146,8 @@ export function ImpersonationBanner() {
         ].filter(Boolean).join(', ')
 
         setSummary({
-          costEur: (plan.amount_to_pay_cents ?? 0) / 100,
+          baseEur: base,
+          bonusEur: bonus,
           endStr: fmtDayMonth(end),
           workingDaysLeft: remainingWD,
           dailyLimitEur: dailyLimit,
@@ -185,7 +191,10 @@ export function ImpersonationBanner() {
       {/* WEC-507: plan budget summary (only when the customer has an active plan) */}
       {summary && (
         <span style={{ display: 'inline-flex', gap: 6, alignItems: 'center', fontSize: 12, fontWeight: 600 }}>
-          <span style={chip}>Plan {eur(summary.costEur)}</span>
+          <span style={chip} title="Plan base credit + bonus credit">
+            Plan {eur(summary.baseEur)}{summary.bonusEur > 0 ? ` + ${eur(summary.bonusEur)} bonus` : ''}
+          </span>
+          <span style={chip}>Left {eur(summary.remainingEur)} · Spent {eur(summary.spentEur)}</span>
           <span style={chip}>Ends {summary.endStr} · {summary.workingDaysLeft}d left</span>
           <span
             style={{
@@ -197,7 +206,6 @@ export function ImpersonationBanner() {
           >
             {eur(summary.dailyLimitEur)}/day{summary.overPace ? ' ⚠' : ''}
           </span>
-          <span style={chip}>Left {eur(summary.remainingEur)} · Spent {eur(summary.spentEur)}</span>
           {summary.meals && <span style={chip}>{summary.meals}</span>}
         </span>
       )}
