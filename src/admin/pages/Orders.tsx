@@ -216,7 +216,23 @@ export function Orders() {
               {orders.length === 0 && <tr><td colSpan={9} className="admin-table-empty">No orders match.</td></tr>}
               {orders.map((o) => (
                 <tr key={o.id} onClick={() => openDetail(o.id)} style={{ cursor: 'pointer' }}>
-                  <td><strong>{o.orderNumber}</strong></td>
+                  <td>
+                    <strong>{o.orderNumber}</strong>
+                    {/* WEC-521: star = managed order (admin placed it while
+                        impersonating the customer). adminOrderId is the audit column. */}
+                    {o.adminOrderId && (
+                      <span
+                        className="admin-managed-star"
+                        title="Managed order — placed by an admin on behalf of the customer"
+                        aria-label="Managed order"
+                        style={{ marginLeft: 6, color: '#D97706', verticalAlign: 'middle' }}
+                      >
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" stroke="none" aria-hidden="true" style={{ display: 'inline-block', verticalAlign: '-2px' }}>
+                          <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
+                        </svg>
+                      </span>
+                    )}
+                  </td>
                   <td>
                     <div>{o.customerName || '—'}</div>
                     <div className="admin-sub">{o.customerEmail}</div>
