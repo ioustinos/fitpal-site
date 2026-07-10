@@ -24,8 +24,9 @@
 
 import type { SupabaseClient } from '@supabase/supabase-js'
 
-/** ± band applied around each point target to form the min/max range. */
-const GOAL_BAND_PCT = 10
+/** ± band applied around each point target to form the min/max range.
+ *  10 → 5 per Ioustinos 2026-07-10. */
+const GOAL_BAND_PCT = 5
 
 /** Biology constants — kcal per gram of macro. Mirrors calculator kcalPerGram. */
 const KCAL_PER_GRAM = { p: 4, c: 4, f: 9 } as const
