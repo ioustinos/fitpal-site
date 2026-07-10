@@ -177,10 +177,12 @@ export async function pushOrderToAirtable(
       'Post Code': c.address_zip ?? '',
       City: c.address_area ?? '',
       Floor: c.address_floor ?? '',
-      // Airtable "Doorbell" carries the delivery comments (ΣΧΟΛΙΑ ΠΑΡΑΔΟΣΗΣ),
-      // matching the GonnaOrder mapping. The doorbell number is stored on
-      // child_orders.address_doorbell (not yet surfaced in Airtable).
-      Doorbell: c.address_notes ?? '',
+      // WEC-530 (2026-07-10): new-platform semantics — Doorbell carries the
+      // ACTUAL doorbell; address comments go to the new "Address Comment"
+      // field. (GonnaOrder-legacy rows still put comments in Doorbell until
+      // B2B migrates — mixed semantics in Airtable during the transition.)
+      Doorbell: c.address_doorbell ?? '',
+      'Address Comment': c.address_notes ?? '',
       'Parent Order Id': [orderRecId],
     }
     if (custLink) childFields['Customer'] = custLink
