@@ -14,6 +14,8 @@
 // Response: { ok: true, alreadyPaid?: boolean }
 
 import { createClient } from '@supabase/supabase-js'
+// WEC-529: populate account macro goals from the plan's diet profile on paid.
+import { applyPlanGoalsToUser } from '../lib/wallet/applyPlanGoals'
 
 const SUPABASE_URL = process.env.VITE_SUPABASE_URL ?? ''
 const SUPABASE_ANON_KEY = process.env.VITE_SUPABASE_ANON_KEY ?? ''
@@ -88,6 +90,10 @@ export default async (request: Request) => {
       p_amount_cents: plan.amount_to_pay_cents ?? 0,
     })
     if (rpcErr) return Response.json({ error: rpcErr.message }, { status: 500, headers: CORS })
+
+    // WEC-529: set Account → Goals from the plan's diet profile (fail-soft;
+    // runs only on the pending→paid transition — alreadyPaid returned above).
+    await applyPlanGoalsToUser(svc, plan.id)
 
     // Audit trail — who manually marked it paid (fail-soft).
     try {

@@ -15,6 +15,8 @@ import { sendMetaCapiEvent, metaConfigured, hashLower, hashPhone } from '../meta
 // after the wallet plan is verified. See submit-order.ts for the full
 // backstory of why fire-and-forget was unreliable on Netlify.
 import { track, subscribeProfileToMarketing, EVT } from '../klaviyo'
+// WEC-529: populate account macro goals from the plan's diet profile on paid.
+import { applyPlanGoalsToUser } from './applyPlanGoals'
 
 const SUPABASE_URL = process.env.VITE_SUPABASE_URL ?? ''
 const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY ?? ''
@@ -139,6 +141,8 @@ export async function verifyWalletPlanTransaction(
       // Fire Klaviyo "Subscription Purchased" event (card/link paid path).
       // Mirror of the transfer-path fire in wallet-plan-purchase.ts. Fail-soft.
       await fireSubscriptionPurchasedKlaviyo(supabase, plan, amountCents)
+      // WEC-529: set Account → Goals from the plan's diet profile. Fail-soft.
+      await applyPlanGoalsToUser(supabase, walletPlanId)
     }
     return { status: 'paid', walletPlanId, amountCents, transactionId }
   }
