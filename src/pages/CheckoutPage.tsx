@@ -11,7 +11,7 @@ import { MobileCartSheet } from '../components/cart/MobileCartSheet'
 import { CartDietWarning } from '../components/cart/CartDietWarning'
 import { ConfirmationScreen } from '../components/checkout/ConfirmationScreen'
 import { ContactSection, type ContactInfo } from '../components/checkout/ContactSection'
-import { activeDays, dayAmt, zipInZone } from '../lib/helpers'
+import { activeDays, dayAmt, zipInZone, resolveZone } from '../lib/helpers'
 import { validateDay, type DayIssue, type DaySnapshot, type DayValidationCtx } from '../lib/dayValidation'
 import { dayLabel } from '../lib/datelabels'
 import { isValidPhone } from '../lib/phone'
@@ -87,6 +87,15 @@ function localizeDayIssue(label: string, issue: DayIssue, lang: 'el' | 'en'): st
       return lang === 'el'
         ? `${label}: Δεν έχει επιλεγεί ώρα παράδοσης`
         : `${label}: No delivery time selected`
+    case 'time_slot_not_in_zone': {
+      // WEC-525: slot selected but the resolved zone doesn't offer it.
+      const from = issue.params?.from as string | undefined
+      const to = issue.params?.to as string | undefined
+      const slot = from && to ? `${from}–${to}` : ''
+      return lang === 'el'
+        ? `${label}: Το παράθυρο ${slot} δεν είναι διαθέσιμο για τη ζώνη παράδοσής σου — διάλεξε άλλη ώρα`
+        : `${label}: The ${slot} window is not available for your delivery zone — pick another time`
+    }
     case 'below_min_order': {
       const minCents = (issue.params?.minOrderCents as number | undefined) ?? 0
       const amtCents = (issue.params?.amountCents as number | undefined) ?? 0
@@ -128,6 +137,9 @@ export function CheckoutPage() {
   // sat ~50 lines below — fine in dev (HMR tolerates the TDZ) but a hard
   // ReferenceError in the minified production bundle that blanked /checkout.
   const zones = useMenuStore((s) => s.zones)
+  // WEC-525: needed to validate that a selected slot is actually offered by
+  // the day's resolved zone (and to gate the prefs slot-prefill on the same).
+  const timeSlots = useMenuStore((s) => s.timeSlots)
   const minOrder = useMenuStore((s) => s.settings.minOrder)
   const pickupLocations = useMenuStore((s) => s.settings.pickupLocations)
 
@@ -268,6 +280,16 @@ export function CheckoutPage() {
   //
   // perDayResults is the single computation; we render its `.issues` into
   // localized strings here, and use its `.ok` for deliveryOk below.
+  // WEC-525: does the zone this zip resolves to offer the from–to window?
+  // Mirrors TimeSlotPicker's zoneSlotSet and the server's Phase-3 zone-slot
+  // check. Unresolvable zip → true (postcode issues are flagged separately;
+  // stacking a slot issue on top would just be noise).
+  const slotInZone = (zip: string, from: string, to: string): boolean => {
+    const zone = resolveZone(zip, zones)
+    if (!zone) return true
+    return timeSlots.some((s) => s.zoneId === zone.id && s.timeFrom === from && s.timeTo === to)
+  }
+
   const perDayResults = activeDates.map((dDate) => {
     const del = delivery[dDate]
     const snap: DaySnapshot = {
@@ -289,6 +311,7 @@ export function CheckoutPage() {
       minOrderCents: Math.round(minOrder * 100),
       pickupLocationCount: pickupLocations.length,
       zipInZone: (zip) => zipInZone(zip, zones),
+      slotInZone, // WEC-525
     }
     return { dDate, result: validateDay(snap, ctx) }
   })
@@ -442,8 +465,20 @@ export function CheckoutPage() {
       const addrPref = addrPrefId ? user.addresses.find((a) => a.id === addrPrefId) : undefined
       const addressInZone = addrPref?.zip ? zipInZone(addrPref.zip, zones) : true
 
-      if (user.prefs.slots?.[prefIdx] && addressInZone) {
-        setDelivery(dDate, { timeSlot: user.prefs.slots[prefIdx] })
+      // WEC-525: on top of the WEC-405 in-zone gate, also require the
+      // preferred window to be OFFERED by the resolved zone. Pre-selecting a
+      // zone-unavailable slot painted a disabled button as selected, passed
+      // the (presence-only) client validation and got rejected server-side —
+      // "Time slot X is not available for this zone" out of nowhere.
+      const prefSlot = user.prefs.slots?.[prefIdx]
+      let prefSlotOffered = true
+      if (prefSlot && addrPref?.zip) {
+        const [pFrom, pTo] = prefSlot.split(/[–-]/).map((s) => s.trim())
+        prefSlotOffered = !!pFrom && !!pTo && slotInZone(addrPref.zip, pFrom, pTo)
+      }
+
+      if (prefSlot && addressInZone && prefSlotOffered) {
+        setDelivery(dDate, { timeSlot: prefSlot })
       }
 
       // Prepopulate address if saved

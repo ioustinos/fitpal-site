@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import { useEffect, useMemo } from 'react'
 import { useCartStore } from '../../store/useCartStore'
 import { useUIStore } from '../../store/useUIStore'
 import { useMenuStore } from '../../store/useMenuStore'
@@ -57,6 +57,19 @@ export function TimeSlotPicker({ dayDate, inline = false }: TimeSlotPickerProps)
   function handleSelect(slot: string) {
     setDelivery(dayDate, { ...current, timeSlot: slot })
   }
+
+  // WEC-525: never let an unselectable slot remain the active selection.
+  // Two ways to get here: prefs prefilled a slot the zone doesn't offer, or
+  // the customer picked a slot and THEN changed zip to a zone without it.
+  // The button renders disabled/greyed, but the store still held the value —
+  // presence-only validation passed and the server rejected at submit.
+  // Clearing re-runs validation, which now shows "no delivery time selected".
+  useEffect(() => {
+    if (selectedSlot && zoneSlotSet !== null && !zoneSlotSet.has(selectedSlot)) {
+      setDelivery(dayDate, { ...current, timeSlot: '' })
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedSlot, zoneSlotSet, dayDate])
 
   // WEC-138 empty state: we can hit this in two cases:
   //  - settings.time_slots is empty in admin (misconfig — shouldn't happen in prod)

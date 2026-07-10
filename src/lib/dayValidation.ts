@@ -55,6 +55,14 @@ export interface DayValidationCtx {
    * before zones are loaded from DB; the real zone check runs in Phase 3).
    */
   zipInZone: (zip: string) => boolean
+  /**
+   * WEC-525: slot-availability predicate for the day's resolved zone. Return
+   * true if the selected window (from/to) is offered by the zone the day's
+   * zip resolves to. Omit (undefined) to skip — the server Phase 1 does this,
+   * its Phase 3 runs the authoritative zone-slot check against the DB.
+   * Only consulted for delivery days that have BOTH a zip and a slot.
+   */
+  slotInZone?: (zip: string, from: string, to: string) => boolean
 }
 
 export type DayIssueCode =
@@ -64,6 +72,7 @@ export type DayIssueCode =
   | 'no_pickup_location'               // pickup: multi-location config and none picked
   | 'no_pickup_locations_available'    // pickup: zero locations configured
   | 'no_time_slot'                     // both: no delivery window picked
+  | 'time_slot_not_in_zone'            // delivery: selected window not offered by the resolved zone (WEC-525)
   | 'below_min_order'                  // both: day total < minimum
 
 export interface DayIssue {
@@ -117,6 +126,23 @@ export function validateDay(snap: DaySnapshot, ctx: DayValidationCtx): DayValida
   // ── Both fulfillment types need a time slot ──────────────────────────
   if (!snap.timeSlot || !snap.timeSlot.from || !snap.timeSlot.to) {
     issues.push({ code: 'no_time_slot' })
+  } else if (
+    // WEC-525: a slot can be present in the store but not offered by the
+    // resolved zone (prefs-prefilled, or zip changed after picking). The
+    // server always rejected this in Phase 3; the client validator didn't —
+    // that gap let "Place order" pass and surface only as a server error.
+    // Gated to delivery days with a zone-resolvable zip: postcode problems
+    // are already flagged above, no point stacking a second issue on them.
+    snap.fulfillmentType === 'delivery' &&
+    ctx.slotInZone &&
+    snap.zip?.trim() &&
+    ctx.zipInZone(snap.zip.trim()) &&
+    !ctx.slotInZone(snap.zip.trim(), snap.timeSlot.from, snap.timeSlot.to)
+  ) {
+    issues.push({
+      code: 'time_slot_not_in_zone',
+      params: { from: snap.timeSlot.from, to: snap.timeSlot.to },
+    })
   }
 
   // ── Both fulfillment types are gated by the minimum order ────────────

@@ -116,6 +116,10 @@ function formatDayIssueForServer(issue: DayIssue): string {
     case 'no_pickup_location':            return 'Pickup location is required'
     case 'no_pickup_locations_available': return 'No pickup locations configured'
     case 'no_time_slot':                  return 'Delivery time window is required'
+    // WEC-525: only emitted when a slotInZone predicate is supplied — Phase 1
+    // doesn't supply one (Phase 3 owns the DB-backed zone-slot check), so this
+    // is unreachable server-side today. Kept for switch exhaustiveness.
+    case 'time_slot_not_in_zone':         return `Time slot ${issue.params?.from ?? ''}–${issue.params?.to ?? ''} is not available for this zone`
     case 'below_min_order':               return `Below minimum order`
   }
 }
