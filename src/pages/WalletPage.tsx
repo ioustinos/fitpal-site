@@ -321,7 +321,12 @@ export function WalletPage() {
   const [errMsg, setErrMsg] = useState<string | null>(null)
   const [bankInfo, setBankInfo] = useState<{ iban: string; beneficiary: string; reference: string } | null>(null)
 
-  const [voucher, setVoucher] = useState('')
+  // WEC-508: the coupon input that lived here was a dead stub — value never
+  // read, Apply had no onClick, the server accepted no voucher field. Removed
+  // rather than left misleading customers into typing codes that do nothing.
+  // Re-add TOGETHER with the full money path (client apply + server validation
+  // against vouchers/voucher_uses + reduced Viva charge + stacking policy vs
+  // the plan-length discount) — design questions tracked on WEC-508.
 
   /* ── Handlers ──────────────────────────────────────────────── */
   function toggleMeal(key: MealKey) {
@@ -1041,15 +1046,9 @@ export function WalletPage() {
               )}
             </div>
 
-            <div className="wpv2-aside-voucher">
-              <input
-                type="text"
-                placeholder={isEl ? 'Κουπόνι' : 'Coupon'}
-                value={voucher}
-                onChange={(e) => setVoucher(e.target.value)}
-              />
-              <button type="button">{isEl ? 'Εφαρμογή' : 'Apply'}</button>
-            </div>
+            {/* WEC-508: coupon field removed — it was a non-functional stub
+                (no handler, no server support). Restore only with the full
+                voucher money-path; see the ticket for the open design points. */}
 
             <div className="wpv2-aside-divider" />
 
