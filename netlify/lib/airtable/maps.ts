@@ -2,6 +2,10 @@
 // Option values verified from the live base schema (getSchema). We pass exact
 // strings (no typecast) so we never create junk options.
 
+// WEC-528: shared classifier — same import pattern as submit-order.ts's
+// dayValidation import (src/ ⇄ netlify/ works via esbuild bundling).
+import { orderTypeCode, type OrderTypeCode } from '../../../src/lib/orderType'
+
 // Orders.Paid choices: NO_PAYMENT | SUCCESSFULLY_COMPLETED | IN_PROGRESS | PAID_OFFLINE
 export function mapPaid(paymentStatus: string): string {
   switch (paymentStatus) {
@@ -31,6 +35,22 @@ export function mapPaymentMethod(method: string): { method: string; extra?: stri
     default:
       return { method: 'CASH' }
   }
+}
+
+// WEC-528: Orders."Order Type" single-select. Exact option strings verified
+// from Ioustinos's Airtable screenshot 2026-07-09: A la carte (own) |
+// A la carte (managed) | Subscription (own) | Subscription (managed) |
+// From Company. "From Company" is reserved for the future B2B feature and
+// must never be emitted from this platform.
+const ORDER_TYPE_AIRTABLE: Record<OrderTypeCode, string> = {
+  alacarte_own: 'A la carte (own)',
+  alacarte_managed: 'A la carte (managed)',
+  subscription_own: 'Subscription (own)',
+  subscription_managed: 'Subscription (managed)',
+}
+
+export function mapOrderType(paymentMethod: string, adminOrderId: string | null | undefined): string {
+  return ORDER_TYPE_AIRTABLE[orderTypeCode(paymentMethod, adminOrderId)]
 }
 
 // Orders.Τιμολόγιο/Απόδειξη choices: Απόδειξη | Τιμολόγιο

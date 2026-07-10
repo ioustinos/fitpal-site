@@ -12,10 +12,13 @@ import {
   ORDER_STATUS_VALUES, PAYMENT_STATUS_VALUES, VALID_NEXT_STATUS,
   type AdminOrder, type AdminChildOrder, type AdminOrderItem,
   type OrderFilters, type OrderStatus, type PaymentStatus,
+  type PaymentMethod,
   type RefundKind,
 } from '../../lib/api/adminOrders'
 import { fetchAdminDishes, type AdminDish } from '../../lib/api/adminDishes'
 import { foldGreek } from '../../lib/text'
+// WEC-528: shared Order Type classifier (same module the Airtable push uses)
+import { orderTypeCode, ORDER_TYPE_LABELS, type OrderTypeCode } from '../../lib/orderType'
 
 const STATUS_COLOURS: Record<OrderStatus, string> = {
   // WEC-420: draft uses the same warm orange as the in-drawer banner so the
@@ -76,6 +79,9 @@ export function Orders() {
   const [search, setSearch] = useState('')
   const [filterStatus, setFilterStatus] = useState<OrderStatus[]>([])
   const [filterPayment, setFilterPayment] = useState<PaymentStatus[]>([])
+  // WEC-528: Order Type is DERIVED (payment_method × admin_order_id), no DB
+  // column — so this filter is applied client-side on the loaded list.
+  const [filterType, setFilterType] = useState<OrderTypeCode[]>([])
 
   async function refresh() {
     setLoading(true); setErr(null)
@@ -120,7 +126,12 @@ export function Orders() {
   }
   function closeDetail() { setSelectedId(null); setDetail(null) }
 
-  const totalLoaded = orders.length
+  // WEC-528: client-side Order Type filter (derived classification).
+  const visibleOrders = filterType.length
+    ? orders.filter((o) => filterType.includes(orderTypeCode(o.paymentMethod, o.adminOrderId)))
+    : orders
+
+  const totalLoaded = visibleOrders.length
 
   return (
     <div className="admin-page">
@@ -191,6 +202,23 @@ export function Orders() {
             ))}
           </div>
         </details>
+
+        {/* WEC-528: Order Type — derived classification, filtered client-side */}
+        <details className="admin-filter-details">
+          <summary className="admin-btn-ghost">Type ({filterType.length || 'any'})</summary>
+          <div className="admin-filter-body">
+            {(Object.keys(ORDER_TYPE_LABELS) as OrderTypeCode[]).map((c) => (
+              <label key={c} className="admin-form-checkbox">
+                <input
+                  type="checkbox"
+                  checked={filterType.includes(c)}
+                  onChange={(e) => setFilterType(e.target.checked ? [...filterType, c] : filterType.filter((x) => x !== c))}
+                />
+                <span>{ORDER_TYPE_LABELS[c].en}</span>
+              </label>
+            ))}
+          </div>
+        </details>
       </div>
 
       {err && <div className="admin-error-banner">{err}</div>}
@@ -207,14 +235,15 @@ export function Orders() {
                 <th>Delivery dates</th>
                 <th style={{ textAlign: 'right' }}>Total</th>
                 <th style={{ textAlign: 'right' }}>Disc.</th>
+                <th>Type</th>
                 <th>Status</th>
                 <th>Payment</th>
                 <th>Created</th>
               </tr>
             </thead>
             <tbody>
-              {orders.length === 0 && <tr><td colSpan={9} className="admin-table-empty">No orders match.</td></tr>}
-              {orders.map((o) => (
+              {visibleOrders.length === 0 && <tr><td colSpan={10} className="admin-table-empty">No orders match.</td></tr>}
+              {visibleOrders.map((o) => (
                 <tr key={o.id} onClick={() => openDetail(o.id)} style={{ cursor: 'pointer' }}>
                   <td>
                     <strong>{o.orderNumber}</strong>
@@ -251,6 +280,7 @@ export function Orders() {
                       ? <span className="admin-discount">−€{(o.discountAmount / 100).toFixed(2)}</span>
                       : <span className="admin-sub">—</span>}
                   </td>
+                  <td><OrderTypeBadge method={o.paymentMethod} adminOrderId={o.adminOrderId} /></td>
                   <td><StatusBadge status={o.status} /></td>
                   <td><PaymentBadge status={o.paymentStatus} /></td>
                   <td className="admin-sub" style={{ whiteSpace: 'nowrap' }}>{new Date(o.createdAt).toLocaleString('en-GB', { dateStyle: 'short', timeStyle: 'short' })}</td>
@@ -280,6 +310,27 @@ function StatusBadge({ status }: { status: OrderStatus }) {
 }
 function PaymentBadge({ status }: { status: PaymentStatus }) {
   return <span className="admin-badge" style={{ background: `${PAYMENT_COLOURS[status]}22`, color: PAYMENT_COLOURS[status] }}>{status}</span>
+}
+
+// WEC-528: derived Order Type badge — payment source × who placed it.
+// Distinct colour per type (WEC-520 lesson: same-colour pills read as one).
+const ORDER_TYPE_COLOURS: Record<OrderTypeCode, string> = {
+  alacarte_own: '#16a34a',
+  alacarte_managed: '#d97706',
+  subscription_own: '#0284c7',
+  subscription_managed: '#7c3aed',
+}
+function OrderTypeBadge({ method, adminOrderId }: { method: PaymentMethod; adminOrderId: string | null }) {
+  const code = orderTypeCode(method, adminOrderId)
+  return (
+    <span
+      className="admin-badge"
+      style={{ background: `${ORDER_TYPE_COLOURS[code]}22`, color: ORDER_TYPE_COLOURS[code], whiteSpace: 'nowrap' }}
+      title="Order type — payment source × who placed it (derived, mirrors Airtable Order Type)"
+    >
+      {ORDER_TYPE_LABELS[code].en}
+    </span>
+  )
 }
 
 // WEC-361 polish: small inline icon set for the order Details screen.
@@ -443,6 +494,8 @@ function OrderDrawer({
             <div className="admin-order-status-bar">
               <div className="admin-od-statusbar-badges">
                 <span className="admin-od-badgewrap"><span className="admin-od-badgecap">Order</span><StatusBadge status={order.status} /></span>
+                {/* WEC-528: derived order type, same classification as the Airtable mirror */}
+                <span className="admin-od-badgewrap"><span className="admin-od-badgecap">Type</span><OrderTypeBadge method={order.paymentMethod} adminOrderId={order.adminOrderId} /></span>
                 {/* Payment status is meaningless on a draft — hide. */}
                 {order.status !== 'draft' && (
                   <span className="admin-od-badgewrap"><span className="admin-od-badgecap">Payment</span><PaymentBadge status={order.paymentStatus} /></span>

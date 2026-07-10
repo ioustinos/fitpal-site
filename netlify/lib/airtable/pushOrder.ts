@@ -6,7 +6,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { TABLES, RETAIL_STORE_ID } from './env'
 import { findRecordId, upsertRecords, createRecord } from './client'
-import { mapPaid, mapPaymentMethod, mapInvoice, toEuros, athensIso, esc } from './maps'
+import { mapPaid, mapPaymentMethod, mapInvoice, mapOrderType, toEuros, athensIso, esc } from './maps'
 
 export interface PushResult {
   ok: boolean
@@ -30,6 +30,7 @@ interface OrderRow {
   invoice_type: string | null
   invoice_vat: string | null
   notes: string | null
+  admin_order_id: string | null
   created_at?: string | null
   submitted_at?: string | null
   updated_at?: string | null
@@ -68,7 +69,7 @@ export async function pushOrderToAirtable(
   const { data: order, error: oErr } = await supabase
     .from('orders')
     .select(
-      'id, order_number, customer_name, customer_email, customer_phone, subtotal, total, payment_method, payment_status, status, cutlery, invoice_type, invoice_vat, notes, created_at, submitted_at, updated_at',
+      'id, order_number, customer_name, customer_email, customer_phone, subtotal, total, payment_method, payment_status, status, cutlery, invoice_type, invoice_vat, notes, admin_order_id, created_at, submitted_at, updated_at',
     )
     .eq('id', orderId)
     .single<OrderRow>()
@@ -150,6 +151,9 @@ export async function pushOrderToAirtable(
     'Order Comments': order.notes ?? '',
     Paid: mapPaid(order.payment_status),
     'Payment Method': pm.method,
+    // WEC-528: payment source × who placed it. Exact single-select strings —
+    // see mapOrderType. "From Company" is never emitted from this platform.
+    'Order Type': mapOrderType(order.payment_method, order.admin_order_id),
     'Store Id': RETAIL_STORE_ID,
     'Μαχαιροπίρουνα': !!order.cutlery,
   }
