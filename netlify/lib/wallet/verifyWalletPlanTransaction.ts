@@ -17,6 +17,8 @@ import { sendMetaCapiEvent, metaConfigured, hashLower, hashPhone } from '../meta
 import { track, subscribeProfileToMarketing, EVT } from '../klaviyo'
 // WEC-529: populate account macro goals from the plan's diet profile on paid.
 import { applyPlanGoalsToUser } from './applyPlanGoals'
+// WEC-504: durable Viva audit logging.
+import { logVivaEvent, type VivaEventLog } from '../viva/logEvent'
 
 const SUPABASE_URL = process.env.VITE_SUPABASE_URL ?? ''
 const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY ?? ''
@@ -91,6 +93,9 @@ export async function verifyWalletPlanTransaction(
   const walletPlanId = merchantTrns.slice(3)
 
   const supabase = serviceClient()
+  // WEC-504: durable audit of every wallet-plan verify outcome (fail-soft).
+  const log = (outcome: string, extra: Partial<VivaEventLog> = {}) =>
+    logVivaEvent(supabase, { source: 'wallet_verify', kind: 'wallet', walletPlanId, orderCode, transactionId, statusId, outcome, payload: data, ...extra })
 
   const { data: plan } = await supabase
     .from('wallet_plans')
@@ -99,6 +104,7 @@ export async function verifyWalletPlanTransaction(
     .maybeSingle()
 
   if (!plan) {
+    await log('unknown', { message: `wallet_plan ${walletPlanId} not found` })
     return { status: 'unknown', transactionId, message: `wallet_plan ${walletPlanId} not found` }
   }
 
@@ -111,6 +117,7 @@ export async function verifyWalletPlanTransaction(
       '[verifyWalletPlanTransaction] orderCode mismatch planId=%s db=%s viva=%s',
       walletPlanId, plan.viva_order_code, orderCode,
     )
+    await log('unknown', { message: `orderCode mismatch (db=${plan.viva_order_code} viva=${orderCode})` })
     return { status: 'unknown', transactionId, message: 'orderCode mismatch' }
   }
 
@@ -120,6 +127,7 @@ export async function verifyWalletPlanTransaction(
         '[verifyWalletPlanTransaction] AMOUNT MISMATCH planId=%s vivaCents=%d dbCents=%d',
         walletPlanId, amountCents, dbCents,
       )
+      await log('mismatch', { amountCents, message: `viva=${amountCents} db=${dbCents}` })
       return { status: 'mismatch', walletPlanId, vivaCents: amountCents, dbCents, transactionId }
     }
 
@@ -144,6 +152,7 @@ export async function verifyWalletPlanTransaction(
       // WEC-529: set Account → Goals from the plan's diet profile. Fail-soft.
       await applyPlanGoalsToUser(supabase, walletPlanId)
     }
+    await log('paid', { amountCents })
     return { status: 'paid', walletPlanId, amountCents, transactionId }
   }
 
@@ -154,9 +163,11 @@ export async function verifyWalletPlanTransaction(
       .update({ payment_status: 'failed' })
       .eq('id', walletPlanId)
       .eq('payment_status', 'pending')
+    await log('failed', { message: reason })
     return { status: 'failed', walletPlanId, reason, transactionId }
   }
 
+  await log('pending', { walletPlanId })
   return { status: 'pending', walletPlanId, statusId, transactionId }
 }
 

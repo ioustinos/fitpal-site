@@ -11,6 +11,7 @@ import { createClient, SupabaseClient } from '@supabase/supabase-js'
 import { getVivaAccessToken } from './auth'
 import { getVivaCreds } from './env'
 import { markPaid, markFailed } from './markPaid'
+import { logVivaEvent, type VivaEventLog } from './logEvent'
 
 const SUPABASE_URL = process.env.VITE_SUPABASE_URL ?? ''
 const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY ?? ''
@@ -85,6 +86,10 @@ export async function verifyVivaTransaction(transactionId: string): Promise<Veri
 
   const supabase = serviceClient()
 
+  // WEC-504: durable audit of every verify outcome (fail-soft, awaited).
+  const log = (outcome: string, extra: Partial<VivaEventLog> = {}) =>
+    logVivaEvent(supabase, { source: 'return_verify', kind: 'order', orderCode, transactionId, statusId, outcome, payload: data, ...extra })
+
   // Look up our payment_links row by Viva orderCode.
   const { data: link } = await supabase
     .from('payment_links')
@@ -93,6 +98,7 @@ export async function verifyVivaTransaction(transactionId: string): Promise<Veri
     .maybeSingle()
 
   if (!link || !link.order_id) {
+    await log('unknown', { message: `No payment_links row for orderCode=${orderCode}` })
     return { status: 'unknown', transactionId, message: `No payment_links row for orderCode=${orderCode}` }
   }
 
@@ -104,6 +110,7 @@ export async function verifyVivaTransaction(transactionId: string): Promise<Veri
     .single()
 
   if (!order) {
+    await log('unknown', { orderId: link.order_id as string, message: `Order ${link.order_id} not found` })
     return { status: 'unknown', transactionId, message: `Order ${link.order_id} not found` }
   }
 
@@ -130,6 +137,7 @@ export async function verifyVivaTransaction(transactionId: string): Promise<Veri
         '[viva-verify] AMOUNT MISMATCH orderId=%s orderCode=%s vivaCents=%d dbCents=%d',
         orderId, orderCode, amountCents, dbTotalCents,
       )
+      await log('mismatch', { orderId, amountCents, message: `viva=${amountCents} db=${dbTotalCents}` })
       return {
         status: 'mismatch',
         orderId, orderNumber, transactionId,
@@ -137,15 +145,18 @@ export async function verifyVivaTransaction(transactionId: string): Promise<Veri
       }
     }
     await markPaid(orderId, transactionId, amountCents)
+    await log('paid', { orderId, amountCents })
     return { status: 'paid', orderId, orderNumber, amountCents, transactionId }
   }
 
   if (statusId === 'E' || statusId === 'X') {
     const reason = data.errorText ? `${statusId}: ${data.errorText}` : `statusId=${statusId}`
     await markFailed(orderId, transactionId, reason)
+    await log('failed', { orderId, message: reason })
     return { status: 'failed', orderId, orderNumber, reason, transactionId }
   }
 
   // A (authorised, pre-auth flow) / anything else — leave pending.
+  await log('pending', { orderId })
   return { status: 'pending', orderId, statusId, transactionId }
 }
