@@ -298,6 +298,35 @@ export async function setWalletAdminManaged(
 }
 
 /**
+ * WEC-516: toggle `wallets.active` — the spendable gate (separate from balance).
+ * Admin-managed / manually-funded wallets can hold a balance while active=false
+ * (unusable at checkout / greyed as "Χωρίς wallet" during impersonation). This
+ * is the admin control to switch a wallet on/off. Direct update via admin RLS
+ * (admin_all_wallets), plus a fail-soft audit entry.
+ */
+export async function setWalletActive(
+  userId: string,
+  active: boolean,
+): Promise<{ error: string | null }> {
+  const { error } = await supabase.from('wallets')
+    .update({ active })
+    .eq('user_id', userId)
+  if (error) return { error: error.message }
+  try {
+    const { data: session } = await supabase.auth.getSession()
+    await supabase.from('admin_change_log').insert({
+      table_name: 'wallets',
+      field_name: 'active',
+      old_value: String(!active),
+      new_value: String(active),
+      label: `Wallet ${active ? 'activated' : 'deactivated'} (admin)`,
+      admin_user: session?.session?.user?.id ?? null,
+    })
+  } catch { /* audit is non-fatal; the toggle already committed */ }
+  return { error: null }
+}
+
+/**
  * Grant a wallet credit (refund / gift / adjustment) to a customer.
  *
  * Hits /api/admin-grant-wallet-credit which (a) verifies admin via JWT,

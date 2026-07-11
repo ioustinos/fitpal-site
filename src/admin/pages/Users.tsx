@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import {
-  fetchAdminUsers, fetchAdminUserDetail, saveAdminUserNotes, setWalletAdminManaged,
+  fetchAdminUsers, fetchAdminUserDetail, saveAdminUserNotes, setWalletAdminManaged, setWalletActive,
   grantWalletCredit,
   type AdminUserRow, type AdminUserDetail, type WalletGrantType,
 } from '../../lib/api/adminUsers'
@@ -248,6 +248,20 @@ function UserDetail({
     onWalletAdminManagedChange()
   }
 
+  // WEC-516: toggle wallets.active — the spendable gate (separate from balance).
+  async function handleToggleActive(next: boolean) {
+    if (!detail.walletDetail) {
+      window.alert("This user doesn't have a wallet yet — grant credit first to create one.")
+      return
+    }
+    if (!next && !window.confirm('Deactivate this wallet? The customer will not be able to spend the balance at checkout until it is reactivated.')) return
+    setSavingFlag(true); setErr(null)
+    const { error } = await setWalletActive(detail.userId, next)
+    if (error) setErr(error)
+    setSavingFlag(false)
+    onWalletAdminManagedChange() // reloads the detail (reused refresh callback)
+  }
+
   return (
     <div className="admin-user-editor">
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 }}>
@@ -328,6 +342,20 @@ function UserDetail({
               {detail.walletDetail.active ? 'Active' : 'Inactive'} ·
               {detail.walletDetail.autoRenew ? ' Auto-renews' : ' Manual renewal'}
               {detail.walletDetail.nextRenewal && ` · Next ${detail.walletDetail.nextRenewal}`}
+            </div>
+            <div style={{ marginTop: 12, display: 'flex', alignItems: 'center', gap: 10 }}>
+              <label style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <input
+                  type="checkbox"
+                  checked={detail.walletDetail.active}
+                  onChange={(e) => handleToggleActive(e.target.checked)}
+                  disabled={savingFlag}
+                />
+                <strong>Wallet active</strong>
+              </label>
+              <span className="admin-text-muted" style={{ fontSize: 12 }}>
+                Off = balance can't be spent at checkout (shows as "no wallet"). On = spendable.
+              </span>
             </div>
             <div style={{ marginTop: 12, display: 'flex', alignItems: 'center', gap: 10 }}>
               <label style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
