@@ -6,7 +6,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { TABLES, RETAIL_STORE_ID } from './env'
 import { findRecordId, upsertRecords, createRecord } from './client'
-import { mapPaid, mapPaymentMethod, mapInvoice, mapOrderType, toEuros, athensIso, esc } from './maps'
+import { mapPaid, mapPaymentMethod, mapInvoice, mapOrderType, mapOrderStatus, toEuros, athensIso, esc } from './maps'
 
 export interface PushResult {
   ok: boolean
@@ -31,6 +31,7 @@ interface OrderRow {
   invoice_vat: string | null
   notes: string | null
   admin_order_id: string | null
+  cancel_reason: string | null
   created_at?: string | null
   submitted_at?: string | null
   updated_at?: string | null
@@ -69,7 +70,7 @@ export async function pushOrderToAirtable(
   const { data: order, error: oErr } = await supabase
     .from('orders')
     .select(
-      'id, order_number, customer_name, customer_email, customer_phone, subtotal, total, payment_method, payment_status, status, cutlery, invoice_type, invoice_vat, notes, admin_order_id, created_at, submitted_at, updated_at',
+      'id, order_number, customer_name, customer_email, customer_phone, subtotal, total, payment_method, payment_status, status, cutlery, invoice_type, invoice_vat, notes, admin_order_id, cancel_reason, created_at, submitted_at, updated_at',
     )
     .eq('id', orderId)
     .single<OrderRow>()
@@ -162,6 +163,11 @@ export async function pushOrderToAirtable(
   if (inv) orderFields['Τιμολόγιο/Απόδειξη'] = inv
   if (order.invoice_vat) orderFields['ΑΦΜ'] = order.invoice_vat
   if (custLink) orderFields['Customer'] = custLink
+  // WEC-537: mirror order status + (on cancel) the admin reason so cancelled
+  // orders don't look active in Airtable. draft never reaches here.
+  const statusOpt = mapOrderStatus(order.status)
+  if (statusOpt) orderFields['Order Status'] = statusOpt
+  if (order.status === 'cancelled') orderFields['Cancellation Reason'] = order.cancel_reason ?? ''
 
   const [orderRec] = await upsertRecords(TABLES.orders, ['Order Id'], [{ fields: orderFields }])
   const orderRecId = orderRec.id

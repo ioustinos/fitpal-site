@@ -53,6 +53,22 @@ export function mapOrderType(paymentMethod: string, adminOrderId: string | null 
   return ORDER_TYPE_AIRTABLE[orderTypeCode(paymentMethod, adminOrderId)]
 }
 
+// WEC-537: Orders."Order Status" single-select. Exact option strings created
+// by Ioustinos 2026-07-11: Pending | Confirmed | Preparing | Delivering |
+// Delivered | Cancelled. `draft` never mirrors, so it isn't mapped (undefined
+// → field omitted, no junk option under typecast:false).
+const ORDER_STATUS_AIRTABLE: Record<string, string> = {
+  pending: 'Pending',
+  confirmed: 'Confirmed',
+  preparing: 'Preparing',
+  delivering: 'Delivering',
+  delivered: 'Delivered',
+  cancelled: 'Cancelled',
+}
+export function mapOrderStatus(status: string): string | undefined {
+  return ORDER_STATUS_AIRTABLE[status]
+}
+
 // Orders.Τιμολόγιο/Απόδειξη choices: Απόδειξη | Τιμολόγιο
 export function mapInvoice(invoiceType?: string | null): string | undefined {
   if (!invoiceType) return undefined
