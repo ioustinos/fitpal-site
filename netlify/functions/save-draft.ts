@@ -21,6 +21,7 @@
 // (user_id NULL). If `user_id` is in the body it must match the JWT subject.
 
 import { createClient, SupabaseClient } from '@supabase/supabase-js'
+import { createHash } from 'node:crypto'
 import { corsHeaders } from '../lib/cors'
 import { checkRateLimit, clientIp } from '../lib/rateLimit'
 
@@ -115,6 +116,11 @@ export default async (request: Request) => {
 
   // ── Resolve / create the draft orders row ────────────────────────────────
   let draftId = (body.draft_id ?? '').trim() || null
+  // WEC-536: skip the child-tree delete+reinsert when the cart/address/slot
+  // tree is unchanged since the last save (most debounced saves only touch the
+  // order row — payment, notes, customer, cutlery, invoice).
+  let draftExisted = false
+  let storedHash: string | null = null
   const orderPatch: Record<string, unknown> = {
     user_id: effectiveUserId,
     customer_name: body.customer?.name ?? null,
@@ -134,7 +140,7 @@ export default async (request: Request) => {
     // while we were mid-flight, which would otherwise mutate a real order).
     const { data: existing, error: selErr } = await supabase
       .from('orders')
-      .select('id, status, user_id')
+      .select('id, status, user_id, draft_cart_hash')
       .eq('id', draftId)
       .maybeSingle()
     if (selErr) return Response.json({ error: selErr.message }, { status: 500, headers: cors })
@@ -152,6 +158,9 @@ export default async (request: Request) => {
       }
       const { error: upErr } = await supabase.from('orders').update(orderPatch).eq('id', draftId)
       if (upErr) return Response.json({ error: upErr.message }, { status: 500, headers: cors })
+      // WEC-536: remember we had a live draft + its last saved tree hash.
+      draftExisted = true
+      storedHash = (existing as { draft_cart_hash: string | null }).draft_cart_hash ?? null
     }
   }
 
@@ -174,6 +183,20 @@ export default async (request: Request) => {
   }
 
   // ── Replace child_orders + order_items (delete + re-insert) ──────────────
+  // WEC-536: only when the cart/address/slot tree actually changed. Hash the
+  // tree inputs; a matching hash means child_orders/order_items already reflect
+  // this cart, so we skip the whole delete+reinsert (the p95 cost per WEC-535).
+  // A partial rebuild leaves the hash unstamped, so the next save self-heals.
+  const newCartHash = createHash('sha1')
+    .update(JSON.stringify({
+      c: body.cart_by_day ?? [],
+      a: body.addresses_by_day ?? [],
+      s: body.time_slots_by_day ?? [],
+    }))
+    .digest('hex')
+  const needsTreeRebuild = !draftExisted || storedHash !== newCartHash
+
+  if (needsTreeRebuild) {
   // Drafts are write-heavy on the same row; a clean replace per save is simpler
   // and avoids per-row diffing. CASCADE on the FK takes order_items with it.
   const { error: delErr } = await supabase.from('child_orders').delete().eq('order_id', draftId)
@@ -248,6 +271,12 @@ export default async (request: Request) => {
       }
     }
   }
+
+  // WEC-536: stamp the new tree hash AFTER a successful rebuild so the next
+  // identical save can skip. (If a rebuild step above errored we returned
+  // early and never reach here — the hash stays stale → next save rebuilds.)
+  await supabase.from('orders').update({ draft_cart_hash: newCartHash }).eq('id', draftId)
+  } // end if (needsTreeRebuild)
 
   return Response.json(
     { draft_id: draftId, updated_at: new Date().toISOString() },
