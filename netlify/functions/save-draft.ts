@@ -197,85 +197,51 @@ export default async (request: Request) => {
   const needsTreeRebuild = !draftExisted || storedHash !== newCartHash
 
   if (needsTreeRebuild) {
-  // Drafts are write-heavy on the same row; a clean replace per save is simpler
-  // and avoids per-row diffing. CASCADE on the FK takes order_items with it.
-  const { error: delErr } = await supabase.from('child_orders').delete().eq('order_id', draftId)
-  if (delErr) return Response.json({ error: delErr.message }, { status: 500, headers: cors })
-
-  const cartByDay = body.cart_by_day ?? []
-  if (cartByDay.length > 0) {
-    // Snapshot dish names so the admin Drafts view can render without joins.
-    const dishIds = Array.from(new Set(cartByDay.flatMap((d) => d.items.map((i) => i.dish_id))))
-    const { data: dishRows } = await supabase
-      .from('dishes')
-      .select('id, name_el, name_en')
-      .in('id', dishIds)
-    const dishMap = new Map<string, { name_el: string; name_en: string }>()
-    for (const r of (dishRows ?? []) as Array<{ id: string; name_el: string; name_en: string | null }>) {
-      dishMap.set(r.id, { name_el: r.name_el, name_en: r.name_en ?? r.name_el })
-    }
-
+    // WEC-536 phase 2: the rebuild is ONE atomic RPC (save_draft_tree) instead
+    // of the previous sequential delete + dishes SELECT + per-day inserts
+    // (~6+N round trips, non-transactional — a mid-flight failure or two
+    // overlapping trigger-B/C saves could leave a partial draft). The RPC
+    // deletes + reinserts the tree, snapshots dish names in-query, and stamps
+    // draft_cart_hash in the SAME transaction: on any failure nothing changes
+    // and the stale hash forces the next save to rebuild (self-healing).
     const addrByDate = new Map<string, DayAddrIn>()
     for (const a of body.addresses_by_day ?? []) addrByDate.set(a.delivery_date, a)
     const slotByDate = new Map<string, DaySlotIn>()
     for (const s of body.time_slots_by_day ?? []) slotByDate.set(s.delivery_date, s)
 
-    for (const day of cartByDay) {
-      if (!day.delivery_date || !Array.isArray(day.items) || day.items.length === 0) continue
-      const a = addrByDate.get(day.delivery_date)
-      const s = slotByDate.get(day.delivery_date)
-      const isPickup = a?.fulfillment_type === 'pickup'
-      const { data: childIns, error: chErr } = await supabase
-        .from('child_orders')
-        .insert({
-          order_id: draftId,
+    const daysPayload = (body.cart_by_day ?? [])
+      .filter((d) => d.delivery_date && Array.isArray(d.items) && d.items.length > 0)
+      .map((day) => {
+        const a = addrByDate.get(day.delivery_date)
+        const s = slotByDate.get(day.delivery_date)
+        const isPickup = a?.fulfillment_type === 'pickup'
+        return {
           delivery_date: day.delivery_date,
-          time_from: s?.from ?? null,
-          time_to: s?.to ?? null,
+          time_from: s?.from ?? '',
+          time_to: s?.to ?? '',
           address_street: isPickup ? null : (a?.street ?? null),
           address_area: isPickup ? null : (a?.area ?? null),
           address_zip: isPickup ? null : (a?.zip ?? null),
           address_floor: isPickup ? null : (a?.floor ?? null),
           fulfillment_type: a?.fulfillment_type ?? 'delivery',
-          pickup_location_id: isPickup ? (a?.pickup_location_id ?? null) : null,
-        })
-        .select('id')
-        .single()
-      if (chErr) return Response.json({ error: chErr.message }, { status: 500, headers: cors })
-      const childOrderId = (childIns as { id: string }).id
+          pickup_location_id: isPickup ? (a?.pickup_location_id ?? '') : '',
+          items: day.items
+            .filter((i) => i.dish_id && i.quantity > 0)
+            .map((i) => ({
+              dish_id: i.dish_id,
+              variant_id: i.variant_id ?? '',
+              quantity: i.quantity,
+              comment: i.comment ?? null,
+            })),
+        }
+      })
 
-      const itemsPayload = day.items
-        .filter((i) => i.dish_id && i.quantity > 0)
-        .map((i) => {
-          const d = dishMap.get(i.dish_id)
-          return {
-            child_order_id: childOrderId,
-            dish_id: i.dish_id,
-            variant_id: i.variant_id ?? null,
-            // name_el is NOT NULL; fall back to the dish id slug so the row
-            // still inserts even if the dish lookup didn't match.
-            name_el: d?.name_el ?? i.dish_id,
-            name_en: d?.name_en ?? null,
-            quantity: i.quantity,
-            // WEC-416: drafts carry zero prices/macros. Promote in submit-order
-            // re-resolves real prices from dish_variants — the authoritative
-            // moment is the final charge, not the in-progress draft.
-            unit_price: 0,
-            total_price: 0,
-            comment: i.comment ?? null,
-          }
-        })
-      if (itemsPayload.length > 0) {
-        const { error: itErr } = await supabase.from('order_items').insert(itemsPayload)
-        if (itErr) return Response.json({ error: itErr.message }, { status: 500, headers: cors })
-      }
-    }
-  }
-
-  // WEC-536: stamp the new tree hash AFTER a successful rebuild so the next
-  // identical save can skip. (If a rebuild step above errored we returned
-  // early and never reach here — the hash stays stale → next save rebuilds.)
-  await supabase.from('orders').update({ draft_cart_hash: newCartHash }).eq('id', draftId)
+    const { error: treeErr } = await supabase.rpc('save_draft_tree', {
+      p_order_id: draftId,
+      p_days: daysPayload,
+      p_cart_hash: newCartHash,
+    })
+    if (treeErr) return Response.json({ error: treeErr.message }, { status: 500, headers: cors })
   } // end if (needsTreeRebuild)
 
   return Response.json(
