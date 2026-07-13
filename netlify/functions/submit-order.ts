@@ -375,7 +375,13 @@ function validatePayload(body: OrderPayload): Errors {
 
 // ─── Order number generation ────────────────────────────────────────────────
 
-function generateOrderNumber(): string {
+// WEC-542: EMERGENCY FALLBACK ONLY. The 4-digit random space (10k/day) hit
+// birthday-paradox collisions against the UNIQUE order_number index at ~500
+// orders/day (~3.3% submit 500s in the WEC-535 load run). Real numbers now
+// come from the `next_order_number()` DB counter (FP-YYMMDD-00001, 5 digits —
+// cannot even string-collide with this 4-digit legacy format). This fallback
+// only fires if that RPC errors, so ordering degrades instead of halting.
+function generateOrderNumberFallback(): string {
   const now = new Date()
   const yy = String(now.getFullYear()).slice(2)
   const mm = String(now.getMonth() + 1).padStart(2, '0')
@@ -838,7 +844,18 @@ export default async (request: Request) => {
 
     // ─── Phase 5: Insert order ──────────────────────────────────────────
 
-    const orderNumber = generateOrderNumber()
+    // WEC-542: collision-proof number from the per-day Postgres counter.
+    // Covers BOTH the promote-from-draft path and the legacy INSERT path.
+    let orderNumber: string
+    {
+      const { data: seqNum, error: seqErr } = await supabase.rpc('next_order_number')
+      if (seqErr || typeof seqNum !== 'string' || !seqNum) {
+        console.error('[submit-order] next_order_number RPC failed — using random fallback (collision-possible):', seqErr)
+        orderNumber = generateOrderNumberFallback()
+      } else {
+        orderNumber = seqNum
+      }
+    }
 
     // WEC-390/392: admin-placed orders are recorded structurally via
     // `admin_order_id` (the impersonating admin's user_id) — that's the
