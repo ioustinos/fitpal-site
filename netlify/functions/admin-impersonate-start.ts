@@ -1,4 +1,5 @@
 import { createClient } from '@supabase/supabase-js'
+import { corsHeaders } from '../lib/cors'
 
 /**
  * Mint a magic-link token for an arbitrary customer, callable only by admins.
@@ -30,14 +31,11 @@ interface RequestBody {
 }
 
 export default async (request: Request) => {
+  const cors = corsHeaders(request, 'POST, OPTIONS')
   if (request.method === 'OPTIONS') {
     return new Response(null, {
       status: 204,
-      headers: {
-        'Access-Control-Allow-Origin': '*',
-        'Access-Control-Allow-Methods': 'POST, OPTIONS',
-        'Access-Control-Allow-Headers': 'Content-Type, Authorization',
-      },
+      headers: cors,
     })
   }
   if (request.method !== 'POST') {
@@ -152,7 +150,7 @@ export default async (request: Request) => {
       // X-Impersonator-Admin-Id attribution header on order submission.
       adminUserId: caller.id,
     }, {
-      headers: { 'Access-Control-Allow-Origin': '*' },
+      headers: cors,
     })
   } catch (err) {
     console.error('[admin-impersonate-start] failed:', err)

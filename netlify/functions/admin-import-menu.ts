@@ -1,4 +1,5 @@
 import { createClient } from '@supabase/supabase-js'
+import { corsHeaders } from '../lib/cors'
 
 /**
  * Admin endpoint: bulk-import a parsed menu (dishes + variants + ingredient
@@ -128,14 +129,11 @@ async function chunkedInsert<T>(
 }
 
 export default async (request: Request) => {
+  const cors = corsHeaders(request, 'POST, OPTIONS')
   if (request.method === 'OPTIONS') {
     return new Response(null, {
       status: 204,
-      headers: {
-        'Access-Control-Allow-Origin': '*',
-        'Access-Control-Allow-Methods': 'POST, OPTIONS',
-        'Access-Control-Allow-Headers': 'Content-Type, Authorization',
-      },
+      headers: cors,
     })
   }
   if (request.method !== 'POST') return jsonError(405, 'Method not allowed')

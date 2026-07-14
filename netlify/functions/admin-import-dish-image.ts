@@ -1,4 +1,5 @@
 import { createClient } from '@supabase/supabase-js'
+import { corsHeaders } from '../lib/cors'
 
 /**
  * Admin endpoint: import a dish image from an external URL into Supabase Storage.
@@ -70,14 +71,11 @@ function publicUrl(supabaseUrl: string, bucket: string, path: string): string {
 }
 
 export default async (request: Request) => {
+  const cors = corsHeaders(request, 'POST, OPTIONS')
   if (request.method === 'OPTIONS') {
     return new Response(null, {
       status: 204,
-      headers: {
-        'Access-Control-Allow-Origin': '*',
-        'Access-Control-Allow-Methods': 'POST, OPTIONS',
-        'Access-Control-Allow-Headers': 'Content-Type, Authorization',
-      },
+      headers: cors,
     })
   }
   if (request.method !== 'POST') {

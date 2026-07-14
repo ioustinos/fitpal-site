@@ -10,16 +10,12 @@
 
 import { verifyVivaTransaction } from '../lib/viva/verify'
 import { verifyWalletPlanTransaction } from '../lib/wallet/verifyWalletPlanTransaction'
-
-const CORS_HEADERS = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-  'Access-Control-Allow-Headers': 'Content-Type',
-}
+import { corsHeaders } from '../lib/cors'
 
 export default async (request: Request) => {
+  const cors = corsHeaders(request, 'GET, POST, OPTIONS')
   if (request.method === 'OPTIONS') {
-    return new Response(null, { status: 204, headers: CORS_HEADERS })
+    return new Response(null, { status: 204, headers: cors })
   }
 
   let transactionId: string | null = null
@@ -32,14 +28,14 @@ export default async (request: Request) => {
       const body = (await request.json()) as { t?: string; transactionId?: string }
       transactionId = body.t ?? body.transactionId ?? null
     } catch {
-      return Response.json({ error: 'Invalid JSON body' }, { status: 400, headers: CORS_HEADERS })
+      return Response.json({ error: 'Invalid JSON body' }, { status: 400, headers: cors})
     }
   } else {
-    return Response.json({ error: 'Method not allowed' }, { status: 405, headers: CORS_HEADERS })
+    return Response.json({ error: 'Method not allowed' }, { status: 405, headers: cors})
   }
 
   if (!transactionId) {
-    return Response.json({ error: 'transactionId is required' }, { status: 400, headers: CORS_HEADERS })
+    return Response.json({ error: 'transactionId is required' }, { status: 400, headers: cors})
   }
 
   try {
@@ -57,10 +53,10 @@ export default async (request: Request) => {
         outcome = { ...w, kind: 'wallet' }
       }
     }
-    return Response.json(outcome, { headers: CORS_HEADERS })
+    return Response.json(outcome, { headers: cors})
   } catch (err) {
     const msg = err instanceof Error ? err.message : 'Unknown error'
     console.error('viva-verify failed:', msg)
-    return Response.json({ error: msg }, { status: 500, headers: CORS_HEADERS })
+    return Response.json({ error: msg }, { status: 500, headers: cors})
   }
 }

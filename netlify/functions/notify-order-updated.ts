@@ -25,6 +25,7 @@ import { createClient, SupabaseClient } from '@supabase/supabase-js'
 // it does hundreds of ms of DB writes after the call which keeps the runtime
 // alive long enough for the microtask to drain. Here we must await.
 import { track, subscribeProfileToMarketing, EVT } from '../lib/klaviyo'
+import { corsHeaders } from '../lib/cors'
 
 const SUPABASE_URL = process.env.VITE_SUPABASE_URL ?? ''
 const SUPABASE_ANON_KEY = process.env.VITE_SUPABASE_ANON_KEY ?? ''
@@ -47,17 +48,12 @@ async function assertAdmin(token: string): Promise<{ userId: string } | { error:
   return { userId: userRes.user.id }
 }
 
-const headersOK = { 'Access-Control-Allow-Origin': '*' }
-
 export default async (request: Request) => {
+  const cors = corsHeaders(request, 'POST, OPTIONS')
   if (request.method === 'OPTIONS') {
     return new Response(null, {
       status: 204,
-      headers: {
-        'Access-Control-Allow-Origin': '*',
-        'Access-Control-Allow-Methods': 'POST, OPTIONS',
-        'Access-Control-Allow-Headers': 'Content-Type, Authorization',
-      },
+      headers: cors,
     })
   }
   if (request.method !== 'POST') {
@@ -68,17 +64,17 @@ export default async (request: Request) => {
   const token = auth.startsWith('Bearer ') ? auth.slice(7) : ''
   const who = await assertAdmin(token)
   if ('error' in who) {
-    return Response.json({ error: who.error }, { status: who.status, headers: headersOK })
+    return Response.json({ error: who.error }, { status: who.status, headers: cors})
   }
 
   let body: RequestBody
   try {
     body = (await request.json()) as RequestBody
   } catch {
-    return Response.json({ error: 'Invalid JSON' }, { status: 400, headers: headersOK })
+    return Response.json({ error: 'Invalid JSON' }, { status: 400, headers: cors})
   }
   if (!body.orderId) {
-    return Response.json({ error: 'orderId required' }, { status: 400, headers: headersOK })
+    return Response.json({ error: 'orderId required' }, { status: 400, headers: cors})
   }
 
   const svc: SupabaseClient = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY, {
@@ -99,14 +95,14 @@ export default async (request: Request) => {
   ])
 
   if (orderRes.error || !orderRes.data) {
-    return Response.json({ error: 'Order not found' }, { status: 404, headers: headersOK })
+    return Response.json({ error: 'Order not found' }, { status: 404, headers: cors})
   }
   const order = orderRes.data
   const childOrders = childrenRes.data ?? []
   const settingsRows = (settingsRes.data ?? []) as Array<{ key: string; value: unknown }>
 
   if (!order.customer_email) {
-    return Response.json({ error: 'Order has no customer email' }, { status: 400, headers: headersOK })
+    return Response.json({ error: 'Order has no customer email' }, { status: 400, headers: cors})
   }
 
   // Items for ALL active child_orders
@@ -344,5 +340,5 @@ export default async (request: Request) => {
       failed.length, results.length, failed.map((r) => r.error).join(' | '))
   }
 
-  return Response.json({ ok: true }, { headers: headersOK })
+  return Response.json({ ok: true }, { headers: cors})
 }

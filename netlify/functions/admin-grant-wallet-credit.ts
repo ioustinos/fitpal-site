@@ -2,6 +2,7 @@ import { createClient } from '@supabase/supabase-js'
 // 2026-06-26: switched to awaited track() + subscribeProfileToMarketing
 // (Netlify was killing the fire-and-forget mid-flight, see submit-order.ts).
 import { track, subscribeProfileToMarketing, EVT } from '../lib/klaviyo'
+import { corsHeaders } from '../lib/cors'
 
 /**
  * Admin grants a wallet credit to a customer (refund, gift, or adjustment).
@@ -40,14 +41,11 @@ interface RequestBody {
 }
 
 export default async (request: Request) => {
+  const cors = corsHeaders(request, 'POST, OPTIONS')
   if (request.method === 'OPTIONS') {
     return new Response(null, {
       status: 204,
-      headers: {
-        'Access-Control-Allow-Origin': '*',
-        'Access-Control-Allow-Methods': 'POST, OPTIONS',
-        'Access-Control-Allow-Headers': 'Content-Type, Authorization',
-      },
+      headers: cors,
     })
   }
   if (request.method !== 'POST') {
@@ -209,7 +207,7 @@ export default async (request: Request) => {
       newBaseBalanceCents: (walletRow as { base_balance: number } | null)?.base_balance ?? null,
       newBonusBalanceCents: (walletRow as { bonus_balance: number } | null)?.bonus_balance ?? null,
     }, {
-      headers: { 'Access-Control-Allow-Origin': '*' },
+      headers: cors,
     })
   } catch (err) {
     console.error('[admin-grant-wallet-credit] failed:', err)

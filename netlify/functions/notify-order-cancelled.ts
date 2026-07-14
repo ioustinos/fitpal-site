@@ -18,6 +18,7 @@ import { createClient } from '@supabase/supabase-js'
 // Fast return path; trackAsync's fire-and-forget HTTP POST was racing
 // against the function being killed. Use awaited track() instead.
 import { track, subscribeProfileToMarketing, EVT } from '../lib/klaviyo'
+import { corsHeaders } from '../lib/cors'
 
 const SUPABASE_URL = process.env.VITE_SUPABASE_URL ?? ''
 const SUPABASE_ANON_KEY = process.env.VITE_SUPABASE_ANON_KEY ?? ''
@@ -42,14 +43,11 @@ async function assertAdmin(token: string): Promise<{ userId: string } | { error:
 }
 
 export default async (request: Request) => {
+  const cors = corsHeaders(request, 'POST, OPTIONS')
   if (request.method === 'OPTIONS') {
     return new Response(null, {
       status: 204,
-      headers: {
-        'Access-Control-Allow-Origin': '*',
-        'Access-Control-Allow-Methods': 'POST, OPTIONS',
-        'Access-Control-Allow-Headers': 'Content-Type, Authorization',
-      },
+      headers: cors,
     })
   }
   if (request.method !== 'POST') {
@@ -62,7 +60,7 @@ export default async (request: Request) => {
   if ('error' in who) {
     return Response.json({ error: who.error }, {
       status: who.status,
-      headers: { 'Access-Control-Allow-Origin': '*' },
+      headers: cors,
     })
   }
 
@@ -144,6 +142,6 @@ export default async (request: Request) => {
   }
 
   return Response.json({ ok: true }, {
-    headers: { 'Access-Control-Allow-Origin': '*' },
+    headers: cors,
   })
 }

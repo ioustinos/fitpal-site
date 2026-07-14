@@ -16,16 +16,11 @@
 import { createClient } from '@supabase/supabase-js'
 // WEC-529: populate account macro goals from the plan's diet profile on paid.
 import { applyPlanGoalsToUser } from '../lib/wallet/applyPlanGoals'
+import { corsHeaders } from '../lib/cors'
 
 const SUPABASE_URL = process.env.VITE_SUPABASE_URL ?? ''
 const SUPABASE_ANON_KEY = process.env.VITE_SUPABASE_ANON_KEY ?? ''
 const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY ?? ''
-
-const CORS = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Methods': 'POST, OPTIONS',
-  'Access-Control-Allow-Headers': 'Content-Type, Authorization',
-}
 
 interface AdminOk { userId: string }
 interface AdminErr { error: string; status: number }
@@ -51,18 +46,19 @@ function serviceClient() {
 }
 
 export default async (request: Request) => {
-  if (request.method === 'OPTIONS') return new Response(null, { status: 204, headers: CORS })
-  if (request.method !== 'POST') return Response.json({ error: 'Method not allowed' }, { status: 405, headers: CORS })
+  const cors = corsHeaders(request, 'POST, OPTIONS')
+  if (request.method === 'OPTIONS') return new Response(null, { status: 204, headers: cors })
+  if (request.method !== 'POST') return Response.json({ error: 'Method not allowed' }, { status: 405, headers: cors})
 
   const auth = request.headers.get('Authorization') ?? ''
   const token = auth.startsWith('Bearer ') ? auth.slice(7) : ''
   const who = await assertAdmin(token)
-  if ('error' in who) return Response.json({ error: who.error }, { status: who.status, headers: CORS })
+  if ('error' in who) return Response.json({ error: who.error }, { status: who.status, headers: cors})
 
   let body: { walletPlanId?: string }
   try { body = await request.json() as typeof body }
-  catch { return Response.json({ error: 'Invalid JSON' }, { status: 400, headers: CORS }) }
-  if (!body.walletPlanId) return Response.json({ error: 'walletPlanId required' }, { status: 400, headers: CORS })
+  catch { return Response.json({ error: 'Invalid JSON' }, { status: 400, headers: cors}) }
+  if (!body.walletPlanId) return Response.json({ error: 'walletPlanId required' }, { status: 400, headers: cors})
 
   try {
     const svc = serviceClient()
@@ -71,16 +67,16 @@ export default async (request: Request) => {
       .select('id, payment_method, payment_status, amount_to_pay_cents')
       .eq('id', body.walletPlanId)
       .maybeSingle()
-    if (readErr) return Response.json({ error: readErr.message }, { status: 500, headers: CORS })
-    if (!plan) return Response.json({ error: 'Wallet plan not found' }, { status: 404, headers: CORS })
+    if (readErr) return Response.json({ error: readErr.message }, { status: 500, headers: cors})
+    if (!plan) return Response.json({ error: 'Wallet plan not found' }, { status: 404, headers: cors})
 
     if (plan.payment_status === 'paid') {
-      return Response.json({ ok: true, alreadyPaid: true }, { headers: CORS })
+      return Response.json({ ok: true, alreadyPaid: true }, { headers: cors})
     }
     if (plan.payment_method !== 'transfer') {
       return Response.json(
         { error: `Only bank-transfer plans can be marked paid manually (this one is '${plan.payment_method}'). Card/link plans confirm via Viva.` },
-        { status: 400, headers: CORS },
+        { status: 400, headers: cors},
       )
     }
 
@@ -89,7 +85,7 @@ export default async (request: Request) => {
       p_transaction_id: `manual-transfer:${who.userId}`,
       p_amount_cents: plan.amount_to_pay_cents ?? 0,
     })
-    if (rpcErr) return Response.json({ error: rpcErr.message }, { status: 500, headers: CORS })
+    if (rpcErr) return Response.json({ error: rpcErr.message }, { status: 500, headers: cors})
 
     // WEC-529: set Account → Goals from the plan's diet profile (fail-soft;
     // runs only on the pending→paid transition — alreadyPaid returned above).
@@ -107,10 +103,10 @@ export default async (request: Request) => {
       })
     } catch { /* non-fatal */ }
 
-    return Response.json({ ok: true }, { headers: CORS })
+    return Response.json({ ok: true }, { headers: cors})
   } catch (err) {
     const msg = err instanceof Error ? err.message : 'Unknown error'
     console.error('[wallet-plan-mark-paid] failed:', msg)
-    return Response.json({ error: msg }, { status: 400, headers: CORS })
+    return Response.json({ error: msg }, { status: 400, headers: cors})
   }
 }

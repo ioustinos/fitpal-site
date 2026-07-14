@@ -6,6 +6,7 @@
 
 import { createClient } from '@supabase/supabase-js'
 import { refundWalletPlan } from '../lib/wallet/refundWalletPlan'
+import { corsHeaders } from '../lib/cors'
 
 const SUPABASE_URL = process.env.VITE_SUPABASE_URL ?? ''
 const SUPABASE_ANON_KEY = process.env.VITE_SUPABASE_ANON_KEY ?? ''
@@ -27,14 +28,11 @@ async function assertAdmin(token: string): Promise<AdminOk | AdminErr> {
 }
 
 export default async (request: Request) => {
+  const cors = corsHeaders(request, 'POST, OPTIONS')
   if (request.method === 'OPTIONS') {
     return new Response(null, {
       status: 204,
-      headers: {
-        'Access-Control-Allow-Origin': '*',
-        'Access-Control-Allow-Methods': 'POST, OPTIONS',
-        'Access-Control-Allow-Headers': 'Content-Type, Authorization',
-      },
+      headers: cors,
     })
   }
   if (request.method !== 'POST') return Response.json({ error: 'Method not allowed' }, { status: 405 })

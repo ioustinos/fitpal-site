@@ -21,6 +21,7 @@ import { createWalletPlanVivaOrder } from '../lib/wallet/createWalletPlanOrder'
 // 2026-06-24 incident fix: trackAsync was racing Netlify post-response kill.
 // Use awaited track() so Subscription Purchased events actually reach Klaviyo.
 import { track } from '../lib/klaviyo'
+import { corsHeaders } from '../lib/cors'
 import type { WalletCalcInput, PaymentMethod } from '../../src/lib/wallet/types'
 
 const SUPABASE_URL = process.env.VITE_SUPABASE_URL ?? ''
@@ -57,13 +58,14 @@ function serviceClient(): SupabaseClient {
 }
 
 export default async (request: Request) => {
-  if (request.method === 'OPTIONS') return new Response(null, { status: 204, headers: corsHeaders() })
-  if (request.method !== 'POST')    return Response.json({ error: 'Method not allowed' }, { status: 405, headers: corsHeaders() })
+  const cors = corsHeaders(request, 'POST, OPTIONS')
+  if (request.method === 'OPTIONS') return new Response(null, { status: 204, headers: cors })
+  if (request.method !== 'POST')    return Response.json({ error: 'Method not allowed' }, { status: 405, headers: cors })
 
   // 1. Auth — read Bearer token, resolve to user
   const authHeader = request.headers.get('authorization') ?? ''
   const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : ''
-  if (!token) return Response.json({ error: 'Auth required' }, { status: 401, headers: corsHeaders() })
+  if (!token) return Response.json({ error: 'Auth required' }, { status: 401, headers: cors })
 
   const userClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
     auth: { persistSession: false, autoRefreshToken: false },
@@ -71,7 +73,7 @@ export default async (request: Request) => {
   })
   const { data: userData, error: authErr } = await userClient.auth.getUser()
   if (authErr || !userData?.user) {
-    return Response.json({ error: 'Invalid auth token' }, { status: 401, headers: corsHeaders() })
+    return Response.json({ error: 'Invalid auth token' }, { status: 401, headers: cors })
   }
   const userId = userData.user.id
   const userEmail = userData.user.email ?? ''
@@ -79,10 +81,10 @@ export default async (request: Request) => {
   // 2. Parse + validate body
   let body: PurchaseBody
   try { body = await request.json() as PurchaseBody }
-  catch { return Response.json({ error: 'Invalid JSON' }, { status: 400, headers: corsHeaders() }) }
+  catch { return Response.json({ error: 'Invalid JSON' }, { status: 400, headers: cors }) }
 
   const inputErr = validateInput(body)
-  if (inputErr) return Response.json({ error: inputErr }, { status: 400, headers: corsHeaders() })
+  if (inputErr) return Response.json({ error: inputErr }, { status: 400, headers: cors })
 
   const supabase = serviceClient()
 
@@ -101,12 +103,12 @@ export default async (request: Request) => {
     if (amountCents < config.minAmountCents) {
       return Response.json({
         error: `Plan total below minimum (€${(config.minAmountCents / 100).toFixed(2)})`,
-      }, { status: 400, headers: corsHeaders() })
+      }, { status: 400, headers: cors })
     }
     if (!config.paymentMethods.includes(body.paymentMethod)) {
       return Response.json({
         error: `Payment method ${body.paymentMethod} not allowed for wallet purchases`,
-      }, { status: 400, headers: corsHeaders() })
+      }, { status: 400, headers: cors })
     }
 
     // 5. Persist profile fields (sex/birth_year/h/w/activity/goal)
@@ -265,7 +267,7 @@ export default async (request: Request) => {
           reference: `WP-${walletPlanId.slice(0, 8).toUpperCase()}`,
         },
       }
-      return Response.json(response, { status: 200, headers: corsHeaders() })
+      return Response.json(response, { status: 200, headers: cors })
     }
 
     // card / link → Viva
@@ -284,18 +286,10 @@ export default async (request: Request) => {
       paymentUrl: viva.paymentUrl,
       paymentMethod: vivaMode,
     }
-    return Response.json(response, { status: 200, headers: corsHeaders() })
+    return Response.json(response, { status: 200, headers: cors })
   } catch (err) {
     console.error('[wallet-plan-purchase] failed', err)
-    return Response.json({ error: err instanceof Error ? err.message : 'Internal error' }, { status: 500, headers: corsHeaders() })
-  }
-}
-
-function corsHeaders() {
-  return {
-    'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Methods': 'POST, OPTIONS',
-    'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+    return Response.json({ error: err instanceof Error ? err.message : 'Internal error' }, { status: 500, headers: cors })
   }
 }
 
