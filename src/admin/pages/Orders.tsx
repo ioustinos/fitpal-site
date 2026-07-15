@@ -247,8 +247,10 @@ export function Orders() {
                 <tr key={o.id} onClick={() => openDetail(o.id)} style={{ cursor: 'pointer' }}>
                   <td>
                     <strong>{o.orderNumber}</strong>
-                    {/* WEC-521: star = managed order (admin placed it while
-                        impersonating the customer). adminOrderId is the audit column. */}
+                    {/* WEC-521: managed order (admin placed it while impersonating
+                        the customer). adminOrderId is the audit column. Icon changed
+                        star → admin shield (same glyph as the header Admin pill) per
+                        Ioustinos 2026-07-15 — reads as "admin", matches icon style. */}
                     {o.adminOrderId && (
                       <span
                         className="admin-managed-star"
@@ -256,8 +258,8 @@ export function Orders() {
                         aria-label="Managed order"
                         style={{ marginLeft: 6, color: '#D97706', verticalAlign: 'middle' }}
                       >
-                        <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" stroke="none" aria-hidden="true" style={{ display: 'inline-block', verticalAlign: '-2px' }}>
-                          <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" style={{ display: 'inline-block', verticalAlign: '-2px' }}>
+                          <path d="M12 2l8 4v6c0 5-3.5 9-8 10-4.5-1-8-5-8-10V6l8-4z" />
                         </svg>
                       </span>
                     )}
