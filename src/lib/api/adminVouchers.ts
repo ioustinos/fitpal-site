@@ -19,6 +19,8 @@ export interface AdminVoucher {
   maxUses: number | null     // null = unlimited
   usesCount: number
   perUserLimit: number | null
+  /** WEC-546: when true, only authenticated users may redeem. */
+  registeredOnly: boolean
   expiresAt: string | null
   active: boolean
   createdAt: string
@@ -49,6 +51,7 @@ function rowToVoucher(r: Record<string, unknown>): AdminVoucher {
     maxUses: (r.max_uses as number | null) ?? null,
     usesCount: (r.uses_count as number) ?? 0,
     perUserLimit: (r.per_user_limit as number | null) ?? null,
+    registeredOnly: (r.registered_only as boolean) ?? false,
     expiresAt: (r.expires_at as string | null) ?? null,
     active: (r.active as boolean) ?? true,
     createdAt: (r.created_at as string) ?? '',
@@ -61,7 +64,7 @@ function rowToVoucher(r: Record<string, unknown>): AdminVoucher {
 export async function fetchAdminVouchers(): Promise<{ data: AdminVoucher[]; error: string | null }> {
   const { data, error } = await supabase
     .from('vouchers')
-    .select('id, code, user_id, type, value, remaining, min_order, max_uses, uses_count, per_user_limit, expires_at, active, created_at, applicable_category_ids')
+    .select('id, code, user_id, type, value, remaining, min_order, max_uses, uses_count, per_user_limit, registered_only, expires_at, active, created_at, applicable_category_ids')
     .order('created_at', { ascending: false })
 
   if (error) return { data: [], error: error.message }
@@ -77,6 +80,7 @@ export interface VoucherDraft {
   minOrder?: number
   maxUses?: number | null
   perUserLimit?: number | null
+  registeredOnly?: boolean
   expiresAt?: string | null
   active?: boolean
   /** WEC-262: empty array = applies to all categories. */
@@ -97,6 +101,7 @@ export async function createVoucher(d: VoucherDraft): Promise<{ data: AdminVouch
     min_order: d.minOrder ?? 0,
     max_uses: d.maxUses ?? null,
     per_user_limit: d.perUserLimit ?? null,
+    registered_only: d.registeredOnly ?? false,
     expires_at: d.expiresAt ?? null,
     active: d.active ?? true,
     applicable_category_ids: d.applicableCategoryIds ?? [],
@@ -105,7 +110,7 @@ export async function createVoucher(d: VoucherDraft): Promise<{ data: AdminVouch
   const { data, error } = await supabase
     .from('vouchers')
     .insert(payload)
-    .select('id, code, user_id, type, value, remaining, min_order, max_uses, uses_count, per_user_limit, expires_at, active, created_at, applicable_category_ids')
+    .select('id, code, user_id, type, value, remaining, min_order, max_uses, uses_count, per_user_limit, registered_only, expires_at, active, created_at, applicable_category_ids')
     .single()
 
   if (error) return { data: null, error: error.message }
@@ -122,6 +127,7 @@ export async function saveVoucher(id: string, patch: Partial<VoucherDraft>): Pro
   if (patch.minOrder !== undefined) payload.min_order = patch.minOrder
   if (patch.maxUses !== undefined) payload.max_uses = patch.maxUses
   if (patch.perUserLimit !== undefined) payload.per_user_limit = patch.perUserLimit
+  if (patch.registeredOnly !== undefined) payload.registered_only = patch.registeredOnly
   if (patch.expiresAt !== undefined) payload.expires_at = patch.expiresAt
   if (patch.active !== undefined) payload.active = patch.active
   if (patch.applicableCategoryIds !== undefined) payload.applicable_category_ids = patch.applicableCategoryIds

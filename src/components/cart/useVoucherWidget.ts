@@ -37,7 +37,9 @@ function localizeVoucherError(
     case 'max_uses_reached':
       return isEl ? 'Ο κωδικός έχει εξαντληθεί' : 'This voucher has reached its maximum uses'
     case 'per_user_limit':
-      return isEl ? 'Έχεις ήδη χρησιμοποιήσει αυτόν τον κωδικό' : "You've already used this voucher"
+      return isEl ? 'Ο κωδικός έχει ήδη χρησιμοποιηθεί' : 'This code has already been used'
+    case 'registered_only':
+      return isEl ? 'Συνδέσου για να χρησιμοποιήσεις αυτόν τον κωδικό' : 'Log in to use this code'
     case 'user_mismatch':
       return isEl ? 'Ο κωδικός δεν είναι διαθέσιμος για τον λογαριασμό σου' : 'This voucher is not available for your account'
     case 'credit_exhausted':

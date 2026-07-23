@@ -139,6 +139,7 @@ interface FormState {
   perUserLimit: string
   expiresAt: string
   active: boolean
+  registeredOnly: boolean  // WEC-546: only logged-in users may redeem
   userEmail: string  // optional — links voucher to a specific customer
   /** WEC-262: empty array = applies to all categories. */
   applicableCategoryIds: string[]
@@ -300,6 +301,18 @@ function VoucherEditor({
         </div>
 
         <div className="admin-form-row">
+          <label>Registered users only (WEC-546)</label>
+          <input
+            type="checkbox"
+            checked={form.registeredOnly}
+            onChange={(e) => patch('registeredOnly', e.target.checked)}
+          />
+          <small className="admin-text-muted">
+            When on, only logged-in customers can redeem this code (guests are rejected with "Log in to use this code").
+          </small>
+        </div>
+
+        <div className="admin-form-row">
           <label>Expires at</label>
           <input
             className="admin-input"
@@ -403,7 +416,7 @@ function fromVoucher(v: AdminVoucher | null): FormState {
     return {
       code: '', type: 'pct', valueDisplay: '10', remainingDisplay: '',
       minOrderDisplay: '0', maxUses: '', perUserLimit: '',
-      expiresAt: '', active: true, userEmail: '',
+      expiresAt: '', active: true, registeredOnly: false, userEmail: '',
       applicableCategoryIds: [],
     }
   }
@@ -417,6 +430,7 @@ function fromVoucher(v: AdminVoucher | null): FormState {
     perUserLimit: v.perUserLimit != null ? String(v.perUserLimit) : '',
     expiresAt: v.expiresAt ? toLocalInputValue(v.expiresAt) : '',
     active: v.active,
+    registeredOnly: v.registeredOnly,
     userEmail: '',
     applicableCategoryIds: v.applicableCategoryIds ?? [],
   }
@@ -475,6 +489,7 @@ function serialise(form: FormState):
       perUserLimit,
       expiresAt: form.expiresAt ? new Date(form.expiresAt).toISOString() : null,
       active: form.active,
+      registeredOnly: form.registeredOnly,
       applicableCategoryIds: form.applicableCategoryIds,
     },
   }
@@ -492,6 +507,7 @@ function mergeDraftForDisplay(
     minOrder: draft.minOrder ?? v.minOrder,
     maxUses: draft.maxUses ?? v.maxUses,
     perUserLimit: draft.perUserLimit ?? v.perUserLimit,
+    registeredOnly: draft.registeredOnly ?? v.registeredOnly,
     expiresAt: draft.expiresAt ?? v.expiresAt,
     active: draft.active ?? v.active,
     applicableCategoryIds: draft.applicableCategoryIds ?? v.applicableCategoryIds,

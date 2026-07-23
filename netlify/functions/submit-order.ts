@@ -23,6 +23,9 @@ import {
 // WEC-204: shared silent grace period for cutoffs (5 min). Must stay in
 // sync with the client — single constant imported on both sides.
 import { CUTOFF_GRACE_MS } from '../../src/lib/helpers'
+// WEC-546: shared voucher identity normalizers (email + phone), kept in sync
+// with the redeem RPC + backfill SQL.
+import { normVoucherEmail, normVoucherPhone } from '../../src/lib/voucherIdentity'
 
 // ─── Greek ΑΦΜ checksum (WEC-354) ──────────────────────────────────────────
 // Duplicated from src/lib/vat.ts — cross-folder src/ ⇄ netlify/ imports
@@ -790,14 +793,29 @@ export default async (request: Request) => {
       if (voucher.min_order != null && orderSubtotal < voucher.min_order) {
         return Response.json({ error: 'Order does not meet minimum for this voucher', validationErrors: { voucher: ['Minimum order not met'] } }, { status: 400 })
       }
-      if (userId && voucher.per_user_limit != null) {
-        const { count } = await supabase
-          .from('voucher_uses')
-          .select('id', { count: 'exact', head: true })
-          .eq('voucher_id', voucher.id)
-          .eq('user_id', userId)
-        if ((count ?? 0) >= voucher.per_user_limit) {
-          return Response.json({ error: 'You have already used this voucher', validationErrors: { voucher: ['Already used'] } }, { status: 400 })
+      // WEC-546: registered-only vouchers require a logged-in user.
+      if (voucher.registered_only && !userId) {
+        return Response.json({ error: 'Log in to use this code', validationErrors: { voucher: ['Log in to use this code'] } }, { status: 400 })
+      }
+      // WEC-546: per-user limit matched by user_id OR email OR phone so guests
+      // can't bypass it. The redeem RPC is authoritative; this is the early,
+      // friendlier reject before we build the order.
+      if (voucher.per_user_limit != null) {
+        const nEmail = normVoucherEmail(body.customerEmail)
+        const nPhone = normVoucherPhone(body.customerPhone)
+        const ors: string[] = []
+        if (userId) ors.push(`user_id.eq.${userId}`)
+        if (nEmail) ors.push(`email.eq.${nEmail}`)
+        if (nPhone) ors.push(`phone.eq.${nPhone}`)
+        if (ors.length > 0) {
+          const { count } = await supabase
+            .from('voucher_uses')
+            .select('id', { count: 'exact', head: true })
+            .eq('voucher_id', voucher.id)
+            .or(ors.join(','))
+          if ((count ?? 0) >= voucher.per_user_limit) {
+            return Response.json({ error: 'This code has already been used', validationErrors: { voucher: ['This code has already been used'] } }, { status: 400 })
+          }
         }
       }
 
@@ -1097,6 +1115,10 @@ export default async (request: Request) => {
         p_user_id: userId,
         p_order_id: orderId,
         p_amount_cents: discountAmount,
+        // WEC-546: normalized identity so the RPC's per-user check + stored row
+        // match by email/phone (guest bypass closed).
+        p_email: normVoucherEmail(body.customerEmail),
+        p_phone: normVoucherPhone(body.customerPhone),
       })
       if (redeemErr) {
         const msg = redeemErr.message ?? ''
@@ -1108,7 +1130,8 @@ export default async (request: Request) => {
         else if (msg.includes('voucher_inactive'))         userMsg = 'Voucher is no longer active'
         else if (msg.includes('voucher_expired'))          userMsg = 'Voucher has expired'
         else if (msg.includes('voucher_max_uses_reached')) userMsg = 'Voucher usage limit reached'
-        else if (msg.includes('voucher_per_user_limit_reached')) userMsg = 'You have already used this voucher'
+        else if (msg.includes('voucher_per_user_limit_reached')) userMsg = 'This code has already been used'
+        else if (msg.includes('voucher_registered_only'))        userMsg = 'Log in to use this code'
         else if (msg.includes('voucher_insufficient_credit'))    userMsg = 'Voucher does not have enough credit for this order'
 
         return Response.json(

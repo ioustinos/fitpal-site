@@ -1,6 +1,7 @@
 import { createClient } from '@supabase/supabase-js'
 import { corsHeaders } from '../lib/cors'
 import { checkRateLimit, clientIp } from '../lib/rateLimit'
+import { normVoucherEmail, normVoucherPhone } from '../../src/lib/voucherIdentity'
 
 const SUPABASE_URL = process.env.VITE_SUPABASE_URL ?? ''
 const SUPABASE_ANON_KEY = process.env.VITE_SUPABASE_ANON_KEY ?? ''
@@ -12,6 +13,11 @@ interface ValidateRequest {
   code: string
   cartTotal: number    // euros — full subtotal, used for min_order check
   userId?: string
+  /** WEC-546: best-effort contact for per-user matching before submit. The
+   *  cart-apply may run before contact is typed, so these can be absent — the
+   *  redeem RPC at submit is the authoritative check. */
+  email?: string
+  phone?: string
   /**
    * WEC-262: optional cart items so the server can compute the
    * eligible-only subtotal when the voucher is category-scoped. Each
@@ -121,7 +127,8 @@ export default async (request: Request) => {
       inactive:          "This voucher is currently disabled",
       expired:           "This voucher has expired",
       max_uses_reached:  "This voucher has reached its maximum uses",
-      per_user_limit:    "You've already used this voucher",
+      per_user_limit:    "This code has already been used",
+      registered_only:   "Log in to use this code",
       user_mismatch:     "This voucher is not available for your account",
       credit_exhausted:  "This voucher's credit balance is depleted",
       no_eligible_items: "No items in your cart qualify for this voucher",
@@ -157,15 +164,30 @@ export default async (request: Request) => {
       return reject('max_uses_reached', { maxUses: voucher.max_uses, usesCount: voucher.uses_count })
     }
 
-    // Per-user limit
-    if (userId && voucher.per_user_limit != null) {
-      const { count } = await supabase
-        .from('voucher_uses')
-        .select('id', { count: 'exact', head: true })
-        .eq('voucher_id', voucher.id)
-        .eq('user_id', userId)
-      if ((count ?? 0) >= voucher.per_user_limit) {
-        return reject('per_user_limit', { perUserLimit: voucher.per_user_limit, used: count ?? 0 })
+    // WEC-546: registered-only vouchers require an authenticated user.
+    if (voucher.registered_only && !userId) {
+      return reject('registered_only')
+    }
+
+    // WEC-546: per-user limit matched by user_id OR email OR phone so guests
+    // are bounded too. Contact is best-effort here (cart-apply may precede
+    // typing it); the redeem RPC at submit is authoritative.
+    if (voucher.per_user_limit != null) {
+      const nEmail = normVoucherEmail(body.email)
+      const nPhone = normVoucherPhone(body.phone)
+      const ors: string[] = []
+      if (userId) ors.push(`user_id.eq.${userId}`)
+      if (nEmail) ors.push(`email.eq.${nEmail}`)
+      if (nPhone) ors.push(`phone.eq.${nPhone}`)
+      if (ors.length > 0) {
+        const { count } = await supabase
+          .from('voucher_uses')
+          .select('id', { count: 'exact', head: true })
+          .eq('voucher_id', voucher.id)
+          .or(ors.join(','))
+        if ((count ?? 0) >= voucher.per_user_limit) {
+          return reject('per_user_limit', { perUserLimit: voucher.per_user_limit, used: count ?? 0 })
+        }
       }
     }
 
