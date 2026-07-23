@@ -181,6 +181,27 @@ export const handler: Handler = async (event) => {
 
     // 3. Parallel fetch dishes + variants + dish_tags + dish_ingredients.
     //    Each is an indexed IN-list query against dishIds.
+    //    dish_ingredients and dish_variants can exceed PostgREST's 1000-row
+    //    page cap on a full week (dish_ingredients averages ~12 rows/dish
+    //    since the Jul-2026 allergen-overlay rows), and an unpaginated select
+    //    silently truncates — which would silently drop allergen links.
+    //    Page through both explicitly.
+    const fetchAllPages = async <T,>(
+      build: () => ReturnType<typeof supabase.from>,
+      select: string,
+      applyIn: (q: any) => any,
+    ): Promise<{ data: T[] | null; error: { message: string } | null }> => {
+      const PAGE = 1000
+      const rows: T[] = []
+      for (let from = 0; ; from += PAGE) {
+        const { data, error } = await applyIn(build().select(select)).range(from, from + PAGE - 1)
+        if (error) return { data: null, error }
+        rows.push(...((data ?? []) as T[]))
+        if (!data || data.length < PAGE) break
+      }
+      return { data: rows, error: null }
+    }
+
     const [dishesRes, variantsRes, dishTagsRes, dishIngsRes] = await Promise.all([
       supabase
         .from('dishes')
@@ -189,12 +210,17 @@ export const handler: Handler = async (event) => {
         )
         .in('id', dishIds)
         .eq('active', true),
-      supabase
-        .from('dish_variants')
-        .select('id, dish_id, label_el, label_en, price, calories, protein, carbs, fat, sort_order, is_default')
-        .in('dish_id', dishIds),
+      fetchAllPages<Record<string, unknown>>(
+        () => supabase.from('dish_variants'),
+        'id, dish_id, label_el, label_en, price, calories, protein, carbs, fat, sort_order, is_default',
+        (q) => q.in('dish_id', dishIds),
+      ),
       supabase.from('dish_tags').select('dish_id, tag_id').in('dish_id', dishIds),
-      supabase.from('dish_ingredients').select('dish_id, ingredient_id').in('dish_id', dishIds),
+      fetchAllPages<Record<string, unknown>>(
+        () => supabase.from('dish_ingredients'),
+        'dish_id, ingredient_id',
+        (q) => q.in('dish_id', dishIds),
+      ),
     ])
 
     if (dishesRes.error) throw new Error(`dishes: ${dishesRes.error.message}`)

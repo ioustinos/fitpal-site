@@ -52,10 +52,29 @@ export async function fetchIngredients(): Promise<{
   data: AdminIngredient[] | null
   error: string | null
 }> {
+  // dish_ingredients exceeds PostgREST's 1000-row page cap (3.6k+ rows since
+  // the Jul-2026 catalogue migration added allergen-overlay rows), so an
+  // unpaginated select silently truncates and the tail of the ingredient list
+  // shows dishCount=0. Page through it explicitly.
+  const fetchAllDishIngredients = async () => {
+    const PAGE = 1000
+    const rows: { ingredient_id: string }[] = []
+    for (let from = 0; ; from += PAGE) {
+      const { data, error } = await supabase
+        .from('dish_ingredients')
+        .select('ingredient_id')
+        .range(from, from + PAGE - 1)
+      if (error) return { data: null, error }
+      rows.push(...((data ?? []) as { ingredient_id: string }[]))
+      if (!data || data.length < PAGE) break
+    }
+    return { data: rows, error: null }
+  }
+
   const [iRes, iaRes, diRes] = await Promise.all([
     supabase.from('ingredients').select('*').order('name_el'),
     supabase.from('ingredient_allergies').select('ingredient_id, allergy_id'),
-    supabase.from('dish_ingredients').select('ingredient_id'),
+    fetchAllDishIngredients(),
   ])
   if (iRes.error) return { data: null, error: iRes.error.message }
 
