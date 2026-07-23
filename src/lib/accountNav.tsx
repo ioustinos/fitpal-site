@@ -48,8 +48,8 @@ export const ACCOUNT_TABS: AccountTabDef[] = [
   },
   {
     key: 'prefs',
-    el: 'Ρυθμίσεις',
-    en: 'Settings',
+    el: 'Προτιμήσεις',
+    en: 'Preferences',
     icon: svg([<circle key="a" cx="12" cy="12" r="3" />, <path key="b" d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 01-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z" />]),
   },
   {
@@ -77,9 +77,12 @@ export const ACCOUNT_TABS: AccountTabDef[] = [
     icon: svg([<circle key="a" cx="12" cy="12" r="10" />, <circle key="b" cx="12" cy="12" r="6" />, <circle key="c" cx="12" cy="12" r="2" />]),
   },
   {
+    // WEC-555 O14: this tab holds the allergy / avoided-ingredient picker
+    // (dietary preference toggles were removed in WEC-500), so it's named for
+    // what it now is. Key stays 'diet' to preserve routing/deep links.
     key: 'diet',
-    el: 'Διατροφή',
-    en: 'Diet',
+    el: 'Αλλεργίες',
+    en: 'Allergies',
     icon: svg([<path key="a" d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />, <line key="b" x1="12" y1="9" x2="12" y2="13" />, <line key="c" x1="12" y1="17" x2="12.01" y2="17" />]),
   },
 ]

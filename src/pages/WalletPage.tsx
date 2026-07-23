@@ -16,6 +16,7 @@ import { saveProfileAllergies, saveProfileAvoidedIngredients } from '../lib/api/
 import { useMenuStore } from '../store/useMenuStore'
 import { supabase } from '../lib/supabase'
 import { MacroIcon } from '../components/ui/MacroDots'
+import { CopyButton } from '../components/ui/CopyButton'
 import { isValidGreekVat, vatDigits } from '../lib/vat'
 
 /* ─────────────────────────────────────────────────────────────────
@@ -428,7 +429,7 @@ export function WalletPage() {
   }
 
   function handleStartPlan() {
-    if (result.selectedMealCount === 0) return
+    if (result.selectedMealCount < 2) return // WEC-551 O1 — min 2 meals
     if (!indAddrInZone) return
     setErrMsg(null)
     if (!user) {
@@ -743,8 +744,9 @@ export function WalletPage() {
                 )
               })}
             </div>
-            {result.selectedMealCount === 0 ? (
-              <div className="wpv2-meals-warn">{isEl ? 'Διάλεξε τουλάχιστον ένα γεύμα.' : 'Pick at least one meal.'}</div>
+            {result.selectedMealCount < 2 ? (
+              // WEC-551 O1 — a plan needs at least 2 meals/day to be worthwhile.
+              <div className="wpv2-meals-warn">{isEl ? 'Διάλεξε τουλάχιστον 2 γεύματα.' : 'Pick at least 2 meals.'}</div>
             ) : (() => {
               // Sum kcal across selected meals, then % of the user's daily target.
               const selectedKcal = (['breakfast', 'lunch', 'dinner', 'snack'] as MealKey[])
@@ -890,9 +892,11 @@ export function WalletPage() {
                   {isEl ? 'Διεύθυνση Παράδοσης — Στα Fitpal Meals παραδίδουμε καθημερινά!' : 'Delivery address — Fitpal Meals delivers daily!'}
                 </div>
                 <div className="wpv2-section-sub">
+                  {/* WEC-551 O5 — clarify the Τ.Κ. is only a zone check and the
+                      real delivery address is chosen (and changeable) per day. */}
                   {isEl
-                    ? 'Χρειαζόμαστε τον Τ.Κ. σου για να επιβεβαιώσουμε ότι παραδίδουμε στην περιοχή σου.'
-                    : 'We need your postcode to confirm delivery is available in your area.'}
+                    ? 'Χρειαζόμαστε τον Τ.Κ. σου μόνο για να επιβεβαιώσουμε ότι παραδίδουμε στην περιοχή σου. Την ακριβή διεύθυνση την ορίζεις — και μπορείς να την αλλάζεις — για κάθε παράδοση ξεχωριστά.'
+                    : 'We only need your postcode to confirm we deliver in your area. You set the exact address — and can change it — for each delivery separately.'}
                 </div>
               </div>
             </div>
@@ -969,9 +973,11 @@ export function WalletPage() {
                     {isEl ? 'Λιπομέτρηση' : 'Body-fat measurement'}
                   </div>
                   <div className="wpv2-service-desc">
+                    {/* WEC-551 O6 — note the measurement can happen at our
+                        premises or the customer's. */}
                     {isEl
-                      ? 'Μέτρηση σύστασης σώματος από τη Διαιτολογική μας ομάδα για ακριβέστερη παρακολούθηση.'
-                      : 'Body-composition measurement by our dietitian team for more accurate tracking.'}
+                      ? 'Μέτρηση σύστασης σώματος από τη Διαιτολογική μας ομάδα — στον χώρο μας ή στον δικό σου — για ακριβέστερη παρακολούθηση.'
+                      : 'Body-composition measurement by our dietitian team — at our place or yours — for more accurate tracking.'}
                   </div>
                 </div>
                 <div className="wpv2-service-price">
@@ -1057,13 +1063,8 @@ export function WalletPage() {
               <span className="wpv2-aside-total-val">{fmtEur(total)}</span>
             </div>
 
-            {result.bonusCredits > 0 && (
-              <div className="wpv2-aside-credits">
-                {isEl
-                  ? <>Πληρώνεις <b>{fmtEur(total)}</b> και παίρνεις <b>{fmtEur(result.walletCredit)}</b> υπόλοιπο στο Fitpal Wallet σου για να παραγγέλνεις γεύματα — δηλαδή <b>{fmtEur(result.bonusCredits)}</b> δώρο.</>
-                  : <>You pay <b>{fmtEur(total)}</b> and get <b>{fmtEur(result.walletCredit)}</b> of balance in your Fitpal Wallet to order meals — that's <b>{fmtEur(result.bonusCredits)}</b> free.</>}
-              </div>
-            )}
+            {/* WEC-551 O9 — removed the "Πληρώνεις €X … δηλαδή €Z δώρο"
+                credits blurb per owner feedback (confusing next to the total). */}
 
             {/* Payment method picker */}
             <div className="wpv2-paymethods">
@@ -1148,7 +1149,7 @@ export function WalletPage() {
             <button
               className="wpv2-aside-cta"
               onClick={handleStartPlan}
-              disabled={result.selectedMealCount === 0 || !indAddrInZone || busy}
+              disabled={result.selectedMealCount < 2 || !indAddrInZone || busy}
               title={
                 !indAddrInZone
                   ? (isEl ? 'Συμπλήρωσε έναν Τ.Κ. εντός ζώνης παράδοσης' : 'Enter a postcode within our delivery zone')
@@ -1269,11 +1270,19 @@ export function WalletPage() {
                 : 'Your plan is pending. Wire the amount below and it will activate within 1 business day.'}
             </p>
             <dl className="wpv2-bank-details">
-              <dt>IBAN</dt>          <dd>{bankInfo.iban}</dd>
+              {/* WEC-556 O17 — copy buttons on the two values people paste into
+                  their banking app: the IBAN and the payment reference. */}
+              <dt>IBAN</dt>          <dd className="bank-info-copyrow"><span>{bankInfo.iban}</span><CopyButton value={bankInfo.iban} lang={lang} ariaLabel={isEl ? 'Αντιγραφή IBAN' : 'Copy IBAN'} /></dd>
               <dt>{isEl ? 'Δικαιούχος' : 'Beneficiary'}</dt> <dd>{bankInfo.beneficiary}</dd>
-              <dt>{isEl ? 'Αιτιολογία' : 'Reference'}</dt>   <dd>{bankInfo.reference}</dd>
+              <dt>{isEl ? 'Αιτιολογία' : 'Reference'}</dt>   <dd className="bank-info-copyrow"><span>{bankInfo.reference}</span><CopyButton value={bankInfo.reference} lang={lang} ariaLabel={isEl ? 'Αντιγραφή αιτιολογίας' : 'Copy reference'} /></dd>
               <dt>{isEl ? 'Ποσό'       : 'Amount'}</dt>      <dd>{fmtEur(result.amountToPay)}</dd>
             </dl>
+            {/* WEC-551 O7 — post-purchase reassurance: the dietitian team calls. */}
+            <p className="wpv2-bank-promise">
+              {isEl
+                ? 'Θα σε καλέσουμε εντός 1 εργάσιμης ημέρας για να χτίσουμε μαζί τα γεύματά σου — χωρίς κόπο.'
+                : "We'll call you within 1 business day to build your meals together — zero effort."}
+            </p>
             <button className="wpv2-bank-close" onClick={() => setBankInfo(null)}>
               {isEl ? 'Κλείσιμο' : 'Close'}
             </button>

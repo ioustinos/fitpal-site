@@ -383,6 +383,13 @@ function WalletPaidView({
         </div>
       )}
 
+      {/* WEC-551 O7 — post-purchase reassurance: the dietitian team calls to
+          build the customer's meals. */}
+      <p className="conf-sub" style={{ fontWeight: 600 }}>
+        {el
+          ? 'Θα σε καλέσουμε εντός 1 εργάσιμης ημέρας για να χτίσουμε μαζί τα γεύματά σου — χωρίς κόπο.'
+          : "We'll call you within 1 business day to build your meals together — zero effort."}
+      </p>
       <p className="conf-sub">{t('coConfEmailNote')}</p>
       <div className="conf-actions">
         <a className="btn-conf-done" href="/">{t('coBackToMenu')}</a>

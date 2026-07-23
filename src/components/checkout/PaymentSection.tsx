@@ -6,6 +6,7 @@ import { useImpersonationStore } from '../../store/useImpersonationStore'
 import { subTotal } from '../../lib/helpers'
 import { makeTr } from '../../lib/translations'
 import { PAYMENT_METHODS as PM } from '../../lib/paymentMethods'
+import { CopyButton } from '../ui/CopyButton'
 
 // WEC-499: labels + descriptions now come from the shared payment-methods
 // source. This array only carries the per-method icon + display order; the
@@ -138,7 +139,9 @@ export function PaymentSection() {
           {bankInfos.map((b, i) => (
             <dl key={`${b.iban}-${i}`} className="bank-info-list" style={i > 0 ? { marginTop: 12, paddingTop: 12, borderTop: '1px dashed var(--border)' } : undefined}>
               {b.bankName && (<><dt>{t('coBank')}</dt> <dd>{b.bankName}</dd></>)}
-              <dt>IBAN</dt> <dd>{b.iban}</dd>
+              {/* WEC-556 O17 — copy button next to the IBAN */}
+              <dt>IBAN</dt>
+              <dd className="bank-info-copyrow"><span>{b.iban}</span><CopyButton value={b.iban} lang={lang} ariaLabel={lang === 'el' ? 'Αντιγραφή IBAN' : 'Copy IBAN'} /></dd>
               <dt>{t('coBeneficiary')}</dt> <dd>{b.beneficiary}</dd>
             </dl>
           ))}
