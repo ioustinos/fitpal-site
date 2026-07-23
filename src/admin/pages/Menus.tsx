@@ -8,6 +8,7 @@ import {
   useDraggable,
   DragOverlay,
   closestCenter,
+  MeasuringStrategy,
   type DragEndEvent,
   type DragStartEvent,
   type DragOverEvent,
@@ -19,6 +20,7 @@ import {
   verticalListSortingStrategy,
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
+import { thumbUrl } from '../../lib/imageThumb' // WEC-547
 import {
   fetchAdminDishes, fetchAdminCategories, fetchAdminTags,
   type AdminDish, type AdminCategory, type AdminTag,
@@ -497,7 +499,7 @@ export function Menus() {
       {loading && <div className="admin-loading">Loading…</div>}
 
       {!loading && (
-        <DndContext sensors={sensors} collisionDetection={closestCenter} onDragStart={onDragStart} onDragOver={onDragOver} onDragEnd={onDragEnd}>
+        <DndContext sensors={sensors} collisionDetection={closestCenter} measuring={{ droppable: { strategy: MeasuringStrategy.WhileDragging } }} onDragStart={onDragStart} onDragOver={onDragOver} onDragEnd={onDragEnd}>
           <div className="admin-menu-layout">
             {/* Library — sticky on horizontal scroll */}
             <aside className="admin-menu-lib">
@@ -728,7 +730,7 @@ function DishCardVisual({ dish }: { dish: AdminDish }) {
   return (
     <div className="admin-dish-card-inner">
       {dish.imageUrl
-        ? <img src={dish.imageUrl} alt="" className="admin-dish-card-img" />
+        ? <img src={thumbUrl(dish.imageUrl, 120)} alt="" className="admin-dish-card-img" width={36} height={36} loading="lazy" decoding="async" />
         : <div className="admin-dish-card-img admin-dish-card-img-empty">{dish.emoji ?? '🍽️'}</div>
       }
       <div className="admin-dish-card-text">

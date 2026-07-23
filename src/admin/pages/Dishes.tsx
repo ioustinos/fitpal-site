@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { thumbUrl } from '../../lib/imageThumb' // WEC-547
 import {
   fetchAdminDishes,
   fetchAdminCategories,
@@ -163,7 +164,7 @@ export function Dishes() {
                 <tr key={d.id} onClick={() => openEdit(d)} style={{ cursor: 'pointer' }}>
                   <td>
                     {d.imageUrl
-                      ? <img src={d.imageUrl} alt="" className="admin-dish-thumb" />
+                      ? <img src={thumbUrl(d.imageUrl, 96)} alt="" className="admin-dish-thumb" width={40} height={40} loading="lazy" decoding="async" />
                       : <div className="admin-dish-thumb admin-dish-thumb-empty">{d.emoji ?? '🍽️'}</div>
                     }
                   </td>
