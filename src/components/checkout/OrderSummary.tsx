@@ -1,3 +1,4 @@
+import { useEffect } from 'react'
 import { useCartStore } from '../../store/useCartStore'
 import { useUIStore } from '../../store/useUIStore'
 import { makeTr } from '../../lib/translations'
@@ -7,7 +8,15 @@ import { DayOrderGroup } from '../shared/DayOrderGroup'
 import { CartDietWarning } from '../cart/CartDietWarning'
 import { useVoucherWidget } from '../cart/useVoucherWidget'
 
-export function OrderSummary() {
+interface OrderSummaryProps {
+  /** WEC-562: checkout contact identity used to re-validate the voucher. */
+  contactEmail?: string
+  contactPhone?: string
+  /** True once both email + phone pass their field validators. */
+  contactReady?: boolean
+}
+
+export function OrderSummary({ contactEmail = '', contactPhone = '', contactReady = false }: OrderSummaryProps = {}) {
   const lang = useUIStore((s) => s.lang)
   const closeCheckout = useUIStore((s) => s.closeCheckout)
   const cart = useCartStore((s) => s.cart)
@@ -17,7 +26,20 @@ export function OrderSummary() {
   // powers the cart sidebar's <VoucherInput/>; we render a different layout
   // here (subtotal + savings rows) but the apply/remove + min-order
   // auto-removal logic is unified.
-  const { voucher, code, setCode, error, setError, apply, remove, loading, rawTotal } = useVoucherWidget()
+  const { voucher, code, setCode, error, setError, apply, remove, loading, rawTotal, revalidateWithContact } = useVoucherWidget()
+
+  // WEC-562: once the customer has entered a valid email + phone at checkout,
+  // re-validate any applied voucher against that identity (debounced) so a
+  // guest reusing a one-per-user code is told BEFORE submit, not after. The
+  // hook drops the voucher + surfaces the reason inline/toast on rejection.
+  useEffect(() => {
+    if (!voucher.applied || !contactReady) return
+    const id = window.setTimeout(() => {
+      void revalidateWithContact(contactEmail, contactPhone)
+    }, 500)
+    return () => window.clearTimeout(id)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [contactEmail, contactPhone, contactReady, voucher.applied, voucher.code])
 
   const weeks = useMenuStore((s) => s.weeks)
   const dishMap = useMenuStore((s) => s.dishMap)

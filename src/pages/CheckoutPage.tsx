@@ -1115,7 +1115,13 @@ export function CheckoutPage() {
 
         {/* Sidebar summary (desktop) */}
         <div className="checkout-sidebar">
-          <OrderSummary />
+          {/* WEC-562: pass contact identity so the summary can re-validate an
+              applied voucher against email+phone before submit. */}
+          <OrderSummary
+            contactEmail={contactEmail}
+            contactPhone={contact.phone}
+            contactReady={contactEmailOk && contactPhoneOk}
+          />
         </div>
       </div>
 

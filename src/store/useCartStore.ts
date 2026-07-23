@@ -137,6 +137,26 @@ interface CartStore {
     /** Structured params per errorCode (e.g. min_order_not_met → minOrderCents). */
     errorParams?: Record<string, unknown>
   }>
+  /**
+   * WEC-562: re-check an already-applied voucher against the customer's
+   * contact identity (email + phone) once entered at checkout, so a guest
+   * reusing a one-per-user code sees the rejection BEFORE submit instead of
+   * after. Drops the voucher on any non-transient rejection; keeps it on
+   * transient errors (network / rate_limit) so a blip doesn't nuke a valid
+   * discount. No-op when no voucher is applied.
+   */
+  revalidateVoucher: (
+    cartTotal: number,
+    userId: string | undefined,
+    contact: { email?: string; phone?: string },
+  ) => Promise<{
+    ok: boolean
+    error?: string
+    errorCode?: string
+    errorParams?: Record<string, unknown>
+    /** true = voucher kept despite failure (transient network/rate error). */
+    transient?: boolean
+  }>
   removeVoucher: () => void
   voucherLoading: boolean
 }
@@ -354,6 +374,52 @@ export const useCartStore = create<CartStore>()(
     } catch {
       set({ voucherLoading: false })
       return { ok: false, error: 'Network error', errorCode: 'network' }
+    }
+  },
+
+  // WEC-562: re-validate the applied voucher with the checkout contact identity.
+  revalidateVoucher: async (cartTotal, userId, contact) => {
+    const v = (useCartStore.getState() as { voucher: VoucherState }).voucher
+    if (!v.applied) return { ok: true }
+    try {
+      // Same eligible-items payload as applyVoucher (category-scoped support).
+      const cartState = (useCartStore.getState() as { cart: Record<DateKey, CartItem[]> }).cart
+      const totalsByDish = new Map<string, number>()
+      for (const dayItems of Object.values(cartState)) {
+        for (const it of dayItems) {
+          totalsByDish.set(it.dishId, (totalsByDish.get(it.dishId) ?? 0) + it.price * it.qty)
+        }
+      }
+      const items = Array.from(totalsByDish.entries()).map(([dishId, lineTotal]) => ({
+        dishId,
+        lineTotal: +lineTotal.toFixed(2),
+      }))
+
+      const res = await fetch('/api/validate-voucher', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code: v.code, cartTotal, userId, items, email: contact.email, phone: contact.phone }),
+      })
+      const json = await res.json()
+
+      if (json.valid) return { ok: true }
+
+      const { errorCode, error, valid: _v, code: _c, ...errorParams } = json as Record<string, unknown>
+      const ec = typeof errorCode === 'string' ? errorCode : undefined
+      // Transient failures must NOT drop a legitimately-applied voucher —
+      // the submit-time redeem RPC remains the authoritative backstop.
+      if (ec === 'network' || ec === 'rate_limit') {
+        return { ok: false, errorCode: ec, transient: true }
+      }
+      set({ voucher: defaultVoucher })
+      return {
+        ok: false,
+        error: typeof error === 'string' ? error : 'Invalid voucher code',
+        errorCode: ec,
+        errorParams,
+      }
+    } catch {
+      return { ok: false, errorCode: 'network', transient: true }
     }
   },
 

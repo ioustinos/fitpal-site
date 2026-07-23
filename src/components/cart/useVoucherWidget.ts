@@ -93,6 +93,7 @@ export function useVoucherWidget() {
   const lang = useUIStore((s) => s.lang)
   const voucher = useCartStore((s) => s.voucher)
   const applyVoucher = useCartStore((s) => s.applyVoucher)
+  const revalidateVoucher = useCartStore((s) => s.revalidateVoucher)
   const removeVoucher = useCartStore((s) => s.removeVoucher)
   const voucherLoading = useCartStore((s) => s.voucherLoading)
   const cart = useCartStore((s) => s.cart)
@@ -137,6 +138,25 @@ export function useVoucherWidget() {
     removeVoucher()
     setCode('')
     setError('')
+  }
+
+  // WEC-562: at checkout, re-check the applied voucher against the entered
+  // email + phone. If the server now rejects on identity (e.g. a guest reusing
+  // a one-per-user code, which can't be caught at apply-time before contact
+  // info exists), the store drops the voucher — here we surface the reason
+  // inline + toast, mirroring the min-order / scoped auto-drop UX above.
+  // Transient network/rate errors keep the voucher (submit stays the backstop).
+  async function revalidateWithContact(email: string, phone: string) {
+    if (!voucher.applied) return
+    const droppedCode = voucher.code
+    const result = await revalidateVoucher(rawTotal, user?.id, { email, phone })
+    if (!result.ok && !result.transient) {
+      const msg = localizeVoucherError(result.errorCode, result.errorParams, result.error, lang)
+      setError(msg)
+      toast(lang === 'el'
+        ? `Ο κωδικός ${droppedCode} αφαιρέθηκε — ${msg.toLowerCase()}`
+        : `Voucher ${droppedCode} removed — ${msg.toLowerCase()}`)
+    }
   }
 
   // Auto-drop the applied voucher when the cart shrinks below its min_order.
@@ -207,6 +227,8 @@ export function useVoucherWidget() {
     apply,
     /** Remove the applied voucher and clear input + error */
     remove,
+    /** WEC-562: re-check the applied voucher against checkout email+phone; drops + explains on identity rejection */
+    revalidateWithContact,
     /** True while applyVoucher is in flight */
     loading: voucherLoading,
     /** Cart-wide raw total (before voucher), useful for summary surfaces */
