@@ -24,5 +24,8 @@ export function thumbUrl(
   const transformed =
     url.slice(0, i) + '/storage/v1/render/image/public/' + url.slice(i + marker.length)
   const sep = transformed.includes('?') ? '&' : '?'
-  return `${transformed}${sep}width=${width}&quality=${quality}`
+  // resize=contain: scale the WHOLE image down to `width` keeping aspect ratio.
+  // Supabase's default (cover) center-crops even with only a width set, which
+  // zoomed thumbnails into an unrecognisable middle slice (WEC-547 review).
+  return `${transformed}${sep}width=${width}&quality=${quality}&resize=contain`
 }
