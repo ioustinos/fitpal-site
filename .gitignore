@@ -23,5 +23,8 @@ docs/marketing-tracking-*.md
 scripts/push-overnight.sh
 scripts/pilot.sql
 
+# GitHub push credentials (durable, workspace-local — NEVER commit). See CLAUDE.md.
+.auto-memory/
+
 # sed backups (mac sed -i requires .bak; leave on disk, never commit)
 *.bak

@@ -18,12 +18,17 @@ netlify dev   # → http://localhost:8888
 - **NEVER run git from the workspace folder** — the FUSE mount blocks `unlink`, permanently breaking git lock files
 - **NEVER push to GitHub unless Ioustinos explicitly says so**
 - **Iterate on localhost:8888, batch fixes, commit only on command**
-- Credentials live in `/sessions/<session>/mnt/.auto-memory/github_credentials.sh`. The var is `$GITHUB_TOKEN` (not `$GITHUB_PAT`). Source it at the start of every bash call since env doesn't persist across calls.
+- **Credentials: source the WORKSPACE copy first, sandbox copy as fallback.** The token lives in `<workspace>/.auto-memory/github_credentials.sh` (the mounted project folder — writable + shared by all chats, git-ignored). The old sandbox path `/sessions/<session>/mnt/.auto-memory/github_credentials.sh` is mounted READ-ONLY, so a rotated token can't be saved there — that's why the workspace copy is now the source of truth. The var is `$GITHUB_TOKEN` (not `$GITHUB_PAT`). Source it at the start of every bash call since env doesn't persist across calls. Rotation: any chat overwrites the `GITHUB_TOKEN` line in the workspace copy. Load it in bash via:
+  ```bash
+  source "/sessions/<session>/mnt/Fitpal New Site/.auto-memory/github_credentials.sh" \
+    || source /sessions/<session>/mnt/.auto-memory/github_credentials.sh
+  ```
 - `/tmp/fitpal-push` from old sessions has stale ownership and can't be deleted/modified. Use a fresh path (e.g. `/tmp/fitpal-push2`, `/tmp/fitpal-push3`) per new session.
 - When a push IS requested, use this pattern:
 
 ```bash
-source /sessions/<session>/mnt/.auto-memory/github_credentials.sh
+source "/sessions/<session>/mnt/Fitpal New Site/.auto-memory/github_credentials.sh" \
+  || source /sessions/<session>/mnt/.auto-memory/github_credentials.sh
 git config --global --add safe.directory "/sessions/<session>/mnt/Fitpal New Site"
 
 # Fresh clone to a NEW path (old /tmp/fitpal-push* may have stale ownership)
