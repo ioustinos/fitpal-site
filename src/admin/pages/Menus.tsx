@@ -30,7 +30,7 @@ import {
   fetchMenusOverlapping, fetchMenuDayDishes,
   createWeeklyMenu, deleteWeeklyMenu, setMenuActive, renameMenu, setMenuDateActive,
   addDishToDay, removeMenuDayDish, reorderMenuDayDishes, duplicateMenuContent,
-  setMenuCategoryOrder,
+  setMenuCategoryOrder, isoDaySpan,
   type AdminWeeklyMenu, type AdminMenuDayDish,
 } from '../../lib/api/adminMenus'
 import { CategoryOrderStrip } from '../components/CategoryOrderStrip'
@@ -107,7 +107,12 @@ export function Menus() {
     const { data, error } = await fetchMenusOverlapping(weekStart, weekEnd)
     if (error) { setError(error); setLoading(false); return }
     setMenusInWeek(data ?? [])
-    const exact = data?.find((m) => m.fromDate === weekStart) ?? data?.[0] ?? null
+    // WEC-563: only auto-select the menu that covers EXACTLY this Mon–Fri week.
+    // Previously we fell back to `data?.[0]` — any overlapping menu — so on a
+    // week with no exact menu, dish assignments silently landed in an
+    // overlapping (wrong-week) menu. Now: no exact menu → nothing selected, and
+    // the builder shows a banner prompting to create one for this week.
+    const exact = data?.find((m) => m.fromDate === weekStart) ?? null
     setSelectedMenuId(exact?.id ?? null)
     setEditingName(exact?.name ?? '')
     if (exact) {
@@ -434,6 +439,32 @@ export function Menus() {
           <button className="admin-btn-ghost" onClick={() => setMonday(addDays(monday, 7))}>Next week →</button>
         </div>
       </div>
+
+      {/* WEC-563: guard rails for the one-menu-per-week model. */}
+      {(() => {
+        const exactExists = menusInWeek.some((m) => m.fromDate === weekStart)
+        // Mon–Fri is a 4-day span (Mon→Fri). Anything else is a malformed range.
+        const badSpan = menusInWeek.filter((m) => isoDaySpan(m.fromDate, m.toDate) !== 4)
+        if (!menusInWeek.length && !badSpan.length) return null
+        return (
+          <>
+            {badSpan.map((m) => (
+              <div key={`warn-${m.id}`} className="admin-banner-warn" style={{ marginBottom: 8 }}>
+                ⚠ Menu “{m.name ?? m.fromDate}” spans {isoDaySpan(m.fromDate, m.toDate) + 1} days
+                ({m.fromDate} → {m.toDate}). A menu must cover one Mon–Fri week — fix its dates or
+                delete &amp; recreate it, or the customer day strip will render multiple weeks.
+              </div>
+            ))}
+            {!exactExists && menusInWeek.length > 0 && (
+              <div className="admin-banner-warn" style={{ marginBottom: 8 }}>
+                No menu covers exactly this Mon–Fri week ({weekStart} → {weekEnd}). The menu(s) below
+                only <em>overlap</em> it. Click <strong>+ New menu</strong> to create one for this week —
+                otherwise dishes you add could land in the wrong week.
+              </div>
+            )}
+          </>
+        )
+      })()}
 
       <div className="admin-menu-controls">
         <div className="admin-menu-select-wrap">

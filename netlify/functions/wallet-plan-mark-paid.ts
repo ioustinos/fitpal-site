@@ -73,16 +73,18 @@ export default async (request: Request) => {
     if (plan.payment_status === 'paid') {
       return Response.json({ ok: true, alreadyPaid: true }, { headers: cors})
     }
-    if (plan.payment_method !== 'transfer') {
+    // WEC-554: cash (Αντικαταβολή) plans are also marked paid manually — the
+    // courier collects on first delivery. Card/link still confirm via Viva.
+    if (plan.payment_method !== 'transfer' && plan.payment_method !== 'cash') {
       return Response.json(
-        { error: `Only bank-transfer plans can be marked paid manually (this one is '${plan.payment_method}'). Card/link plans confirm via Viva.` },
+        { error: `Only bank-transfer or cash plans can be marked paid manually (this one is '${plan.payment_method}'). Card/link plans confirm via Viva.` },
         { status: 400, headers: cors},
       )
     }
 
     const { error: rpcErr } = await svc.rpc('wallet_plan_mark_paid', {
       p_plan_id: plan.id,
-      p_transaction_id: `manual-transfer:${who.userId}`,
+      p_transaction_id: `manual-${plan.payment_method}:${who.userId}`,
       p_amount_cents: plan.amount_to_pay_cents ?? 0,
     })
     if (rpcErr) return Response.json({ error: rpcErr.message }, { status: 500, headers: cors})
@@ -98,7 +100,7 @@ export default async (request: Request) => {
         field_name: 'payment_status',
         old_value: 'pending',
         new_value: 'paid',
-        label: 'Bank transfer marked paid (manual, admin)',
+        label: `${plan.payment_method === 'cash' ? 'Cash (Αντικαταβολή)' : 'Bank transfer'} marked paid (manual, admin)`,
         admin_user: who.userId,
       })
     } catch { /* non-fatal */ }

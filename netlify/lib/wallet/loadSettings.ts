@@ -105,7 +105,10 @@ export async function loadWalletConfig(opts: { force?: boolean } = {}): Promise<
 
   const config: FullWalletConfig = {
     settings,
-    paymentMethods:   (map.get('wallet_payment_methods')   as PaymentMethod[])         ?? ['card', 'link', 'transfer'],
+    // WEC-554: cash (Αντικαταβολή) added to the fallback allowlist. NOTE: if a
+    // `wallet_payment_methods` row EXISTS in settings, it wins — so cash must
+    // also be added there (via /admin/wallet-settings) for it to be offered.
+    paymentMethods:   (map.get('wallet_payment_methods')   as PaymentMethod[])         ?? ['card', 'link', 'transfer', 'cash'],
     voucherEnabled:   (map.get('wallet_voucher_enabled')   as boolean)                 ?? true,
     servicesCatalog:  (map.get('wallet_services_catalog')  as ServiceCatalogItem[])    ?? [],
     minAmountCents:   (map.get('wallet_min_amount_cents')  as number)                  ?? 3000,
@@ -227,7 +230,7 @@ function normalizePricingMatrix(raw: unknown): WalletSettings['pricingMatrix'] {
 function defaultConfig(): FullWalletConfig {
   return {
     settings: DEFAULT_WALLET_SETTINGS,
-    paymentMethods: ['card', 'link', 'transfer'],
+    paymentMethods: ['card', 'link', 'transfer', 'cash'], // WEC-554
     voucherEnabled: true,
     servicesCatalog: [],
     minAmountCents: 3000,

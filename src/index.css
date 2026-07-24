@@ -2061,6 +2061,16 @@ header {
 .bank-info-list dd { font-size: 13px; font-weight: 700; color: var(--text); margin: 0; font-variant-numeric: tabular-nums; }
 .bank-info-note { margin-top: 10px; font-size: 11px; font-weight: 600; color: var(--text-mid); line-height: 1.5; padding-top: 10px; border-top: 1px solid var(--green-light); }
 
+/* WEC-557 — «Αίτημα αλλαγής» button + modal */
+.order-change-req { padding: 10px 14px 2px; display: flex; justify-content: flex-end; }
+.order-change-req-btn { font-size: 13px; font-weight: 700; }
+.order-change-req-btn:disabled { opacity: 0.6; cursor: default; }
+.order-change-modal { padding: 22px 24px; max-width: 460px; width: 100%; }
+.order-change-modal-title { font-size: 18px; font-weight: 800; margin: 0 0 6px; color: var(--text); }
+.order-change-modal-sub { font-size: 13px; color: var(--text-mid); line-height: 1.5; margin: 0 0 16px; }
+.order-change-modal .form-input { width: 100%; box-sizing: border-box; }
+.order-change-modal-actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 18px; }
+
 /* WEC-556 O17 — IBAN / reference row with a copy button */
 .bank-info-copyrow { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .bank-info-copyrow > span { word-break: break-all; }
@@ -2357,6 +2367,8 @@ a.btn-conf-done { display: inline-block; text-decoration: none; }
   border-radius: var(--radius-lg);
   padding: 18px 20px;
 }
+/* WEC-565: initial-purchase card spacing (sits between the grid and balance). */
+.subs-initial { margin-top: 14px; }
 .subs-card-title {
   font-size: 11px;
   font-weight: 900;

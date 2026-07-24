@@ -321,6 +321,8 @@ export function WalletPage() {
   const [busy, setBusy] = useState(false)
   const [errMsg, setErrMsg] = useState<string | null>(null)
   const [bankInfo, setBankInfo] = useState<{ iban: string; beneficiary: string; reference: string } | null>(null)
+  // WEC-554: cash (Αντικαταβολή) success overlay — "pay on first delivery".
+  const [cashInfo, setCashInfo] = useState<{ reference: string } | null>(null)
 
   // WEC-508: the coupon input that lived here was a dead stub — value never
   // read, Apply had no onClick, the server accepted no voucher field. Removed
@@ -416,6 +418,14 @@ export function WalletPage() {
       if (data.paymentMethod === 'transfer') {
         setBankInfo(data.bankInstructions)
         // Refresh user so UI sees the pending wallet plan in account history
+        if (user) refreshUser(user.id)
+        return
+      }
+      // WEC-554: cash (Αντικαταβολή) — no redirect, no bank details; show the
+      // "pay on first delivery" confirmation. Plan stays pending until admin
+      // marks it paid when the courier collects.
+      if (data.paymentMethod === 'cash') {
+        setCashInfo({ reference: data.reference })
         if (user) refreshUser(user.id)
         return
       }
@@ -1066,23 +1076,33 @@ export function WalletPage() {
             {/* WEC-551 O9 — removed the "Πληρώνεις €X … δηλαδή €Z δώρο"
                 credits blurb per owner feedback (confusing next to the total). */}
 
-            {/* Payment method picker */}
+            {/* Payment method picker — WEC-554/O10: plural label + Αντικαταβολή,
+                O13: trio wording (Χρεωστική/πιστωτική κάρτα, Αντικαταβολή,
+                Τραπεζική κατάθεση). */}
             <div className="wpv2-paymethods">
-              <div className="wpv2-paymethods-label">{isEl ? 'Τρόπος πληρωμής' : 'Payment method'}</div>
+              <div className="wpv2-paymethods-label">{isEl ? 'Τρόποι πληρωμής' : 'Payment methods'}</div>
               <div className="wpv2-paymethods-grid">
-                {(['card','link','transfer'] as PaymentMethod[]).map((pm) => (
+                {(['card','cash','transfer','link'] as PaymentMethod[]).map((pm) => (
                   <button
                     key={pm}
                     type="button"
                     className={`wpv2-paymethod${paymentMethod === pm ? ' sel' : ''}`}
                     onClick={() => setPaymentMethod(pm)}
                   >
-                    {pm === 'card'     && (isEl ? 'Κάρτα online'             : 'Credit card online')}
+                    {pm === 'card'     && (isEl ? 'Χρεωστική/πιστωτική κάρτα' : 'Debit/credit card')}
+                    {pm === 'cash'     && (isEl ? 'Αντικαταβολή'             : 'Cash on delivery')}
+                    {pm === 'transfer' && (isEl ? 'Τραπεζική κατάθεση'       : 'Bank transfer')}
                     {pm === 'link'     && (isEl ? 'Link πληρωμής αργότερα'   : 'Payment link later')}
-                    {pm === 'transfer' && (isEl ? 'Τραπεζική μεταφορά'       : 'Bank transfer')}
                   </button>
                 ))}
               </div>
+              {paymentMethod === 'cash' && (
+                <div className="wpv2-paymethods-hint">
+                  {isEl
+                    ? 'Θα πληρώσεις με μετρητά στον διανομέα κατά την πρώτη παράδοση. Το πλάνο ενεργοποιείται μόλις εισπραχθεί.'
+                    : 'Pay the courier in cash on your first delivery. The plan activates once collected.'}
+                </div>
+              )}
               {paymentMethod === 'link' && (
                 <div className="wpv2-paymethods-hint">
                   {isEl ? 'Θα σου στείλουμε σύνδεσμο πληρωμής στο email.' : 'We\'ll email you a payment link.'}
@@ -1284,6 +1304,34 @@ export function WalletPage() {
                 : "We'll call you within 1 business day to build your meals together — zero effort."}
             </p>
             <button className="wpv2-bank-close" onClick={() => setBankInfo(null)}>
+              {isEl ? 'Κλείσιμο' : 'Close'}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* WEC-554: cash (Αντικαταβολή) success overlay — no bank details. */}
+      {cashInfo && (
+        <div className="wpv2-bank-overlay" onClick={() => setCashInfo(null)}>
+          <div className="wpv2-bank-card" onClick={(e) => e.stopPropagation()}>
+            <h3>{isEl ? 'Πλάνο δημιουργήθηκε ✓' : 'Plan created ✓'}</h3>
+            <p>
+              {isEl
+                ? 'Θα πληρώσεις με μετρητά (αντικαταβολή) στον διανομέα κατά την πρώτη σου παράδοση. Το πλάνο σου είναι σε αναμονή και ενεργοποιείται μόλις εισπραχθεί το ποσό.'
+                : 'You’ll pay in cash (on delivery) to the courier on your first delivery. Your plan is pending and activates once the amount is collected.'}
+            </p>
+            <dl className="wpv2-bank-details">
+              <dt>{isEl ? 'Κωδικός' : 'Reference'}</dt>
+              <dd className="bank-info-copyrow"><span>{cashInfo.reference}</span><CopyButton value={cashInfo.reference} lang={lang} ariaLabel={isEl ? 'Αντιγραφή κωδικού' : 'Copy reference'} /></dd>
+              <dt>{isEl ? 'Ποσό' : 'Amount'}</dt> <dd>{fmtEur(result.amountToPay)}</dd>
+            </dl>
+            {/* WEC-551 O7 — post-purchase reassurance: the dietitian team calls. */}
+            <p className="wpv2-bank-promise">
+              {isEl
+                ? 'Θα σε καλέσουμε εντός 1 εργάσιμης ημέρας για να χτίσουμε μαζί τα γεύματά σου — χωρίς κόπο.'
+                : "We'll call you within 1 business day to build your meals together — zero effort."}
+            </p>
+            <button className="wpv2-bank-close" onClick={() => setCashInfo(null)}>
               {isEl ? 'Κλείσιμο' : 'Close'}
             </button>
           </div>

@@ -58,7 +58,8 @@ interface DbOrderItem {
 // ─── Frontend order shape (matches current useAuthStore mock) ────────────────
 
 export interface OrderHistoryItem {
-  id: string                 // order_number
+  id: string                 // order_number (display)
+  orderId: string            // WEC-557: orders.id UUID (FK target for change requests)
   date: string               // created_at ISO
   statusEl: string
   statusEn: string
@@ -252,6 +253,7 @@ export async function fetchUserOrders(userId: string, limit = 50, offset = 0): P
 
     return {
       id: o.order_number,
+      orderId: o.id, // WEC-557: UUID for change-request FK
       date: o.created_at,
       statusEl: sLabel.el,
       statusEn: sLabel.en,

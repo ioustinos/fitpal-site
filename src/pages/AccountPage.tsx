@@ -19,6 +19,7 @@ import { Pagination } from '../components/shared/Pagination'
 import { PlacesAutocomplete } from '../components/ui/PlacesAutocomplete'
 import { googleMapsAvailable } from '../lib/googleMaps'
 import { ACCOUNT_TABS, accountTabLabel, logoutIcon, type AccountTab } from '../lib/accountNav'
+import { OrderChangeRequestButton } from '../components/account/OrderChangeRequestButton'
 import {
   fetchIngredientOptions,
   saveProfileAllergies,
@@ -1278,7 +1279,6 @@ function OrdersTab({ user, lang }: any) {
         <div className="orders-list">
           {pageOrders.map((order: any) => {
             const isOpen = expanded === order.id
-            const isActive = order.status === 'active'
             const totalDays = order.childOrders?.length ?? 0
             const totalItems = order.childOrders?.reduce((sum: number, c: any) => sum + (c.items?.length ?? 0), 0) ?? 0
             const statusLabel = lang === 'el' ? order.statusEl : order.statusEn
@@ -1327,14 +1327,9 @@ function OrdersTab({ user, lang }: any) {
                       </span>
                     </div>
 
-                    {isActive && (
-                      <button className="btn-change-request">
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                          <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/>
-                        </svg>
-                        {t('acRequestChange')}
-                      </button>
-                    )}
+                    {/* WEC-557: change-request UI is the <OrderChangeRequestButton/>
+                        rendered below (modal + reason + details). The old inline
+                        placeholder button here was dead (no onClick) — removed. */}
 
                     {/* Per-day sections */}
                     {order.childOrders?.map((child: any, ci: number) => {
@@ -1434,6 +1429,13 @@ function OrdersTab({ user, lang }: any) {
                         </div>
                       )
                     })}
+                  {/* WEC-557 — «Αίτημα αλλαγής» for still-actionable orders. */}
+                  <OrderChangeRequestButton
+                    orderId={order.orderId}
+                    orderStatusRaw={order.statusRaw}
+                    userId={user.id}
+                    lang={lang}
+                  />
                   </div>
                 )}
               </div>
@@ -1857,6 +1859,29 @@ function SubscriptionTab({ user, lang }: any) {
                   : t('acNo')}
               </span>
             </div>
+          </div>
+        </div>
+      </div>
+
+      {/* WEC-565: initial-purchase breakdown (paid + bonus = initial balance),
+          from the wallet_plans snapshot. Distinct from the live balance below,
+          which depletes as the customer orders. */}
+      <div className="subs-card subs-initial">
+        <div className="subs-card-title">{isEl ? 'Αρχική αγορά' : 'Initial purchase'}</div>
+        <div className="subs-rows">
+          <div className="subs-row">
+            <span className="subs-row-key">{isEl ? 'Ποσό αγοράς' : 'Amount paid'}</span>
+            <span className="subs-row-val">{eur(wallet.purchaseAmount)}</span>
+          </div>
+          <div className="subs-row">
+            <span className="subs-row-key">{isEl ? 'Δώρο (bonus)' : 'Bonus credit'}</span>
+            <span className="subs-row-val subs-emph">
+              {typeof wallet.purchaseBonus === 'number' && wallet.purchaseBonus > 0 ? `+${eur(wallet.purchaseBonus)}` : '—'}
+            </span>
+          </div>
+          <div className="subs-row">
+            <span className="subs-row-key">{isEl ? 'Συνολικό αρχικό υπόλοιπο' : 'Total initial balance'}</span>
+            <span className="subs-row-val subs-emph">{eur(wallet.purchaseCredit)}</span>
           </div>
         </div>
       </div>

@@ -1962,5 +1962,17 @@
   border-radius: 10px;
 }
 
+/* WEC-563: menu-builder guard-rail warning banner (bad date range / no exact
+ * menu for the week). Amber, non-blocking, matches the dev-env pill palette. */
+.admin-banner-warn {
+  background: #fef3c7;
+  color: #92400e;
+  border: 1px solid #fcd34d;
+  border-radius: 8px;
+  padding: 10px 14px;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
 /* Impersonation banner styles moved to src/index.css (WEC-188).
  * They need to be available on the customer site, where admin.css doesn't load. */

@@ -491,7 +491,7 @@ export async function updateOrderItemQuantity(itemId: string, oldQty: number, ne
       oldValue: String(oldQty), newValue: '0 (removed)',
       label: 'item removed', adminUser,
     })
-    return recomputeOrderTotals(orderId)
+    return recomputeOrderTotals(orderId, adminUser)
   }
   // Fetch current unit price to recompute total
   const { data, error: fetchErr } = await supabase.from('order_items').select('unit_price').eq('id', itemId).single()
@@ -508,7 +508,7 @@ export async function updateOrderItemQuantity(itemId: string, oldQty: number, ne
     oldValue: String(oldQty), newValue: String(newQty),
     label: `qty ${oldQty} → ${newQty}`, adminUser,
   })
-  return recomputeOrderTotals(orderId)
+  return recomputeOrderTotals(orderId, adminUser)
 }
 
 // WEC-390: edit the customer note and the internal admin note on an order.
@@ -574,7 +574,7 @@ export async function updateOrderItemVariant(params: {
     oldValue: params.oldLabel, newValue: params.variantLabelEl,
     label: `variant → ${params.variantLabelEl}`, adminUser: params.adminUser,
   })
-  return recomputeOrderTotals(params.orderId)
+  return recomputeOrderTotals(params.orderId, params.adminUser)
 }
 
 // WEC-389: SOFT-cancel a whole delivery day (child order). Marks cancelled_at
@@ -606,7 +606,7 @@ export async function cancelChildOrder(childOrderId: string, orderId: string, ad
       label: 'all days cancelled → order cancelled', adminUser,
     })
   }
-  return recomputeOrderTotals(orderId)
+  return recomputeOrderTotals(orderId, adminUser)
 }
 
 // WEC-389: restore a soft-cancelled day. Clears cancelled_at, recomputes totals,
@@ -632,7 +632,7 @@ export async function restoreChildOrder(childOrderId: string, orderId: string, a
       label: 'day restored → order re-opened (pending)', adminUser,
     })
   }
-  return recomputeOrderTotals(orderId)
+  return recomputeOrderTotals(orderId, adminUser)
 }
 
 export async function deleteOrderItem(itemId: string, orderId: string, childOrderId: string, adminUser: string): Promise<{ error: string | null }> {
@@ -644,7 +644,7 @@ export async function deleteOrderItem(itemId: string, orderId: string, childOrde
     oldValue: null, newValue: 'removed',
     label: 'item removed', adminUser,
   })
-  return recomputeOrderTotals(orderId)
+  return recomputeOrderTotals(orderId, adminUser)
 }
 
 // WEC-371: add a brand-new line item to an existing order. Snapshots
@@ -700,7 +700,7 @@ export async function addOrderItem(params: {
     label: 'item added',
     adminUser: params.adminUser,
   })
-  return recomputeOrderTotals(params.orderId)
+  return recomputeOrderTotals(params.orderId, params.adminUser)
 }
 
 /**
@@ -725,7 +725,7 @@ export async function fetchOnMenuDishIds(date: string): Promise<Set<string>> {
   return new Set((mdd ?? []).map((r) => (r as { dish_id: string }).dish_id))
 }
 
-async function recomputeOrderTotals(orderId: string): Promise<{ error: string | null }> {
+async function recomputeOrderTotals(orderId: string, adminUser: string = 'system'): Promise<{ error: string | null }> {
   const { data: cos, error: cosErr } = await supabase.from('child_orders').select('id').eq('order_id', orderId).is('cancelled_at', null)
   if (cosErr) return { error: cosErr.message }
   const cIds = (cos ?? []).map((r) => r.id as string)
@@ -733,15 +733,38 @@ async function recomputeOrderTotals(orderId: string): Promise<{ error: string | 
   const { data: items, error: itErr } = await supabase.from('order_items').select('total_price').in('child_order_id', cIds)
   if (itErr) return { error: itErr.message }
   const subtotal = (items ?? []).reduce((s, r) => s + ((r as { total_price: number }).total_price ?? 0), 0)
-  // Keep existing discount — admin should refund rather than retroactively discount
-  const { data: ord, error: oErr } = await supabase.from('orders').select('discount_amount').eq('id', orderId).single()
+  // Keep existing discount — admin should refund rather than retroactively discount.
+  // WEC-566: also read the OLD subtotal/total so we can log the money delta.
+  const { data: ord, error: oErr } = await supabase.from('orders').select('subtotal, total, discount_amount').eq('id', orderId).single()
   if (oErr) return { error: oErr.message }
+  const oldSubtotal = (ord as { subtotal: number | null }).subtotal ?? 0
+  const oldTotal = (ord as { total: number | null }).total ?? 0
   const discount = ((ord as { discount_amount: number | null }).discount_amount ?? 0)
   const total = Math.max(0, subtotal - discount)
   const { error } = await supabase.from('orders').update({
     subtotal, total, updated_at: new Date().toISOString(),
   }).eq('id', orderId)
-  return { error: error?.message ?? null }
+  if (error) return { error: error.message }
+
+  // WEC-566: audit the money impact of the edit so the Timeline shows old → new
+  // totals (not just the field change). Cents stored in old/new_value; label
+  // carries the € formatting for a readable row.
+  const fmtEur = (c: number) => `€${(c / 100).toFixed(2)}`
+  if (subtotal !== oldSubtotal) {
+    await writeChangeLog({
+      orderId, tableName: 'orders', fieldName: 'subtotal',
+      oldValue: String(oldSubtotal), newValue: String(subtotal),
+      label: `Υποσύνολο ${fmtEur(oldSubtotal)} → ${fmtEur(subtotal)}`, adminUser,
+    })
+  }
+  if (total !== oldTotal) {
+    await writeChangeLog({
+      orderId, tableName: 'orders', fieldName: 'total',
+      oldValue: String(oldTotal), newValue: String(total),
+      label: `Σύνολο ${fmtEur(oldTotal)} → ${fmtEur(total)}`, adminUser,
+    })
+  }
+  return { error: null }
 }
 
 // ─── Child-order edits (address + time) ───────────────────────────────────

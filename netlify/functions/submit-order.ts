@@ -898,9 +898,12 @@ export default async (request: Request) => {
       payment_status: 'pending',
       status: 'pending',
       cutlery: body.cutlery,
-      invoice_type: body.invoiceType ?? null,
-      invoice_name: body.invoiceName ?? null,
-      invoice_vat: body.invoiceVat ?? null,
+      // WEC-564: wallet-paid orders never carry their own invoice (settled at
+      // subscription purchase). Force invoice fields to null defensively, even
+      // if a stale client submitted them.
+      invoice_type: body.paymentMethod === 'wallet' ? null : (body.invoiceType ?? null),
+      invoice_name: body.paymentMethod === 'wallet' ? null : (body.invoiceName ?? null),
+      invoice_vat:  body.paymentMethod === 'wallet' ? null : (body.invoiceVat ?? null),
       notes: body.notes ?? null,
       admin_order_id: adminUserId,
       admin_notes: null,

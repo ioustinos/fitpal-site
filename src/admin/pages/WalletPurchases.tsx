@@ -146,7 +146,7 @@ function Drawer({ detail, loading, onClose, onRefunded }: DrawerProps) {
 
   async function doMarkPaid() {
     if (!detail) return
-    if (!confirm(`Mark this bank-transfer plan as PAID? This immediately credits €${(detail.amountToPayCents / 100).toFixed(2)} (+ bonus) to the customer's wallet and activates it.`)) return
+    if (!confirm(`Mark this ${detail.paymentMethod === 'cash' ? 'cash (Αντικαταβολή)' : 'bank-transfer'} plan as PAID? This immediately credits €${(detail.amountToPayCents / 100).toFixed(2)} (+ bonus) to the customer's wallet and activates it.`)) return
     setMarking(true); setMarkErr(null)
     const { error } = await markAdminWalletPlanPaid(detail.id)
     setMarking(false)
@@ -233,14 +233,18 @@ function Drawer({ detail, loading, onClose, onRefunded }: DrawerProps) {
                 <KV k="Confirmed" v={detail.confirmedAt ? new Date(detail.confirmedAt).toLocaleString('el-GR') : '—'} />
               </Section>
 
-              {detail.paymentStatus === 'pending' && detail.paymentMethod === 'transfer' && (
-                <Section title="Bank transfer">
+              {/* WEC-554: cash (Αντικαταβολή) plans are marked paid manually too
+                  — courier collects on first delivery. */}
+              {detail.paymentStatus === 'pending' && (detail.paymentMethod === 'transfer' || detail.paymentMethod === 'cash') && (
+                <Section title={detail.paymentMethod === 'cash' ? 'Cash on delivery (Αντικαταβολή)' : 'Bank transfer'}>
                   <p className="admin-page-sub" style={{ margin: '0 0 8px' }}>
-                    Funds received? Mark the plan paid to credit €{(detail.amountToPayCents / 100).toFixed(2)} (+ bonus) to the customer's wallet and activate it.
+                    {detail.paymentMethod === 'cash'
+                      ? `Courier collected the cash? Mark the plan paid to credit €${(detail.amountToPayCents / 100).toFixed(2)} (+ bonus) to the customer's wallet and activate it.`
+                      : `Funds received? Mark the plan paid to credit €${(detail.amountToPayCents / 100).toFixed(2)} (+ bonus) to the customer's wallet and activate it.`}
                   </p>
                   {markErr && <div className="admin-error-banner">{markErr}</div>}
                   <button className="admin-btn-primary" onClick={doMarkPaid} disabled={marking}>
-                    {marking ? 'Marking…' : 'Mark transfer as paid'}
+                    {marking ? 'Marking…' : (detail.paymentMethod === 'cash' ? 'Mark cash as paid' : 'Mark transfer as paid')}
                   </button>
                 </Section>
               )}

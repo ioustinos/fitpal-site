@@ -48,7 +48,15 @@ interface PurchaseResultTransfer {
   bankInstructions: { iban: string; beneficiary: string; reference: string }
 }
 
-type PurchaseResult = PurchaseResultCard | PurchaseResultTransfer
+// WEC-554: cash (Αντικαταβολή) — plan stays pending, no bank instructions;
+// the customer pays the courier on first delivery, admin marks paid then.
+interface PurchaseResultCash {
+  walletPlanId: string
+  paymentMethod: 'cash'
+  reference: string
+}
+
+type PurchaseResult = PurchaseResultCard | PurchaseResultTransfer | PurchaseResultCash
 
 function serviceClient(): SupabaseClient {
   if (!SUPABASE_SERVICE_KEY) throw new Error('SUPABASE_SERVICE_ROLE_KEY not set')
@@ -210,9 +218,11 @@ export default async (request: Request) => {
     const walletPlanId = plan.id as string
 
     // 9. Branch by payment method
-    if (body.paymentMethod === 'transfer') {
-      // Bank transfer — return wire instructions from settings; plan stays
-      // pending until admin marks paid (when funds land).
+    // WEC-554: transfer AND cash both stay 'pending' until an admin marks paid
+    // (transfer = when the wire lands; cash = when the courier collects on
+    // first delivery). Both fire the same pending Subscription Purchased event.
+    if (body.paymentMethod === 'transfer' || body.paymentMethod === 'cash') {
+      // Plan stays pending until admin marks paid.
       // WEC-emails: fire Subscription Purchased event in 'pending payment'
       // mode (the email shows bank-transfer instructions). Klaviyo flow
       // routes EL/EN templates via event.lang. Fail-soft.
@@ -258,13 +268,26 @@ export default async (request: Request) => {
         paymentStatus: 'pending',
       })
       if (!subFire.ok) console.warn('[wallet-plan-purchase] klaviyo:', subFire.error)
+
+      const reference = `WP-${walletPlanId.slice(0, 8).toUpperCase()}`
+
+      // WEC-554: cash (Αντικαταβολή) — no bank details; pay courier on delivery.
+      if (body.paymentMethod === 'cash') {
+        const cashResponse: PurchaseResultCash = {
+          walletPlanId,
+          paymentMethod: 'cash',
+          reference,
+        }
+        return Response.json(cashResponse, { status: 200, headers: cors })
+      }
+
       const response: PurchaseResultTransfer = {
         walletPlanId,
         paymentMethod: 'transfer',
         bankInstructions: {
           iban: config.bankTransferInfo.iban || 'IBAN not configured — contact support',
           beneficiary: config.bankTransferInfo.beneficiary || 'Fitpal',
-          reference: `WP-${walletPlanId.slice(0, 8).toUpperCase()}`,
+          reference,
         },
       }
       return Response.json(response, { status: 200, headers: cors })
@@ -305,6 +328,7 @@ function validateInput(b: PurchaseBody): string | null {
   if (!['2w','1mo','3mo'].includes(b.planLength)) return 'planLength invalid'
   if (![4,5,6,7].includes(b.daysPerWeek)) return 'daysPerWeek invalid'
   if (!b.services || typeof b.services !== 'object') return 'services invalid'
-  if (!['card','link','transfer'].includes(b.paymentMethod)) return 'paymentMethod invalid (must be card|link|transfer)'
+  // WEC-554: cash (Αντικαταβολή) is now a valid subscription payment method.
+  if (!['card','link','transfer','cash'].includes(b.paymentMethod)) return 'paymentMethod invalid (must be card|link|transfer|cash)'
   return null
 }

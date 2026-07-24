@@ -1551,16 +1551,31 @@ function TimelineTab({ order }: { order: AdminOrder }) {
           </tr>
           {[...order.changeLog]
             .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime())
-            .map((l) => (
+            .map((l) => {
+            // WEC-566: money fields (total/subtotal/discount) store cents in
+            // old/new_value — render as € with a red/green delta so the money
+            // impact of an admin edit is visible, not just the field name.
+            const isMoney = l.tableName === 'orders' && (l.fieldName === 'total' || l.fieldName === 'subtotal' || l.fieldName === 'discount_amount')
+            const eur = (v: string | null) => {
+              const n = Number(v)
+              return v != null && Number.isFinite(n) ? `€${(n / 100).toFixed(2)}` : (v ?? '—')
+            }
+            const oldN = Number(l.oldValue)
+            const newN = Number(l.newValue)
+            const deltaColor = isMoney && Number.isFinite(oldN) && Number.isFinite(newN) && newN !== oldN
+              ? (newN > oldN ? '#15803d' : '#b91c1c')
+              : undefined
+            return (
             <tr key={l.id}>
               <td className="admin-sub">{new Date(l.createdAt).toLocaleString('en-GB')}</td>
               <td>{l.tableName}.{l.fieldName}</td>
-              <td className="admin-sub">{l.oldValue ?? '—'}</td>
-              <td className="admin-sub">{l.newValue ?? '—'}</td>
+              <td className="admin-sub">{isMoney ? eur(l.oldValue) : (l.oldValue ?? '—')}</td>
+              <td className="admin-sub" style={deltaColor ? { color: deltaColor, fontWeight: 700 } : undefined}>{isMoney ? eur(l.newValue) : (l.newValue ?? '—')}</td>
               <td>{l.label}</td>
               <td className="admin-sub">{l.adminUser}</td>
             </tr>
-          ))}
+            )
+          })}
         </tbody>
       </table>
     </div>

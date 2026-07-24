@@ -146,7 +146,29 @@ export async function fetchMenuDayDishes(menuId: string): Promise<{ data: AdminM
 
 // ─── Mutations ────────────────────────────────────────────────────────────
 
+/**
+ * WEC-563: whole-day span between two YYYY-MM-DD strings (b - a), UTC-safe.
+ * Used to guard that a weekly menu never spans more than one Mon–Fri week.
+ */
+export function isoDaySpan(a: string, b: string): number {
+  const [ay, am, ad] = a.split('-').map(Number)
+  const [by, bm, bd] = b.split('-').map(Number)
+  if (!ay || !am || !ad || !by || !bm || !bd) return NaN
+  return Math.round((Date.UTC(by, bm - 1, bd) - Date.UTC(ay, am - 1, ad)) / 86_400_000)
+}
+
 export async function createWeeklyMenu(input: { fromDate: string; toDate: string; name?: string | null }): Promise<{ data: AdminWeeklyMenu | null; error: string | null }> {
+  // WEC-563: a weekly menu must be exactly one Mon–Fri week. Guard against the
+  // 12-day-range incident (2026-07-24) where a menu spanned two weeks and the
+  // customer day strip rendered two weeks side by side.
+  const span = isoDaySpan(input.fromDate, input.toDate)
+  if (Number.isNaN(span) || span < 0 || span > 6) {
+    return {
+      data: null,
+      error: 'Ένα μενού = μία εβδομάδα (Δευ–Παρ). Το εύρος ημερομηνιών δεν μπορεί να ξεπερνά τη μία εβδομάδα. / A menu must cover a single Mon–Fri week (max 7 days).',
+    }
+  }
+
   // WEC-253: snapshot the current global category order into the new menu.
   // Cloning will later snapshot from the parent instead.
   const { data: globalCats, error: catsErr } = await supabase

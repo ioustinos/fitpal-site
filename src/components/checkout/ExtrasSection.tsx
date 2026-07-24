@@ -1,3 +1,4 @@
+import { useEffect } from 'react'
 import { useCartStore } from '../../store/useCartStore'
 import { useUIStore } from '../../store/useUIStore'
 import { makeTr } from '../../lib/translations'
@@ -24,6 +25,17 @@ export function ExtrasSection({ attempted = false }: ExtrasSectionProps) {
   const payment = useCartStore((s) => s.payment)
   const setPayment = useCartStore((s) => s.setPayment)
   const t = makeTr(lang)
+
+  // WEC-564: a wallet-debited meal order can't carry its own invoice — the
+  // money was already settled (and invoiced where applicable) at subscription
+  // purchase. Hide the invoice option for wallet, and if the customer had
+  // picked invoice then switched to wallet, reset it so no stale VAT submits.
+  const isWallet = payment.method === 'wallet'
+  useEffect(() => {
+    if (isWallet && (payment.invoice || payment.invoiceName || payment.invoiceVat)) {
+      setPayment({ invoice: false, invoiceName: '', invoiceVat: '' })
+    }
+  }, [isWallet, payment.invoice, payment.invoiceName, payment.invoiceVat, setPayment])
 
   // ── Validation rules ─────────────────────────────────────────────
   // Keep these in sync with CheckoutPage.tsx's `validationIssues` block.
@@ -82,6 +94,8 @@ export function ExtrasSection({ attempted = false }: ExtrasSectionProps) {
         />
       </div>
 
+      {/* WEC-564: invoice option hidden entirely for wallet-paid orders. */}
+      {!isWallet && (
       <div className="extra-row">
         <div className="extra-label">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -94,8 +108,9 @@ export function ExtrasSection({ attempted = false }: ExtrasSectionProps) {
           onChange={(v) => setPayment({ invoice: v })}
         />
       </div>
+      )}
 
-      {payment.invoice && (
+      {!isWallet && payment.invoice && (
         <div className="invoice-fields">
           <div className="form-row">
             <label className="form-label">{t('coCompanyOrName')}</label>

@@ -24,6 +24,8 @@ export interface WalletPlanPurchaseInput extends WalletCalcInput {
 export type WalletPlanPurchaseResponse =
   | { walletPlanId: string; vivaOrderCode: string; paymentUrl: string; paymentMethod: 'card' | 'link' }
   | { walletPlanId: string; paymentMethod: 'transfer'; bankInstructions: { iban: string; beneficiary: string; reference: string } }
+  // WEC-554: cash (Αντικαταβολή) — plan pending, pay courier on first delivery.
+  | { walletPlanId: string; paymentMethod: 'cash'; reference: string }
 
 /** POST /api/wallet-plan-quote — public, no auth */
 export async function fetchWalletPlanQuote(

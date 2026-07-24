@@ -59,6 +59,10 @@ export interface UserWallet {
   nextRenewal?: string   // ISO date string
   monthlyAmount?: number
   creditAmount?: number
+  // WEC-565: initial-purchase snapshot for the Συνδρομή tab.
+  purchaseAmount?: number   // wallet_plans.amount_to_pay_cents (€)
+  purchaseBonus?: number    // wallet_plans.bonus_credits_cents (€)
+  purchaseCredit?: number   // wallet_plans.wallet_credit_cents (€, paid + bonus)
   // WEC-349: plan composition + dates, joined from wallet_plans so the
   // "My Subscription" account tab can render real values (was "—").
   startDate?: string        // ISO date — when the active plan was purchased

@@ -98,6 +98,10 @@ export async function fetchWallet(userId: string): Promise<{
   let bonusPct: number | undefined
   let monthlyAmount: number | undefined
   let creditAmount: number | undefined
+  // WEC-565: initial-purchase breakdown for the Συνδρομή tab.
+  let purchaseAmount: number | undefined   // amount_to_pay_cents (paid)
+  let purchaseBonus: number | undefined    // bonus_credits_cents
+  let purchaseCredit: number | undefined   // wallet_credit_cents (paid + bonus)
   // WEC-349: plan composition + dates for the "My Subscription" tab.
   let startDate: string | undefined
   let bonusExpiresAt: string | undefined
@@ -129,6 +133,14 @@ export async function fetchWallet(userId: string): Promise<{
       bonusPct = plan.bonus_pct
       monthlyAmount = centsToEuros(plan.cost)
       creditAmount = centsToEuros(plan.credits + plan.bonus_amount)
+      // WEC-565: explicit v2 initial-purchase columns (fall back to legacy
+      // mirrors when a very old plan row lacks them).
+      {
+        const pv = planRow as Record<string, number | null>
+        purchaseAmount = centsToEuros((pv.amount_to_pay_cents ?? plan.cost) ?? 0)
+        purchaseBonus  = centsToEuros((pv.bonus_credits_cents ?? plan.bonus_amount) ?? 0)
+        purchaseCredit = centsToEuros((pv.wallet_credit_cents ?? plan.credits) ?? 0)
+      }
       // created_at is a timestamptz; keep the date part for display parity
       // with the other ISO date fields the tab formats.
       startDate = plan.created_at ? plan.created_at.split('T')[0] : undefined
@@ -170,6 +182,9 @@ export async function fetchWallet(userId: string): Promise<{
       nextRenewal: w.next_renewal ?? undefined,
       monthlyAmount,
       creditAmount,
+      purchaseAmount,
+      purchaseBonus,
+      purchaseCredit,
       startDate,
       bonusExpiresAt,
       frequency,
