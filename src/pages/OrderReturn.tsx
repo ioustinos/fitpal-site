@@ -254,6 +254,10 @@ function PaidView({
                             <span className="conf-item-variant">{itemVariant}</span>
                           </>
                         )}
+                        {/* WEC-571: per-line customer note (kitchen). */}
+                        {it.comment && it.comment.trim() && (
+                          <span className="conf-item-comment">“{it.comment.trim()}”</span>
+                        )}
                       </span>
                       <span className="conf-item-price">{fmt(it.totalPrice)}</span>
                     </div>

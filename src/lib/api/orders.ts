@@ -286,6 +286,7 @@ export interface ConfirmationOrderItem {
   variantLabelEl: string
   variantLabelEn: string
   totalPrice: number    // euros
+  comment?: string | null   // WEC-571: per-line customer note (kitchen)
 }
 
 export interface ConfirmationOrderDay {
@@ -370,6 +371,7 @@ export async function fetchOrderForConfirmation(
         variantLabelEl: it.variant_label_el ?? '',
         variantLabelEn: it.variant_label_en ?? '',
         totalPrice: centsToEuros(it.total_price),
+        comment: it.comment ?? null, // WEC-571
       })),
       dayTotal: centsToEuros(chItems.reduce((s, it) => s + it.total_price, 0)),
     }

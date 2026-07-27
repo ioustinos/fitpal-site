@@ -2151,6 +2151,8 @@ header {
 .conf-item-qty { font-weight: 800; color: var(--text-muted); min-width: 22px; flex-shrink: 0; }
 .conf-item-name { flex: 1; font-weight: 700; color: var(--text); min-width: 0; }
 .conf-item-variant { color: var(--text-muted); font-weight: 600; }
+/* WEC-571: per-line customer note on the confirmation screen. */
+.conf-item-comment { display: block; font-size: 12px; font-style: italic; font-weight: 600; color: var(--text-mid); margin-top: 2px; }
 .conf-item-price { font-weight: 800; color: var(--green-dark); flex-shrink: 0; margin-left: auto; }
 .conf-day-amt { font-size: 12px; font-weight: 800; color: var(--text); text-align: right; margin-top: 6px; padding-top: 6px; border-top: 1px dashed var(--border); }
 .conf-comment { font-size: 12px; font-style: italic; color: var(--text-muted); padding: 10px 0 0; border-top: 1px solid var(--border); margin-top: 4px; }

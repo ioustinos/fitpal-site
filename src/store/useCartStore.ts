@@ -217,8 +217,14 @@ export const useCartStore = create<CartStore>()(
   addItem: (dayDate, newItem) => {
     set((state) => {
       const dayItems = state.cart[dayDate] ?? []
+      // WEC-571: the comment is part of the line identity. Same dish+variant
+      // with DIFFERENT comments are separate lines (kitchen needs per-unit
+      // notes); merge only when the (trimmed) comment is identical too.
+      const nc = (c?: string) => (c ?? '').trim()
       const existing = dayItems.findIndex(
-        (i) => i.dishId === newItem.dishId && i.variantId === newItem.variantId
+        (i) => i.dishId === newItem.dishId
+          && i.variantId === newItem.variantId
+          && nc(i.comment) === nc(newItem.comment)
       )
       const updated =
         existing >= 0
