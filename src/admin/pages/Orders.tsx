@@ -1466,7 +1466,11 @@ function PaymentLinkBlock({ order, onChanged }: { order: AdminOrder; onChanged: 
 
   const link = order.paymentLink
   const isLinkMethod = order.paymentMethod === 'link' || order.paymentMethod === 'card'
-  if (!isLinkMethod) return null
+  // WEC-569: also show on ANY pending order (cash / transfer / wallet) so an
+  // admin can generate + send a Viva link to collect it online, regardless of
+  // the method the order was placed with. Hidden only when it's neither a
+  // card/link order nor pending (nothing left to collect).
+  if (!isLinkMethod && order.paymentStatus !== 'pending') return null
 
   async function copy() {
     if (!link?.paymentUrl) return
