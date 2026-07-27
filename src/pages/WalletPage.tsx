@@ -4,7 +4,7 @@ import { useAuthStore } from '../store/useAuthStore'
 import { calculateWalletPlan } from '../lib/wallet/calculator'
 import { loadWalletSettingsFromDb } from '../lib/wallet/loadSettingsClient'
 import type { WalletSettings } from '../lib/wallet/types'
-import { DEFAULT_WALLET_SETTINGS, ACTIVITY_LABELS, MEAL_LABELS } from '../lib/wallet/constants'
+import { DEFAULT_WALLET_SETTINGS, ACTIVITY_LABELS, MEAL_LABELS, lipometrisiFeeCents, LIPOMETRISI_FEE_CENTS } from '../lib/wallet/constants'
 import { MealIcon } from '../components/icons/MealIcon'
 import { GoalCardArt } from '../components/icons/GoalIllustration'
 import type { ActivityLevel, DaysPerWeek, Goal, MealsSelection, PaymentMethod, PlanLength, Sex, MealKey } from '../lib/wallet/types'
@@ -344,7 +344,8 @@ export function WalletPage() {
       heightCm: clampInt(heightCm, 120, 230, 170),
       weightKg: clampInt(weightKg, 35,  250, 70),
       activity, goal, meals, planLength, daysPerWeek,
-      services: { dieticianManaged },
+      // WEC-553: send the λιπομέτρηση flag; the server prices it (never trusts client).
+      services: { dieticianManaged, bodyFatMeasurement: bodyFat },
     }
   }
 
@@ -489,7 +490,9 @@ export function WalletPage() {
   /* ── Derived sidebar values ────────────────────────────────── */
   const subtotal = result.periodPriceBeforeDiscount
   const discountAmt = subtotal - result.amountToPay
-  const total = result.amountToPay
+  // WEC-553: λιπομέτρηση add-on fee (€ euros) — charged on top of the plan.
+  const lipoFee = lipometrisiFeeCents(planLength, bodyFat) / 100
+  const total = result.amountToPay + lipoFee
   const goalCard = GOAL_CARDS.find((g) => g.id === goal)!
 
   /* ════════════════════════════════════════════════════════════ */
@@ -966,8 +969,8 @@ export function WalletPage() {
                 </div>
               </button>
 
-              {/* WEC-360: optional body-fat measurement (λιπομέτρηση). Selectable;
-                  price TBD so it is NOT added to the total yet. */}
+              {/* WEC-360 + WEC-553: optional body-fat measurement (λιπομέτρηση),
+                  now priced (€29 for 2w/1mo, €87 for 3mo) and added to the total. */}
               <button
                 type="button"
                 className={`wpv2-service${bodyFat ? ' sel' : ''}`}
@@ -991,7 +994,8 @@ export function WalletPage() {
                   </div>
                 </div>
                 <div className="wpv2-service-price">
-                  {isEl ? 'Έξτρα υπηρεσία' : 'Extra service'}
+                  {/* WEC-553: show the actual add-on price for the chosen plan length. */}
+                  +{fmtEur(LIPOMETRISI_FEE_CENTS[planLength] / 100)}
                 </div>
               </button>
             </div>
@@ -1058,6 +1062,13 @@ export function WalletPage() {
                 <div className="wpv2-aside-row discount">
                   <span className="wpv2-aside-row-lbl">{isEl ? 'Έκπτωση' : 'Discount'} ({Math.round(result.discountPct * 100)}%)</span>
                   <span className="wpv2-aside-row-val">−{fmtEur(discountAmt)}</span>
+                </div>
+              )}
+              {/* WEC-553: λιπομέτρηση add-on charged on top of the plan. */}
+              {lipoFee > 0 && (
+                <div className="wpv2-aside-row">
+                  <span className="wpv2-aside-row-lbl">{isEl ? 'Λιπομέτρηση' : 'Body-fat measurement'}</span>
+                  <span className="wpv2-aside-row-val">+{fmtEur(lipoFee)}</span>
                 </div>
               )}
             </div>
@@ -1295,7 +1306,7 @@ export function WalletPage() {
               <dt>IBAN</dt>          <dd className="bank-info-copyrow"><span>{bankInfo.iban}</span><CopyButton value={bankInfo.iban} lang={lang} ariaLabel={isEl ? 'Αντιγραφή IBAN' : 'Copy IBAN'} /></dd>
               <dt>{isEl ? 'Δικαιούχος' : 'Beneficiary'}</dt> <dd>{bankInfo.beneficiary}</dd>
               <dt>{isEl ? 'Αιτιολογία' : 'Reference'}</dt>   <dd className="bank-info-copyrow"><span>{bankInfo.reference}</span><CopyButton value={bankInfo.reference} lang={lang} ariaLabel={isEl ? 'Αντιγραφή αιτιολογίας' : 'Copy reference'} /></dd>
-              <dt>{isEl ? 'Ποσό'       : 'Amount'}</dt>      <dd>{fmtEur(result.amountToPay)}</dd>
+              <dt>{isEl ? 'Ποσό'       : 'Amount'}</dt>      <dd>{fmtEur(total)}</dd>
             </dl>
             {/* WEC-551 O7 — post-purchase reassurance: the dietitian team calls. */}
             <p className="wpv2-bank-promise">
@@ -1323,7 +1334,7 @@ export function WalletPage() {
             <dl className="wpv2-bank-details">
               <dt>{isEl ? 'Κωδικός' : 'Reference'}</dt>
               <dd className="bank-info-copyrow"><span>{cashInfo.reference}</span><CopyButton value={cashInfo.reference} lang={lang} ariaLabel={isEl ? 'Αντιγραφή κωδικού' : 'Copy reference'} /></dd>
-              <dt>{isEl ? 'Ποσό' : 'Amount'}</dt> <dd>{fmtEur(result.amountToPay)}</dd>
+              <dt>{isEl ? 'Ποσό' : 'Amount'}</dt> <dd>{fmtEur(total)}</dd>
             </dl>
             {/* WEC-551 O7 — post-purchase reassurance: the dietitian team calls. */}
             <p className="wpv2-bank-promise">

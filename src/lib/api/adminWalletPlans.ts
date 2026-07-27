@@ -24,7 +24,8 @@ export interface AdminWalletPlanRow {
   vivaTransactionId: string | null
   createdAt: string
   confirmedAt: string | null
-  services: { dieticianManaged?: boolean }
+  // WEC-553: bodyFatMeasurement + its fee (cents) snapshot.
+  services: { dieticianManaged?: boolean; bodyFatMeasurement?: boolean; bodyFatFeeCents?: number }
   dailyKcal: number | null
 }
 
@@ -80,7 +81,7 @@ function rowToBase(row: Record<string, unknown>): AdminWalletPlanRow {
     vivaTransactionId: row.viva_transaction_id as string | null,
     createdAt: row.created_at as string,
     confirmedAt: row.confirmed_at as string | null,
-    services: (row.services as { dieticianManaged?: boolean }) ?? {},
+    services: (row.services as { dieticianManaged?: boolean; bodyFatMeasurement?: boolean; bodyFatFeeCents?: number }) ?? {},
     dailyKcal: row.daily_kcal as number | null,
   }
 }

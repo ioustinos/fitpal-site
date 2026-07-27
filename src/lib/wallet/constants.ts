@@ -123,6 +123,21 @@ export const KCAL_PER_GRAM = {
   f: 9,
 } as const
 
+// WEC-553: λιπομέτρηση (body-fat measurement) add-on fee in cents, by plan
+// length. €29 for the 2-week & 1-month plans, €87 for the 3-month package.
+// Charged ON TOP of the plan (not wallet credit). Priced server-side; this
+// shared constant lets the wizard preview the same number.
+export const LIPOMETRISI_FEE_CENTS: Record<PlanLength, number> = {
+  '2w': 2900,
+  '1mo': 2900,
+  '3mo': 8700,
+}
+
+/** WEC-553: fee in cents for the λιπομέτρηση add-on, or 0 when not selected. */
+export function lipometrisiFeeCents(planLength: PlanLength, enabled: boolean | undefined): number {
+  return enabled ? (LIPOMETRISI_FEE_CENTS[planLength] ?? 0) : 0
+}
+
 // ────────────────────────────────────────────────────────────
 // Display labels (bilingual)
 // ────────────────────────────────────────────────────────────

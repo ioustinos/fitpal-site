@@ -31,7 +31,8 @@ export interface WalletCalcInput {
   meals: MealsSelection
   planLength: PlanLength
   daysPerWeek: DaysPerWeek
-  services: { dieticianManaged: boolean }
+  // WEC-553: bodyFatMeasurement = optional λιπομέτρηση add-on (priced server-side).
+  services: { dieticianManaged: boolean; bodyFatMeasurement?: boolean }
 }
 
 export interface MealBreakdown {

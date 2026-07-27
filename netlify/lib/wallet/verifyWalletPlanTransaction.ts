@@ -250,7 +250,7 @@ async function fireSubscriptionPurchasedKlaviyo(
     meal_lunch?: boolean | null
     meal_dinner?: boolean | null
     meal_snack?: boolean | null
-    services?: { dieticianManaged?: boolean } | null
+    services?: { dieticianManaged?: boolean; bodyFatMeasurement?: boolean; bodyFatFeeCents?: number } | null
   },
   amountCents: number,
 ): Promise<void> {
@@ -311,6 +311,8 @@ async function fireSubscriptionPurchasedKlaviyo(
       meals_label: mealsLabel,
       daily_kcal: plan.daily_kcal ?? null,
       dietician_managed: dieticianManaged,
+      body_fat_measurement: !!plan.services?.bodyFatMeasurement, // WEC-553
+      body_fat_fee: (plan.services?.bodyFatFeeCents ?? 0) / 100,  // WEC-553
       amount_paid: amountCents / 100,
       bonus_credits: (plan.bonus_credits_cents ?? 0) / 100,
       new_balance: newBalanceCents != null ? newBalanceCents / 100 : null,

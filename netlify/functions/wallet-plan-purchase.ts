@@ -16,6 +16,7 @@
 
 import { createClient, SupabaseClient } from '@supabase/supabase-js'
 import { calculateWalletPlan } from '../../src/lib/wallet/calculator'
+import { lipometrisiFeeCents } from '../../src/lib/wallet/constants'
 import { loadWalletConfig } from '../lib/wallet/loadSettings'
 import { createWalletPlanVivaOrder } from '../lib/wallet/createWalletPlanOrder'
 // 2026-06-24 incident fix: trackAsync was racing Netlify post-response kill.
@@ -101,14 +102,23 @@ export default async (request: Request) => {
     const config = await loadWalletConfig()
     const result = calculateWalletPlan(body, config.settings)
 
-    const amountCents = Math.round(result.amountToPay * 100)
+    const planAmountCents = Math.round(result.amountToPay * 100)
     const subtotalCents = Math.round(result.periodPriceBeforeDiscount * 100)
-    const discountCents = subtotalCents - amountCents
+    const discountCents = subtotalCents - planAmountCents
     const bonusCents = Math.round(result.bonusCredits * 100)
     const walletCreditCents = Math.round(result.walletCredit * 100)
 
-    // 4. Validations
-    if (amountCents < config.minAmountCents) {
+    // WEC-553: λιπομέτρηση add-on is charged ON TOP of the plan and is NOT
+    // wallet credit. Priced server-side (never trust the client). The customer
+    // pays `chargeCents` (plan + fee); the wallet is still credited only
+    // `walletCreditCents` (plan base + bonus). amount_to_pay_cents = chargeCents
+    // so the Viva verify amount-match holds.
+    const bodyFatSelected = !!body.services?.bodyFatMeasurement
+    const lipoCents = bodyFatSelected ? lipometrisiFeeCents(body.planLength, true) : 0
+    const chargeCents = planAmountCents + lipoCents
+
+    // 4. Validations — plan minimum applies to the plan price, not the add-on.
+    if (planAmountCents < config.minAmountCents) {
       return Response.json({
         error: `Plan total below minimum (€${(config.minAmountCents / 100).toFixed(2)})`,
       }, { status: 400, headers: cors })
@@ -193,16 +203,20 @@ export default async (request: Request) => {
         subtotal_cents:      subtotalCents,
         discount_cents:      discountCents,
         discount_pct:        result.discountPct,
-        amount_to_pay_cents: amountCents,
+        amount_to_pay_cents: chargeCents, // WEC-553: plan + λιπομέτρηση fee
         bonus_credits_cents: bonusCents,
         wallet_credit_cents: walletCreditCents,
-        // Services
-        services: { dieticianManaged: body.services.dieticianManaged },
+        // Services — WEC-553: snapshot the λιπομέτρηση add-on + its fee.
+        services: {
+          dieticianManaged: body.services.dieticianManaged,
+          bodyFatMeasurement: bodyFatSelected,
+          bodyFatFeeCents: lipoCents,
+        },
         // Payment
         payment_method: body.paymentMethod,
         payment_status: 'pending',
         // Legacy mirror columns (kept for back-compat with admin UI)
-        cost: amountCents,
+        cost: chargeCents,
         credits: walletCreditCents,
         bonus_pct: Math.round(result.discountPct * 100),
         bonus_amount: bonusCents,
@@ -254,7 +268,9 @@ export default async (request: Request) => {
         meals_label: subMealsLabel,
         daily_kcal: result.dailyKcal ?? null,
         dietician_managed: subDieticianManaged,
-        amount_paid: amountCents / 100,
+        body_fat_measurement: bodyFatSelected, // WEC-553
+        body_fat_fee: lipoCents / 100,          // WEC-553
+        amount_paid: chargeCents / 100,
         bonus_credits: bonusCents / 100,
         new_balance: walletCreditCents / 100,
         payment_status: 'pending',
@@ -262,7 +278,7 @@ export default async (request: Request) => {
         walletPlanId,
         planLengthLabel: body.planLength,
         mealsPerWeek: body.daysPerWeek,
-        amountPaid: amountCents / 100,
+        amountPaid: chargeCents / 100,
         bonusCredits: bonusCents / 100,
         newBalance: walletCreditCents / 100,
         paymentStatus: 'pending',
@@ -297,7 +313,7 @@ export default async (request: Request) => {
     const fullName = userData.user.user_metadata?.name ?? userEmail
     const viva = await createWalletPlanVivaOrder({
       walletPlanId,
-      amountCents,
+      amountCents: chargeCents, // WEC-553: plan + λιπομέτρηση fee
       customerEmail: userEmail,
       customerFullName: fullName,
       mode: vivaMode,

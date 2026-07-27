@@ -189,6 +189,8 @@ function Drawer({ detail, loading, onClose, onRefunded }: DrawerProps) {
                 <KV k="Daily kcal" v={String(detail.dailyKcal ?? '—')} />
                 <KV k="Macro split" v={`P ${detail.macroSplit.p ?? 0}% / C ${detail.macroSplit.c ?? 0}% / F ${detail.macroSplit.f ?? 0}%`} />
                 <KV k="Dietitian-managed" v={detail.services.dieticianManaged ? 'Yes' : 'No'} />
+                {/* WEC-553: λιπομέτρηση add-on + its fee. */}
+                <KV k="Body-fat measurement (λιπομέτρηση)" v={detail.services.bodyFatMeasurement ? `Yes · €${((detail.services.bodyFatFeeCents ?? 0) / 100).toFixed(2)}` : 'No'} />
               </Section>
 
               <Section title="Profile snapshot (at purchase)">
