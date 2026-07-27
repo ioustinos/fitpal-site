@@ -139,3 +139,43 @@ export async function deleteTimeSlot(id: string): Promise<{ error: string | null
   const { error } = await supabase.from('zone_time_slots').delete().eq('id', id)
   return { error: error?.message ?? null }
 }
+
+// ─── WEC-568: canonical delivery windows ────────────────────────────────────
+
+export interface SlotWindow { from: string; to: string; label: string }
+
+/**
+ * WEC-568: the canonical delivery windows from `settings.time_slots`
+ * ("HH:MM-HH:MM" strings). Zone slots must be PICKED from these — the old free
+ * `<input type=time>` rendered 12-hour AM/PM per OS locale, so "12:00" (noon)
+ * got recorded as 12:00 AM = 00:00 and the `zone_time_slots_check` (from < to)
+ * constraint rejected it. A dropdown of these windows kills the whole class.
+ * Falls back to the 5 standard windows if the setting is missing.
+ */
+export async function fetchTimeSlotCatalog(): Promise<{ windows: SlotWindow[]; error: string | null }> {
+  const parse = (arr: string[]): SlotWindow[] =>
+    arr
+      .map((s) => {
+        const [from, to] = s.split('-').map((x) => x.trim().slice(0, 5))
+        return from && to ? { from, to, label: `${from}–${to}` } : null
+      })
+      .filter((w): w is SlotWindow => w !== null)
+  const { data, error } = await supabase.from('settings').select('value').eq('key', 'time_slots').maybeSingle()
+  if (error) return { windows: [], error: error.message }
+  const raw = (data?.value as string[] | null) ?? []
+  const windows = raw.length
+    ? parse(raw)
+    : parse(['09:00-11:00', '10:00-12:00', '11:00-13:00', '12:00-14:00', '13:00-15:00'])
+  return { windows, error: null }
+}
+
+/**
+ * WEC-568 / WEC-396: turn the raw Postgres `zone_time_slots_check` error into a
+ * clear bilingual message instead of leaking SQL to the admin.
+ */
+export function friendlyTimeSlotError(msg: string): string {
+  if (/zone_time_slots_check/i.test(msg) || /violates check constraint/i.test(msg)) {
+    return 'Η ώρα λήξης πρέπει να είναι μετά την ώρα έναρξης / End time must be after start time'
+  }
+  return msg
+}

@@ -2,8 +2,14 @@ import { useEffect, useState } from 'react'
 import {
   fetchAdminZones, createZone, saveZone, deleteZone,
   createTimeSlot, saveTimeSlot, deleteTimeSlot,
-  type AdminZone, type AdminTimeSlot,
+  fetchTimeSlotCatalog, friendlyTimeSlotError,
+  type AdminZone, type AdminTimeSlot, type SlotWindow,
 } from '../../lib/api/adminZones'
+
+// WEC-568: normalize a stored time ('HH:MM' or 'HH:MM:SS') to 'HH:MM' so it
+// matches the catalog window keys.
+const hhmm = (t: string) => t.slice(0, 5)
+const winKey = (from: string, to: string) => `${hhmm(from)}-${hhmm(to)}`
 
 export function Zones() {
   const [zones, setZones] = useState<AdminZone[]>([])
@@ -129,13 +135,28 @@ function ZoneEditor({ zone, onSaved, onDeleted }: { zone: AdminZone; onSaved: ()
     onDeleted()
   }
 
-  // ─── Time slots ─────
-  const [slotFrom, setSlotFrom] = useState('09:00')
-  const [slotTo, setSlotTo] = useState('11:00')
+  // ─── Time slots (WEC-568: dropdown of canonical windows, no free time input) ─
+  const [catalog, setCatalog] = useState<SlotWindow[]>([])
+  const [newWin, setNewWin] = useState('')
+  useEffect(() => {
+    fetchTimeSlotCatalog().then(({ windows }) => {
+      setCatalog(windows)
+      setNewWin((prev) => prev || (windows[0] ? winKey(windows[0].from, windows[0].to) : ''))
+    })
+  }, [])
+
   async function addSlot() {
-    if (!slotFrom || !slotTo) return
-    const { error } = await createTimeSlot(form.id, slotFrom, slotTo)
-    if (error) { setErr(error); return }
+    const win = catalog.find((w) => winKey(w.from, w.to) === newWin)
+    if (!win) return
+    // WEC-568: block duplicate identical windows on the same zone (the old
+    // default-row + retry pattern created dupes).
+    if (form.timeSlots.some((s) => winKey(s.timeFrom, s.timeTo) === newWin)) {
+      setErr('Αυτό το παράθυρο υπάρχει ήδη σε αυτή τη ζώνη / This window already exists on this zone')
+      return
+    }
+    setErr(null)
+    const { error } = await createTimeSlot(form.id, win.from, win.to)
+    if (error) { setErr(friendlyTimeSlotError(error)); return }
     onSaved()
   }
 
@@ -196,13 +217,18 @@ function ZoneEditor({ zone, onSaved, onDeleted }: { zone: AdminZone; onSaved: ()
         </div>
         {form.timeSlots.length === 0 && <div className="admin-text-muted" style={{ marginBottom: 10 }}>No time slots yet — customers won't see delivery options for this zone.</div>}
         {form.timeSlots.map((s) => (
-          <TimeSlotRow key={s.id} slot={s} onChanged={onSaved} />
+          <TimeSlotRow key={s.id} slot={s} catalog={catalog} onChanged={onSaved} onError={(m) => setErr(m)} />
         ))}
         <div className="admin-inline-form" style={{ marginTop: 10 }}>
-          <input className="admin-input" type="time" value={slotFrom} onChange={(e) => setSlotFrom(e.target.value)} style={{ width: 120 }} />
-          <span className="admin-text-muted">to</span>
-          <input className="admin-input" type="time" value={slotTo} onChange={(e) => setSlotTo(e.target.value)} style={{ width: 120 }} />
-          <button className="admin-btn-ghost" onClick={addSlot}>+ Add slot</button>
+          {/* WEC-568: pick a canonical window — no free time input (AM/PM trap). */}
+          <select className="admin-select" value={newWin} onChange={(e) => setNewWin(e.target.value)} style={{ width: 160 }}>
+            {catalog.length === 0 && <option value="">(loading…)</option>}
+            {catalog.map((w) => {
+              const k = winKey(w.from, w.to)
+              return <option key={k} value={k}>{w.label}</option>
+            })}
+          </select>
+          <button className="admin-btn-ghost" onClick={addSlot} disabled={!newWin}>+ Add slot</button>
         </div>
       </section>
 
@@ -217,26 +243,40 @@ function ZoneEditor({ zone, onSaved, onDeleted }: { zone: AdminZone; onSaved: ()
   )
 }
 
-function TimeSlotRow({ slot, onChanged }: { slot: AdminTimeSlot; onChanged: () => void }) {
-  const [from, setFrom] = useState(slot.timeFrom)
-  const [to, setTo] = useState(slot.timeTo)
+function TimeSlotRow({ slot, catalog, onChanged, onError }: { slot: AdminTimeSlot; catalog: SlotWindow[]; onChanged: () => void; onError: (m: string) => void }) {
+  // WEC-568: the slot's window is chosen from the canonical catalog — no free
+  // time input. `win` is the "HH:MM-HH:MM" key; from/to are derived on save.
+  const [win, setWin] = useState(winKey(slot.timeFrom, slot.timeTo))
   const [active, setActive] = useState(slot.active)
-  const dirty = from !== slot.timeFrom || to !== slot.timeTo || active !== slot.active
+  const dirty = win !== winKey(slot.timeFrom, slot.timeTo) || active !== slot.active
+
+  // A legacy/nonstandard slot may not be in the catalog — surface it so the row
+  // still shows a value and the admin can re-pick a standard window.
+  const inCatalog = catalog.some((w) => winKey(w.from, w.to) === win)
 
   async function save() {
-    await saveTimeSlot({ ...slot, timeFrom: from, timeTo: to, active })
+    const w = catalog.find((c) => winKey(c.from, c.to) === win)
+    const from = w ? w.from : slot.timeFrom
+    const to = w ? w.to : slot.timeTo
+    const { error } = await saveTimeSlot({ ...slot, timeFrom: from, timeTo: to, active })
+    if (error) { onError(friendlyTimeSlotError(error)); return }
     onChanged()
   }
   async function del() {
     if (!confirm('Remove this time slot?')) return
-    await deleteTimeSlot(slot.id)
+    const { error } = await deleteTimeSlot(slot.id)
+    if (error) { onError(friendlyTimeSlotError(error)); return }
     onChanged()
   }
   return (
     <div className="admin-inline-form" style={{ marginBottom: 6 }}>
-      <input className="admin-input" type="time" value={from} onChange={(e) => setFrom(e.target.value)} style={{ width: 120 }} />
-      <span className="admin-text-muted">to</span>
-      <input className="admin-input" type="time" value={to} onChange={(e) => setTo(e.target.value)} style={{ width: 120 }} />
+      <select className="admin-select" value={win} onChange={(e) => setWin(e.target.value)} style={{ width: 160 }}>
+        {!inCatalog && <option value={win}>{winKey(slot.timeFrom, slot.timeTo).replace('-', '–')} (legacy)</option>}
+        {catalog.map((w) => {
+          const k = winKey(w.from, w.to)
+          return <option key={k} value={k}>{w.label}</option>
+        })}
+      </select>
       <label className="admin-switch"><input type="checkbox" checked={active} onChange={(e) => setActive(e.target.checked)} /><span /></label>
       {dirty && <button className="admin-row-btn" onClick={save}>Save</button>}
       <button className="admin-row-btn danger" onClick={del}>Delete</button>
