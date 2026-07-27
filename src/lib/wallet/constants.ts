@@ -16,24 +16,27 @@ export const DEFAULT_WALLET_SETTINGS: WalletSettings = {
   // ────────────────────────────────────────────────────────────
   pricingMatrix: {
     active: 'perKcal',
+    // Calibrated vs Maria's 10 manual plans (WEC-533, 2026-07-14).
+    // Source of truth is settings.wallet_pricing_matrix in the DB —
+    // these values are the fallback mirror only.
     // € per gram of <macro> at <meal>
     perGram: {
-      p: { breakfast:  0.059611, lunch:  0.083625, dinner:  0.072036, snack:  0.027286 },
-      c: { breakfast:  0.000640, lunch: -0.034411, dinner: -0.005313, snack:  0.006719 },
-      f: { breakfast:  0.033241, lunch:  0.078906, dinner:  0.012452, snack: -0.013487 },
+      p: { breakfast: 0.0544, lunch: 0.0696, dinner: 0.0744, snack: 0.0768 },
+      c: { breakfast: 0.0160, lunch: 0.0160, dinner: 0.0160, snack: 0.0160 },
+      f: { breakfast: 0.0810, lunch: 0.0288, dinner: 0.0630, snack: 0.0450 },
     },
     // € per kcal of <macro> at <meal> (= perGram ÷ kcalPerGram)
     perKcal: {
-      p: { breakfast:  0.014903, lunch:  0.020906, dinner:  0.018009, snack:  0.006822 },
-      c: { breakfast:  0.000160, lunch: -0.008603, dinner: -0.001328, snack:  0.001680 },
-      f: { breakfast:  0.003693, lunch:  0.008767, dinner:  0.001384, snack: -0.001499 },
+      p: { breakfast: 0.0136, lunch: 0.0174, dinner: 0.0186, snack: 0.0192 },
+      c: { breakfast: 0.0040, lunch: 0.0040, dinner: 0.0040, snack: 0.0040 },
+      f: { breakfast: 0.0090, lunch: 0.0032, dinner: 0.0070, snack: 0.0050 },
     },
     // Per-meal fixed floor cost (€)
     intercepts: {
-      breakfast: 3.2438,
-      lunch:     6.6102,
-      dinner:    6.3362,
-      snack:     2.4800,
+      breakfast: 2.71,
+      lunch:     6.60,
+      dinner:    6.00,
+      snack:     1.96,
     },
     // Biology: kcal yielded by 1g of each macro. Configurable but
     // realistically never changes from 4/4/9.
