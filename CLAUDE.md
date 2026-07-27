@@ -1,5 +1,17 @@
 # Fitpal Ordering Platform — Claude Context
 
+## LINEAR PROTOCOL — MANDATORY FOR EVERY CHAT (2026-07-27, Ioustinos directive)
+
+Parallel chats (registry, dev, tester) CANNOT talk to each other. **Linear is the single source of truth for work state** — chats coordinate THROUGH tickets, or the board drifts and everyone reports fiction. This protocol caused a full-day cleanup on 2026-07-27; follow it without exception:
+
+1. **Before starting ANY work:** find or create the WEC ticket, move it to **In Progress**. No ticket = no work.
+2. **When code-complete:** move to **In Review** + comment in the SAME session: files changed, migrations applied (yes/no), pushed to dev (yes/no), how to test. Work that ships without this comment is invisible to every other chat.
+3. **Tester:** comment PASS/FAIL evidence on the ticket. PASS → **Done**. FAIL → back to **In Progress** with repro.
+4. **Registry/ticket-issuer:** owns board hygiene — files tickets, reconciles states, never assumes.
+5. **Any DB change applied via MCP** must also land as a migration file in `supabase/migrations/` in the same session (the WEC-526 column had no file — took a day to trace).
+6. **Never report project status from ticket states alone** — verify against code/git log. Conversely: never leave your ticket state stale, or the next chat wastes hours re-verifying what you did.
+7. **Half-shipped = not shipped.** A feature with only the UI leg (e.g. an add-on the server doesn't price) is a live bug, not progress. Finish the trace end-to-end or revert the visible part.
+
 ## Stack
 - React 19 + TypeScript + Vite
 - Netlify (hosting + serverless functions in `netlify/functions/`, shared server lib in `netlify/lib/`)
