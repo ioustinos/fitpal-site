@@ -132,5 +132,7 @@ export interface WalletSettings {
   macroSplitByGoal: Record<Goal, { p: number; c: number; f: number }>  // sum = 100 each
   calorieFormula: CalorieFormulaSettings
   discountMatrix: Record<PlanLength, Record<DaysPerWeek, number>>      // 0..1
+  // WEC-552: extra discount per meal-type beyond the 2-meal minimum (0..1).
+  mealsExtraDiscount: number
   planLengthWeeks: Record<PlanLength, number>
 }

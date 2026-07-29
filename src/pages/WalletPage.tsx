@@ -768,11 +768,18 @@ export function WalletPage() {
               const pct = result.dailyKcal > 0
                 ? Math.round((selectedKcal / result.dailyKcal) * 100)
                 : 0
+              // WEC-552: extra-meals discount incentive (2% per meal beyond 2).
+              const extraMealPct = Math.max(0, result.selectedMealCount - 2) * 2
               return (
                 <div className="wpv2-meals-summary">
                   {isEl
                     ? <>{selectedKcal} kcal · <strong>{pct}%</strong> των ημερήσιων αναγκών σου</>
                     : <>{selectedKcal} kcal · <strong>{pct}%</strong> of your daily intake</>}
+                  {extraMealPct > 0 && (
+                    <span className="wpv2-meals-discount">
+                      {isEl ? <> · <strong>−{extraMealPct}%</strong> για επιπλέον γεύματα</> : <> · <strong>−{extraMealPct}%</strong> for extra meals</>}
+                    </span>
+                  )}
                 </div>
               )
             })()}

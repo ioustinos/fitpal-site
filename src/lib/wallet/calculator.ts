@@ -119,14 +119,20 @@ export function calculateWalletPlan(
   const daysCovered = planLengthWeeks * input.daysPerWeek
   const periodPriceBeforeDiscount = dailyPrice * daysCovered
 
-  // ── 5. Discount lookup ─────────────────────────────────────
-  const discountPct = settings.discountMatrix[input.planLength][input.daysPerWeek] ?? 0
+  // ── 5. Discount ────────────────────────────────────────────
+  // WEC-552: matrix (duration × days/week) + a meals-count component (per
+  // meal-type selected BEYOND the 2-meal minimum: +1 = 2%, +2 = 4%). The two
+  // stack additively, capped at 100%.
+  const selectedMealCount = ALL_MEALS.filter((m) => input.meals[m]).length
+  const matrixPct = settings.discountMatrix[input.planLength][input.daysPerWeek] ?? 0
+  const extraMeals = Math.max(0, selectedMealCount - 2)
+  const mealsPct = extraMeals * (settings.mealsExtraDiscount ?? 0.02)
+  const discountPct = Math.min(1, matrixPct + mealsPct)
   const amountToPay = periodPriceBeforeDiscount * (1 - discountPct)
   const bonusCredits = periodPriceBeforeDiscount - amountToPay
   const walletCredit = periodPriceBeforeDiscount
 
   // ── 6. Result ──────────────────────────────────────────────
-  const selectedMealCount = ALL_MEALS.filter((m) => input.meals[m]).length
 
   return {
     dailyKcal,

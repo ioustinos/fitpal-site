@@ -29,6 +29,7 @@ const KEYS = [
   'wallet_macro_split_by_goal',
   'wallet_calorie_formula',
   'wallet_discount_matrix',
+  'wallet_meals_extra_discount',
   'wallet_plan_lengths',
 ] as const
 
@@ -64,6 +65,10 @@ export async function loadWalletSettingsFromDb(): Promise<WalletSettings> {
       discountMatrix:
         (map.get('wallet_discount_matrix') as WalletSettings['discountMatrix']) ??
         DEFAULT_WALLET_SETTINGS.discountMatrix,
+      // WEC-552: extra-meals discount (0..1). Optional DB key; falls back to default.
+      mealsExtraDiscount:
+        (map.get('wallet_meals_extra_discount') as number) ??
+        DEFAULT_WALLET_SETTINGS.mealsExtraDiscount,
       planLengthWeeks:
         (map.get('wallet_plan_lengths') as WalletSettings['planLengthWeeks']) ??
         DEFAULT_WALLET_SETTINGS.planLengthWeeks,

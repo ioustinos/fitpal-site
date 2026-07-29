@@ -92,13 +92,19 @@ export const DEFAULT_WALLET_SETTINGS: WalletSettings = {
   // Discount matrix — single 2D table, plan length × days/week.
   // Values are fractions (0..1). Tune freely.
   // ────────────────────────────────────────────────────────────
+  // WEC-552: owner discount matrix = duration + days-per-week components folded
+  // into one table. Duration: 2w 3% / 1mo 6% / 3mo 10%. Days/week: 4d +0 / 5d
+  // +2 / 6d +4 / 7d +6. (Meals-count discount is separate — see mealsExtraDiscount
+  // + calculator.) Admin-managed via settings.wallet_discount_matrix.
   discountMatrix: {
-    // 4-day starting values extrapolated from the existing 5/6/7 curve
-    // (one step below 5-day per row). Tune in /admin/wallet-settings if needed.
-    '2w':  { 4: 0.02, 5: 0.04, 6: 0.06, 7: 0.08 },
-    '1mo': { 4: 0.08, 5: 0.10, 6: 0.12, 7: 0.15 },
-    '3mo': { 4: 0.15, 5: 0.18, 6: 0.22, 7: 0.25 },
+    '2w':  { 4: 0.03, 5: 0.05, 6: 0.07, 7: 0.09 },
+    '1mo': { 4: 0.06, 5: 0.08, 6: 0.10, 7: 0.12 },
+    '3mo': { 4: 0.10, 5: 0.12, 6: 0.14, 7: 0.16 },
   },
+
+  // WEC-552: additional discount per meal-type selected BEYOND the 2-meal
+  // minimum. +1 extra meal = 2%, +2 = 4%. Stacks additively on the matrix above.
+  mealsExtraDiscount: 0.02,
 
   // ────────────────────────────────────────────────────────────
   // Plan length → weeks conversion
