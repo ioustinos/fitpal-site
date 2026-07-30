@@ -92,7 +92,7 @@ const SiteFooter: FC<Props> = ({ lang, logoSrc, marketingBase = '' }) => {
           <h5>{T(STR.c3, lang)}</h5>
           <ul>
             <li><a href={link('/about')}>{T(STR.lAbout, lang)}</a></li>
-            <li><a href="#" aria-disabled="true">{T(STR.lFaq, lang)}</a></li>
+            <li><a href={link('/faq')}>{T(STR.lFaq, lang)}</a></li>
             <li><a href="#" aria-disabled="true">{T(STR.lTerms, lang)}</a></li>
           </ul>
         </div>
