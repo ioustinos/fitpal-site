@@ -28,3 +28,9 @@ scripts/pilot.sql
 
 # sed backups (mac sed -i requires .bak; leave on disk, never commit)
 *.bak
+
+# Nested working copy of the SEPARATE ioustinos/fitpal-landing repo — never track here (see WEC-560 orphan-files incident)
+fitpal-landing/
+
+# Photo drop-zone for Cowork sessions (chat-upload workaround)
+incoming images/
