@@ -7,6 +7,7 @@
 export interface MenuExportDish {
   nameEl: string
   nameEn: string
+  externalId: string | null
   variants: string[]
 }
 export interface MenuExportCategory {
@@ -92,18 +93,19 @@ export function exportMenuToPdf(data: MenuExportData): void {
 
 export function exportMenuToXls(data: MenuExportData): void {
   const rows: string[] = [
-    '<tr><th>Day</th><th>Date</th><th>Category</th><th>Dish (EL)</th><th>Dish (EN)</th><th>Variants</th></tr>',
+    '<tr><th>Day</th><th>Date</th><th>Category</th><th>External ID</th><th>Dish (EL)</th><th>Dish (EN)</th><th>Variants</th></tr>',
   ]
   for (const day of data.days) {
     if (day.categories.length === 0) {
-      rows.push(`<tr><td>${esc(day.dayName)}</td><td>${esc(day.date)}</td><td></td><td>—</td><td></td><td></td></tr>`)
+      rows.push(`<tr><td>${esc(day.dayName)}</td><td>${esc(day.date)}</td><td></td><td></td><td>—</td><td></td><td></td></tr>`)
       continue
     }
     for (const c of day.categories) {
       for (const d of c.dishes) {
         rows.push(
           `<tr><td>${esc(day.dayName)}</td><td>${esc(day.date)}</td><td>${esc(c.catName)}</td>` +
-            `<td>${esc(d.nameEl)}</td><td>${esc(d.nameEn)}</td><td>${esc(d.variants.filter(Boolean).join(' / '))}</td></tr>`,
+            `<td>${esc(d.externalId ?? '')}</td><td>${esc(d.nameEl)}</td><td>${esc(d.nameEn)}</td>` +
+            `<td>${esc(d.variants.filter(Boolean).join(' / '))}</td></tr>`,
         )
       }
     }

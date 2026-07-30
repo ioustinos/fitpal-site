@@ -290,6 +290,7 @@ export function Menus() {
             return {
               nameEl: d?.nameEl ?? `(missing ${a.dishId})`,
               nameEn: d?.nameEn ?? '',
+              externalId: d?.externalId ?? null,
               variants: (d?.variants ?? []).map((v) => v.labelEl).filter(Boolean),
             }
           }),
