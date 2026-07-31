@@ -1086,7 +1086,14 @@ export function CheckoutPage() {
               disabled={!allOk || submitting}
             >
               {submitting
-                ? t('coSubmitting')
+                ? (
+                  // WEC-579: animated ring so the 4-5s submit doesn't read as
+                  // frozen — disabled text alone looked stuck to customers.
+                  <>
+                    <span className="btn-inline-spinner" aria-hidden="true" />
+                    {t('coSubmitting')}
+                  </>
+                )
                 : t('coPlaceOrderArrow')}
             </button>
           </div>
