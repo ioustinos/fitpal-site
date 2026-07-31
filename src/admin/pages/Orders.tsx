@@ -257,7 +257,7 @@ export function Orders() {
                 <th>Delivery dates</th>
                 <th style={{ textAlign: 'right' }}>Total</th>
                 <th style={{ textAlign: 'right' }}>Disc.</th>
-                <th>Type</th>
+                <th style={{ width: 84 }}>Type</th>
                 <th>Status</th>
                 <th>Payment</th>
                 <th>Method</th>
@@ -305,11 +305,14 @@ export function Orders() {
                       ? <span className="admin-discount">−€{(o.discountAmount / 100).toFixed(2)}</span>
                       : <span className="admin-sub">—</span>}
                   </td>
-                  <td><OrderTypeBadge method={o.paymentMethod} adminOrderId={o.adminOrderId} /></td>
+                  <td style={{ width: 84 }}><OrderTypeBadge method={o.paymentMethod} adminOrderId={o.adminOrderId} wrap /></td>
                   <td><StatusBadge status={o.status} /></td>
                   <td><PaymentBadge status={o.paymentStatus} /></td>
                   <td><PaymentMethodBadge method={o.paymentMethod} /></td>
-                  <td className="admin-sub" style={{ whiteSpace: 'nowrap' }}>{new Date(o.createdAt).toLocaleString('en-GB', { dateStyle: 'short', timeStyle: 'short' })}</td>
+                  <td className="admin-sub" style={{ whiteSpace: 'nowrap' }}>
+                    <div>{new Date(o.createdAt).toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: '2-digit' })}</div>
+                    <div>{new Date(o.createdAt).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}</div>
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -364,12 +367,12 @@ const ORDER_TYPE_COLOURS: Record<OrderTypeCode, string> = {
   subscription_own: '#0284c7',
   subscription_managed: '#7c3aed',
 }
-function OrderTypeBadge({ method, adminOrderId }: { method: PaymentMethod; adminOrderId: string | null }) {
+function OrderTypeBadge({ method, adminOrderId, wrap = false }: { method: PaymentMethod; adminOrderId: string | null; wrap?: boolean }) {
   const code = orderTypeCode(method, adminOrderId)
   return (
     <span
       className="admin-badge"
-      style={{ background: `${ORDER_TYPE_COLOURS[code]}22`, color: ORDER_TYPE_COLOURS[code], whiteSpace: 'nowrap' }}
+      style={{ background: `${ORDER_TYPE_COLOURS[code]}22`, color: ORDER_TYPE_COLOURS[code], whiteSpace: wrap ? 'normal' : 'nowrap' }}
       title="Order type — payment source × who placed it (derived, mirrors Airtable Order Type)"
     >
       {ORDER_TYPE_LABELS[code].en}
