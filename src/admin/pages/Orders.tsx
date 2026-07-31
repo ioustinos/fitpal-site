@@ -19,6 +19,8 @@ import { fetchAdminDishes, type AdminDish } from '../../lib/api/adminDishes'
 import { foldGreek } from '../../lib/text'
 // WEC-528: shared Order Type classifier (same module the Airtable push uses)
 import { orderTypeCode, ORDER_TYPE_LABELS, type OrderTypeCode } from '../../lib/orderType'
+// WEC-577/499: single source of truth for payment-method labels
+import { paymentShort, PAYMENT_METHOD_IDS } from '../../lib/paymentMethods'
 
 const STATUS_COLOURS: Record<OrderStatus, string> = {
   // WEC-420: draft uses the same warm orange as the in-drawer banner so the
@@ -79,6 +81,8 @@ export function Orders() {
   const [search, setSearch] = useState('')
   const [filterStatus, setFilterStatus] = useState<OrderStatus[]>([])
   const [filterPayment, setFilterPayment] = useState<PaymentStatus[]>([])
+  // WEC-577: raw payment METHOD filter — server-side (mirrors paymentStatus).
+  const [filterMethod, setFilterMethod] = useState<PaymentMethod[]>([])
   // WEC-528: Order Type is DERIVED (payment_method × admin_order_id), no DB
   // column — so this filter is applied client-side on the loaded list.
   const [filterType, setFilterType] = useState<OrderTypeCode[]>([])
@@ -95,6 +99,7 @@ export function Orders() {
       filters.status = filterStatus
     }
     if (filterPayment.length) filters.paymentStatus = filterPayment
+    if (filterMethod.length) filters.paymentMethod = filterMethod
     const today = new Date().toISOString().slice(0, 10)
     if (preset === 'today') { filters.deliveryDateFrom = today; filters.deliveryDateTo = today }
     if (preset === 'this-week') {
@@ -110,7 +115,7 @@ export function Orders() {
     setLoading(false)
   }
 
-  useEffect(() => { refresh() /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [preset, filterStatus.join(','), filterPayment.join(',')])
+  useEffect(() => { refresh() /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [preset, filterStatus.join(','), filterPayment.join(','), filterMethod.join(',')])
 
   async function refreshDetail(id: string) {
     setDetailLoading(true)
@@ -203,6 +208,23 @@ export function Orders() {
           </div>
         </details>
 
+        {/* WEC-577: raw payment Method — server-side filter */}
+        <details className="admin-filter-details">
+          <summary className="admin-btn-ghost">Method ({filterMethod.length || 'any'})</summary>
+          <div className="admin-filter-body">
+            {PAYMENT_METHOD_IDS.map((m) => (
+              <label key={m} className="admin-form-checkbox">
+                <input
+                  type="checkbox"
+                  checked={filterMethod.includes(m)}
+                  onChange={(e) => setFilterMethod(e.target.checked ? [...filterMethod, m] : filterMethod.filter((x) => x !== m))}
+                />
+                <span>{paymentShort(m, 'el')}</span>
+              </label>
+            ))}
+          </div>
+        </details>
+
         {/* WEC-528: Order Type — derived classification, filtered client-side */}
         <details className="admin-filter-details">
           <summary className="admin-btn-ghost">Type ({filterType.length || 'any'})</summary>
@@ -238,11 +260,12 @@ export function Orders() {
                 <th>Type</th>
                 <th>Status</th>
                 <th>Payment</th>
+                <th>Method</th>
                 <th>Created</th>
               </tr>
             </thead>
             <tbody>
-              {visibleOrders.length === 0 && <tr><td colSpan={10} className="admin-table-empty">No orders match.</td></tr>}
+              {visibleOrders.length === 0 && <tr><td colSpan={11} className="admin-table-empty">No orders match.</td></tr>}
               {visibleOrders.map((o) => (
                 <tr key={o.id} onClick={() => openDetail(o.id)} style={{ cursor: 'pointer' }}>
                   <td>
@@ -285,6 +308,7 @@ export function Orders() {
                   <td><OrderTypeBadge method={o.paymentMethod} adminOrderId={o.adminOrderId} /></td>
                   <td><StatusBadge status={o.status} /></td>
                   <td><PaymentBadge status={o.paymentStatus} /></td>
+                  <td><PaymentMethodBadge method={o.paymentMethod} /></td>
                   <td className="admin-sub" style={{ whiteSpace: 'nowrap' }}>{new Date(o.createdAt).toLocaleString('en-GB', { dateStyle: 'short', timeStyle: 'short' })}</td>
                 </tr>
               ))}
@@ -312,6 +336,24 @@ function StatusBadge({ status }: { status: OrderStatus }) {
 }
 function PaymentBadge({ status }: { status: PaymentStatus }) {
   return <span className="admin-badge" style={{ background: `${PAYMENT_COLOURS[status]}22`, color: PAYMENT_COLOURS[status] }}>{status}</span>
+}
+// WEC-577: raw payment-method badge. Distinct subtle colour per method
+// (WEC-520 lesson: same-colour pills read as one). Labels from the single
+// source of truth (paymentShort, WEC-499). Non-clickable look.
+const PAYMENT_METHOD_COLOURS: Record<PaymentMethod, string> = {
+  cash: '#059669', card: '#2563eb', link: '#7c3aed', transfer: '#0891b2', wallet: '#d97706',
+}
+function PaymentMethodBadge({ method }: { method: PaymentMethod | null }) {
+  if (!method) return <span className="admin-sub">—</span>
+  return (
+    <span
+      className="admin-badge"
+      style={{ background: `${PAYMENT_METHOD_COLOURS[method]}22`, color: PAYMENT_METHOD_COLOURS[method], whiteSpace: 'nowrap' }}
+      title="Payment method (raw)"
+    >
+      {paymentShort(method, 'el')}
+    </span>
+  )
 }
 
 // WEC-528: derived Order Type badge — payment source × who placed it.

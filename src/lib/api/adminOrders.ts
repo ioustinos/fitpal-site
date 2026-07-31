@@ -132,6 +132,7 @@ export interface OrderFilters {
   search?: string            // substring of order_number / customer name / email / phone
   status?: OrderStatus[]
   paymentStatus?: PaymentStatus[]
+  paymentMethod?: PaymentMethod[]   // WEC-577 — raw payment method (cash/card/link/transfer/wallet)
   deliveryDateFrom?: string  // YYYY-MM-DD — uses child_orders.delivery_date
   deliveryDateTo?: string
   createdFrom?: string       // YYYY-MM-DD
@@ -164,6 +165,7 @@ export async function listAdminOrders(f: OrderFilters): Promise<{ data: AdminOrd
     q = q.neq('status', 'draft')
   }
   if (f.paymentStatus && f.paymentStatus.length) q = q.in('payment_status', f.paymentStatus)
+  if (f.paymentMethod && f.paymentMethod.length) q = q.in('payment_method', f.paymentMethod)
   if (f.createdFrom) q = q.gte('created_at', `${f.createdFrom}T00:00:00Z`)
   if (f.createdTo) q = q.lte('created_at', `${f.createdTo}T23:59:59Z`)
   if (orderIdsFromChild) q = q.in('id', Array.from(orderIdsFromChild))
