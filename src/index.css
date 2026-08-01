@@ -4097,10 +4097,11 @@ body.is-impersonating { padding-top: 36px; }
 .demo-card-img { aspect-ratio: 1 / 1; background: #f4f4f4; }
 .demo-card-img img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .demo-card-noimg { width: 100%; height: 100%; background: linear-gradient(135deg, #f0f0f0, #e6e6e6); }
-.demo-card-name { font-size: 13px; font-weight: 700; padding: 8px 10px 4px; line-height: 1.25; }
-.demo-card-macros { display: flex; flex-wrap: wrap; gap: 4px; padding: 0 10px 10px; align-items: center; }
-.demo-kcal { font-size: 12px; font-weight: 800; color: var(--green, #00b96b); }
-.demo-chip { font-size: 10px; font-weight: 700; padding: 1px 5px; border-radius: 6px; background: rgba(0,0,0,.05); color: #555; }
+.demo-card-body { padding: 8px 10px 10px; }
+.demo-card-name { font-size: 13px; font-weight: 700; line-height: 1.25; }
+.demo-card-price { font-size: 12px; font-weight: 800; color: var(--green, #00b96b); margin: 2px 0 6px; }
+/* the macro row reuses the site-standard .macros component (MacroValuesRow) */
+.demo-card-body .macros { margin-top: 4px; }
 @media (max-width: 560px) {
   .demo-card { flex-basis: calc((100% - 12px) / 2.2); }
   .demo-modal-head h2 { font-size: 16px; }

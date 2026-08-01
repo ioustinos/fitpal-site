@@ -944,11 +944,10 @@ export function WalletPage() {
                   {isEl ? 'Διεύθυνση Παράδοσης — Στα Fitpal Meals παραδίδουμε καθημερινά!' : 'Delivery address — Fitpal Meals delivers daily!'}
                 </div>
                 <div className="wpv2-section-sub">
-                  {/* WEC-551 O5 — clarify the Τ.Κ. is only a zone check and the
-                      real delivery address is chosen (and changeable) per day. */}
+                  {/* WEC-551 review — exact owner copy (verbatim EL). */}
                   {isEl
-                    ? 'Χρειαζόμαστε τον Τ.Κ. σου μόνο για να επιβεβαιώσουμε ότι παραδίδουμε στην περιοχή σου. Την ακριβή διεύθυνση την ορίζεις — και μπορείς να την αλλάζεις — για κάθε παράδοση ξεχωριστά.'
-                    : 'We only need your postcode to confirm we deliver in your area. You set the exact address — and can change it — for each delivery separately.'}
+                    ? 'Συμπλήρωσε τον Τ.Κ. για να επιβεβαιώσουμε ότι παραδίδουμε στην περιοχή σου. Φυσικά, μπορείς να αλλάζεις τις διευθύνσεις των παραδόσεών σου (π.χ. σήμερα στο γραφείο, αύριο σπίτι).'
+                    : 'Enter your postcode so we can confirm we deliver in your area. Of course, you can change your delivery addresses (e.g. today the office, tomorrow home).'}
                 </div>
               </div>
             </div>
@@ -971,9 +970,10 @@ export function WalletPage() {
                   {isEl ? 'Υπηρεσίες' : 'Services'}
                 </div>
                 <div className="wpv2-section-sub">
+                  {/* WEC-551 review — exact owner copy (verbatim EL). */}
                   {isEl
-                    ? 'Η διαχείριση από τη Διαιτολογική μας ομάδα περιλαμβάνεται. Πρόσθεσε προαιρετικές υπηρεσίες.'
-                    : 'Dietitian-team management is included. Add optional extras.'}
+                    ? 'Η διαχείριση από τη Διαιτολογική μας ομάδα περιλαμβάνεται στο κόστος της υπηρεσίας. Μπορείς αν θέλεις να προσθέσεις επαγγελματική λιπομέτρηση στο χώρο μας ή στο χώρο σου.'
+                    : 'Management by our dietitian team is included in the service cost. If you like, you can add professional body-fat measurement at our place or yours.'}
                 </div>
               </div>
             </div>
@@ -996,9 +996,10 @@ export function WalletPage() {
                     {isEl ? 'Διαχείριση από την Διαιτολογική μας ομάδα' : 'Managed by our dietitian team'}
                   </div>
                   <div className="wpv2-service-desc">
+                    {/* WEC-551 review — exact owner copy (verbatim EL). */}
                     {isEl
-                      ? 'Εντός 1 εργάσιμης ημέρας θα σε καλέσουμε και χτίζουμε εβδομαδιαία τα γεύματά σου — χωρίς κόπο.'
-                      : "We'll call you within 1 business day and build your meals each week — zero effort."}
+                      ? 'Θα σε καλέσουμε εντός 1 εργάσιμης ημέρας για να χτίσουμε μαζί τα γεύματά σου — χωρίς κόπο.'
+                      : "We'll call you within 1 business day to build your meals together — effortlessly."}
                   </div>
                 </div>
                 <div className="wpv2-service-price">

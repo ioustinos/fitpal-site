@@ -162,13 +162,8 @@ export function IndicativeAddressGate({
         </div>
       )}
 
-      {!zipTouched && (
-        <div className="wpv2-addrgate-hint">
-          {isEl
-            ? 'Συμπλήρωσε τον Τ.Κ. για να επιβεβαιώσουμε ότι παραδίδουμε στην περιοχή σου. Η ακριβής διεύθυνση παράδοσης ορίζεται ανά ημέρα στο checkout.'
-            : 'Add your postcode so we can confirm delivery in your area. The exact per-day delivery address is set at checkout.'}
-        </div>
-      )}
+      {/* WEC-551 review: the under-form helper text was removed — nothing renders
+          below the Τ.Κ. row (the Step-9 subheader in WalletPage carries the copy). */}
     </div>
   )
 }

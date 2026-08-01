@@ -9,6 +9,8 @@
 import { useEffect, useRef, useState } from 'react'
 import { Modal } from '../ui/Modal'
 import { thumbUrl } from '../../lib/imageThumb'
+import { MacroValuesRow } from '../ui/MacroDots'
+import { fmt } from '../../lib/helpers'
 import { fetchDemoDishes, type DemoCategory } from '../../lib/api/demoDishes'
 
 interface Props {
@@ -92,18 +94,24 @@ function DemoCatRow({ cat, isEl }: { cat: DemoCategory; isEl: boolean }) {
           <article className="demo-card" key={d.id}>
             <div className="demo-card-img">
               {d.imageUrl
-                ? <img src={thumbUrl(d.imageUrl, 300)} alt="" loading="lazy" decoding="async" />
+                ? <img src={thumbUrl(d.imageUrl, 600)} alt="" loading="lazy" decoding="async" />
                 : <div className="demo-card-noimg" aria-hidden="true" />}
             </div>
-            <div className="demo-card-name">{isEl ? d.nameEl : d.nameEn}</div>
-            {d.calories != null && (
-              <div className="demo-card-macros">
-                <span className="demo-kcal">{Math.round(d.calories)} kcal</span>
-                {d.protein != null && <span className="demo-chip demo-chip-p">{isEl ? 'Π' : 'P'} {Math.round(d.protein)}</span>}
-                {d.carbs != null && <span className="demo-chip demo-chip-c">{isEl ? 'Υ' : 'C'} {Math.round(d.carbs)}</span>}
-                {d.fat != null && <span className="demo-chip demo-chip-f">{isEl ? 'Λ' : 'F'} {Math.round(d.fat)}</span>}
-              </div>
-            )}
+            <div className="demo-card-body">
+              <div className="demo-card-name">{isEl ? d.nameEl : d.nameEn}</div>
+              {d.fromPriceCents != null && (
+                <div className="demo-card-price">{isEl ? 'Από ' : 'From '}{fmt(d.fromPriceCents / 100)}</div>
+              )}
+              {d.calories != null && (
+                <MacroValuesRow
+                  cal={d.calories}
+                  pro={d.protein ?? 0}
+                  carb={d.carbs ?? 0}
+                  fat={d.fat ?? 0}
+                  labels={{ kcal: 'kcal', pro: isEl ? 'Π' : 'P', carb: isEl ? 'Υ' : 'C', fat: isEl ? 'Λ' : 'F' }}
+                />
+              )}
+            </div>
           </article>
         ))}
       </div>

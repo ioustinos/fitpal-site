@@ -27,6 +27,8 @@ export interface DemoDish {
   protein: number | null
   carbs: number | null
   fat: number | null
+  /** WEC-582 review: cheapest variant price in cents (for the «Από €X» label). Null if no variants. */
+  fromPriceCents: number | null
 }
 
 export interface DemoCategory {
@@ -67,18 +69,24 @@ export async function fetchDemoDishes(): Promise<{ data: DemoCategory[] | null; 
   if (dishRows.length === 0) return { data: [], error: null }
 
   // 3) Base variant per dish (lowest sort_order) → kcal + macros.
+  //    Also track the cheapest variant price per dish → «Από €X».
   const varRes = await supabase
     .from('dish_variants')
-    .select('dish_id, calories, protein, carbs, fat, sort_order')
+    .select('dish_id, calories, protein, carbs, fat, price, sort_order')
     .in('dish_id', dishRows.map((d) => d.id))
     .order('sort_order', { ascending: true })
   if (varRes.error) return { data: null, error: varRes.error.message }
   const baseVariant = new Map<string, { calories: number | null; protein: number | null; carbs: number | null; fat: number | null }>()
+  const minPrice = new Map<string, number>()
   for (const v of (varRes.data ?? []) as {
-    dish_id: string; calories: number | null; protein: number | null; carbs: number | null; fat: number | null; sort_order: number | null
+    dish_id: string; calories: number | null; protein: number | null; carbs: number | null; fat: number | null; price: number | null; sort_order: number | null
   }[]) {
     if (!baseVariant.has(v.dish_id)) {
       baseVariant.set(v.dish_id, { calories: v.calories, protein: v.protein, carbs: v.carbs, fat: v.fat })
+    }
+    if (typeof v.price === 'number') {
+      const cur = minPrice.get(v.dish_id)
+      if (cur === undefined || v.price < cur) minPrice.set(v.dish_id, v.price)
     }
   }
 
@@ -109,6 +117,7 @@ export async function fetchDemoDishes(): Promise<{ data: DemoCategory[] | null; 
       protein: bv?.protein ?? null,
       carbs: bv?.carbs ?? null,
       fat: bv?.fat ?? null,
+      fromPriceCents: minPrice.get(d.id) ?? null,
     })
     byCat.set(cid, arr)
   }
