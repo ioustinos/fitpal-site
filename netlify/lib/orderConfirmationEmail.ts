@@ -54,6 +54,7 @@ interface OrderRow {
   discount_amount: number | null
   total: number | null
   payment_method: string | null
+  payment_status: string | null
   admin_order_id: string | null
 }
 interface ChildRow {
@@ -83,19 +84,40 @@ interface ItemRow {
   comment: string | null
 }
 
+export interface OrderEventOpts {
+  /**
+   * WEC-580 — which fire this is:
+   *   'order_placed'            — fired at SUBMIT (cash / transfer / wallet).
+   *                               No card/link guard; uses the order's real
+   *                               payment_status.
+   *   'order_paid_confirmation' — fired POST-PAYMENT from markPaid (card / link).
+   *                               DEFAULT; preserves the WEC-498 guard + 'paid'.
+   */
+  kind?: 'order_placed' | 'order_paid_confirmation'
+  /** UI language at submit; falls back to user_prefs.lang, then 'el'. */
+  lang?: 'el' | 'en'
+}
+
 /**
  * Rebuild and fire the "Order Placed" confirmation (customer + admin BCC) for
- * an order that has just been confirmed paid. Fail-soft: never throws, logs and
- * returns on any problem so it can never break the payment-confirmation path.
+ * an order, reading the entire payload from the DB (never a trusted request
+ * body). Fail-soft: never throws, logs and returns on any problem so it can
+ * never break the payment-confirmation or submit path.
+ *
+ * WEC-580: this is the single source for order-event firing. Both callers route
+ * through here — submit-order's order-events-background invoke (kind
+ * 'order_placed') and markPaid (kind 'order_paid_confirmation', the default).
  */
 export async function fireOrderConfirmationFromDb(
   supabase: SupabaseClient,
   orderId: string,
+  opts: OrderEventOpts = {},
 ): Promise<void> {
+  const kind = opts.kind ?? 'order_paid_confirmation'
   try {
     const { data: orderRaw, error: oErr } = await supabase
       .from('orders')
-      .select('id, order_number, customer_name, customer_email, customer_phone, user_id, subtotal, discount_amount, total, payment_method, admin_order_id')
+      .select('id, order_number, customer_name, customer_email, customer_phone, user_id, subtotal, discount_amount, total, payment_method, payment_status, admin_order_id')
       .eq('id', orderId)
       .maybeSingle()
     if (oErr || !orderRaw) {
@@ -107,10 +129,13 @@ export async function fireOrderConfirmationFromDb(
       console.warn('[orderConfirmation] no customer_email on %s, skipping', orderId)
       return
     }
-    // WEC-498 safety: this helper exists to send the confirmation for card /
-    // link orders at payment time. cash / transfer / wallet already emailed at
-    // submit, so if one of those ever reaches markPaid we must NOT email again.
-    if (order.payment_method !== 'card' && order.payment_method !== 'link') {
+    const customerEmail = order.customer_email
+    // WEC-498 safety: the POST-PAYMENT kind exists to send the confirmation for
+    // card / link orders at payment time. cash / transfer / wallet already
+    // emailed at submit, so if one of those ever reaches markPaid we must NOT
+    // email again. The SUBMIT kind ('order_placed') has no such guard.
+    if (kind === 'order_paid_confirmation'
+      && order.payment_method !== 'card' && order.payment_method !== 'link') {
       return
     }
 
@@ -137,10 +162,12 @@ export async function fireOrderConfirmationFromDb(
       .in('key', ['bank_transfer_info', 'order_confirmation_admin_emails'])
     const settingsRows = (settingsRaw ?? []) as { key: string; value: unknown }[]
 
-    // lang: customer preference, else Greece-first default. (Not persisted on
-    // the order — see file header.)
+    // lang: explicit opt (UI toggle at submit) wins; else customer preference;
+    // else Greece-first default. (Not persisted on the order — see file header.)
     let lang: 'el' | 'en' = 'el'
-    if (order.user_id) {
+    if (opts.lang === 'en' || opts.lang === 'el') {
+      lang = opts.lang
+    } else if (order.user_id) {
       const { data: prefs } = await supabase
         .from('user_prefs')
         .select('lang')
@@ -260,6 +287,9 @@ export async function fireOrderConfirmationFromDb(
 
     const firstName = (order.customer_name ?? '').split(' ')[0] ?? ''
     const placedByAdmin = !!order.admin_order_id
+    // WEC-580: post-payment kind is always 'paid' (markPaid won the race);
+    // submit kind reflects the order's true status (wallet=paid, cash/transfer=pending).
+    const paymentStatus = kind === 'order_paid_confirmation' ? 'paid' : (order.payment_status ?? 'pending')
     const orderPlacedProperties = {
       lang,
       // ── snake_case (template-expected) ──
@@ -269,7 +299,7 @@ export async function fireOrderConfirmationFromDb(
       subtotal: (order.subtotal ?? 0) / 100,
       discount_amount: (order.discount_amount ?? 0) / 100,
       payment_method: order.payment_method,
-      payment_status: 'paid', // WEC-498: this fires only after markPaid won
+      payment_status: paymentStatus,
       placed_by_admin: placedByAdmin,
       admin_user_id: order.admin_order_id ?? null,
       day_count: klaviyoDays.length,
@@ -281,28 +311,39 @@ export async function fireOrderConfirmationFromDb(
       orderNumber: order.order_number,
       discountAmount: (order.discount_amount ?? 0) / 100,
       paymentMethod: order.payment_method,
-      paymentStatus: 'paid',
       placedByAdmin,
       adminUserId: order.admin_order_id ?? null,
       dayCount: klaviyoDays.length,
       itemCount: totalItems,
       totalMacros: allDaysMacros,
+      paymentStatus,
       bank_transfer_infos: bankTransferInfos,
       bank_transfer_info: bankTransferInfos[0] ?? null,
       days: klaviyoDays,
     }
 
-    const fires: Promise<{ ok: boolean; error?: string }>[] = []
+    // WEC-580: each external call is retried (3 attempts, 1s/4s/10s backoff)
+    // because we now run detached in a background function — a transient
+    // Klaviyo blip should not silently lose the event. Idempotency keys
+    // (`<orderId>:<kind>:<email>`) make the retries safe: Klaviyo dedupes on
+    // unique_id, and subscribe is inherently idempotent.
+    const subSource = kind === 'order_placed'
+      ? 'Fitpal order placed (auto-subscribe)'
+      : 'Fitpal order paid (auto-subscribe)'
+    const evtKey = `${orderId}:${kind}`
 
-    // Customer: subscribe (consent) then the event, same order as submit-order.
-    fires.push(subscribeProfileToMarketing(order.customer_email, 'Fitpal order paid (auto-subscribe)'))
-    fires.push(track(EVT.OrderPlaced, {
-      email: order.customer_email,
+    type Fire = { label: string; run: () => Promise<{ ok: boolean; error?: string }> }
+    const fires: Fire[] = []
+
+    // Customer: subscribe (consent) then the event.
+    fires.push({ label: `subscribe:${customerEmail}`, run: () => subscribeProfileToMarketing(customerEmail, subSource) })
+    fires.push({ label: `track:${customerEmail}`, run: () => track(EVT.OrderPlaced, {
+      email: customerEmail,
       firstName,
       lastName: (order.customer_name ?? '').split(' ').slice(1).join(' '),
       phone: order.customer_phone ?? undefined,
       externalId: order.user_id ?? undefined,
-    }, orderPlacedProperties))
+    }, orderPlacedProperties, `${evtKey}:${customerEmail}`) })
 
     // Admin BCC fan-out (WEC-486 parity).
     const rawAdmins = settingsRows.find((r) => r.key === 'order_confirmation_admin_emails')?.value
@@ -311,24 +352,48 @@ export async function fireOrderConfirmationFromDb(
           .filter((v): v is string => typeof v === 'string' && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v.trim()))
           .map((v) => v.trim())
       : []
-    const customerLower = order.customer_email.toLowerCase()
+    const customerLower = customerEmail.toLowerCase()
     for (const adminEmail of adminEmails) {
       if (adminEmail.toLowerCase() === customerLower) continue
-      fires.push(subscribeProfileToMarketing(adminEmail, 'Fitpal admin BCC (auto-subscribe)'))
-      fires.push(track(EVT.OrderPlaced, {
+      fires.push({ label: `subscribe:${adminEmail}`, run: () => subscribeProfileToMarketing(adminEmail, 'Fitpal admin BCC (auto-subscribe)') })
+      fires.push({ label: `track:${adminEmail}`, run: () => track(EVT.OrderPlaced, {
         email: adminEmail,
         firstName: 'Fitpal',
         lastName: 'Admin notification',
-      }, { ...orderPlacedProperties, isAdminCopy: true }))
+      }, { ...orderPlacedProperties, isAdminCopy: true }, `${evtKey}:${adminEmail}`) })
     }
 
-    const results = await Promise.all(fires)
-    const failed = results.filter((r) => !r.ok)
-    if (failed.length > 0) {
-      console.warn('[orderConfirmation] %d/%d Klaviyo events failed for %s: %s',
-        failed.length, results.length, order.order_number, failed.map((r) => r.error).join(' | '))
+    const results = await Promise.all(
+      fires.map(async (f) => ({ label: f.label, res: await withRetry(f.run) })),
+    )
+    for (const r of results) {
+      if (!r.res.ok) {
+        // Loud, greppable — the alerting hook for later.
+        console.error('[order-events] GAVE UP kind=%s order=%s %s: %s',
+          kind, order.order_number ?? orderId, r.label, r.res.error)
+      }
     }
   } catch (e) {
     console.error('[orderConfirmation] unexpected error for orderId=%s (non-fatal):', orderId, e)
   }
+}
+
+/**
+ * WEC-580: retry a fail-soft Klaviyo call (returns { ok } rather than throwing)
+ * up to `attempts` times with exponential backoff. Returns the last result.
+ */
+async function withRetry(
+  run: () => Promise<{ ok: boolean; error?: string }>,
+  attempts = 3,
+  delaysMs = [1000, 4000, 10000],
+): Promise<{ ok: boolean; error?: string }> {
+  let last: { ok: boolean; error?: string } = { ok: false, error: 'not run' }
+  for (let i = 0; i < attempts; i++) {
+    last = await run()
+    if (last.ok) return last
+    // Don't burn the backoff when the key isn't configured — it will never succeed.
+    if (last.error === 'KLAVIYO_API_KEY not set') return last
+    if (i < attempts - 1) await new Promise((r) => setTimeout(r, delaysMs[i] ?? 1000))
+  }
+  return last
 }

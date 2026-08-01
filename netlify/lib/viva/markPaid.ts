@@ -89,7 +89,9 @@ export async function markPaid(
   // submit (the order was still pending then). Now that payment is confirmed,
   // fire it here. Runs only on the call that won the pending→paid race above,
   // so it sends exactly once across all three Viva layers. Fail-soft.
-  await fireOrderConfirmationFromDb(supabase, orderId)
+  // WEC-580: explicit kind. Default is already 'order_paid_confirmation', but
+  // stating it keeps the two call-sites (submit vs markPaid) self-documenting.
+  await fireOrderConfirmationFromDb(supabase, orderId, { kind: 'order_paid_confirmation' })
   return true
 }
 

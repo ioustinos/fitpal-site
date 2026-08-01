@@ -86,6 +86,11 @@ export async function track(
   eventName: string,
   profile: KlaviyoProfile,
   properties: Record<string, unknown> = {},
+  // WEC-580: optional idempotency key → Klaviyo `unique_id`. Klaviyo dedupes
+  // events by (metric, profile, unique_id), so passing a stable key like
+  // `<orderId>:<kind>:<email>` makes background-function retries safe: a
+  // re-fire after a transient failure can never double-count / double-send.
+  uniqueId?: string,
 ): Promise<{ ok: boolean; error?: string }> {
   if (!KLAVIYO_API_KEY) {
     // Silent no-op when not configured. We don't want to fail orders
@@ -102,6 +107,7 @@ export async function track(
         type: 'event',
         attributes: {
           properties,
+          ...(uniqueId ? { unique_id: uniqueId } : {}),
           metric: { data: { type: 'metric', attributes: { name: eventName } } },
           profile: {
             data: {

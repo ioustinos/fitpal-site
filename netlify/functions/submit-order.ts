@@ -7,7 +7,8 @@ import { createVivaOrder } from '../lib/viva/createOrder'
 // confirmation emails not arriving despite the function returning 200 and
 // the order being persisted. Switching to awaited track() — slightly slower
 // per response (~150ms extra) but events actually land.
-import { track, subscribeProfileToMarketing } from '../lib/klaviyo'
+// WEC-580: order-confirmation Klaviyo events moved out of the request path into
+// order-events-background (invoked below). No direct Klaviyo import here anymore.
 import { corsHeaders } from '../lib/cors'
 import { checkRateLimit, clientIp } from '../lib/rateLimit'
 import { isMirrorEligible } from '../lib/airtable/pushOrder'
@@ -1232,321 +1233,33 @@ export default async (request: Request) => {
 
     // ─── Success ────────────────────────────────────────────────────────
 
-    // Fire-and-forget Klaviyo event so the Order Placed email flow can
-    // pick up. No-op if KLAVIYO_API_KEY isn't set. We never block order
-    // submission on email infrastructure — see netlify/lib/klaviyo.ts.
+    // ─── WEC-580: order-confirmation events moved to a background function ──
+    // The Klaviyo subscribe + "Order Placed" fan-out (customer + admin BCC) was
+    // the slowest awaited step on submit (~2-3s). It now runs detached in
+    // order-events-background, which re-reads the whole payload FROM THE DB
+    // (fireOrderConfirmationFromDb) — nothing is trusted from this request. We
+    // AWAIT only the fast 202 invoke (mirrors airtable-push-background); NOT
+    // awaiting it would recreate the 2026-06-24 process-reaping event-loss bug.
     //
-    // Payload is rich enough that the email template doesn't need to make
-    // any DB lookups. It iterates `event.days` and `day.items` and the
-    // template variables substitute display name, variant label, prices,
-    // macros, daily totals, etc.
-    //
-    // 2026-06-26 launch-blocker fix: the Klaviyo template (SMwaE8 Greek,
-    // VB3CqW English) was authored using snake_case field names matching
-    // notify-order-updated.ts (e.g. `name_el`, `total_price`, `qty`,
-    // `day_label_el`, `time_window`, `address`, `order_number`,
-    // `payment_method`, `discount_amount`, `bank_name`). submit-order
-    // previously sent camelCase (`nameEl`, `lineTotal`, `quantity`,
-    // `deliveryDate`, `orderNumber`, `paymentMethod`, etc.) so the
-    // template's `{% if item.qty > 1 %}` and `{% if event.discount_amount > 0 %}`
-    // raised TypeError (None > int) and Klaviyo silently skipped every
-    // single send under the misleading reason "Skipped: Email Syntax Error".
-    // Verified by hitting the render-template API directly: snake_case
-    // payload renders cleanly, camelCase payload errors. See the fix in
-    // both `klaviyoDays` and `orderPlacedProperties` below.
-    // We emit BOTH naming schemes so any downstream consumer (Airtable
-    // mirror, ad-hoc analytics, debugging) keeps working.
-
-    // Helpers mirror notify-order-updated.ts so both event payloads
-    // present identically to the template engine.
-    function _dayLabelFor(iso: string): { el: string; en: string } {
-      const d = new Date(iso + 'T12:00:00Z')
-      const dow = d.getUTCDay() // 0=Sun..6=Sat
-      const elDow = ['Κυριακή','Δευτέρα','Τρίτη','Τετάρτη','Πέμπτη','Παρασκευή','Σάββατο'][dow]
-      const enDow = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'][dow]
-      const dd = d.getUTCDate().toString().padStart(2, '0')
-      const mm = (d.getUTCMonth() + 1).toString().padStart(2, '0')
-      return { el: `${elDow} ${dd}/${mm}`, en: `${enDow} ${dd}/${mm}` }
-    }
-    function _fmtTime(t: string): string {
-      // 'HH:MM:SS' or 'HH:MM' → 'HH:MM'. Tolerant of either input.
-      return typeof t === 'string' ? t.slice(0, 5) : ''
-    }
-
-    const klaviyoDays = body.days.map((d) => {
-      const enrichedItems = d.items.map((it) => {
-        const variant = variantMap.get(it.variantId) as
-          | { price: number; calories: number | null; protein: number | null; carbs: number | null; fat: number | null; label_el: string | null; label_en: string | null }
-          | undefined
-        const dish = dishMap.get(it.dishId) as { name_el: string | null; name_en: string | null } | undefined
-        const unitPriceCents = variant?.price ?? 0
-        const lineTotalCents = unitPriceCents * it.quantity
-        const cal     = (variant?.calories ?? 0) * it.quantity
-        const protein = (variant?.protein  ?? 0) * it.quantity
-        const carbs   = (variant?.carbs    ?? 0) * it.quantity
-        const fat     = (variant?.fat      ?? 0) * it.quantity
-        return {
-          // ── snake_case (template expects these) ──────────────────────
-          name_el: dish?.name_el ?? '',
-          name_en: dish?.name_en ?? '',
-          variant_label_el: variant?.label_el ?? '',
-          variant_label_en: variant?.label_en ?? '',
-          qty: it.quantity,
-          unit_price: unitPriceCents / 100,
-          total_price: lineTotalCents / 100,
-          // ── camelCase (legacy / downstream compat) ───────────────────
-          dishId: it.dishId,
-          variantId: it.variantId,
-          nameEl: dish?.name_el ?? '',
-          nameEn: dish?.name_en ?? '',
-          variantLabelEl: variant?.label_el ?? null,
-          variantLabelEn: variant?.label_en ?? null,
-          quantity: it.quantity,
-          unitPrice: unitPriceCents / 100,
-          lineTotal: lineTotalCents / 100,
-          // Per-line macros (per-unit × qty). Templates can also derive
-          // unit values from `unitMacros` if they need to display them.
-          calories: cal,
-          protein,
-          carbs,
-          fat,
-          unitMacros: {
-            calories: variant?.calories ?? 0,
-            protein: variant?.protein ?? 0,
-            carbs: variant?.carbs ?? 0,
-            fat: variant?.fat ?? 0,
-          },
-          comment: it.comment ?? '',
-        }
-      })
-
-      // Daily roll-ups so the template can show day-level totals without
-      // re-summing in Django syntax (which is awkward).
-      const daySubtotalCents = enrichedItems.reduce((s, i) => s + Math.round(i.total_price * 100), 0)
-      const dayCalories = enrichedItems.reduce((s, i) => s + i.calories, 0)
-      const dayProtein  = enrichedItems.reduce((s, i) => s + i.protein, 0)
-      const dayCarbs    = enrichedItems.reduce((s, i) => s + i.carbs, 0)
-      const dayFat      = enrichedItems.reduce((s, i) => s + i.fat, 0)
-      const dayItemCount = enrichedItems.reduce((s, i) => s + i.qty, 0)
-      const dayLabels = _dayLabelFor(d.deliveryDate)
-      const timeWindow = d.timeFrom && d.timeTo
-        ? `${_fmtTime(d.timeFrom)}–${_fmtTime(d.timeTo)}`
-        : ''
-      const addressLine = [d.addressStreet, d.addressZip, d.addressArea]
-        .filter(Boolean)
-        .join(', ')
-
-      return {
-        // ── snake_case (template expects these) ──────────────────────
-        date: d.deliveryDate,
-        day_label_el: dayLabels.el,
-        day_label_en: dayLabels.en,
-        time_window: timeWindow,
-        address: addressLine,
-        day_total: daySubtotalCents / 100,
-        day_macros: {
-          calories: dayCalories,
-          protein: dayProtein,
-          carbs: dayCarbs,
-          fat: dayFat,
-        },
-        // ── camelCase (legacy / downstream compat) ───────────────────
-        deliveryDate: d.deliveryDate,
-        timeFrom: d.timeFrom,
-        timeTo: d.timeTo,
-        addressStreet: d.addressStreet,
-        addressArea: d.addressArea,
-        addressZip: d.addressZip ?? null,
-        items: enrichedItems,
-        subtotal: daySubtotalCents / 100,
-        itemCount: dayItemCount,
-        macros: {
-          calories: dayCalories,
-          protein: dayProtein,
-          carbs: dayCarbs,
-          fat: dayFat,
-        },
-      }
-    })
-
-    // WEC-267: parse the bank-IBAN settings into an array and pass it to
-    // the Klaviyo event so the order-confirmation template can render
-    // every configured IBAN. Accepts both shapes (legacy single object,
-    // new array per WEC-260). Empty array if the operator hasn't
-    // configured any IBANs — the template just renders nothing.
-    const rawBankInfos = (settingsRes.data ?? [] as { key: string; value: unknown }[])
-      .find((r: { key: string }) => r.key === 'bank_transfer_info')?.value
-    const bankList = Array.isArray(rawBankInfos)
-      ? (rawBankInfos as unknown[])
-      : (rawBankInfos && typeof rawBankInfos === 'object' ? [rawBankInfos] : [])
-    // Bank transfer entries — emit BOTH bank_name (snake, what the
-    // template iterates) and bankName (camel, legacy/downstream).
-    const bankTransferInfos = bankList
-      .filter((e): e is Record<string, unknown> => !!e && typeof e === 'object')
-      .map((o) => {
-        const name = typeof o.bankName === 'string' ? o.bankName : null
-        return {
-          iban: typeof o.iban === 'string' ? o.iban : '',
-          beneficiary: typeof o.beneficiary === 'string' ? o.beneficiary : '',
-          bank_name: name,
-          bankName: name,
-        }
-      })
-      .filter((e) => e.iban.length > 0)
-
-    const totalItems = body.days.reduce(
-      (s, d) => s + d.items.reduce((ss, it) => ss + it.quantity, 0),
-      0,
-    )
-    const allDaysMacros = klaviyoDays.reduce(
-      (acc, d) => ({
-        calories: acc.calories + d.day_macros.calories,
-        protein:  acc.protein  + d.day_macros.protein,
-        carbs:    acc.carbs    + d.day_macros.carbs,
-        fat:      acc.fat      + d.day_macros.fat,
-      }),
-      { calories: 0, protein: 0, carbs: 0, fat: 0 },
-    )
-
-    // WEC-486: extract the Order Placed payload into a const so we can reuse
-    // it for the admin BCC fan-out below without duplicating 30 lines.
-    //
-    // Template expects snake_case top-level fields (order_number,
-    // discount_amount, payment_method, first_name, etc.). camelCase is
-    // also emitted for downstream compat. See klaviyoDays comment above
-    // for the full backstory of the naming-mismatch bug (2026-06-26).
-    const firstName = (body.customerName ?? '').split(' ')[0] ?? ''
-    const orderPlacedProperties = {
-      // WEC-433+: lang routes EL vs EN templates inside the Klaviyo flow.
-      // Comes from the request body (set by CheckoutPage from useUIStore.lang)
-      // and falls back to 'el' (Greece-first default).
-      lang: (body.lang === 'en' || body.lang === 'el') ? body.lang : 'el',
-      // ── snake_case (template-expected) ────────────────────────────
-      first_name: firstName,
-      order_number: orderNumber,
-      total: orderTotal / 100,
-      subtotal: orderSubtotal / 100,
-      discount_amount: discountAmount / 100,
-      payment_method: body.paymentMethod,
-      payment_status: paidStatus,
-      placed_by_admin: isImpersonating,
-      admin_user_id: adminUserId ?? null,
-      day_count: body.days.length,
-      item_count: totalItems,
-      total_macros: allDaysMacros,
-      // Default isUpdate=false so the {% if event.isUpdate %} subject
-      // branch behaves predictably on first-send.
-      isUpdate: false,
-      // ── camelCase (legacy / downstream compat) ────────────────────
-      orderId,
-      orderNumber,
-      discountAmount: discountAmount / 100,
-      paymentMethod: body.paymentMethod,
-      paymentStatus: paidStatus,
-      placedByAdmin: isImpersonating,
-      adminUserId: adminUserId ?? null,
-      dayCount: body.days.length,
-      itemCount: totalItems,
-      totalMacros: allDaysMacros,
-      // WEC-267: array of IBAN entries — template iterates with the
-      // {% for iban_entry in event.bank_transfer_infos %} loop.
-      bank_transfer_infos: bankTransferInfos,
-      // Back-compat: keep the singular field too in case the old template
-      // is still live in some environments. First IBAN, or empty object.
-      bank_transfer_info: bankTransferInfos[0] ?? null,
-      // Day-by-day breakdown the email template can iterate over.
-      days: klaviyoDays,
-    }
-
-    // 2026-06-24 incident fix: collect customer + admin BCC Klaviyo events,
-    // await them all via Promise.all so Netlify can't kill the function
-    // before the HTTP POSTs to Klaviyo complete. track() already swallows
-    // errors and returns { ok, error } so Promise.all never rejects.
-    const klaviyoFires: Promise<{ ok: boolean; error?: string }>[] = []
-
-    // WEC-498: only email at SUBMIT for methods where the order is genuinely
-    // placed at submission — cash / transfer (pay-later) and wallet (paid
-    // synchronously above). For card / link the order is still `pending` and
-    // the customer is about to be redirected to Viva; emailing "confirmed" now
-    // would falsely confirm an order to anyone who abandons payment. For those
-    // methods the SAME confirmation is fired later from `markPaid()` (the
-    // idempotent paid-convergence point) via fireOrderConfirmationFromDb.
+    // WEC-498 gating preserved: card / link orders do NOT fire the confirmation
+    // at submit (still pending → would falsely confirm on payment abandonment).
+    // markPaid() fires it post-payment via the same lib (order_paid_confirmation).
     const emailAtSubmit = body.paymentMethod !== 'card' && body.paymentMethod !== 'link'
-
-    // 2026-06-25 launch fix: subscribe customer profile to email marketing
-    // BEFORE firing the event. Klaviyo silently blocks flow sends to profiles
-    // with consent: NEVER_SUBSCRIBED when the email is marketing-classified
-    // (our order-confirmation flow is `transactional: false` until Klaviyo
-    // support enables true-transactional sending on the account).
-    // Order placement = implicit opt-in to receive order-related comms.
-    // See klaviyo.ts → subscribeProfileToMarketing for full reasoning.
     if (emailAtSubmit) {
-      klaviyoFires.push(subscribeProfileToMarketing(
-        body.customerEmail,
-        'Fitpal order placed (auto-subscribe)',
-      ))
-
-      klaviyoFires.push(track('Order Placed', {
-        email: body.customerEmail,
-        firstName: body.customerName?.split(' ')[0],
-        lastName: body.customerName?.split(' ').slice(1).join(' '),
-        phone: body.customerPhone,
-        externalId: userId ?? undefined,
-      }, orderPlacedProperties))
-    }
-
-    // WEC-486: admin BCC fan-out. Admins listed in
-    // `settings.order_confirmation_admin_emails` (jsonb array) get a copy of
-    // every order confirmation. Each fires as its own Klaviyo profile +
-    // event, so the existing flow sends them the same templated email
-    // automatically. The `isAdminCopy: true` flag lets the template prefix
-    // the subject with "[ADMIN]" if you want — pure additive, no flow change
-    // needed. Fail-soft, never blocks the customer order.
-    try {
-      const rawAdmins = (settingsRes.data ?? [] as { key: string; value: unknown }[])
-        .find((r: { key: string }) => r.key === 'order_confirmation_admin_emails')?.value
-      // WEC-498: admin BCC rides along with the customer email — so for
-      // card / link it also moves to markPaid (fireOrderConfirmationFromDb
-      // replays the same BCC fan-out). Gate on emailAtSubmit here.
-      const adminEmails = (emailAtSubmit && Array.isArray(rawAdmins))
-        ? (rawAdmins as unknown[])
-            .filter((v): v is string =>
-              typeof v === 'string' &&
-              /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v.trim()),
-            )
-            .map((v) => v.trim())
-        : []
-      // De-dup against the customer's own email so the customer doesn't get
-      // two copies if they happen to also be on the admin list.
-      const customerLower = body.customerEmail.toLowerCase()
-      for (const adminEmail of adminEmails) {
-        if (adminEmail.toLowerCase() === customerLower) continue
-        // Same subscribe-then-track pattern for admin BCC profiles.
-        klaviyoFires.push(subscribeProfileToMarketing(
-          adminEmail,
-          'Fitpal admin BCC (auto-subscribe)',
-        ))
-        klaviyoFires.push(track('Order Placed', {
-          email: adminEmail,
-          firstName: 'Fitpal',
-          lastName: 'Admin notification',
-        }, {
-          ...orderPlacedProperties,
-          isAdminCopy: true,
-        }))
+      try {
+        const origin = new URL(request.url).origin
+        const ctrl = new AbortController()
+        const to = setTimeout(() => ctrl.abort(), 9000)
+        await fetch(`${origin}/.netlify/functions/order-events-background`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ orderId, kind: 'order_placed', lang: body.lang }),
+          signal: ctrl.signal,
+        }).catch(() => {})
+        clearTimeout(to)
+      } catch (err) {
+        console.error('[submit-order] order-events invoke failed (non-fatal):', err)
       }
-    } catch (e) {
-      console.warn('[submit-order] WEC-486 admin BCC fan-out setup failed (non-fatal):', e)
-    }
-
-    // Await all Klaviyo events together. If any fail, log but continue
-    // (the order is already persisted; email is a best-effort side effect).
-    const klaviyoResults = await Promise.all(klaviyoFires)
-    const klaviyoFailed = klaviyoResults.filter((r) => !r.ok)
-    if (klaviyoFailed.length > 0) {
-      console.warn('[submit-order] Klaviyo: %d/%d events failed: %s',
-        klaviyoFailed.length, klaviyoResults.length,
-        klaviyoFailed.map((r) => r.error).join(' | '))
     }
 
     // Stamp the submit time — Airtable mirrors this as "Submitted at (GO)".
