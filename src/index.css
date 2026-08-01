@@ -4075,3 +4075,33 @@ body.is-impersonating { padding-top: 36px; }
   transition: background 0.12s;
 }
 .diet-suggestion:hover { background: var(--green-pale); color: var(--green-dark); }
+
+/* ── WEC-582 · subscription-wizard demo-dishes showcase popup ─────────────── */
+.demo-overlay { z-index: 260; }
+.demo-modal { background: #fff; width: min(920px, 100%); max-height: 86vh; border-radius: 16px; display: flex; flex-direction: column; overflow: hidden; box-shadow: 0 24px 60px rgba(0,0,0,.28); }
+.demo-modal-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 16px 20px; border-bottom: 1px solid #eee; }
+.demo-modal-head h2 { font-size: 18px; font-weight: 800; margin: 0; }
+.demo-modal-close { border: none; background: transparent; color: #666; cursor: pointer; padding: 6px; border-radius: 8px; display: inline-flex; }
+.demo-modal-close:hover { background: rgba(0,0,0,.06); }
+.demo-modal-body { padding: 12px 20px 22px; overflow-y: auto; }
+.demo-modal-msg { color: #666; padding: 28px 0; text-align: center; }
+.demo-cat { margin-top: 18px; }
+.demo-cat:first-child { margin-top: 6px; }
+.demo-cat-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+.demo-cat-head h3 { font-size: 14px; font-weight: 800; text-transform: uppercase; letter-spacing: .4px; color: var(--green, #00b96b); margin: 0; }
+.demo-cat-arrows { display: flex; gap: 6px; }
+.demo-cat-arrows button { border: 1px solid #ddd; background: #fff; width: 28px; height: 28px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; cursor: pointer; color: #222; }
+.demo-cat-arrows button:hover { background: rgba(0,0,0,.05); }
+.demo-cat-scroller { display: flex; gap: 12px; overflow-x: auto; scroll-snap-type: x mandatory; scrollbar-width: thin; padding-bottom: 4px; -webkit-overflow-scrolling: touch; }
+.demo-card { flex: 0 0 calc((100% - 24px) / 3); scroll-snap-align: start; border: 1px solid #eee; border-radius: 12px; overflow: hidden; background: #fff; }
+.demo-card-img { aspect-ratio: 1 / 1; background: #f4f4f4; }
+.demo-card-img img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.demo-card-noimg { width: 100%; height: 100%; background: linear-gradient(135deg, #f0f0f0, #e6e6e6); }
+.demo-card-name { font-size: 13px; font-weight: 700; padding: 8px 10px 4px; line-height: 1.25; }
+.demo-card-macros { display: flex; flex-wrap: wrap; gap: 4px; padding: 0 10px 10px; align-items: center; }
+.demo-kcal { font-size: 12px; font-weight: 800; color: var(--green, #00b96b); }
+.demo-chip { font-size: 10px; font-weight: 700; padding: 1px 5px; border-radius: 6px; background: rgba(0,0,0,.05); color: #555; }
+@media (max-width: 560px) {
+  .demo-card { flex-basis: calc((100% - 12px) / 2.2); }
+  .demo-modal-head h2 { font-size: 16px; }
+}

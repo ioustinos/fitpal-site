@@ -1976,3 +1976,18 @@
 
 /* Impersonation banner styles moved to src/index.css (WEC-188).
  * They need to be available on the customer site, where admin.css doesn't load. */
+
+/* ── WEC-582 · Demo Dishes selection page ─────────────────────────────────── */
+.admin-ok-banner { background: #ecfdf5; border: 1px solid #a7f3d0; color: #065f46; padding: 10px 14px; border-radius: 8px; margin-bottom: 12px; font-size: 13px; }
+.admin-demo-cat { margin-top: 18px; }
+.admin-demo-cat-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin-bottom: 8px; }
+.admin-demo-cat-head h2 { font-size: 14px; font-weight: 800; margin: 0; }
+.admin-demo-count { font-size: 12px; color: var(--a-text-soft, #777); }
+.admin-demo-count.over { color: #b45309; font-weight: 700; }
+.admin-demo-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 8px; }
+.admin-demo-card { display: flex; align-items: center; gap: 10px; border: 1px solid var(--a-border, #e5e5e5); border-radius: 10px; padding: 8px 10px; cursor: pointer; background: var(--a-surface, #fff); }
+.admin-demo-card.on { border-color: var(--a-primary, #00b96b); background: rgba(0,185,107,.06); }
+.admin-demo-card-img img, .admin-demo-card-noimg { width: 44px; height: 44px; border-radius: 8px; object-fit: cover; display: block; }
+.admin-demo-card-noimg { background: linear-gradient(135deg, #eee, #e0e0e0); }
+.admin-demo-card-name { flex: 1; font-size: 13px; font-weight: 600; line-height: 1.25; }
+.admin-demo-hint { font-size: 12px; color: var(--a-text-soft, #777); margin-top: 6px; }

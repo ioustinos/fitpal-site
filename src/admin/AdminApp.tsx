@@ -24,6 +24,7 @@ import { Vouchers } from './pages/Vouchers'
 import { Users } from './pages/Users'
 import { WalletPurchases } from './pages/WalletPurchases'
 import { WalletSettings } from './pages/WalletSettings'
+import { DemoDishes } from './pages/DemoDishes'
 import { DesignSystem } from './pages/DesignSystem'
 import './admin.css'
 
@@ -50,6 +51,7 @@ export default function AdminApp() {
           <Route path="vouchers" element={<Vouchers />} />
           <Route path="wallet-purchases" element={<WalletPurchases />} />
           <Route path="wallet-settings"  element={<WalletSettings />} />
+          <Route path="demo-dishes"      element={<DemoDishes />} />
 
           {/* WEC-274 split — typed-per-domain settings pages */}
           <Route path="site-details" element={<SiteDetails />} />

@@ -94,15 +94,16 @@ const NAV: NavEntry[] = [
     ],
   },
 
-  // Promotions & Wallet
+  // Subscriptions & Vouchers (WEC-582 rename; was "Promotions & Wallet")
   {
     id: 'promotions',
-    label: 'Promotions & Wallet',
+    label: 'Subscriptions & Vouchers',
     icon: 'promotions',
     items: [
       { path: '/admin/vouchers',         label: 'Vouchers',         icon: 'vouchers' },
       { path: '/admin/wallet-purchases', label: 'Wallet purchases', icon: 'wallet' },
       { path: '/admin/wallet-settings',  label: 'Wallet settings',  icon: 'walletSettings' },
+      { path: '/admin/demo-dishes',      label: 'Demo Dishes',      icon: 'dishes' },
     ],
   },
 

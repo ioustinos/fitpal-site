@@ -9,6 +9,7 @@ import { MealIcon } from '../components/icons/MealIcon'
 import { GoalCardArt } from '../components/icons/GoalIllustration'
 import type { ActivityLevel, DaysPerWeek, Goal, MealsSelection, PaymentMethod, PlanLength, Sex, MealKey } from '../lib/wallet/types'
 import { purchaseWalletPlan, sendEmailOtp, verifyEmailOtp, savePhoneToProfile } from '../lib/api/walletPlan'
+import { DemoDishesModal } from '../components/wallet/DemoDishesModal'
 import { DietPicker, type DietSelection } from '../components/wallet/DietPicker'
 import { StartDatePicker } from '../components/wallet/StartDatePicker'
 import { IndicativeAddressGate, type IndicativeAddress } from '../components/wallet/IndicativeAddressGate'
@@ -260,6 +261,8 @@ export function WalletPage() {
   // WEC-338: collapsed from 3 steps to 2 — phone is collected on the
   // identity screen alongside name + email, so the OTP-verify step is the
   // final form action before purchase.
+  // WEC-582: subscription-wizard "demo dishes" showcase popup.
+  const [demoOpen, setDemoOpen] = useState(false)
   const [signupOpen, setSignupOpen] = useState(false)
   const [signupStep, setSignupStep] = useState<'identity' | 'verify'>('identity')
   const [suName, setSuName] = useState('')
@@ -499,6 +502,9 @@ export function WalletPage() {
   return (
     <div className="wpv2-page">
 
+      {/* WEC-582: demo-dishes showcase popup (opened from either «Δες μερικά πιάτα» CTA) */}
+      <DemoDishesModal open={demoOpen} onClose={() => setDemoOpen(false)} isEl={isEl} />
+
       {/* ── Header ───────────────────────────────────── */}
       <div className="wpv2-h">
         <button className="wpv2-back" onClick={closeWalletPage}>
@@ -513,7 +519,7 @@ export function WalletPage() {
             ? 'Επίλεξε στόχο, γεύματα και διάρκεια — εμείς φροντίζουμε τα υπόλοιπα.'
             : 'Pick your goal, meals and duration — we handle the rest.'}
         </p>
-        <button className="wpv2-h-cta">
+        <button className="wpv2-h-cta" onClick={() => setDemoOpen(true)}>
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
             <path d="M3 11l18-7-7 18-2-8-9-3z"/>
           </svg>
@@ -1021,7 +1027,7 @@ export function WalletPage() {
               </div>
             </div>
 
-            <button className="wpv2-aside-menu-cta">
+            <button className="wpv2-aside-menu-cta" onClick={() => setDemoOpen(true)}>
               <div className="wpv2-aside-menu-cta-l">
                 <span className="wpv2-aside-menu-cta-icon">
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
