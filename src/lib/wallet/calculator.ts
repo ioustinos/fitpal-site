@@ -12,6 +12,7 @@ import type {
   MealKey,
   MealBreakdown,
   MacroMealCoeffs,
+  PlanLength,
 } from './types'
 import { DEFAULT_WALLET_SETTINGS, KCAL_PER_GRAM } from './constants'
 
@@ -163,4 +164,40 @@ export function calculateWalletPlan(
 
 function round2(n: number): number {
   return Math.round(n * 100) / 100
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
+// WEC-583: discount SPLIT helpers (display-only).
+// The stored `discountMatrix[planLength][daysPerWeek]` folds two components into
+// one number: a pure DURATION base (the value at the minimum days/week column,
+// where the days component is 0) plus a DAYS component (how much more than that
+// base the chosen days/week earns). A third MEALS component lives in
+// `mealsExtraDiscount`. These helpers decompose the SAME config so the wizard can
+// show each component where it's earned — the total is unchanged
+// (duration + days + meals === the calculator's discountPct, pre-clamp).
+// ──────────────────────────────────────────────────────────────────────────────
+
+/** Smallest days/week key present in the matrix row for a plan length (the pure-duration column). */
+function minDaysKey(settings: WalletSettings, planLength: PlanLength): number {
+  const row = settings.discountMatrix[planLength] ?? {}
+  const keys = Object.keys(row).map(Number).filter((n) => !Number.isNaN(n))
+  return keys.length ? Math.min(...keys) : 0
+}
+
+/** Pure duration component for a plan length (matrix value at the minimum days/week). */
+export function durationDiscountPct(settings: WalletSettings, planLength: PlanLength): number {
+  const row = (settings.discountMatrix[planLength] ?? {}) as Record<number, number>
+  return row[minDaysKey(settings, planLength)] ?? 0
+}
+
+/** Days/week component for a plan length: how much beyond the pure-duration base this frequency earns. */
+export function daysDiscountPct(settings: WalletSettings, planLength: PlanLength, daysPerWeek: number): number {
+  const row = (settings.discountMatrix[planLength] ?? {}) as Record<number, number>
+  const base = row[minDaysKey(settings, planLength)] ?? 0
+  return Math.max(0, (row[daysPerWeek] ?? base) - base)
+}
+
+/** Meals component: each meal-type beyond the 2-meal minimum earns `mealsExtraDiscount`. */
+export function mealsDiscountPct(settings: WalletSettings, selectedMealCount: number): number {
+  return Math.max(0, selectedMealCount - 2) * (settings.mealsExtraDiscount ?? 0.02)
 }

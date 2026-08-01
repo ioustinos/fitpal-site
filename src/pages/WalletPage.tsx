@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useUIStore } from '../store/useUIStore'
 import { useAuthStore } from '../store/useAuthStore'
-import { calculateWalletPlan } from '../lib/wallet/calculator'
+import { calculateWalletPlan, durationDiscountPct, daysDiscountPct, mealsDiscountPct } from '../lib/wallet/calculator'
 import { loadWalletSettingsFromDb } from '../lib/wallet/loadSettingsClient'
 import type { WalletSettings } from '../lib/wallet/types'
 import { DEFAULT_WALLET_SETTINGS, ACTIVITY_LABELS, MEAL_LABELS, lipometrisiFeeCents, LIPOMETRISI_FEE_CENTS } from '../lib/wallet/constants'
@@ -498,6 +498,23 @@ export function WalletPage() {
   const total = result.amountToPay + lipoFee
   const goalCard = GOAL_CARDS.find((g) => g.id === goal)!
 
+  // WEC-583: discount split (display-only, config-driven — see calculator.ts).
+  // duration + days + meals === result.discountPct (pre-clamp).
+  const durPct = Math.round(durationDiscountPct(walletSettings, planLength) * 100)
+  const dayPct = Math.round(daysDiscountPct(walletSettings, planLength, daysPerWeek) * 100)
+  const mealPct = Math.round(mealsDiscountPct(walletSettings, result.selectedMealCount) * 100)
+  // Which selected meals earn the meals-count bonus: the 3rd/4th selected (in a
+  // fixed order), so the per-option badges sum to the total meals component.
+  const mealStepPct = Math.round((walletSettings.mealsExtraDiscount ?? 0.02) * 100)
+  const earningMeals = (() => {
+    const set = new Set<MealKey>()
+    let seen = 0
+    for (const m of ['breakfast', 'lunch', 'dinner', 'snack'] as MealKey[]) {
+      if (meals[m]) { seen++; if (seen > 2) set.add(m) }
+    }
+    return set
+  })()
+
   /* ════════════════════════════════════════════════════════════ */
   return (
     <div className="wpv2-page">
@@ -759,6 +776,8 @@ export function WalletPage() {
                       <span className="wpv2-meal-name">{MEAL_LABELS[m][lang]}</span>
                       <span className="wpv2-meal-kcal">{result.perMeal[m].kcal} kcal</span>
                     </span>
+                    {/* WEC-583: this meal earns the extra-meals discount (3rd/4th selected). */}
+                    {earningMeals.has(m) && mealStepPct > 0 && <span className="wpv2-meal-disc">+{mealStepPct}%</span>}
                   </button>
                 )
               })}
@@ -774,8 +793,8 @@ export function WalletPage() {
               const pct = result.dailyKcal > 0
                 ? Math.round((selectedKcal / result.dailyKcal) * 100)
                 : 0
-              // WEC-552: extra-meals discount incentive (2% per meal beyond 2).
-              const extraMealPct = Math.max(0, result.selectedMealCount - 2) * 2
+              // WEC-552/583: extra-meals discount incentive (config-driven).
+              const extraMealPct = mealPct
               return (
                 <div className="wpv2-meals-summary">
                   {isEl
@@ -805,20 +824,25 @@ export function WalletPage() {
               </div>
             </div>
             <div className="wpv2-freq">
-              {FREQ_CARDS.map((f) => (
-                <button
-                  key={f.id}
-                  type="button"
-                  className={`wpv2-freq-opt${daysPerWeek === f.id ? ' sel' : ''}`}
-                  onClick={() => setDaysPerWeek(f.id)}
-                >
-                  <span className="wpv2-freq-radio" />
-                  <div>
-                    <div className="wpv2-freq-name">{isEl ? f.nameEl : f.nameEn}</div>
-                    <div className="wpv2-freq-sub">{isEl ? f.subEl : f.subEn}</div>
-                  </div>
-                </button>
-              ))}
+              {FREQ_CARDS.map((f) => {
+                // WEC-583: days/week discount component for this card (config-driven).
+                const dPct = Math.round(daysDiscountPct(walletSettings, planLength, f.id) * 100)
+                return (
+                  <button
+                    key={f.id}
+                    type="button"
+                    className={`wpv2-freq-opt${daysPerWeek === f.id ? ' sel' : ''}`}
+                    onClick={() => setDaysPerWeek(f.id)}
+                  >
+                    <span className="wpv2-freq-radio" />
+                    <div>
+                      <div className="wpv2-freq-name">{isEl ? f.nameEl : f.nameEn}</div>
+                      <div className="wpv2-freq-sub">{isEl ? f.subEl : f.subEn}</div>
+                    </div>
+                    {dPct > 0 && <span className="wpv2-freq-disc">+{dPct}%</span>}
+                  </button>
+                )
+              })}
             </div>
           </section>
 
@@ -837,7 +861,9 @@ export function WalletPage() {
             </div>
             <div className="wpv2-lengths">
               {PLAN_LENGTH_CARDS.map((pl) => {
-                const disc = DEFAULT_WALLET_SETTINGS.discountMatrix[pl.id][daysPerWeek] ?? 0
+                // WEC-583: show ONLY the duration component here (no longer the
+                // blended duration+days value). Days/meals are shown where earned.
+                const disc = durationDiscountPct(walletSettings, pl.id)
                 return (
                   <button
                     key={pl.id}
@@ -1071,9 +1097,23 @@ export function WalletPage() {
                 <span className="wpv2-aside-row-lbl">{isEl ? 'Υποσύνολο' : 'Subtotal'}</span>
                 <span className="wpv2-aside-row-val">{fmtEur(subtotal)}</span>
               </div>
+              {/* WEC-583: discount split — show which dimensions earned it. */}
+              {result.discountPct > 0 && (durPct > 0 || dayPct > 0 || mealPct > 0) && (
+                <div className="wpv2-aside-discbreak">
+                  {[
+                    { pct: durPct, el: 'Διάρκεια', en: 'Duration' },
+                    { pct: dayPct, el: 'Ημέρες', en: 'Days' },
+                    { pct: mealPct, el: 'Γεύματα', en: 'Meals' },
+                  ].filter((x) => x.pct > 0).map((x, i, arr) => (
+                    <span key={x.en} className="wpv2-discbreak-item">
+                      {isEl ? x.el : x.en} −{x.pct}%{i < arr.length - 1 ? ' · ' : ''}
+                    </span>
+                  ))}
+                </div>
+              )}
               {result.discountPct > 0 && (
                 <div className="wpv2-aside-row discount">
-                  <span className="wpv2-aside-row-lbl">{isEl ? 'Έκπτωση' : 'Discount'} ({Math.round(result.discountPct * 100)}%)</span>
+                  <span className="wpv2-aside-row-lbl">{isEl ? 'Συνολική έκπτωση' : 'Total discount'} ({Math.round(result.discountPct * 100)}%)</span>
                   <span className="wpv2-aside-row-val">−{fmtEur(discountAmt)}</span>
                 </div>
               )}
