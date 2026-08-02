@@ -4116,3 +4116,19 @@ body.is-impersonating { padding-top: 36px; }
 .prefs-payment-btn.unavailable { opacity: .6; border-style: dashed; }
 .prefs-payment-flag { font-size: 11px; font-weight: 600; opacity: .8; }
 .prefs-empty { font-size: 13px; color: var(--fp-ink-400, #888); }
+
+/* ── WEC-589 · merged Subscription & Wallet — past plans ─────────────────────── */
+.subs-past { margin-top: 16px; }
+.subs-past-toggle { display: flex; align-items: center; justify-content: space-between; width: 100%; background: transparent; border: 0; cursor: pointer; font-family: inherit; font-size: 14px; font-weight: 700; color: var(--text); padding: 2px 0; }
+.subs-past-chev { transition: transform 0.2s; }
+.subs-past-chev.open { transform: rotate(180deg); }
+.subs-past-list { margin-top: 12px; display: flex; flex-direction: column; gap: 8px; }
+.subs-past-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 12px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--white); }
+.subs-past-main { display: flex; flex-direction: column; gap: 2px; }
+.subs-past-name { font-size: 13px; font-weight: 700; color: var(--text); }
+.subs-past-date { font-size: 12px; color: var(--fp-ink-400, #888); }
+.subs-past-nums { display: flex; align-items: center; gap: 10px; font-size: 13px; white-space: nowrap; }
+.subs-past-credits { color: var(--fp-ink-400, #888); font-size: 12px; }
+.subs-past-status { font-size: 11px; font-weight: 700; text-transform: uppercase; color: #b45309; background: rgba(180,83,9,.1); padding: 1px 6px; border-radius: 6px; }
+.subs-past-msg { margin-top: 10px; font-size: 13px; color: var(--fp-ink-400, #888); }
+@media (max-width: 560px) { .subs-past-row { flex-direction: column; align-items: flex-start; gap: 6px; } }

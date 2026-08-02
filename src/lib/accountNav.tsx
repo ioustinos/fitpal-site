@@ -59,15 +59,11 @@ export const ACCOUNT_TABS: AccountTabDef[] = [
     icon: svg([<path key="a" d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z" />, <circle key="b" cx="12" cy="10" r="3" />]),
   },
   {
+    // WEC-589: merged Συνδρομή + Πορτοφόλι into one page (key stays 'subscription';
+    // 'wallet' is aliased to it in AccountPage for old deep-links). Lean wallet icon.
     key: 'subscription',
-    el: 'Συνδρομή',
-    en: 'Subscription',
-    icon: svg([<circle key="a" cx="12" cy="8" r="6" />, <polyline key="b" points="8.21 13.89 7 23 12 19 17 23 15.79 13.88" />]),
-  },
-  {
-    key: 'wallet',
-    el: 'Πορτοφόλι',
-    en: 'Wallet',
+    el: 'Συνδρομή & Πορτοφόλι',
+    en: 'Subscription & Wallet',
     icon: svg([<rect key="a" x="2" y="5" width="20" height="14" rx="2" />, <path key="b" d="M16 12h.01" />, <path key="c" d="M2 10h20" />]),
   },
   {

@@ -198,6 +198,71 @@ export async function fetchWallet(userId: string): Promise<{
   }
 }
 
+// WEC-589: past (non-active) plans for the merged Subscription & Wallet page.
+export interface PastWalletPlan {
+  id: string
+  labelEl: string
+  labelEn: string
+  createdAt: string | null   // YYYY-MM-DD (date part)
+  amountPaid: number         // € paid
+  credits: number            // € credited (paid + bonus)
+  paymentStatus: string
+}
+
+const CONSUMER_LABELS: Record<string, { el: string; en: string }> = {
+  light: { el: 'Light', en: 'Light' },
+  medium: { el: 'Medium', en: 'Medium' },
+  regular: { el: 'Regular', en: 'Regular' },
+  large: { el: 'Large', en: 'Large' },
+  athletic: { el: 'Athletic', en: 'Athletic' },
+}
+
+/**
+ * WEC-589 (absorbs WEC-349 gap): the customer's PAST wallet plans — every
+ * `wallet_plans` row for their wallet except the currently-active one, newest
+ * first. Lazy-loaded when the "past plans" section is expanded. Reads via the
+ * same customer RLS `fetchWallet` already uses for the active plan.
+ */
+export async function fetchPastWalletPlans(
+  userId: string,
+  excludePlanId?: string,
+): Promise<{ data: PastWalletPlan[] | null; error: string | null }> {
+  const { data: walletRow, error: wErr } = await supabase
+    .from('wallets')
+    .select('id')
+    .eq('user_id', userId)
+    .maybeSingle()
+  if (wErr) return { data: null, error: wErr.message }
+  if (!walletRow) return { data: [], error: null }
+
+  let q = supabase
+    .from('wallet_plans')
+    .select('id, consumer_type, created_at, amount_to_pay_cents, wallet_credit_cents, cost, credits, payment_status')
+    .eq('wallet_id', (walletRow as { id: string }).id)
+    .order('created_at', { ascending: false })
+  if (excludePlanId) q = q.neq('id', excludePlanId)
+
+  const { data, error } = await q
+  if (error) return { data: null, error: error.message }
+  const rows = (data ?? []) as Record<string, string | number | null>[]
+  return {
+    data: rows.map((p) => {
+      const ct = String(p.consumer_type ?? '')
+      const lbl = CONSUMER_LABELS[ct] ?? { el: ct || '—', en: ct || '—' }
+      return {
+        id: String(p.id),
+        labelEl: lbl.el,
+        labelEn: lbl.en,
+        createdAt: p.created_at ? String(p.created_at).split('T')[0] : null,
+        amountPaid: centsToEuros(Number(p.amount_to_pay_cents ?? p.cost ?? 0)),
+        credits: centsToEuros(Number(p.wallet_credit_cents ?? p.credits ?? 0)),
+        paymentStatus: String(p.payment_status ?? 'paid'),
+      }
+    }),
+    error: null,
+  }
+}
+
 /**
  * Fetch just the wallet transactions (paginated).
  */
