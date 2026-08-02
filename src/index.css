@@ -2063,9 +2063,13 @@ header {
 
 /* WEC-557 — «Αίτημα αλλαγής» button + modal */
 .order-change-req { padding: 10px 14px 2px; display: flex; justify-content: flex-end; }
-.order-change-req-btn { font-size: 13px; font-weight: 700; }
-.order-change-req-btn:disabled { opacity: 0.6; cursor: default; }
-.order-change-modal { padding: 22px 24px; max-width: 460px; width: 100%; }
+/* WEC-557 review: prominent YELLOW trigger (was an underlined green link). */
+.order-change-req-btn { display: inline-flex; align-items: center; gap: 6px; background: var(--fp-accent-yellow, #f2c94c); color: #5a4300; border: 1px solid #e0b73a; border-radius: 999px; font-size: 13px; font-weight: 800; padding: 8px 16px; cursor: pointer; font-family: inherit; transition: filter 0.15s, transform 0.05s; }
+.order-change-req-btn:hover { filter: brightness(1.04); }
+.order-change-req-btn:active { transform: translateY(1px); }
+.order-change-req-btn:disabled { opacity: 0.6; cursor: default; filter: none; }
+/* WEC-557 review: real white modal panel (was transparent — no bg/shadow, form floated over the blur). */
+.order-change-modal { background: var(--white); border-radius: var(--radius-lg); box-shadow: 0 24px 60px rgba(0,0,0,0.25); max-height: 90vh; overflow-y: auto; animation: modalIn 0.25s cubic-bezier(0.34,1.56,0.64,1); padding: 22px 24px; max-width: 460px; width: 100%; }
 .order-change-modal-title { font-size: 18px; font-weight: 800; margin: 0 0 6px; color: var(--text); }
 .order-change-modal-sub { font-size: 13px; color: var(--text-mid); line-height: 1.5; margin: 0 0 16px; }
 .order-change-modal .form-input { width: 100%; box-sizing: border-box; }

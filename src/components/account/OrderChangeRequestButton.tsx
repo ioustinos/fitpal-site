@@ -71,7 +71,7 @@ export function OrderChangeRequestButton({ orderId, orderStatusRaw, userId, lang
     <div className="order-change-req">
       <button
         type="button"
-        className="btn-link-green order-change-req-btn"
+        className="order-change-req-btn"
         disabled={alreadyRequested}
         onClick={() => setOpen(true)}
       >
