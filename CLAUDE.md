@@ -6,11 +6,14 @@ Parallel chats (registry, dev, tester) CANNOT talk to each other. **Linear is th
 
 1. **Before starting ANY work:** find or create the WEC ticket, move it to **In Progress**. No ticket = no work.
 2. **When code-complete:** move to **In Review** + comment in the SAME session: files changed, migrations applied (yes/no), pushed to dev (yes/no), how to test. Work that ships without this comment is invisible to every other chat.
+   **2b. "Code-complete" REQUIRES pushed to dev.** Unpushed work does not exist — it's In Progress, never In Review, no matter how finished it looks locally (WEC-580 sat built-but-unpushed while Ioustinos live-tested against the old code).
 3. **Tester:** comment PASS/FAIL evidence on the ticket. PASS → **Done**. FAIL → back to **In Progress** with repro.
 4. **Registry/ticket-issuer:** owns board hygiene — files tickets, reconciles states, never assumes.
 5. **Any DB change applied via MCP** must also land as a migration file in `supabase/migrations/` in the same session (the WEC-526 column had no file — took a day to trace).
 6. **Never report project status from ticket states alone** — verify against code/git log. Conversely: never leave your ticket state stale, or the next chat wastes hours re-verifying what you did.
 7. **Half-shipped = not shipped.** A feature with only the UI leg (e.g. an add-on the server doesn't price) is a live bug, not progress. Finish the trace end-to-end or revert the visible part.
+   **7b. Before moving a ticket to In Review, re-read its spec top to bottom and post a per-leg checklist in your comment** — every named surface (customer UI / server / admin / DB migration file / email / Airtable) marked ✓ shipped or ✗ explicitly descoped-with-reason. Three half-ships were caught in one week (WEC-553 server leg, WEC-557 admin leg, WEC-580 push) because chats completed the surface they started on and stopped. The checklist is not optional.
+8. **End every session with `git status` against origin/dev.** Anything modified that you own: push it, or comment WIP-with-state on the ticket. Never leave silent uncommitted work in the shared workspace.
 
 ## Stack
 - React 19 + TypeScript + Vite
