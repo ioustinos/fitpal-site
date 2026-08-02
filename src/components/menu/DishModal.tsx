@@ -356,8 +356,8 @@ export function DishModal() {
               {unavailable
                 ? t('ordersClosed')
                 : (lang === 'el'
-                    ? `Αποθήκευση αλλαγών • €${(finalPrice * qty).toFixed(2)}`
-                    : `Save changes • €${(finalPrice * qty).toFixed(2)}`)}
+                    ? `Αποθήκευση αλλαγών • ${(finalPrice * qty).toFixed(2)} €`
+                    : `Save changes • ${(finalPrice * qty).toFixed(2)} €`)}
             </button>
           ) : (
             <button
@@ -373,9 +373,9 @@ export function DishModal() {
                   // with a different setup* (different variant / comment). The
                   // price still trails behind a bullet so it's scannable.
                   ? (lang === 'el'
-                      ? `Προσθήκη με διαφορετική επιλογή • €${(finalPrice * qty).toFixed(2)}`
-                      : `Add another with a different setup • €${(finalPrice * qty).toFixed(2)}`)
-                  : `${t('addToCart')} • €${(finalPrice * qty).toFixed(2)}`}
+                      ? `Προσθήκη με διαφορετική επιλογή • ${(finalPrice * qty).toFixed(2)} €`
+                      : `Add another with a different setup • ${(finalPrice * qty).toFixed(2)} €`)
+                  : `${t('addToCart')} • ${(finalPrice * qty).toFixed(2)} €`}
             </button>
           )}
         </div>

@@ -553,11 +553,11 @@ function WalletTab({ user, lang }: any) {
       <h2 className="tab-title">{t('acWalletTitle')}</h2>
       <div className="acct-wallet-card">
         <div className="aw-label">{t('acAvailableBalance')}</div>
-        <div className="aw-balance">€{wallet.balance.toFixed(2)}</div>
+        <div className="aw-balance">{wallet.balance.toFixed(2)} €</div>
         <div className="aw-detail">
           {lang === 'el'
-            ? `Βάση: €${baseBalance.toFixed(2)} · Bonus: €${bonusBalance.toFixed(2)}`
-            : `Base: €${baseBalance.toFixed(2)} · Bonus: €${bonusBalance.toFixed(2)}`}
+            ? `Βάση: ${baseBalance.toFixed(2)} € · Bonus: ${bonusBalance.toFixed(2)} €`
+            : `Base: ${baseBalance.toFixed(2)} € · Bonus: ${bonusBalance.toFixed(2)} €`}
         </div>
         <div className="aw-plan-badge">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" width="14" height="14">
@@ -599,7 +599,7 @@ function WalletTab({ user, lang }: any) {
                   <div className="aw-tx-date">{txDate}</div>
                 </div>
                 <div className={`aw-tx-amt ${isCredit ? 'credit' : 'debit'}`}>
-                  {isCredit ? '+' : '−'}€{Math.abs(tx.amount).toFixed(2)}
+                  {isCredit ? '+' : '−'}{Math.abs(tx.amount).toFixed(2)} €
                 </div>
               </div>
             )
@@ -1299,7 +1299,7 @@ function OrdersTab({ user, lang }: any) {
                   </div>
                   <div className="order-card-right">
                     <span className={`order-status-badge${order.statusRaw ? ' st-' + order.statusRaw : ''}`}>{statusLabel}</span>
-                    <span className="order-card-total">€{order.total?.toFixed(2)}</span>
+                    <span className="order-card-total">{order.total?.toFixed(2)} €</span>
                     <svg className={`order-acc-arrow${isOpen ? ' open' : ''}`} width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                       <polyline points="6 9 12 15 18 9"/>
                     </svg>
@@ -1343,7 +1343,7 @@ function OrdersTab({ user, lang }: any) {
                               <span className="order-day-meta">{child.address}  {child.timeSlot}</span>
                             </div>
                             <div className="order-day-right">
-                              <span className="order-day-subtotal">€{child.subtotal?.toFixed(2)}</span>
+                              <span className="order-day-subtotal">{child.subtotal?.toFixed(2)} €</span>
                               <svg className={`order-acc-arrow${dayOpen ? ' open' : ''}`} width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                                 <polyline points="6 9 12 15 18 9"/>
                               </svg>
@@ -1419,7 +1419,7 @@ function OrdersTab({ user, lang }: any) {
                                       <span className="macro-pill protein"><MacroIcon type="pro" /> {item.macros?.protein}g</span>
                                       <span className="macro-pill fat"><MacroIcon type="fat" /> {item.macros?.fat}g</span>
                                     </div>
-                                    <span className="order-item-price">€{item.price?.toFixed(2)}</span>
+                                    <span className="order-item-price">{item.price?.toFixed(2)} €</span>
                                   </div>
                                 </div>
                               ))}
@@ -1740,7 +1740,7 @@ function SubscriptionTab({ user, lang }: any) {
 
   // Numeric formatters
   const eur = (n: number | undefined | null) =>
-    typeof n === 'number' ? `€${n.toFixed(2)}` : '—'
+    typeof n === 'number' ? `${n.toFixed(2)} €` : '—'
   const pct = (n: number | undefined | null) =>
     typeof n === 'number' ? `+${n}%` : '—'
 

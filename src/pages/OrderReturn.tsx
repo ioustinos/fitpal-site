@@ -367,7 +367,7 @@ function WalletPaidView({
       </div>
       <h2 className="conf-title">{t('coPackagePaidTitle')}</h2>
       <p className="conf-sub">
-        {t('coWalletCredited')} €{(creditedCents / 100).toFixed(2)}
+        {t('coWalletCredited')} {(creditedCents / 100).toFixed(2)} €
       </p>
 
       {plan && (
@@ -381,9 +381,9 @@ function WalletPaidView({
           <WalletKV k={el ? 'Ημέρες / εβδομάδα' : 'Days per week'} v={plan.days_per_week != null ? String(plan.days_per_week) : '—'} />
           <WalletKV k={el ? 'Γεύματα' : 'Meals'} v={meals || '—'} />
           {plan.daily_kcal != null && <WalletKV k={el ? 'Ημερήσιες θερμίδες' : 'Daily calories'} v={`${plan.daily_kcal} kcal`} />}
-          {plan.amount_to_pay_cents != null && <WalletKV k={el ? 'Πλήρωσες' : 'Amount paid'} v={`€${(plan.amount_to_pay_cents / 100).toFixed(2)}`} />}
-          {plan.wallet_credit_cents != null && <WalletKV k={el ? 'Πίστωση πορτοφολιού' : 'Wallet credited'} v={`€${(plan.wallet_credit_cents / 100).toFixed(2)}`} />}
-          {(plan.bonus_credits_cents ?? 0) > 0 && <WalletKV k={el ? 'Δώρο (bonus)' : 'Bonus credit'} v={`€${((plan.bonus_credits_cents ?? 0) / 100).toFixed(2)}`} />}
+          {plan.amount_to_pay_cents != null && <WalletKV k={el ? 'Πλήρωσες' : 'Amount paid'} v={`${(plan.amount_to_pay_cents / 100).toFixed(2)} €`} />}
+          {plan.wallet_credit_cents != null && <WalletKV k={el ? 'Πίστωση πορτοφολιού' : 'Wallet credited'} v={`${(plan.wallet_credit_cents / 100).toFixed(2)} €`} />}
+          {(plan.bonus_credits_cents ?? 0) > 0 && <WalletKV k={el ? 'Δώρο (bonus)' : 'Bonus credit'} v={`${((plan.bonus_credits_cents ?? 0) / 100).toFixed(2)} €`} />}
         </div>
       )}
 

@@ -107,8 +107,8 @@ export function WalletPurchases() {
                 <td>{r.planLength ?? '—'} · {r.daysPerWeek ?? '?'}d/wk · {r.selectedMeals.length} meals</td>
                 <td>{r.paymentMethod ?? '—'}</td>
                 <td><span className={`admin-pill-${r.paymentStatus}`}>{STATUS_LABELS[r.paymentStatus] ?? r.paymentStatus}</span></td>
-                <td>€{(r.amountToPayCents / 100).toFixed(2)}</td>
-                <td>€{(r.walletCreditCents / 100).toFixed(2)}</td>
+                <td>{(r.amountToPayCents / 100).toFixed(2)} €</td>
+                <td>{(r.walletCreditCents / 100).toFixed(2)} €</td>
                 <td><button className="admin-btn-secondary admin-btn-sm" onClick={() => openDrawer(r.id)}>Details</button></td>
               </tr>
             ))}
@@ -146,7 +146,7 @@ function Drawer({ detail, loading, onClose, onRefunded }: DrawerProps) {
 
   async function doMarkPaid() {
     if (!detail) return
-    if (!confirm(`Mark this ${detail.paymentMethod === 'cash' ? 'cash (Αντικαταβολή)' : 'bank-transfer'} plan as PAID? This immediately credits €${(detail.amountToPayCents / 100).toFixed(2)} (+ bonus) to the customer's wallet and activates it.`)) return
+    if (!confirm(`Mark this ${detail.paymentMethod === 'cash' ? 'cash (Αντικαταβολή)' : 'bank-transfer'} plan as PAID? This immediately credits ${(detail.amountToPayCents / 100).toFixed(2)} € (+ bonus) to the customer's wallet and activates it.`)) return
     setMarking(true); setMarkErr(null)
     const { error } = await markAdminWalletPlanPaid(detail.id)
     setMarking(false)
@@ -190,7 +190,7 @@ function Drawer({ detail, loading, onClose, onRefunded }: DrawerProps) {
                 <KV k="Macro split" v={`P ${detail.macroSplit.p ?? 0}% / C ${detail.macroSplit.c ?? 0}% / F ${detail.macroSplit.f ?? 0}%`} />
                 <KV k="Dietitian-managed" v={detail.services.dieticianManaged ? 'Yes' : 'No'} />
                 {/* WEC-553: λιπομέτρηση add-on + its fee. */}
-                <KV k="Body-fat measurement (λιπομέτρηση)" v={detail.services.bodyFatMeasurement ? `Yes · €${((detail.services.bodyFatFeeCents ?? 0) / 100).toFixed(2)}` : 'No'} />
+                <KV k="Body-fat measurement (λιπομέτρηση)" v={detail.services.bodyFatMeasurement ? `Yes · ${((detail.services.bodyFatFeeCents ?? 0) / 100).toFixed(2)} €` : 'No'} />
               </Section>
 
               <Section title="Profile snapshot (at purchase)">
@@ -210,7 +210,7 @@ function Drawer({ detail, loading, onClose, onRefunded }: DrawerProps) {
                         <td><b>{meal}</b></td>
                         <td>{mb.kcal}</td>
                         <td>{mb.grams.p}/{mb.grams.c}/{mb.grams.f}</td>
-                        <td>€{mb.price.toFixed(2)}</td>
+                        <td>{mb.price.toFixed(2)} €</td>
                       </tr>
                     ))}
                   </tbody>
@@ -218,12 +218,12 @@ function Drawer({ detail, loading, onClose, onRefunded }: DrawerProps) {
               </Section>
 
               <Section title="Pricing">
-                <KV k="Subtotal" v={`€${(detail.subtotalCents / 100).toFixed(2)}`} />
-                <KV k="Discount" v={`${Math.round(detail.discountPct * 100)}% (−€${(detail.discountCents / 100).toFixed(2)})`} />
-                <KV k="Amount paid" v={`€${(detail.amountToPayCents / 100).toFixed(2)}`} />
-                <KV k="Wallet credit" v={`€${(detail.walletCreditCents / 100).toFixed(2)}`} />
-                <KV k="Bonus credits" v={`€${(detail.bonusCreditsCents / 100).toFixed(2)}`} />
-                <KV k="Refunded so far" v={`€${(detail.refundAmountCents / 100).toFixed(2)}`} />
+                <KV k="Subtotal" v={`${(detail.subtotalCents / 100).toFixed(2)} €`} />
+                <KV k="Discount" v={`${Math.round(detail.discountPct * 100)}% (−${(detail.discountCents / 100).toFixed(2)} €)`} />
+                <KV k="Amount paid" v={`${(detail.amountToPayCents / 100).toFixed(2)} €`} />
+                <KV k="Wallet credit" v={`${(detail.walletCreditCents / 100).toFixed(2)} €`} />
+                <KV k="Bonus credits" v={`${(detail.bonusCreditsCents / 100).toFixed(2)} €`} />
+                <KV k="Refunded so far" v={`${(detail.refundAmountCents / 100).toFixed(2)} €`} />
               </Section>
 
               <Section title="Payment">
@@ -241,8 +241,8 @@ function Drawer({ detail, loading, onClose, onRefunded }: DrawerProps) {
                 <Section title={detail.paymentMethod === 'cash' ? 'Cash on delivery (Αντικαταβολή)' : 'Bank transfer'}>
                   <p className="admin-page-sub" style={{ margin: '0 0 8px' }}>
                     {detail.paymentMethod === 'cash'
-                      ? `Courier collected the cash? Mark the plan paid to credit €${(detail.amountToPayCents / 100).toFixed(2)} (+ bonus) to the customer's wallet and activate it.`
-                      : `Funds received? Mark the plan paid to credit €${(detail.amountToPayCents / 100).toFixed(2)} (+ bonus) to the customer's wallet and activate it.`}
+                      ? `Courier collected the cash? Mark the plan paid to credit ${(detail.amountToPayCents / 100).toFixed(2)} € (+ bonus) to the customer's wallet and activate it.`
+                      : `Funds received? Mark the plan paid to credit ${(detail.amountToPayCents / 100).toFixed(2)} € (+ bonus) to the customer's wallet and activate it.`}
                   </p>
                   {markErr && <div className="admin-error-banner">{markErr}</div>}
                   <button className="admin-btn-primary" onClick={doMarkPaid} disabled={marking}>
@@ -264,7 +264,7 @@ function Drawer({ detail, loading, onClose, onRefunded }: DrawerProps) {
                       className="admin-input"
                       type="number"
                       step="0.01"
-                      placeholder={`Amount in € (leave empty for full €${((detail.amountToPayCents - detail.refundAmountCents) / 100).toFixed(2)})`}
+                      placeholder={`Amount in € (leave empty for full ${((detail.amountToPayCents - detail.refundAmountCents) / 100).toFixed(2)} €)`}
                       value={refundAmount}
                       onChange={(e) => setRefundAmount(e.target.value)}
                     />

@@ -125,8 +125,8 @@ export function Vouchers() {
 
 function labelForType(type: VoucherType, value: number): string {
   if (type === 'pct') return `-${value}%`
-  if (type === 'fixed') return `-€${(value / 100).toFixed(2)}`
-  return `€${(value / 100).toFixed(2)} credit`
+  if (type === 'fixed') return `-${(value / 100).toFixed(2)} €`
+  return `${(value / 100).toFixed(2)} € credit`
 }
 
 interface FormState {
@@ -399,7 +399,7 @@ function VoucherEditor({
                     <td>{new Date(u.usedAt).toLocaleString()}</td>
                     <td>{u.userEmail ?? <em>—</em>}</td>
                     <td>{u.orderNumber ?? <em>—</em>}</td>
-                    <td style={{ textAlign: 'right' }}>€{(u.amount / 100).toFixed(2)}</td>
+                    <td style={{ textAlign: 'right' }}>{(u.amount / 100).toFixed(2)} €</td>
                   </tr>
                 ))}
               </tbody>

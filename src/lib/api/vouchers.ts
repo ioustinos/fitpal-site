@@ -119,7 +119,7 @@ export async function validateVoucher(
         type: v.type,
         value: 0,
         discountAmount: 0,
-        error: `Minimum order of €${centsToEuros(v.min_order)} required`,
+        error: `Minimum order of ${centsToEuros(v.min_order)} € required`,
       },
       error: null,
     }

@@ -49,10 +49,10 @@ export function DayOrderGroup({
         <span className="cart-day-name">{label} <span className="cart-day-date">{dateStr}</span></span>
         {amt < minOrder ? (
           <span className="cart-day-min-pill">
-            €{amt.toFixed(2)} <span className="cart-day-min-label">/ min €{minOrder}</span>
+            {amt.toFixed(2)} € <span className="cart-day-min-label">/ min {minOrder} €</span>
           </span>
         ) : (
-          <span className="cart-day-amt">€{amt.toFixed(2)}</span>
+          <span className="cart-day-amt">{amt.toFixed(2)} €</span>
         )}
       </div>
 
@@ -80,9 +80,9 @@ export function DayOrderGroup({
                 </span>
                 <span className="summary-item-qty">×{item.qty}</span>
                 <span className="summary-item-price">
-                  €{(item.price * item.qty).toFixed(2)}
+                  {(item.price * item.qty).toFixed(2)} €
                   {perItemDisc > 0 && (
-                    <span className="summary-item-disc"> −€{perItemDisc.toFixed(2)}</span>
+                    <span className="summary-item-disc"> −{perItemDisc.toFixed(2)} €</span>
                   )}
                 </span>
               </div>

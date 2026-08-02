@@ -135,14 +135,14 @@ function WalletStatsRow({ stats, onClick }: { stats: WalletPlanStats; onClick: (
         <StatCard
           title="This week"
           value={stats.paidWeek}
-          hint={`€${(stats.revenueWeekCents / 100).toFixed(2)} revenue`}
+          hint={`${(stats.revenueWeekCents / 100).toFixed(2)} € revenue`}
           accent="primary"
           onClick={onClick}
         />
         <StatCard
           title="This month"
           value={stats.paidMonth}
-          hint={`€${(stats.revenueMonthCents / 100).toFixed(2)} revenue`}
+          hint={`${(stats.revenueMonthCents / 100).toFixed(2)} € revenue`}
           accent="primary"
           onClick={onClick}
         />

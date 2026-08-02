@@ -63,7 +63,8 @@ const SiteFooter: FC<Props> = ({ lang, logoSrc, marketingBase = '' }) => {
         .sf .sf-logo { height: 28px; filter: brightness(0) invert(1); opacity: .95; margin-bottom: 18px; }
         .sf .sf-tag { font-size: 16px; line-height: 1.55; color: rgba(255,252,235,.78); max-width: 24em; margin: 0; }
         .sf .sf-bottom { border-top: 1px solid rgba(255,255,255,.12); margin-top: 50px; padding-top: 22px;
-          display: flex; justify-content: space-between; font-size: 13.5px; color: rgba(255,252,235,.55); }
+          display: flex; justify-content: space-between; font-size: 13.5px; color: rgba(255,252,235,.7); font-weight: 700; }
+        .sf .sf-logo-link { display: inline-block; }
         @media (max-width: 1024px) {
           .sf { padding: 48px 0 28px; }
           .sf .sf-wrap { padding: 0 24px; }
@@ -77,7 +78,7 @@ const SiteFooter: FC<Props> = ({ lang, logoSrc, marketingBase = '' }) => {
 
       <div className="sf-wrap sf-grid">
         <div>
-          <img className="sf-logo" src={logoSrc} alt="Fitpal Meals" />
+          <a className="sf-logo-link" href={link('/')} aria-label="Fitpal Meals"><img className="sf-logo" src={logoSrc} alt="Fitpal Meals" /></a>
           <p className="sf-tag">{T(STR.tag, lang)}</p>
         </div>
         <div>
@@ -93,7 +94,7 @@ const SiteFooter: FC<Props> = ({ lang, logoSrc, marketingBase = '' }) => {
           <ul>
             <li><a href={link('/about')}>{T(STR.lAbout, lang)}</a></li>
             <li><a href={link('/faq')}>{T(STR.lFaq, lang)}</a></li>
-            <li><a href="#" aria-disabled="true">{T(STR.lTerms, lang)}</a></li>
+            <li><a href="/terms">{T(STR.lTerms, lang)}</a></li>
           </ul>
         </div>
         <div>

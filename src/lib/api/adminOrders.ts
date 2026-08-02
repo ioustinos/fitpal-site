@@ -751,7 +751,7 @@ async function recomputeOrderTotals(orderId: string, adminUser: string = 'system
   // WEC-566: audit the money impact of the edit so the Timeline shows old → new
   // totals (not just the field change). Cents stored in old/new_value; label
   // carries the € formatting for a readable row.
-  const fmtEur = (c: number) => `€${(c / 100).toFixed(2)}`
+  const fmtEur = (c: number) => `${(c / 100).toFixed(2)} €`
   if (subtotal !== oldSubtotal) {
     await writeChangeLog({
       orderId, tableName: 'orders', fieldName: 'subtotal',
@@ -902,7 +902,7 @@ export async function refundOrder(
     orderId: order.id,
     tableName: 'orders', fieldName: 'refund_amount',
     oldValue: String(order.refundAmount ?? 0), newValue: String(newRefund),
-    label: `wallet refund €${(amountCents / 100).toFixed(2)}${reason ? ` — ${reason}` : ''}`, adminUser,
+    label: `wallet refund ${(amountCents / 100).toFixed(2)} €${reason ? ` — ${reason}` : ''}`, adminUser,
   })
   return { error: null }
 }

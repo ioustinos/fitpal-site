@@ -197,13 +197,13 @@ export function DishCard({ dish, dayIndex }: DishCardProps) {
         {/* Price badge — bottom right */}
         {dish.discount ? (
           <div className="price-badge has-disc">
-            <span className="price-badge-was">{t('mnFromNoSpace')} €{minPrice.toFixed(2)}</span>
-            <span className="price-badge-now">€{finalPrice.toFixed(2)}</span>
+            <span className="price-badge-was">{t('mnFromNoSpace')} {minPrice.toFixed(2)} €</span>
+            <span className="price-badge-now">{finalPrice.toFixed(2)} €</span>
           </div>
         ) : (
           <div className="price-badge">
             <span className="from">{t('from')}</span>
-            €{finalPrice.toFixed(2)}
+            {finalPrice.toFixed(2)} €
           </div>
         )}
       </div>
@@ -231,9 +231,9 @@ export function DishCard({ dish, dayIndex }: DishCardProps) {
         {!!dish.discount && (
           <div className="disc-card-line">
             <span className="disc-card-pct">−{dish.discount}%</span>
-            <span className="disc-card-was">€{minPrice.toFixed(2)}</span>
+            <span className="disc-card-was">{minPrice.toFixed(2)} €</span>
             <span className="disc-card-arr">→</span>
-            <span className="disc-card-now">€{effPrice(minPrice, dish.discount).toFixed(2)}</span>
+            <span className="disc-card-now">{effPrice(minPrice, dish.discount).toFixed(2)} €</span>
           </div>
         )}
 

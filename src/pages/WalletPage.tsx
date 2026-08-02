@@ -170,7 +170,7 @@ function clampInt(value: string, min: number, max: number, fallback: number): nu
 
 /** Format euro amount with the right decimals (whole euros if int, else 2 dp). */
 function fmtEur(n: number): string {
-  return Number.isInteger(n) ? `€${n}` : `€${n.toFixed(2)}`
+  return Number.isInteger(n) ? `${n} €` : `${n.toFixed(2)} €`
 }
 
 /* ─────────────────────────────────────────────────────────────────
@@ -1423,8 +1423,8 @@ export function WalletPage() {
             </h3>
             <p style={{ margin: '0 0 16px', color: '#4b5563', fontSize: 14, lineHeight: 1.5 }}>
               {isEl
-                ? <>Η τιμή του πλάνου σου άλλαξε. Νέα τιμή: <strong>€{(priceConfirm.serverCents / 100).toFixed(2)}</strong> (εμφανιζόταν €{(priceConfirm.clientCents / 100).toFixed(2)}). Συνεχίζοντας θα χρεωθείς το νέο ποσό.</>
-                : <>The plan price has changed. New total: <strong>€{(priceConfirm.serverCents / 100).toFixed(2)}</strong> (was €{(priceConfirm.clientCents / 100).toFixed(2)}). Continuing charges the new amount.</>}
+                ? <>Η τιμή του πλάνου σου άλλαξε. Νέα τιμή: <strong>{(priceConfirm.serverCents / 100).toFixed(2)} €</strong> (εμφανιζόταν {(priceConfirm.clientCents / 100).toFixed(2)} €). Συνεχίζοντας θα χρεωθείς το νέο ποσό.</>
+                : <>The plan price has changed. New total: <strong>{(priceConfirm.serverCents / 100).toFixed(2)} €</strong> (was {(priceConfirm.clientCents / 100).toFixed(2)} €). Continuing charges the new amount.</>}
             </p>
             <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
               <button

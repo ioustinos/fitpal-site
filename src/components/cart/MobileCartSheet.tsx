@@ -132,7 +132,7 @@ export function MobileCartSheet({ mode = 'menu' }: Props) {
             {hasItems ? cartCount : 0}
           </span>
           <span className="mcs-bar-total">
-            {hasItems ? `€${total.toFixed(2)}` : t('cartEmpty')}
+            {hasItems ? `${total.toFixed(2)} €` : t('cartEmpty')}
           </span>
           {/* "View" hint nudges discoverability — the bar is tappable but
               the cue helps first-timers know that. Hidden when expanded. */}
@@ -228,7 +228,7 @@ export function MobileCartSheet({ mode = 'menu' }: Props) {
 
                 <div className="cart-total-row">
                   <span className="cart-total-lbl">{t('total')}</span>
-                  <span className="cart-total-amt">€{total.toFixed(2)}</span>
+                  <span className="cart-total-amt">{total.toFixed(2)} €</span>
                 </div>
 
                 {mode === 'menu' && (

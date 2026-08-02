@@ -102,8 +102,8 @@ function localizeDayIssue(label: string, issue: DayIssue, lang: 'el' | 'en'): st
       const min = (minCents / 100).toFixed(2)
       const amt = (amtCents / 100).toFixed(2)
       return lang === 'el'
-        ? `${label}: Ελάχιστη παραγγελία €${min} (τρέχον: €${amt})`
-        : `${label}: Minimum order €${min} (current: €${amt})`
+        ? `${label}: Ελάχιστη παραγγελία ${min} € (τρέχον: ${amt} €)`
+        : `${label}: Minimum order ${min} € (current: ${amt} €)`
     }
   }
 }
@@ -1160,8 +1160,8 @@ export function CheckoutPage() {
             </h3>
             <p style={{ margin: '0 0 16px', color: '#4b5563', fontSize: 14, lineHeight: 1.5 }}>
               {lang === 'el'
-                ? <>Νέο σύνολο: <strong>€{(priceConfirm.serverCents / 100).toFixed(2)}</strong> (εμφανιζόταν €{(priceConfirm.clientCents / 100).toFixed(2)}). Συνεχίζοντας θα χρεωθείς το νέο ποσό.</>
-                : <>New total: <strong>€{(priceConfirm.serverCents / 100).toFixed(2)}</strong> (was €{(priceConfirm.clientCents / 100).toFixed(2)}). Continuing charges the new amount.</>}
+                ? <>Νέο σύνολο: <strong>{(priceConfirm.serverCents / 100).toFixed(2)} €</strong> (εμφανιζόταν {(priceConfirm.clientCents / 100).toFixed(2)} €). Συνεχίζοντας θα χρεωθείς το νέο ποσό.</>
+                : <>New total: <strong>{(priceConfirm.serverCents / 100).toFixed(2)} €</strong> (was {(priceConfirm.clientCents / 100).toFixed(2)} €). Continuing charges the new amount.</>}
             </p>
             <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
               <button

@@ -60,12 +60,12 @@ function localizeVoucherError(
           : null
         if (needEuros != null && +needEuros > 0) {
           return isEl
-            ? `Ελάχιστη παραγγελία €${minEuros} για αυτόν τον κωδικό (χρειάζεσαι €${needEuros} ακόμα)`
-            : `Minimum order €${minEuros} required (add €${needEuros} more)`
+            ? `Ελάχιστη παραγγελία ${minEuros} € για αυτόν τον κωδικό (χρειάζεσαι ${needEuros} € ακόμα)`
+            : `Minimum order ${minEuros} € required (add ${needEuros} € more)`
         }
         return isEl
-          ? `Απαιτείται ελάχιστη παραγγελία €${minEuros}`
-          : `Minimum order €${minEuros} required`
+          ? `Απαιτείται ελάχιστη παραγγελία ${minEuros} €`
+          : `Minimum order ${minEuros} € required`
       }
       return serverError ?? (isEl ? 'Δεν πληρείται η ελάχιστη παραγγελία' : 'Minimum order not met')
     }
@@ -168,8 +168,8 @@ export function useVoucherWidget() {
       const droppedCode = voucher.code
       removeVoucher()
       const msg = lang === 'el'
-        ? `Απαιτείται ελάχιστη παραγγελία €${voucher.minOrder.toFixed(2)} για αυτό το κουπόνι`
-        : `Minimum order €${voucher.minOrder.toFixed(2)} required for this voucher`
+        ? `Απαιτείται ελάχιστη παραγγελία ${voucher.minOrder.toFixed(2)} € για αυτό το κουπόνι`
+        : `Minimum order ${voucher.minOrder.toFixed(2)} € required for this voucher`
       setError(msg)
       // WEC-402: also toast so a reload-induced drop (or a drop while the cart
       // sidebar is closed) is visible — not silent.

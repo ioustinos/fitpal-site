@@ -114,7 +114,7 @@ export function CartSidebar() {
 
               <div className="cart-total-row">
                 <span className="cart-total-lbl">{t('total')}</span>
-                <span className="cart-total-amt">€{total.toFixed(2)}</span>
+                <span className="cart-total-amt">{total.toFixed(2)} €</span>
               </div>
 
               <button

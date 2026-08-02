@@ -83,7 +83,7 @@ function PillsPicker({ dish, selectedVariantId, onChange, lang, t }: PillsProps)
                   </div>
                 )}
               </div>
-              <div className="vr-price">€{vBase.toFixed(2)}</div>
+              <div className="vr-price">{vBase.toFixed(2)} €</div>
             </div>
           )
         })}
@@ -240,7 +240,7 @@ function DropdownsPicker({ dish, selectedVariantId, onChange, lang }: Props) {
               </div>
             )}
           </div>
-          <div className="vr-price">€{selectedPriceCents.toFixed(2)}</div>
+          <div className="vr-price">{selectedPriceCents.toFixed(2)} €</div>
         </div>
       </div>
 

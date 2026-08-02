@@ -49,7 +49,7 @@ function fmtDayMonth(d: Date): string {
   return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}`
 }
 
-const eur = (n: number) => `€${n.toFixed(2)}`
+const eur = (n: number) => `${n.toFixed(2)} €`
 
 export function ImpersonationBanner() {
   const active = useImpersonationStore((s) => s.active)

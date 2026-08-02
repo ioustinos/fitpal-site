@@ -107,7 +107,7 @@ export function PaymentSection() {
                   {lang === 'el' ? m.labelEl : m.labelEn}
                   {isWallet && walletActive && (
                     <span className={`wallet-bal-badge${!walletSufficient ? ' insufficient' : ''}`}>
-                      {!walletSufficient ? `€${walletBalance.toFixed(2)} — ${t('coInsufficient')}` : `€${walletBalance.toFixed(2)}`}
+                      {!walletSufficient ? `${walletBalance.toFixed(2)} € — ${t('coInsufficient')}` : `${walletBalance.toFixed(2)} €`}
                     </span>
                   )}
                   {isWallet && noWallet && (

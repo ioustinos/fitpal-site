@@ -140,12 +140,12 @@ export function CartItemRow({ item, dayDate, itemIndex }: CartItemRowProps) {
       {/* Right — price + qty controls */}
       <div className="ci-right">
         {item.originalPrice && item.originalPrice > item.price && (
-          <div className="ci-price-was">€{(item.originalPrice * item.qty).toFixed(2)}</div>
+          <div className="ci-price-was">{(item.originalPrice * item.qty).toFixed(2)} €</div>
         )}
-        <div className="ci-price">€{(item.price * item.qty).toFixed(2)}</div>
+        <div className="ci-price">{(item.price * item.qty).toFixed(2)} €</div>
         {perItemDisc > 0 && (
           <div className="ci-price-disc" title="Voucher discount on this item">
-            −€{perItemDisc.toFixed(2)}
+            −{perItemDisc.toFixed(2)} €
           </div>
         )}
         {/* WEC-340: stop propagation so +/- don't bubble up to the

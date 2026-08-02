@@ -57,8 +57,13 @@ export function Header() {
 
   return (
     <header>
-      {/* Logo */}
-      <a className="logo" href="#" onClick={(e) => e.preventDefault()}>
+      {/* Logo — WEC-587: clickable → order-site home (menu). */}
+      <a
+        className="logo"
+        href="/"
+        aria-label="Fitpal Meals"
+        onClick={(e) => { e.preventDefault(); goToMenu() }}
+      >
         <LogoLockup className="logo-lockup" />
         <div className="logo-sub">Healthy delivery</div>
       </a>
@@ -97,7 +102,7 @@ export function Header() {
               <path d="M16 12h.01"/>
               <path d="M2 10h20"/>
             </svg>
-            <span className="wallet-hdr-amt">€{user.wallet.balance.toFixed(2)}</span>
+            <span className="wallet-hdr-amt">{user.wallet.balance.toFixed(2)} €</span>
           </div>
         )}
 

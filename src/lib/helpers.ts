@@ -2,7 +2,7 @@ import type { CartItem, VoucherState } from '../store/useCartStore'
 
 // ─── Formatting ───────────────────────────────────────────────────────────────
 
-export const fmt = (n: number) => '€' + n.toFixed(2)
+export const fmt = (n: number) => n.toFixed(2) + ' €'
 
 // ─── Pricing ──────────────────────────────────────────────────────────────────
 

@@ -299,10 +299,10 @@ export function Orders() {
                       {o.childOrders.map((c) => <span key={c.id} className="admin-date-chip">{c.deliveryDate.slice(5)}</span>)}
                     </div>
                   </td>
-                  <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>€{(o.total / 100).toFixed(2)}</td>
+                  <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>{(o.total / 100).toFixed(2)} €</td>
                   <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
                     {o.discountAmount > 0
-                      ? <span className="admin-discount">−€{(o.discountAmount / 100).toFixed(2)}</span>
+                      ? <span className="admin-discount">−{(o.discountAmount / 100).toFixed(2)} €</span>
                       : <span className="admin-sub">—</span>}
                   </td>
                   <td style={{ width: 84 }}><OrderTypeBadge method={o.paymentMethod} adminOrderId={o.adminOrderId} wrap /></td>
@@ -671,7 +671,7 @@ function OrderDrawer({
               </h3>
               {cancelPrompt.mode === 'refund' && (
                 <p style={{ margin: '0 0 14px', color: '#4b5563', fontSize: 14, lineHeight: 1.45 }}>
-                  This order has <strong>€{((order.total - (order.refundAmount ?? 0)) / 100).toFixed(2)}</strong>
+                  This order has <strong>{((order.total - (order.refundAmount ?? 0)) / 100).toFixed(2)} €</strong>
                   {' '}still paid via <strong>{order.paymentMethod}</strong>. Cancelling without a
                   refund leaves the funds with{order.paymentMethod === 'wallet' ? ' your wallet ledger' : ' Viva'}.
                 </p>
@@ -782,7 +782,7 @@ function OverviewTab({ order, adminUser, onChanged }: { order: AdminOrder; admin
             <div><dt>Method</dt><dd className="admin-od-method">{order.paymentMethod ?? '—'}</dd></div>
             <div><dt>Status</dt><dd><PaymentBadge status={order.paymentStatus} /></dd></div>
             {(order.refundAmount ?? 0) > 0 && (
-              <div><dt>Refunded</dt><dd>€{((order.refundAmount ?? 0) / 100).toFixed(2)}</dd></div>
+              <div><dt>Refunded</dt><dd>{((order.refundAmount ?? 0) / 100).toFixed(2)} €</dd></div>
             )}
           </dl>
         </div>
@@ -791,11 +791,11 @@ function OverviewTab({ order, adminUser, onChanged }: { order: AdminOrder; admin
         <div className="admin-od-card admin-od-col-2">
           <span className="admin-od-card-title"><Ico name="receipt" /> Totals</span>
           <div className="admin-od-totals">
-            <div className="admin-od-total-row"><span>Subtotal</span><span>€{(order.subtotal / 100).toFixed(2)}</span></div>
+            <div className="admin-od-total-row"><span>Subtotal</span><span>{(order.subtotal / 100).toFixed(2)} €</span></div>
             {order.discountAmount > 0 && (
-              <div className="admin-od-total-row admin-od-total-disc"><span>Discount</span><span>−€{(order.discountAmount / 100).toFixed(2)}</span></div>
+              <div className="admin-od-total-row admin-od-total-disc"><span>Discount</span><span>−{(order.discountAmount / 100).toFixed(2)} €</span></div>
             )}
-            <div className="admin-od-total-row admin-od-total-grand"><span>Total</span><span>€{(order.total / 100).toFixed(2)}</span></div>
+            <div className="admin-od-total-row admin-od-total-grand"><span>Total</span><span>{(order.total / 100).toFixed(2)} €</span></div>
           </div>
         </div>
 
@@ -819,13 +819,13 @@ function OverviewTab({ order, adminUser, onChanged }: { order: AdminOrder; admin
         {/* Discount detail (rare) — full width, drops to its own row */}
         {hasDiscount && (
           <div className="admin-od-card admin-od-col-12">
-            <span className="admin-od-card-title"><Ico name="tag" /> Discount · −€{(order.discountAmount / 100).toFixed(2)}</span>
+            <span className="admin-od-card-title"><Ico name="tag" /> Discount · −{(order.discountAmount / 100).toFixed(2)} €</span>
             {order.voucherUses.length > 0 ? (
               <div className="admin-od-vouchers">
                 {order.voucherUses.map((v) => (
                   <div key={v.id} className="admin-od-voucher">
                     <code>{v.code}</code>
-                    <span>€{(v.amount / 100).toFixed(2)}</span>
+                    <span>{(v.amount / 100).toFixed(2)} €</span>
                     <span className="admin-sub">{new Date(v.usedAt).toLocaleDateString('en-GB')}</span>
                   </div>
                 ))}
@@ -1041,7 +1041,7 @@ function DayCard({
           <div className="admin-od-day-addr"><Ico name="pin" size={13} /> {addrLine}</div>
         </div>
         <span className="admin-od-timepill">{timeLabel}</span>
-        <span className="admin-od-day-count">{child.items.length} item{child.items.length === 1 ? '' : 's'} · €{(daySubtotal / 100).toFixed(2)}</span>
+        <span className="admin-od-day-count">{child.items.length} item{child.items.length === 1 ? '' : 's'} · {(daySubtotal / 100).toFixed(2)} €</span>
         {cancelled ? (
           <button className="admin-row-btn admin-od-restoreday" disabled={working} onClick={(e) => { e.stopPropagation(); restoreDay() }}>Restore</button>
         ) : editable ? (
@@ -1179,7 +1179,7 @@ function DayItemRow({ item, dish, orderId, childOrderId, editable, adminUser, on
               <option value={item.variantId}>{item.variantLabelEl || '—'}</option>
             )}
             {variants.map((v) => (
-              <option key={v.id} value={v.id}>{(v.labelEl || '—')} · €{(v.price / 100).toFixed(2)}</option>
+              <option key={v.id} value={v.id}>{(v.labelEl || '—')} · {(v.price / 100).toFixed(2)} €</option>
             ))}
           </select>
         ) : (
@@ -1192,8 +1192,8 @@ function DayItemRow({ item, dish, orderId, childOrderId, editable, adminUser, on
           ? <input className="admin-input admin-input-tight" type="number" min={0} value={qty} onChange={(e) => setQty(Math.max(0, +e.target.value || 0))} style={{ width: 54 }} />
           : item.quantity}
       </td>
-      <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>€{(item.unitPrice / 100).toFixed(2)}</td>
-      <td style={{ textAlign: 'right', whiteSpace: 'nowrap', fontWeight: 700 }}>€{((item.unitPrice * (editable ? qty : item.quantity)) / 100).toFixed(2)}</td>
+      <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>{(item.unitPrice / 100).toFixed(2)} €</td>
+      <td style={{ textAlign: 'right', whiteSpace: 'nowrap', fontWeight: 700 }}>{((item.unitPrice * (editable ? qty : item.quantity)) / 100).toFixed(2)} €</td>
       <td style={{ whiteSpace: 'nowrap', textAlign: 'right' }}>
         {editable && (
           <>
@@ -1330,7 +1330,7 @@ function AddItemPanel({
                 className={`admin-chip${variantId === v.id ? ' on' : ''}`}
                 onClick={() => setVariantId(v.id)}
               >
-                {v.labelEl || '—'} · €{(v.price / 100).toFixed(2)}
+                {v.labelEl || '—'} · {(v.price / 100).toFixed(2)} €
               </button>
             ))}
           </div>
@@ -1350,7 +1350,7 @@ function AddItemPanel({
           <div className="admin-additem-actions">
             <button className="admin-btn-ghost" onClick={() => { reset(); setOpen(false) }}>Cancel</button>
             <button className="admin-btn-primary" disabled={saving || !variant} onClick={add}>
-              {saving ? 'Adding…' : variant ? `Add · €${((variant.price * qty) / 100).toFixed(2)}` : 'Add'}
+              {saving ? 'Adding…' : variant ? `Add · ${((variant.price * qty) / 100).toFixed(2)} €` : 'Add'}
             </button>
           </div>
         </div>
@@ -1423,7 +1423,7 @@ function RefundTab({ order, adminUser, onChanged }: { order: AdminOrder; adminUs
   }
 
   if (order.paymentStatus === 'refunded') {
-    return <div className="admin-info-banner">This order is fully refunded (€{((order.refundAmount ?? 0) / 100).toFixed(2)}).</div>
+    return <div className="admin-info-banner">This order is fully refunded ({((order.refundAmount ?? 0) / 100).toFixed(2)} €).</div>
   }
 
   return (
@@ -1431,7 +1431,7 @@ function RefundTab({ order, adminUser, onChanged }: { order: AdminOrder; adminUs
       {done && <div className="admin-info-banner">Refund issued.</div>}
       {err && <div className="admin-error-banner">{err}</div>}
       <p className="admin-sub">
-        Total paid: €{(order.total / 100).toFixed(2)}
+        Total paid: {(order.total / 100).toFixed(2)} €
         {(order.refundAmount ?? 0) > 0 && (
           <>
             {' · Already refunded: €'}{((order.refundAmount ?? 0) / 100).toFixed(2)}
@@ -1495,7 +1495,7 @@ function RefundTab({ order, adminUser, onChanged }: { order: AdminOrder; adminUs
             }
             onClick={submit}
           >
-            {working ? 'Processing…' : `Issue refund (€${(amount / 100).toFixed(2)})`}
+            {working ? 'Processing…' : `Issue refund (${(amount / 100).toFixed(2)} €)`}
           </button>
         </div>
       </div>
@@ -1607,7 +1607,7 @@ function TimelineTab({ order }: { order: AdminOrder }) {
             const isMoney = l.tableName === 'orders' && (l.fieldName === 'total' || l.fieldName === 'subtotal' || l.fieldName === 'discount_amount')
             const eur = (v: string | null) => {
               const n = Number(v)
-              return v != null && Number.isFinite(n) ? `€${(n / 100).toFixed(2)}` : (v ?? '—')
+              return v != null && Number.isFinite(n) ? `${(n / 100).toFixed(2)} €` : (v ?? '—')
             }
             const oldN = Number(l.oldValue)
             const newN = Number(l.newValue)

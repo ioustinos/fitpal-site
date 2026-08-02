@@ -22,7 +22,7 @@ export function VoucherInput() {
           </svg>
           <span>{voucher.code}</span>
           {voucher.type === 'pct' && <span className="voucher-val">-{voucher.value}%</span>}
-          {voucher.type === 'fixed' && <span className="voucher-val">-€{voucher.value?.toFixed(2)}</span>}
+          {voucher.type === 'fixed' && <span className="voucher-val">-{voucher.value?.toFixed(2)} €</span>}
           <button className="voucher-remove" onClick={remove}>✕</button>
         </div>
         {/* WEC-217: single-voucher policy — make it explicit so the customer

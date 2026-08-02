@@ -36,7 +36,7 @@ export function WalletModal() {
           <div className="wm-balance-label">
             {t('cwAvailableBalance')}
           </div>
-          <div className="wm-balance-amt">€{(wallet?.balance ?? 0).toFixed(2)}</div>
+          <div className="wm-balance-amt">{(wallet?.balance ?? 0).toFixed(2)} €</div>
           {wallet?.active && wallet.planId && (
             <div className="wm-discount-badge">
               +{wallet.bonusPct ?? 0}% bonus credits
@@ -102,8 +102,8 @@ export function WalletModal() {
                 }}
               >
                 <div className="wp-name">{lang === 'el' ? plan.nameEl : plan.nameEn}</div>
-                <div className="wp-price">€{plan.price.toFixed(2)}</div>
-                <div className="wp-credits">→ €{plan.credits.toFixed(2)} credits</div>
+                <div className="wp-price">{plan.price.toFixed(2)} €</div>
+                <div className="wp-credits">→ {plan.credits.toFixed(2)} € credits</div>
                 <div className="wp-bonus">+{plan.bonusPct}% bonus credits</div>
               </button>
             ))}
@@ -127,7 +127,7 @@ export function WalletModal() {
               <div key={i} className="wm-tx">
                 <div className="wm-tx-desc">{lang === 'el' ? tx.descEl : tx.descEn}</div>
                 <div className={`wm-tx-amt ${tx.amount >= 0 ? 'pos' : 'neg'}`}>
-                  {tx.amount >= 0 ? '+' : ''}€{tx.amount.toFixed(2)}
+                  {tx.amount >= 0 ? '+' : ''}{tx.amount.toFixed(2)} €
                 </div>
               </div>
             ))

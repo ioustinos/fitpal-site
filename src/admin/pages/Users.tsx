@@ -154,8 +154,8 @@ export function Users() {
                   {u.walletAdminManaged && <span style={{ marginLeft: 6, fontSize: 10, color: '#0369a1' }}>● managed</span>}
                 </div>
                 <div className="admin-zone-item-meta">
-                  {u.email} · {u.ordersCount} orders · €{(u.totalSpent / 100).toFixed(2)} spent
-                  {u.walletActive && <> · €{(u.walletBalance / 100).toFixed(2)} wallet</>}
+                  {u.email} · {u.ordersCount} orders · {(u.totalSpent / 100).toFixed(2)} € spent
+                  {u.walletActive && <> · {(u.walletBalance / 100).toFixed(2)} € wallet</>}
                 </div>
               </button>
             ))}
@@ -287,11 +287,11 @@ function UserDetail({
       {/* Stats */}
       <div className="admin-form-grid" style={{ marginTop: 18 }}>
         <Stat label="Orders" value={String(detail.ordersCount)} />
-        <Stat label="Total spent" value={`€${(detail.totalSpent / 100).toFixed(2)}`} />
+        <Stat label="Total spent" value={`${(detail.totalSpent / 100).toFixed(2)} €`} />
         <Stat
           label="Wallet"
           value={detail.walletDetail
-            ? `€${(detail.walletBalance / 100).toFixed(2)} · ${detail.walletAdminManaged ? 'managed' : 'self-serve'}`
+            ? `${(detail.walletBalance / 100).toFixed(2)} € · ${detail.walletAdminManaged ? 'managed' : 'self-serve'}`
             : 'None'}
         />
         <Stat label="Goals" value={detail.goals?.enabled ? 'On' : 'Off'} />
@@ -335,8 +335,8 @@ function UserDetail({
       }}>
         {detail.walletDetail ? (
           <>
-            <div>Balance: <strong>€{(detail.walletDetail.balance / 100).toFixed(2)}</strong>
-              <span className="admin-text-muted"> (base €{(detail.walletDetail.baseBalance / 100).toFixed(2)} + bonus €{(detail.walletDetail.bonusBalance / 100).toFixed(2)})</span>
+            <div>Balance: <strong>{(detail.walletDetail.balance / 100).toFixed(2)} €</strong>
+              <span className="admin-text-muted"> (base {(detail.walletDetail.baseBalance / 100).toFixed(2)} € + bonus {(detail.walletDetail.bonusBalance / 100).toFixed(2)} €)</span>
             </div>
             <div className="admin-text-muted" style={{ marginTop: 4 }}>
               {detail.walletDetail.active ? 'Active' : 'Inactive'} ·
@@ -385,7 +385,7 @@ function UserDetail({
             + Grant credit
           </button>
           <span className="admin-text-muted" style={{ marginLeft: 10, fontSize: 12 }}>
-            Refund, gift, or balance adjustment. Capped at €500 per grant.
+            Refund, gift, or balance adjustment. Capped at 500 € per grant.
           </span>
         </div>
       </div>
@@ -422,7 +422,7 @@ function UserDetail({
                   <td>{new Date(o.createdAt).toLocaleString()}</td>
                   <td>{o.status}</td>
                   <td>{o.paymentMethod} · {o.paymentStatus}</td>
-                  <td style={{ textAlign: 'right' }}>€{(o.total / 100).toFixed(2)}</td>
+                  <td style={{ textAlign: 'right' }}>{(o.total / 100).toFixed(2)} €</td>
                 </tr>
               ))}
             </tbody>
@@ -506,7 +506,7 @@ function GrantCreditModal({
       return
     }
     if (amountEuros > 500) {
-      setErr('Amount exceeds €500 cap')
+      setErr('Amount exceeds 500 € cap')
       return
     }
     if (!descriptionEl.trim() || !descriptionEn.trim()) {
@@ -575,7 +575,7 @@ function GrantCreditModal({
               placeholder="e.g. 10.00"
               autoFocus
             />
-            <small className="admin-text-muted">Max €500 per grant.</small>
+            <small className="admin-text-muted">Max 500 € per grant.</small>
           </div>
 
           <div className="admin-form-row">
