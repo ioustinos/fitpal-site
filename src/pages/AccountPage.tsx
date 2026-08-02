@@ -11,6 +11,8 @@ import { Toggle } from '../components/ui/Toggle'
 import { MacroIcon, MacroValuesRow } from '../components/ui/MacroDots'
 import { WALLET_PLANS } from '../data/menu'
 import { PAYMENT_METHODS as PAYMENT_COPY } from '../lib/paymentMethods'
+import { visiblePaymentMethods, paymentCatalogEntry } from '../lib/paymentVisibility'
+import { useImpersonationStore } from '../store/useImpersonationStore'
 import { COUNTRIES, DEFAULT_COUNTRY, isValidPhone, phoneLabels } from '../lib/phone'
 import { showGoalProgress, goalStatus, goalPct } from '../lib/goals'
 import { matchesRange, type RangePreset } from '../lib/dateRange'
@@ -336,12 +338,26 @@ function PrefsTab({ user, lang, updatePrefs }: any) {
     { key: 4, el: 'Παρασκευή', en: 'Friday' },
   ]
 
-  // WEC-499: payment options sourced from the shared payment-methods map. Ids
-  // are the canonical payment_method enum values (was non-enum 'bank' → now
-  // 'transfer'). 'link' is intentionally omitted as a saved preference.
-  const paymentMethods = (['cash', 'card', 'transfer', 'wallet'] as const).map(
-    (id) => ({ id, el: PAYMENT_COPY[id].shortEl, en: PAYMENT_COPY[id].shortEn }),
+  // WEC-588: payment options now come from the admin visibility settings (the
+  // same `paymentMethodVisibility` map checkout uses) instead of a hardcoded
+  // list — a method turned off at /admin/payments no longer appears here. Admin
+  // flags apply while an admin is impersonating; otherwise the public flags.
+  // Compact `short*` labels from the shared payment-methods source.
+  const visibility = useMenuStore((s) => s.settings.paymentMethodVisibility)
+  const isImpersonating = useImpersonationStore((s) => s.active)
+  const visibleMethods = visiblePaymentMethods(visibility, { isImpersonating }).map(
+    (m) => ({ id: m.id, el: PAYMENT_COPY[m.id].shortEl, en: PAYMENT_COPY[m.id].shortEn }),
   )
+  // Edge case: a saved preference that's no longer visible stays shown (selected)
+  // but flagged — we never silently rewrite the stored value; the server keeps
+  // accepting it.
+  const savedMethod: string | undefined = prefs.paymentMethod
+  const savedHiddenEntry = savedMethod && !visibleMethods.some((m) => m.id === savedMethod)
+    ? paymentCatalogEntry(savedMethod)
+    : undefined
+  const savedHidden = savedHiddenEntry
+    ? { id: savedHiddenEntry.id, el: PAYMENT_COPY[savedHiddenEntry.id].shortEl, en: PAYMENT_COPY[savedHiddenEntry.id].shortEn }
+    : null
 
   // WEC-513: functional updates so editing a day-pref doesn't clobber an unsaved
   // payment-method / language change captured in a stale `prefs` closure.
@@ -427,7 +443,7 @@ function PrefsTab({ user, lang, updatePrefs }: any) {
           </div>
         </div>
         <div className="prefs-payment-grid">
-          {paymentMethods.map((pm) => (
+          {visibleMethods.map((pm) => (
             <button
               key={pm.id}
               className={`prefs-payment-btn${prefs.paymentMethod === pm.id ? ' active' : ''}`}
@@ -436,6 +452,21 @@ function PrefsTab({ user, lang, updatePrefs }: any) {
               {lang === 'el' ? pm.el : pm.en}
             </button>
           ))}
+          {/* WEC-588: saved-but-hidden preference — kept selectable + flagged. */}
+          {savedHidden && (
+            <button
+              key={savedHidden.id}
+              className={`prefs-payment-btn unavailable${prefs.paymentMethod === savedHidden.id ? ' active' : ''}`}
+              title={lang === 'el' ? 'Δεν είναι πλέον διαθέσιμο' : 'No longer available'}
+              onClick={() => setPrefs((prev: any) => ({ ...prev, paymentMethod: savedHidden.id }))}
+            >
+              {lang === 'el' ? savedHidden.el : savedHidden.en}{' '}
+              <span className="prefs-payment-flag">{lang === 'el' ? '(μη διαθέσιμο)' : '(unavailable)'}</span>
+            </button>
+          )}
+          {visibleMethods.length === 0 && !savedHidden && (
+            <span className="prefs-empty">{lang === 'el' ? 'Καμία διαθέσιμη μέθοδος πληρωμής.' : 'No payment methods available.'}</span>
+          )}
         </div>
       </div>
 

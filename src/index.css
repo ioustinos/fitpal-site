@@ -4111,3 +4111,8 @@ body.is-impersonating { padding-top: 36px; }
 .wpv2-freq-disc { margin-left: auto; font-size: 12px; font-weight: 800; color: var(--fp-green-700); background: rgba(0,185,107,.10); padding: 2px 8px; border-radius: 999px; white-space: nowrap; }
 .wpv2-meal-disc { margin-left: auto; font-size: 11px; font-weight: 800; color: var(--fp-green-700); background: rgba(0,185,107,.12); padding: 1px 6px; border-radius: 999px; white-space: nowrap; }
 .wpv2-aside-discbreak { font-size: 11px; color: var(--fp-ink-400); display: flex; flex-wrap: wrap; gap: 0 2px; padding: 2px 0 0; line-height: 1.4; }
+
+/* ── WEC-588 · Account prefs payment picker — saved-but-hidden + empty states ── */
+.prefs-payment-btn.unavailable { opacity: .6; border-style: dashed; }
+.prefs-payment-flag { font-size: 11px; font-weight: 600; opacity: .8; }
+.prefs-empty { font-size: 13px; color: var(--fp-ink-400, #888); }

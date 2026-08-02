@@ -5,19 +5,8 @@ import { useMenuStore } from '../../store/useMenuStore'
 import { useImpersonationStore } from '../../store/useImpersonationStore'
 import { subTotal } from '../../lib/helpers'
 import { makeTr } from '../../lib/translations'
-import { PAYMENT_METHODS as PM } from '../../lib/paymentMethods'
+import { visiblePaymentMethods } from '../../lib/paymentVisibility'
 import { CopyButton } from '../ui/CopyButton'
-
-// WEC-499: labels + descriptions now come from the shared payment-methods
-// source. This array only carries the per-method icon + display order; the
-// labelEl/descEl field names are preserved so the render below is untouched.
-const PAYMENT_METHODS = [
-  { id: 'wallet',   iconPath: 'M2 9h20M2 5h20v14H2zM16 12h.01',  labelEl: PM.wallet.titleEl,   labelEn: PM.wallet.titleEn,   descEl: PM.wallet.descEl,   descEn: PM.wallet.descEn },
-  { id: 'card',     iconPath: 'M3 9h18M7 15h.01M11 15h2',        labelEl: PM.card.titleEl,     labelEn: PM.card.titleEn,     descEl: PM.card.descEl,     descEn: PM.card.descEn },
-  { id: 'cash',     iconPath: 'M12 12a4 4 0 100-8 4 4 0 000 8zM3 20c0-4 3.6-7 9-7s9 3 9 7', labelEl: PM.cash.titleEl, labelEn: PM.cash.titleEn, descEl: PM.cash.descEl, descEn: PM.cash.descEn },
-  { id: 'link',     iconPath: 'M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71', labelEl: PM.link.titleEl, labelEn: PM.link.titleEn, descEl: PM.link.descEl, descEn: PM.link.descEn },
-  { id: 'transfer', iconPath: 'M4 6h16M4 12h16M4 18h16',         labelEl: PM.transfer.titleEl, labelEn: PM.transfer.titleEn, descEl: PM.transfer.descEl, descEn: PM.transfer.descEn },
-] as const
 
 export function PaymentSection() {
   const lang = useUIStore((s) => s.lang)
@@ -47,33 +36,16 @@ export function PaymentSection() {
   const total = subTotal(cart, voucher, catLookup)
   const walletSufficient = walletBalance >= total
 
-  // Filter hardcoded catalog by the admin-configured visibility map (WEC-255).
-  //
-  // Two layers of filtering, applied in order:
-  //   1. Visibility flag — `admin` flag if an admin is impersonating, else
-  //      `public`. Lets ops hide methods like the wallet from public customers
-  //      while still letting admins debit it on their behalf.
-  //   2. Wallet special-cases (kept from WEC-194):
-  //        - admin-managed wallets only show during impersonation
-  //        - non-impersonating users without an active wallet or with 0 balance
-  //          don't see the wallet option at all (cleaner than a disabled chip)
-  //        - during impersonation we keep showing wallet even at €0 so admins
-  //          notice the empty state instead of hunting for a missing button
-  const visibleMethods = PAYMENT_METHODS.filter((m) => {
-    const v = visibility[m.id]
-    if (!v) return false
-    if (!(isImpersonating ? v.admin : v.public)) return false
-    if (m.id === 'wallet' && !isImpersonating) {
-      // Customers: hide the wallet entirely unless it's spendable — cleaner
-      // than a disabled chip they can't act on.
-      if (user?.wallet?.adminManaged) return false
-      if (!walletActive || walletBalance <= 0) return false
-    }
-    // WEC-362: while impersonating we ALWAYS keep the wallet visible so the
-    // admin can see the customer's wallet state — but it renders greyed +
-    // disabled below when the customer has no wallet (or can't cover the order)
-    // instead of looking like a usable option.
-    return true
+  // WEC-255/588: filter by the admin visibility map via the shared helper
+  // (single source, also used by Account → Προτιμήσεις). Checkout applies the
+  // wallet spendability gating (layer 2): admin-managed wallets only show during
+  // impersonation; non-impersonating customers without an active/positive wallet
+  // don't see the option. During impersonation the wallet always shows (WEC-362),
+  // rendering greyed + disabled below when it can't cover the order.
+  const visibleMethods = visiblePaymentMethods(visibility, {
+    isImpersonating,
+    applyWalletGating: true,
+    wallet: user?.wallet,
   })
 
   // WEC-260: bank info is now an array of up to 5 entries. Customer sees
