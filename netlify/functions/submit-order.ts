@@ -406,6 +406,8 @@ export default async (request: Request) => {
     return Response.json({ error: 'Method not allowed' }, { status: 405 })
   }
 
+  // WEC-580: per-phase timing — one greppable line per order in function logs.
+  const _perf: Record<string, number> = { start: Date.now() }
   // WEC-147: rate limit (fail-open) — 10 order submissions / minute / IP.
   if (!(await checkRateLimit(`submit-order:${clientIp(request)}`, 10, 60))) {
     return Response.json(
@@ -867,7 +869,8 @@ export default async (request: Request) => {
     // Covers BOTH the promote-from-draft path and the legacy INSERT path.
     let orderNumber: string
     {
-      const { data: seqNum, error: seqErr } = await supabase.rpc('next_order_number')
+      _perf.preOrder = Date.now() // rate-limit + auth + validation + loads done
+    const { data: seqNum, error: seqErr } = await supabase.rpc('next_order_number')
       if (seqErr || typeof seqNum !== 'string' || !seqNum) {
         console.error('[submit-order] next_order_number RPC failed — using random fallback (collision-possible):', seqErr)
         orderNumber = generateOrderNumberFallback()
@@ -1244,6 +1247,7 @@ export default async (request: Request) => {
     // WEC-498 gating preserved: card / link orders do NOT fire the confirmation
     // at submit (still pending → would falsely confirm on payment abandonment).
     // markPaid() fires it post-payment via the same lib (order_paid_confirmation).
+    _perf.writeAndPay = Date.now() // order# + promote + voucher + payment branch done
     const emailAtSubmit = body.paymentMethod !== 'card' && body.paymentMethod !== 'link'
     if (emailAtSubmit) {
       try {
@@ -1299,6 +1303,11 @@ export default async (request: Request) => {
       }
     }
 
+    // WEC-580: emit the timing breakdown before responding (success path only).
+    _perf.done = Date.now()
+    console.log('[submit-timing] preOrder=%dms writeAndPay=%dms events=%dms total=%dms method=%s status=%s',
+      _perf.preOrder - _perf.start, _perf.writeAndPay - _perf.preOrder, _perf.done - _perf.writeAndPay,
+      _perf.done - _perf.start, body.paymentMethod, paidStatus)
     return Response.json({
       orderNumber,
       orderId,
