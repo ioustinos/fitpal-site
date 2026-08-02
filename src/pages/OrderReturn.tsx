@@ -17,6 +17,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useUIStore } from '../store/useUIStore'
+import { useCartStore } from '../store/useCartStore'
 import { fetchOrderForConfirmation, type ConfirmationOrder } from '../lib/api/orders'
 import { fmt } from '../lib/helpers'
 import { makeTr } from '../lib/translations'
@@ -51,6 +52,16 @@ export function OrderReturn({ mode }: Props) {
   const [outcome, setOutcome] = useState<Outcome>({ status: 'loading' })
   const [orderDetails, setOrderDetails] = useState<ConfirmationOrder | null>(null)
   const pollingRef = useRef(false)
+
+  // WEC-591: the card/link success flow lands here (Viva redirect), NOT on
+  // ConfirmationScreen — so the cart + persisted voucher were never cleared,
+  // leaving a full cart (duplicate-order risk) and a ghost discount on the next
+  // order. Clear everything once the order is confirmed paid. (Harmless for the
+  // wallet-plan purchase, which doesn't use the cart.)
+  const clearAll = useCartStore((s) => s.clearAll)
+  useEffect(() => {
+    if (outcome.status === 'paid') clearAll()
+  }, [outcome.status, clearAll])
 
   useEffect(() => {
     const t = params.get('t') ?? params.get('transactionId') ?? ''

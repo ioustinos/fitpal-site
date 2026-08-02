@@ -186,10 +186,14 @@ export const emptyDelivery = (): DeliveryInfo => ({ street: '', area: '' })
 //   - payment     — method + cutlery/invoice flags. Re-confirmed at checkout.
 //   - lastTouchedAt — for the 24h TTL.
 //
+// Also persisted (WEC-402):
+//   - voucher     — kept across reloads so the Viva-return / accidental-F5 case
+//                   doesn't silently drop the discount. Lifetime is bounded:
+//                   cleared on order completion (clearAll) AND whenever the cart
+//                   ends up empty on hydrate / TTL wipe (WEC-591) — a voucher
+//                   must never outlive its cart. The server re-validates at submit.
+//
 // What we do NOT persist:
-//   - voucher     — re-validate every time. A voucher applied yesterday may
-//                   be expired, max-uses-reached, or ineligible for today's
-//                   cart total. Customer re-applies if needed.
 //   - voucherLoading — transient UI state.
 //   - fulfillment — per-session UX toggle, defaults to 'delivery'.
 //
@@ -438,8 +442,9 @@ export const useCartStore = create<CartStore>()(
       // on hydrate via migrate() — easier than mapping indices to dates
       // without knowing which week the customer was building for.
       version: 3,
-      // Persist cart + delivery + payment + lastTouchedAt. Fulfillment
-      // (WEC-259) and voucher are deliberately not persisted.
+      // Persist cart + delivery + payment + voucher (WEC-402) + lastTouchedAt +
+      // draftId. Fulfillment (WEC-259) is NOT persisted. Voucher lifetime is
+      // bounded — see WEC-591 in reconcileCartAgeAndDates + clearAll.
       partialize: (state) => ({
         cart: state.cart,
         delivery: state.delivery,
@@ -558,6 +563,16 @@ export function reconcileCartAgeAndDates() {
 
   if (droppedAny) {
     useCartStore.setState({ cart: nextCart, delivery: nextDelivery })
+  }
+
+  // WEC-591: a persisted voucher must never outlive its cart. If reconciliation
+  // leaves the cart empty (TTL/past-day pruning, or a voucher restored without
+  // items), drop the voucher too — otherwise a code applied in an old session
+  // silently discounts a fresh order. Applied vouchers persist across reloads BY
+  // DESIGN only for the Viva-return case, where the cart is still non-empty.
+  const finalCart = droppedAny ? nextCart : state.cart
+  if (Object.keys(finalCart).length === 0 && state.voucher.applied) {
+    useCartStore.setState({ voucher: defaultVoucher })
   }
 }
 
