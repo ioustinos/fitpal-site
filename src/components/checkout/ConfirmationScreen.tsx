@@ -132,6 +132,10 @@ export function ConfirmationScreen({ orderNumber }: { orderNumber?: string }) {
                             <span className="conf-item-variant">{itemVariant}</span>
                           </>
                         )}
+                        {/* WEC-571: per-line kitchen note (matches OrderReturn + admin). */}
+                        {item.comment && item.comment.trim() && (
+                          <span className="conf-item-comment">“{item.comment.trim()}”</span>
+                        )}
                       </span>
                       <span className="conf-item-price">{fmt(itemTotal)}</span>
                     </div>

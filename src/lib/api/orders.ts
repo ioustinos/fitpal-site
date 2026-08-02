@@ -93,6 +93,7 @@ export interface OrderItemView {
   variant: string
   qty: number
   price: number              // euros (unit price)
+  comment: string | null     // WEC-571: per-line customer note (kitchen)
   macros: { cal: number; protein: number; carbs: number; fat: number }
 }
 
@@ -218,6 +219,7 @@ export async function fetchUserOrders(userId: string, limit = 50, offset = 0): P
         variant: it.variant_label_en ?? '',
         qty: it.quantity,
         price: centsToEuros(it.unit_price),
+        comment: it.comment ?? null, // WEC-571
         macros: {
           cal: it.calories ?? 0,
           protein: it.protein ?? 0,
