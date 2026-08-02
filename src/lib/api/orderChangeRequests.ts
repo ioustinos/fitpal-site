@@ -90,11 +90,41 @@ export async function fetchPendingChangeRequestCount(): Promise<{ count: number;
   return { count: count ?? 0, error: null }
 }
 
-/** Admin: mark a request handled (writes handled_at + handled_by). */
-export async function markChangeRequestHandled(id: string, adminUserId: string): Promise<{ error: string | null }> {
+/** Admin: the set of order ids that have an unhandled ('new') request — powers
+ *  the per-row pending indicator in the Orders list. */
+export async function fetchOrderIdsWithPendingRequests(): Promise<{ data: Set<string>; error: string | null }> {
+  const { data, error } = await supabase
+    .from('order_change_requests')
+    .select('order_id')
+    .eq('status', 'new')
+  if (error) return { data: new Set(), error: error.message }
+  return { data: new Set((data ?? []).map((r) => (r as { order_id: string }).order_id)), error: null }
+}
+
+/** Admin: mark a request handled (writes handled_at + handled_by, and mirrors to
+ *  admin_change_log so the order timeline records who handled it). */
+export async function markChangeRequestHandled(
+  id: string,
+  adminUserId: string,
+  orderId?: string,
+): Promise<{ error: string | null }> {
   const { error } = await supabase
     .from('order_change_requests')
     .update({ status: 'handled', handled_at: new Date().toISOString(), handled_by: adminUserId })
     .eq('id', id)
-  return { error: error?.message ?? null }
+  if (error) return { error: error.message }
+  // WEC-557: audit trail — surface the action on the order's timeline. Non-fatal.
+  if (orderId) {
+    const { error: logErr } = await supabase.from('admin_change_log').insert({
+      order_id: orderId,
+      table_name: 'order_change_requests',
+      field_name: 'status',
+      old_value: 'new',
+      new_value: 'handled',
+      label: 'Change request handled',
+      admin_user: adminUserId,
+    })
+    if (logErr) console.warn('[change-request] admin_change_log insert failed (non-fatal):', logErr.message)
+  }
+  return { error: null }
 }

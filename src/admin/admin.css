@@ -1991,3 +1991,15 @@
 .admin-demo-card-noimg { background: linear-gradient(135deg, #eee, #e0e0e0); }
 .admin-demo-card-name { flex: 1; font-size: 13px; font-weight: 600; line-height: 1.25; }
 .admin-demo-hint { font-size: 12px; color: var(--a-text-soft, #777); margin-top: 6px; }
+
+/* ── WEC-557 · customer change requests in the admin Orders surface ─────────── */
+.admin-changereq-banner { margin: 10px 20px 0; background: #FEFCE8; border: 1px solid #FDE68A; border-radius: 8px; padding: 10px 12px; }
+.admin-changereq-hdr { display: flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.4px; color: #92400e; margin-bottom: 8px; }
+.admin-changereq-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 6px 0; border-top: 1px dashed #FDE68A; }
+.admin-changereq-row:first-of-type { border-top: 0; }
+.admin-changereq-info { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.admin-changereq-reason { font-size: 13px; font-weight: 700; color: #1c2b1c; }
+.admin-changereq-msg { font-size: 12px; color: #4b5563; font-style: italic; }
+.admin-changereq-date { font-size: 11px; color: #9A3412; }
+.admin-changereq-pill { display: inline-flex; align-items: center; gap: 3px; margin-left: 6px; font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.3px; color: #92400e; background: #FEF3C7; border: 1px solid #FDE68A; padding: 1px 6px; border-radius: 999px; vertical-align: middle; }
+.admin-changereq-count { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; font-weight: 700; color: #92400e; background: #FEF3C7; border: 1px solid #FDE68A; padding: 5px 12px; border-radius: 999px; align-self: center; white-space: nowrap; }

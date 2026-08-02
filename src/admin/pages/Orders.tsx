@@ -21,6 +21,11 @@ import { foldGreek } from '../../lib/text'
 import { orderTypeCode, ORDER_TYPE_LABELS, type OrderTypeCode } from '../../lib/orderType'
 // WEC-577/499: single source of truth for payment-method labels
 import { paymentShort, PAYMENT_METHOD_IDS } from '../../lib/paymentMethods'
+// WEC-557: customer «Αίτημα αλλαγής» requests surfaced in the drawer + list.
+import {
+  fetchOrderChangeRequests, markChangeRequestHandled, fetchOrderIdsWithPendingRequests,
+  type OrderChangeRequest, type OrderChangeReason,
+} from '../../lib/api/orderChangeRequests'
 
 const STATUS_COLOURS: Record<OrderStatus, string> = {
   // WEC-420: draft uses the same warm orange as the in-drawer banner so the
@@ -66,6 +71,14 @@ const TRANSITION_LABEL: Record<OrderStatus, string> = {
   cancelled: 'Cancel',
 }
 
+// WEC-557: admin-facing labels for the customer change-request reasons.
+const CHANGE_REASON_LABEL: Record<OrderChangeReason, string> = {
+  cancel: 'Cancel order',
+  address_or_time: 'Address / time',
+  dish: 'Dish change',
+  other: 'Other',
+}
+
 type Preset = 'all' | 'today' | 'pending-payment' | 'this-week' | 'drafts'
 
 export function Orders() {
@@ -86,9 +99,15 @@ export function Orders() {
   // WEC-528: Order Type is DERIVED (payment_method × admin_order_id), no DB
   // column — so this filter is applied client-side on the loaded list.
   const [filterType, setFilterType] = useState<OrderTypeCode[]>([])
+  // WEC-557: order ids with an unhandled customer change request — drives the
+  // per-row pending indicator + a count pill so ops notices without opening drawers.
+  const [pendingReqIds, setPendingReqIds] = useState<Set<string>>(new Set())
 
   async function refresh() {
     setLoading(true); setErr(null)
+    // WEC-557: refresh the pending-change-request set alongside the order list
+    // (also runs after a drawer "mark handled" via onRefresh, so badges clear).
+    fetchOrderIdsWithPendingRequests().then(({ data }) => setPendingReqIds(data))
     const filters: OrderFilters = { search: search.trim() || undefined }
     // WEC-420: Drafts tab. Forces status=['draft'] (overriding any user-picked
     // Status filter for this tab); other presets default-exclude drafts via
@@ -145,6 +164,12 @@ export function Orders() {
           <h1 className="admin-page-title">Orders</h1>
           <p className="admin-page-sub">{totalLoaded} orders loaded.</p>
         </div>
+        {/* WEC-557: global pending change-request indicator. */}
+        {pendingReqIds.size > 0 && (
+          <span className="admin-changereq-count" title="Orders with an unhandled customer change request">
+            <Ico name="tag" size={12} /> {pendingReqIds.size} change request{pendingReqIds.size > 1 ? 's' : ''} pending
+          </span>
+        )}
       </div>
 
       {/* Preset filter pills */}
@@ -270,6 +295,12 @@ export function Orders() {
                 <tr key={o.id} onClick={() => openDetail(o.id)} style={{ cursor: 'pointer' }}>
                   <td>
                     <strong>{o.orderNumber}</strong>
+                    {/* WEC-557: pending customer change request — visible without opening the drawer. */}
+                    {pendingReqIds.has(o.id) && (
+                      <span className="admin-changereq-pill" title="Pending customer change request">
+                        <Ico name="tag" size={10} /> change req
+                      </span>
+                    )}
                     {/* WEC-521: managed order (admin placed it while impersonating
                         the customer). adminOrderId is the audit column. Icon changed
                         star → admin shield (same glyph as the header Admin pill) per
@@ -433,6 +464,23 @@ function OrderDrawer({
   // tiny inline confirmation flow rather than a modal — one extra click is
   // enough to prevent a fat-finger fire that emails the customer mid-edit.
   const [updateEmailState, setUpdateEmailState] = useState<'idle' | 'confirm' | 'sending' | 'sent'>('idle')
+
+  // WEC-557: customer change requests for this order + inline "mark handled".
+  const [changeReqs, setChangeReqs] = useState<OrderChangeRequest[]>([])
+  function loadChangeReqs(id: string) {
+    fetchOrderChangeRequests(id).then(({ data }) => setChangeReqs(data))
+  }
+  useEffect(() => {
+    setChangeReqs([])
+    if (order) loadChangeReqs(order.id)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [order?.id])
+  async function handleMarkHandled(reqId: string) {
+    if (!order) return
+    await markChangeRequestHandled(reqId, adminUser, order.id)
+    loadChangeReqs(order.id)
+    onRefresh() // refresh list + pending badge
+  }
 
   async function performStatusChange(next: OrderStatus, reason?: string) {
     if (!order) return
@@ -618,6 +666,26 @@ function OrderDrawer({
             {order.status === 'cancelled' && order.cancelReason && (
               <div className="admin-error-banner" style={{ margin: '10px 20px 0', background: '#FFF7ED', borderColor: '#FED7AA', color: '#9A3412' }}>
                 <strong>Cancellation reason:</strong> {order.cancelReason}
+              </div>
+            )}
+
+            {/* WEC-557: pending customer change requests — banner + inline resolve. */}
+            {changeReqs.some((r) => r.status === 'new') && (
+              <div className="admin-changereq-banner">
+                <div className="admin-changereq-hdr">
+                  <Ico name="tag" size={13} />
+                  Customer change request{changeReqs.filter((r) => r.status === 'new').length > 1 ? 's' : ''}
+                </div>
+                {changeReqs.filter((r) => r.status === 'new').map((r) => (
+                  <div key={r.id} className="admin-changereq-row">
+                    <div className="admin-changereq-info">
+                      <span className="admin-changereq-reason">{CHANGE_REASON_LABEL[r.reason]}</span>
+                      {r.message && <span className="admin-changereq-msg">“{r.message}”</span>}
+                      <span className="admin-changereq-date">{new Date(r.createdAt).toLocaleString('en-GB', { dateStyle: 'short', timeStyle: 'short' })}</span>
+                    </div>
+                    <button className="admin-btn-ghost admin-btn-sm" onClick={() => handleMarkHandled(r.id)}>Mark handled</button>
+                  </div>
+                ))}
               </div>
             )}
 
