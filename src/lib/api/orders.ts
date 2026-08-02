@@ -22,6 +22,7 @@ interface DbOrder {
   invoice_vat: string | null
   notes: string | null
   created_at: string
+  submitted_at?: string | null   // WEC-590: real submit time (see mapping below)
 }
 
 interface DbChildOrder {
@@ -254,7 +255,12 @@ export async function fetchUserOrders(userId: string, limit = 50, offset = 0): P
     return {
       id: o.order_number,
       orderId: o.id, // WEC-557: UUID for change-request FK
-      date: o.created_at,
+      // WEC-590: the real order date is when it was SUBMITTED, not when the draft
+      // was first created (a cart can survive across days). submitted_at is
+      // stamped at submit + backfilled for legacy rows; created_at is the
+      // fallback. Drives both the display date AND the week/month period filters
+      // (both read order.date), so one change fixes both.
+      date: o.submitted_at ?? o.created_at,
       statusEl: sLabel.el,
       statusEn: sLabel.en,
       status: o.status === 'delivered' ? 'completed' : o.status === 'cancelled' ? 'cancelled' : 'active',

@@ -105,6 +105,8 @@ export interface AdminOrder {
   adminNotes: string | null
   cancelReason: string | null
   createdAt: string
+  /** WEC-590: real submit time (draft created_at is the draft's age, not the order's). */
+  submittedAt: string | null
   updatedAt: string
   childOrders: AdminChildOrder[]
   voucherUses: AdminVoucherUse[]
@@ -166,8 +168,12 @@ export async function listAdminOrders(f: OrderFilters): Promise<{ data: AdminOrd
   }
   if (f.paymentStatus && f.paymentStatus.length) q = q.in('payment_status', f.paymentStatus)
   if (f.paymentMethod && f.paymentMethod.length) q = q.in('payment_method', f.paymentMethod)
-  if (f.createdFrom) q = q.gte('created_at', `${f.createdFrom}T00:00:00Z`)
-  if (f.createdTo) q = q.lte('created_at', `${f.createdTo}T23:59:59Z`)
+  // WEC-590: filter on the real submit time, not the draft's created_at.
+  // submitted_at is backfilled for all non-draft rows (wec473) + stamped at
+  // submit; the default admin view excludes drafts, so a submitted_at filter is
+  // authoritative here.
+  if (f.createdFrom) q = q.gte('submitted_at', `${f.createdFrom}T00:00:00Z`)
+  if (f.createdTo) q = q.lte('submitted_at', `${f.createdTo}T23:59:59Z`)
   if (orderIdsFromChild) q = q.in('id', Array.from(orderIdsFromChild))
   if (f.search) {
     const s = f.search.trim()
@@ -351,7 +357,7 @@ function mapOrderRow(r: unknown, childOrders: AdminChildOrder[], voucherUses: Ad
     cutlery: boolean | null; invoice_type: string | null; invoice_name: string | null; invoice_vat: string | null;
     notes: string | null; admin_order_id: string | null; admin_notes: string | null;
     cancel_reason: string | null;
-    created_at: string; updated_at: string;
+    created_at: string; submitted_at: string | null; updated_at: string;
   }
   return {
     id: row.id, orderNumber: row.order_number, userId: row.user_id,
@@ -364,7 +370,7 @@ function mapOrderRow(r: unknown, childOrders: AdminChildOrder[], voucherUses: Ad
     invoiceName: row.invoice_name, invoiceVat: row.invoice_vat,
     notes: row.notes, adminOrderId: row.admin_order_id, adminNotes: row.admin_notes,
     cancelReason: (row.cancel_reason as string | null) ?? null,
-    createdAt: row.created_at, updatedAt: row.updated_at,
+    createdAt: row.created_at, submittedAt: row.submitted_at ?? null, updatedAt: row.updated_at,
     childOrders, voucherUses, changeLog,
     paymentLink,
   }

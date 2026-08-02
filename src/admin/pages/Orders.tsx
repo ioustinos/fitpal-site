@@ -310,8 +310,8 @@ export function Orders() {
                   <td><PaymentBadge status={o.paymentStatus} /></td>
                   <td><PaymentMethodBadge method={o.paymentMethod} /></td>
                   <td className="admin-sub" style={{ whiteSpace: 'nowrap' }}>
-                    <div>{new Date(o.createdAt).toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: '2-digit' })}</div>
-                    <div>{new Date(o.createdAt).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}</div>
+                    <div>{new Date(o.submittedAt ?? o.createdAt).toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: '2-digit' })}</div>
+                    <div>{new Date(o.submittedAt ?? o.createdAt).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}</div>
                   </td>
                 </tr>
               ))}
@@ -515,7 +515,7 @@ function OrderDrawer({
                 the admin sees when opening the drawer, no clicking required. */}
             {order && (
               <span className="admin-drawer-placed">
-                {new Date(order.createdAt).toLocaleString('en-GB', { dateStyle: 'short', timeStyle: 'short' })}
+                {new Date(order.submittedAt ?? order.createdAt).toLocaleString('en-GB', { dateStyle: 'short', timeStyle: 'short' })}
               </span>
             )}
           </div>
@@ -764,13 +764,13 @@ function OverviewTab({ order, adminUser, onChanged }: { order: AdminOrder; admin
               about "did this come in before cutoff?" / "how long has it been
               sitting?" without having to infer from the order number. */}
           <div className="admin-od-provenance">
-            <Ico name="info" size={13} /> Placed at {new Date(order.createdAt).toLocaleString('en-GB', { dateStyle: 'short', timeStyle: 'short' })}
+            <Ico name="info" size={13} /> Placed at {new Date(order.submittedAt ?? order.createdAt).toLocaleString('en-GB', { dateStyle: 'short', timeStyle: 'short' })}
           </div>
           {/* WEC-392: read-only impersonation provenance (from admin_order_id),
               kept separate from the editable admin note. */}
           {order.adminOrderId && (
             <div className="admin-od-provenance">
-              <Ico name="shield" size={13} /> Placed by an admin on behalf of the customer · {new Date(order.createdAt).toLocaleString('en-GB', { dateStyle: 'short', timeStyle: 'short' })}
+              <Ico name="shield" size={13} /> Placed by an admin on behalf of the customer · {new Date(order.submittedAt ?? order.createdAt).toLocaleString('en-GB', { dateStyle: 'short', timeStyle: 'short' })}
             </div>
           )}
         </div>
@@ -1587,11 +1587,22 @@ function TimelineTab({ order }: { order: AdminOrder }) {
       <table className="admin-table admin-table-tight">
         <thead><tr><th>When</th><th>Field</th><th>Old</th><th>New</th><th>Label</th><th>By</th></tr></thead>
         <tbody>
-          {/* WEC-404: synthetic first row — the order's own placement. Always
-              present; reads chronologically from "Order placed" → subsequent
-              admin changes. Styled identically to the other rows. */}
+          {/* WEC-404/590: synthetic first rows. When the order came from a
+              persisted draft (submitted_at differs from created_at by >1s), the
+              cart-creation shows FIRST so the draft age stays visible where it's
+              useful, then the real placement. Otherwise a single "Order placed". */}
+          {order.submittedAt && new Date(order.submittedAt).getTime() - new Date(order.createdAt).getTime() > 1000 && (
+            <tr>
+              <td className="admin-sub">{new Date(order.createdAt).toLocaleString('en-GB')}</td>
+              <td>orders.draft</td>
+              <td className="admin-sub">—</td>
+              <td className="admin-sub">draft</td>
+              <td>Cart created (draft)</td>
+              <td className="admin-sub">customer</td>
+            </tr>
+          )}
           <tr>
-            <td className="admin-sub">{new Date(order.createdAt).toLocaleString('en-GB')}</td>
+            <td className="admin-sub">{new Date(order.submittedAt ?? order.createdAt).toLocaleString('en-GB')}</td>
             <td>orders.created</td>
             <td className="admin-sub">—</td>
             <td className="admin-sub">placed</td>
