@@ -125,7 +125,10 @@ export function exportMenuToXls(data: MenuExportData, opts: XlsExportOpts = {}):
       for (const d of c.dishes) {
         rows.push(
           `<tr><td>${esc(day.dayName)}</td><td>${esc(day.date)}</td><td>${esc(c.catName)}</td>` +
-            `<td>${esc(externalIdCell(d, gonna))}</td><td>${esc(d.nameEl)}</td><td>${esc(d.nameEn)}</td>` +
+            // WEC-593 fix: force the External ID cell to TEXT so Excel doesn't turn
+            // ids like "23-1" into the date "23-Jan". mso-number-format:\@ = text.
+            `<td style="mso-number-format:'\\@';">${esc(externalIdCell(d, gonna))}</td>` +
+            `<td>${esc(d.nameEl)}</td><td>${esc(d.nameEn)}</td>` +
             `<td>${esc(d.variants.filter(Boolean).join(' / '))}</td></tr>`,
         )
       }

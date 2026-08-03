@@ -434,10 +434,10 @@ export function Menus() {
     <div className="admin-page admin-menus">
       {/* WEC-593: Excel export format popup — Standard vs GonnaOrder external IDs. */}
       {xlsPromptOpen && (
-        <div className="admin-drawer-overlay" style={{ background: 'rgba(0,0,0,0.45)' }} onClick={() => setXlsPromptOpen(false)}>
+        <div className="admin-modal-overlay" onClick={() => setXlsPromptOpen(false)}>
           <div
             className="admin-modal"
-            style={{ maxWidth: 480, margin: '16vh auto', background: '#fff', border: '1px solid #e5e7eb', borderRadius: 10, padding: 24, boxShadow: '0 12px 40px rgba(0,0,0,0.18)' }}
+            style={{ maxWidth: 460, height: 'auto', padding: 24 }}
             onClick={(e) => e.stopPropagation()}
           >
             <h3 style={{ margin: '0 0 4px', fontSize: 17 }}>Excel export format · Μορφή εξαγωγής</h3>
