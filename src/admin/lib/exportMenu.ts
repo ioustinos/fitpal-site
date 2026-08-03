@@ -9,6 +9,20 @@ export interface MenuExportDish {
   nameEn: string
   externalId: string | null
   variants: string[]
+  /** WEC-593: real variant count (NOT variants.length — empty labels are
+   *  filtered out of that array). Gates the GonnaOrder «-1» suffix. */
+  variantCount: number
+}
+
+/** WEC-593: options for the Excel export. */
+export interface XlsExportOpts {
+  /**
+   * GonnaOrder re-import format: a dish with 2+ variants has no plain external
+   * ID in GO — the main dish IS `XXX-1`. So append «-1» iff the dish has ≥2
+   * variants AND has an external ID. Dishes without an external ID stay blank
+   * (never a bare `-1`); 1-variant dishes stay plain `XXX`.
+   */
+  gonnaOrderIds?: boolean
 }
 export interface MenuExportCategory {
   catName: string
@@ -91,7 +105,14 @@ export function exportMenuToPdf(data: MenuExportData): void {
   win.document.close()
 }
 
-export function exportMenuToXls(data: MenuExportData): void {
+/** WEC-593: External-ID cell value for a dish, honouring the GonnaOrder rule. */
+function externalIdCell(d: MenuExportDish, gonnaOrderIds: boolean): string {
+  if (!d.externalId) return '' // no id → stay blank, never a bare "-1"
+  return gonnaOrderIds && d.variantCount >= 2 ? `${d.externalId}-1` : d.externalId
+}
+
+export function exportMenuToXls(data: MenuExportData, opts: XlsExportOpts = {}): void {
+  const gonna = !!opts.gonnaOrderIds
   const rows: string[] = [
     '<tr><th>Day</th><th>Date</th><th>Category</th><th>External ID</th><th>Dish (EL)</th><th>Dish (EN)</th><th>Variants</th></tr>',
   ]
@@ -104,7 +125,7 @@ export function exportMenuToXls(data: MenuExportData): void {
       for (const d of c.dishes) {
         rows.push(
           `<tr><td>${esc(day.dayName)}</td><td>${esc(day.date)}</td><td>${esc(c.catName)}</td>` +
-            `<td>${esc(d.externalId ?? '')}</td><td>${esc(d.nameEl)}</td><td>${esc(d.nameEn)}</td>` +
+            `<td>${esc(externalIdCell(d, gonna))}</td><td>${esc(d.nameEl)}</td><td>${esc(d.nameEn)}</td>` +
             `<td>${esc(d.variants.filter(Boolean).join(' / '))}</td></tr>`,
         )
       }

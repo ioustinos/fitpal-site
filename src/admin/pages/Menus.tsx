@@ -74,6 +74,9 @@ export function Menus() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [editingName, setEditingName] = useState<string>('')
+  // WEC-593: Excel export format popup (Standard vs GonnaOrder external IDs).
+  const [xlsPromptOpen, setXlsPromptOpen] = useState(false)
+  const [xlsFmt, setXlsFmt] = useState<'standard' | 'gonnaorder'>('standard')
 
   const [dishes, setDishes] = useState<AdminDish[]>([])
   const [categories, setCategories] = useState<AdminCategory[]>([])
@@ -292,6 +295,8 @@ export function Menus() {
               nameEn: d?.nameEn ?? '',
               externalId: d?.externalId ?? null,
               variants: (d?.variants ?? []).map((v) => v.labelEl).filter(Boolean),
+              // WEC-593: real variant count (not the filtered label array) — gates the GonnaOrder «-1».
+              variantCount: (d?.variants ?? []).length,
             }
           }),
         })
@@ -427,6 +432,39 @@ export function Menus() {
 
   return (
     <div className="admin-page admin-menus">
+      {/* WEC-593: Excel export format popup — Standard vs GonnaOrder external IDs. */}
+      {xlsPromptOpen && (
+        <div className="admin-drawer-overlay" style={{ background: 'rgba(0,0,0,0.45)' }} onClick={() => setXlsPromptOpen(false)}>
+          <div
+            className="admin-modal"
+            style={{ maxWidth: 480, margin: '16vh auto', background: '#fff', border: '1px solid #e5e7eb', borderRadius: 10, padding: 24, boxShadow: '0 12px 40px rgba(0,0,0,0.18)' }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 style={{ margin: '0 0 4px', fontSize: 17 }}>Excel export format · Μορφή εξαγωγής</h3>
+            <p style={{ margin: '0 0 16px', color: '#4b5563', fontSize: 13, lineHeight: 1.45 }}>
+              How should the External ID column be written? · Πώς να γραφεί η στήλη External ID;
+            </p>
+            <label className="admin-form-checkbox" style={{ alignItems: 'flex-start', marginBottom: 10 }}>
+              <input type="radio" name="xlsfmt" checked={xlsFmt === 'standard'} onChange={() => setXlsFmt('standard')} />
+              <span><strong>Standard · Τυπικό</strong><br /><span style={{ color: '#6b7280', fontSize: 12 }}>External IDs exactly as stored (current behaviour).</span></span>
+            </label>
+            <label className="admin-form-checkbox" style={{ alignItems: 'flex-start' }}>
+              <input type="radio" name="xlsfmt" checked={xlsFmt === 'gonnaorder'} onChange={() => setXlsFmt('gonnaorder')} />
+              <span><strong>GonnaOrder</strong><br /><span style={{ color: '#6b7280', fontSize: 12 }}>Append «-1» to dishes with 2+ variants so the sheet re-imports into GonnaOrder.</span></span>
+            </label>
+            <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 20 }}>
+              <button className="admin-btn-ghost" onClick={() => setXlsPromptOpen(false)}>Cancel · Άκυρο</button>
+              <button
+                className="admin-btn-primary"
+                onClick={() => { exportMenuToXls(buildExportModel(), { gonnaOrderIds: xlsFmt === 'gonnaorder' }); setXlsPromptOpen(false) }}
+              >
+                Export · Εξαγωγή
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="admin-page-head">
         <div>
           <h1 className="admin-page-title">Menu builder</h1>
@@ -506,7 +544,7 @@ export function Menus() {
             <>
               <button className="admin-btn-ghost" onClick={handleDuplicateFromPrev}>Duplicate from last week</button>
               <button className="admin-btn-ghost" onClick={() => exportMenuToPdf(buildExportModel())}>Export PDF</button>
-              <button className="admin-btn-ghost" onClick={() => exportMenuToXls(buildExportModel())}>Export Excel</button>
+              <button className="admin-btn-ghost" onClick={() => { setXlsFmt('standard'); setXlsPromptOpen(true) }}>Export Excel</button>
               <button
                 className={selectedMenu.active ? 'admin-btn-ghost' : 'admin-btn-primary'}
                 onClick={handleTogglePublish}
