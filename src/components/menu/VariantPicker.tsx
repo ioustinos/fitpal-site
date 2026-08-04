@@ -246,7 +246,13 @@ function DropdownsPicker({ dish, selectedVariantId, onChange, lang }: Props) {
 
       <div className="dm-variant-dropdowns" style={{ marginTop: 10 }}>
         {choiceGroups.map((g) => {
-          const ingName = lang === 'en' ? (g.ing.nameEn || g.ing.nameEl) : g.ing.nameEl
+          // WEC-595: a missing ingredient name must NEVER render a nameless
+          // dropdown again. The RLS fix restores the real names; this generic
+          // fallback is the belt-and-suspenders so a future empty name degrades
+          // to a labelled control rather than a silent one.
+          const ingName =
+            (lang === 'en' ? (g.ing.nameEn || g.ing.nameEl) : g.ing.nameEl) ||
+            (lang === 'el' ? 'Επιλογή' : 'Option')
           const selected = currentSelection.get(g.ing.ingredientId)
           return (
             <div key={g.ing.ingredientId} className="dm-variant-dropdown">
