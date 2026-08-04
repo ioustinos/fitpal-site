@@ -20,6 +20,10 @@ export interface DishIngredient {
   sortOrder: number
   isVariant: boolean
   fixedGrams: number | null
+  /** WEC-596: is this an is_variant ingredient the customer chooses (true) or a
+   *  derived amount that scales automatically (false → read-only, no dropdown)?
+   *  Default true. Only meaningful when isVariant is true. */
+  customerSelectable: boolean
 }
 
 export interface VariantAmount {
@@ -38,6 +42,7 @@ interface DbDishIngredient {
   sort_order: number
   is_variant: boolean
   fixed_grams: number | null
+  customer_selectable: boolean | null
   ingredients: { name_el: string; name_en: string | null } | null
 }
 
@@ -54,7 +59,7 @@ export async function fetchDishRecipe(dishId: string): Promise<{
   // Get dish's ingredients (joined to catalog for names)
   const { data: ingRows, error: ingErr } = await supabase
     .from('dish_ingredients')
-    .select('ingredient_id, sort_order, is_variant, fixed_grams, ingredients(name_el, name_en)')
+    .select('ingredient_id, sort_order, is_variant, fixed_grams, customer_selectable, ingredients(name_el, name_en)')
     .eq('dish_id', dishId)
     .order('sort_order')
 
@@ -87,6 +92,7 @@ export async function fetchDishRecipe(dishId: string): Promise<{
         sortOrder: r.sort_order,
         isVariant: r.is_variant,
         fixedGrams: r.fixed_grams,
+        customerSelectable: r.customer_selectable ?? true,
       })),
       variantAmounts: amtRows.map((r) => ({
         variantId: r.variant_id,

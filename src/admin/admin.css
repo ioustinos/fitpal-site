@@ -2005,3 +2005,5 @@
 .admin-changereq-count { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; font-weight: 700; color: #92400e; background: #FEF3C7; border: 1px solid #FDE68A; padding: 5px 12px; border-radius: 999px; align-self: center; white-space: nowrap; }
 /* WEC-602: mark-handled failure — must be visible, not swallowed. */
 .admin-changereq-err { margin-top: 8px; font-size: 12px; font-weight: 600; color: #b91c1c; background: #FEF2F2; border: 1px solid #FECACA; border-radius: 6px; padding: 6px 9px; }
+/* WEC-596: customer-selectable toggle in the dish recipe editor. */
+.admin-recipe-selectable { display: inline-flex; align-items: center; gap: 4px; margin-top: 6px; font-size: 12px; color: #4b5563; cursor: pointer; }

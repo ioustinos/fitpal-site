@@ -40,6 +40,7 @@ interface DbDishIngredient {
   sort_order: number
   is_variant: boolean
   fixed_grams: number | null
+  customer_selectable: boolean | null
   ingredients: { name_el: string; name_en: string | null } | null
 }
 
@@ -58,6 +59,7 @@ interface WireDishIngredient {
   sortOrder: number
   isVariant: boolean
   fixedGrams: number | null
+  customerSelectable: boolean
 }
 
 interface WireVariantAmount {
@@ -94,7 +96,7 @@ export const handler: Handler = async (event) => {
     // 1. Dish ingredients, joined to the catalog for display names.
     const { data: ingRows, error: ingErr } = await supabase
       .from('dish_ingredients')
-      .select('ingredient_id, sort_order, is_variant, fixed_grams, ingredients(name_el, name_en)')
+      .select('ingredient_id, sort_order, is_variant, fixed_grams, customer_selectable, ingredients(name_el, name_en)')
       .eq('dish_id', dishId)
       .order('sort_order')
     if (ingErr) throw new Error(`dish_ingredients: ${ingErr.message}`)
@@ -127,6 +129,7 @@ export const handler: Handler = async (event) => {
         sortOrder: r.sort_order,
         isVariant: r.is_variant,
         fixedGrams: r.fixed_grams,
+        customerSelectable: r.customer_selectable ?? true,
       })),
       variantAmounts: amtRows.map((r) => ({
         variantId: r.variant_id,

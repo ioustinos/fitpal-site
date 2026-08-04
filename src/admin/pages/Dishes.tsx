@@ -278,6 +278,7 @@ function DishDrawer({
             fixedGrams: ing.fixedGrams != null ? Number(ing.fixedGrams) : null,
             perVariant,
             sortOrder: ing.sortOrder,
+            customerSelectable: ing.customerSelectable,
           }
         })
         setRecipe(rows)
@@ -391,6 +392,9 @@ function DishDrawer({
         fixedGrams: isVariant ? null : Array.from(distinct)[0],
         perVariant: isVariant ? info.perVariant : {},
         sortOrder: info.order,
+        // WEC-596: newly-generated rows default to selectable; admin unchecks
+        // derived dimensions by hand.
+        customerSelectable: true,
       })
       i++
     }
@@ -494,6 +498,7 @@ function DishDrawer({
             fixedGrams: r.fixedGrams,
             perVariant: r.perVariant,
             sortOrder: r.sortOrder,
+            customerSelectable: r.customerSelectable,
           })),
         )
         if (recipeErr) { setErr(`Recipe save failed: ${recipeErr}`); return }

@@ -350,6 +350,9 @@ export interface RecipeEntryInput {
   /** Map of variant.id → grams. Required keys when isVariant=true (0 = absent). */
   perVariant: Record<string, number>
   sortOrder: number
+  /** WEC-596: is this variable ingredient a customer dropdown choice (true) or a
+   *  derived amount (false → read-only). Ignored when isVariant=false. */
+  customerSelectable: boolean
 }
 
 /**
@@ -430,6 +433,8 @@ export async function saveDishRecipe(
     sort_order: e.sortOrder ?? i,
     is_variant: e.isVariant,
     fixed_grams: e.isVariant ? null : e.fixedGrams,
+    // WEC-596: only meaningful for variable ingredients; fixed ones stay true.
+    customer_selectable: e.isVariant ? e.customerSelectable : true,
   }))
   const { error: insDIErr } = await supabase.from('dish_ingredients').insert(diRows)
   if (insDIErr) return { error: insDIErr.message }

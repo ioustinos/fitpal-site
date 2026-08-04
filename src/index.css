@@ -986,6 +986,11 @@ header {
 .dm-variant-dropdown-label { font-size: 11px; font-weight: 700; color: var(--text-muted); }
 .dm-variant-dropdown-select { padding: 8px 10px; border: 1.5px solid var(--border); border-radius: 8px; background: var(--white); font-size: 13px; font-weight: 600; color: var(--text); cursor: pointer; appearance: none; background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23666' stroke-width='2.5'><polyline points='6 9 12 15 18 9'/></svg>"); background-repeat: no-repeat; background-position: right 10px center; padding-right: 32px; }
 .dm-variant-dropdown-select:focus { outline: none; border-color: var(--green); }
+/* WEC-596: derived (non-selectable) variable ingredient — read-only line. */
+.dm-variant-derived { display: flex; flex-direction: column; gap: 2px; }
+.dm-variant-derived-line { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 12px; color: var(--text-muted); padding: 3px 2px; }
+.dm-variant-derived-name { font-weight: 600; }
+.dm-variant-derived-grams { font-variant-numeric: tabular-nums; }
 /* variant-row — WEC-132 compact */
 .variant-row { display: flex; align-items: center; gap: 10px; padding: 8px 12px; border: 2px solid var(--border); border-radius: var(--radius); cursor: pointer; transition: all 0.18s; background: var(--white); }
 .variant-row:hover, .variant-row.sel { border-color: var(--green); background: var(--green-pale); }

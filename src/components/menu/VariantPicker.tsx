@@ -117,7 +117,9 @@ function DropdownsPicker({ dish, selectedVariantId, onChange, lang }: Props) {
   const choiceGroups = useMemo(() => {
     if (!recipe) return null
     const variantIds = new Set(dish.variants.map((v) => v.id))
-    const variableIngs = recipe.ingredients.filter((i) => i.isVariant)
+    // WEC-596: only CUSTOMER-SELECTABLE variable ingredients get a dropdown.
+    // Derived ones (customerSelectable=false) are shown read-only below.
+    const variableIngs = recipe.ingredients.filter((i) => i.isVariant && i.customerSelectable)
     return variableIngs.map((ing) => {
       // Map: variantId → grams (only for this ingredient)
       const byVariant = new Map<string, number>()
@@ -141,6 +143,22 @@ function DropdownsPicker({ dish, selectedVariantId, onChange, lang }: Props) {
     }
     return out
   }, [choiceGroups, selectedVariantId])
+
+  // WEC-596: derived variable ingredients (customerSelectable=false) — shown as
+  // a read-only line with the current variant's grams, no control. Real info the
+  // customer eats, but not a choice they make.
+  const derivedLines = useMemo(() => {
+    if (!recipe) return []
+    return recipe.ingredients
+      .filter((i) => i.isVariant && !i.customerSelectable)
+      .map((ing) => {
+        const amt = recipe.variantAmounts.find(
+          (a) => a.ingredientId === ing.ingredientId && a.variantId === selectedVariantId,
+        )
+        return { ing, grams: amt?.grams ?? 0 }
+      })
+      .filter((d) => d.grams > 0)
+  }, [recipe, selectedVariantId])
 
   if (fallback) {
     return <PillsPicker dish={dish} selectedVariantId={selectedVariantId} onChange={onChange} lang={lang} t={t} />
@@ -279,6 +297,23 @@ function DropdownsPicker({ dish, selectedVariantId, onChange, lang }: Props) {
           )
         })}
       </div>
+
+      {/* WEC-596: derived amounts — read-only, no control. */}
+      {derivedLines.length > 0 && (
+        <div className="dm-variant-derived" style={{ marginTop: 8 }}>
+          {derivedLines.map((d) => {
+            const nm =
+              (lang === 'en' ? (d.ing.nameEn || d.ing.nameEl) : d.ing.nameEl) ||
+              (lang === 'el' ? 'Επιλογή' : 'Option')
+            return (
+              <div key={d.ing.ingredientId} className="dm-variant-derived-line">
+                <span className="dm-variant-derived-name">{nm}</span>
+                <span className="dm-variant-derived-grams">{fmtGrams(d.grams)}γρ</span>
+              </div>
+            )
+          })}
+        </div>
+      )}
     </div>
   )
 }

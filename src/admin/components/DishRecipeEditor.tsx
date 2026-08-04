@@ -29,6 +29,9 @@ export interface RecipeRow {
   /** key = variant.id (the dish_variants.id, e.g. "5-1") */
   perVariant: Record<string, number>
   sortOrder: number
+  /** WEC-596: for a variable ingredient, is it a customer dropdown choice (true)
+   *  or a derived amount the kitchen scales (false → read-only for the customer)? */
+  customerSelectable: boolean
 }
 
 interface Props {
@@ -81,6 +84,7 @@ export function DishRecipeEditor({ variants, value, onChange }: Props) {
         fixedGrams: null,
         perVariant: {},
         sortOrder: value.length,
+        customerSelectable: true,
       },
     ])
   }
@@ -189,25 +193,39 @@ export function DishRecipeEditor({ variants, value, onChange }: Props) {
                 />
               )}
               {r.isVariant && (
-                <div className="admin-recipe-row-variants">
-                  {variants.map((v, vi) => (
-                    <div key={v.id} className="admin-recipe-variant-cell">
-                      <label className="admin-recipe-variant-label">v{vi + 1}</label>
-                      <input
-                        className="admin-input"
-                        type="number"
-                        min={0}
-                        step="0.5"
-                        placeholder="γρ"
-                        value={r.perVariant[v.id] ?? ''}
-                        onChange={(e) => {
-                          const n = e.target.value === '' ? 0 : Number(e.target.value)
-                          update(idx, { perVariant: { ...r.perVariant, [v.id]: n } })
-                        }}
-                      />
-                    </div>
-                  ))}
-                </div>
+                <>
+                  <div className="admin-recipe-row-variants">
+                    {variants.map((v, vi) => (
+                      <div key={v.id} className="admin-recipe-variant-cell">
+                        <label className="admin-recipe-variant-label">v{vi + 1}</label>
+                        <input
+                          className="admin-input"
+                          type="number"
+                          min={0}
+                          step="0.5"
+                          placeholder="γρ"
+                          value={r.perVariant[v.id] ?? ''}
+                          onChange={(e) => {
+                            const n = e.target.value === '' ? 0 : Number(e.target.value)
+                            update(idx, { perVariant: { ...r.perVariant, [v.id]: n } })
+                          }}
+                        />
+                      </div>
+                    ))}
+                  </div>
+                  {/* WEC-596: derived dimensions (e.g. a sauce that scales with
+                      another ingredient) should NOT be a customer dropdown.
+                      Unchecking hides the dropdown; the amount still shows
+                      read-only and macros/price are unchanged. */}
+                  <label className="admin-recipe-selectable" title="Uncheck if this amount is derived from another ingredient and the customer should not choose it">
+                    <input
+                      type="checkbox"
+                      checked={r.customerSelectable}
+                      onChange={(e) => update(idx, { customerSelectable: e.target.checked })}
+                    />{' '}
+                    Customer-selectable (a dropdown choice)
+                  </label>
+                </>
               )}
             </div>
 
