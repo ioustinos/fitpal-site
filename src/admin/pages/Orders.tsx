@@ -357,6 +357,7 @@ export function Orders() {
           order={detail}
           loading={detailLoading}
           adminUser={user?.email ?? 'admin'}
+          adminUserId={user?.id ?? ''}
           onClose={closeDetail}
           onRefresh={() => { refreshDetail(selectedId); refresh() }}
         />
@@ -441,12 +442,15 @@ function Ico({ name, size = 15 }: { name: keyof typeof ICONS; size?: number }) {
 // ─── Order detail drawer ─────────────────────────────────────────────────
 
 function OrderDrawer({
-  orderId, order, loading, adminUser, onClose, onRefresh,
+  orderId, order, loading, adminUser, adminUserId, onClose, onRefresh,
 }: {
   orderId: string
   order: AdminOrder | null
   loading: boolean
   adminUser: string
+  /** WEC-602: admin auth uid — written to order_change_requests.handled_by (uuid).
+   *  Distinct from adminUser (email → admin_change_log.admin_user, text). */
+  adminUserId: string
   onClose: () => void
   onRefresh: () => void
 }) {
@@ -467,17 +471,34 @@ function OrderDrawer({
 
   // WEC-557: customer change requests for this order + inline "mark handled".
   const [changeReqs, setChangeReqs] = useState<OrderChangeRequest[]>([])
+  // WEC-602: surface a mark-handled failure instead of swallowing it.
+  const [markErr, setMarkErr] = useState<string | null>(null)
+  const [markingId, setMarkingId] = useState<string | null>(null)
   function loadChangeReqs(id: string) {
     fetchOrderChangeRequests(id).then(({ data }) => setChangeReqs(data))
   }
   useEffect(() => {
-    setChangeReqs([])
+    setChangeReqs([]); setMarkErr(null)
     if (order) loadChangeReqs(order.id)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [order?.id])
   async function handleMarkHandled(reqId: string) {
     if (!order) return
-    await markChangeRequestHandled(reqId, adminUser, order.id)
+    setMarkErr(null); setMarkingId(reqId)
+    // WEC-602: handled_by needs the admin's uuid (not the email). If it's
+    // missing we'd hit the exact uuid-cast failure this ticket fixed, so bail
+    // loudly rather than firing a write that silently no-ops.
+    if (!adminUserId) {
+      setMarkErr('Could not mark handled: your admin session has no user id — try re-logging in.')
+      setMarkingId(null)
+      return
+    }
+    const { error } = await markChangeRequestHandled(reqId, { adminUserId, adminEmail: adminUser }, order.id)
+    setMarkingId(null)
+    if (error) {
+      setMarkErr(`Could not mark handled: ${error}`)
+      return
+    }
     loadChangeReqs(order.id)
     onRefresh() // refresh list + pending badge
   }
@@ -683,9 +704,12 @@ function OrderDrawer({
                       {r.message && <span className="admin-changereq-msg">“{r.message}”</span>}
                       <span className="admin-changereq-date">{new Date(r.createdAt).toLocaleString('en-GB', { dateStyle: 'short', timeStyle: 'short' })}</span>
                     </div>
-                    <button className="admin-btn-ghost admin-btn-sm" onClick={() => handleMarkHandled(r.id)}>Mark handled</button>
+                    <button className="admin-btn-ghost admin-btn-sm" disabled={markingId === r.id} onClick={() => handleMarkHandled(r.id)}>
+                      {markingId === r.id ? 'Marking…' : 'Mark handled'}
+                    </button>
                   </div>
                 ))}
+                {markErr && <div className="admin-changereq-err">{markErr}</div>}
               </div>
             )}
 

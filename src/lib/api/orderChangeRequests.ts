@@ -102,15 +102,22 @@ export async function fetchOrderIdsWithPendingRequests(): Promise<{ data: Set<st
 }
 
 /** Admin: mark a request handled (writes handled_at + handled_by, and mirrors to
- *  admin_change_log so the order timeline records who handled it). */
+ *  admin_change_log so the order timeline records who handled it).
+ *
+ *  WEC-602: the two identifiers are NOT interchangeable and were being confused —
+ *  `handled_by` is a **uuid** column (needs the admin's auth uid) while
+ *  `admin_change_log.admin_user` is a **text** column (needs the email, matching
+ *  every other call site). Passing the email into `handled_by` raised
+ *  `22P02 invalid input syntax for type uuid`, the UPDATE affected nothing, and
+ *  the caller swallowed the error. The struct arg makes the mix-up impossible. */
 export async function markChangeRequestHandled(
   id: string,
-  adminUserId: string,
+  admin: { adminUserId: string; adminEmail: string },
   orderId?: string,
 ): Promise<{ error: string | null }> {
   const { error } = await supabase
     .from('order_change_requests')
-    .update({ status: 'handled', handled_at: new Date().toISOString(), handled_by: adminUserId })
+    .update({ status: 'handled', handled_at: new Date().toISOString(), handled_by: admin.adminUserId })
     .eq('id', id)
   if (error) return { error: error.message }
   // WEC-557: audit trail — surface the action on the order's timeline. Non-fatal.
@@ -122,7 +129,7 @@ export async function markChangeRequestHandled(
       old_value: 'new',
       new_value: 'handled',
       label: 'Change request handled',
-      admin_user: adminUserId,
+      admin_user: admin.adminEmail,
     })
     if (logErr) console.warn('[change-request] admin_change_log insert failed (non-fatal):', logErr.message)
   }
