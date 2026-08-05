@@ -2009,3 +2009,12 @@
 .admin-recipe-selectable { display: inline-flex; align-items: center; gap: 4px; margin-top: 6px; font-size: 12px; color: #4b5563; cursor: pointer; }
 /* WEC-598: payment-link "sent" state row. */
 .admin-paylink-sent { display: flex; align-items: center; flex-wrap: wrap; gap: 4px; }
+/* WEC-603: order timeline as a readable feed (not a debug table). */
+.admin-timeline { display: flex; flex-direction: column; }
+.admin-tl-row { display: grid; grid-template-columns: 150px 1fr auto; gap: 12px; align-items: baseline; padding: 7px 0; border-top: 1px solid #f1f5f9; }
+.admin-tl-row:first-of-type { border-top: 0; }
+.admin-tl-when { font-size: 11px; color: #94a3b8; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.admin-tl-what { font-size: 13px; color: #1c2b1c; }
+.admin-tl-delta { font-weight: 700; font-variant-numeric: tabular-nums; }
+.admin-tl-by { font-size: 11px; color: #94a3b8; white-space: nowrap; }
+@media (max-width: 640px) { .admin-tl-row { grid-template-columns: 1fr auto; } .admin-tl-when { grid-column: 1 / -1; } }

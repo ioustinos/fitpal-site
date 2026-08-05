@@ -397,6 +397,30 @@ async function writeChangeLog(args: {
   })
 }
 
+// WEC-603: timeline labels name the dish, variant, qty and the delivery day
+// they belonged to, so an admin can read "what changed for this customer"
+// without opening the DB. English labels; dish/variant names stay as stored
+// (Greek). Each helper is one small read — admin volume, not hot-path.
+async function deliveryDayTag(childOrderId: string | null | undefined): Promise<string> {
+  if (!childOrderId) return ''
+  const { data } = await supabase.from('child_orders').select('delivery_date').eq('id', childOrderId).maybeSingle()
+  const iso = (data as { delivery_date: string } | null)?.delivery_date
+  if (!iso) return ''
+  return new Date(iso + 'T12:00:00').toLocaleDateString('en-GB', { weekday: 'short', day: '2-digit', month: '2-digit' })
+}
+async function itemDescriptor(itemId: string): Promise<{ nameEl: string; variantLabelEl: string | null; quantity: number } | null> {
+  const { data } = await supabase.from('order_items').select('name_el, variant_label_el, quantity').eq('id', itemId).maybeSingle()
+  if (!data) return null
+  const r = data as { name_el: string; variant_label_el: string | null; quantity: number }
+  return { nameEl: r.name_el, variantLabelEl: r.variant_label_el, quantity: r.quantity }
+}
+function itemPhrase(nameEl: string, variantLabelEl: string | null | undefined, qty: number): string {
+  return `${nameEl}${variantLabelEl ? ` (${variantLabelEl})` : ''} ×${qty}`
+}
+function withDay(base: string, dayTag: string): string {
+  return dayTag ? `${base} — ${dayTag}` : base
+}
+
 // ─── Status / payment transitions ─────────────────────────────────────────
 
 export async function setOrderStatus(id: string, current: OrderStatus, next: OrderStatus, adminUser: string, note?: string): Promise<{ error: string | null }> {
@@ -489,22 +513,27 @@ export async function setOrderPaymentStatus(id: string, current: PaymentStatus, 
 // ─── Order item edits ─────────────────────────────────────────────────────
 
 export async function updateOrderItemQuantity(itemId: string, oldQty: number, newQty: number, orderId: string, childOrderId: string, adminUser: string): Promise<{ error: string | null }> {
+  const day = await deliveryDayTag(childOrderId)
   if (newQty <= 0) {
-    // Delete item
+    // WEC-603: capture the dish descriptor BEFORE deleting so the label names it.
+    const desc = await itemDescriptor(itemId)
     const { error } = await supabase.from('order_items').delete().eq('id', itemId)
     if (error) return { error: error.message }
     await writeChangeLog({
       orderId, childOrderId, orderItemId: itemId,
-      tableName: 'order_items', fieldName: 'quantity',
+      // WEC-603: field 'item' (not 'quantity') so add/remove are distinguishable.
+      tableName: 'order_items', fieldName: 'item',
       oldValue: String(oldQty), newValue: '0 (removed)',
-      label: 'item removed', adminUser,
+      label: withDay(`Removed: ${desc ? itemPhrase(desc.nameEl, desc.variantLabelEl, oldQty) : 'item'}`, day),
+      adminUser,
     })
     return recomputeOrderTotals(orderId, adminUser)
   }
-  // Fetch current unit price to recompute total
-  const { data, error: fetchErr } = await supabase.from('order_items').select('unit_price').eq('id', itemId).single()
+  // Fetch current unit price to recompute total + name for the label.
+  const { data, error: fetchErr } = await supabase.from('order_items').select('unit_price, name_el').eq('id', itemId).single()
   if (fetchErr) return { error: fetchErr.message }
   const unit = (data as { unit_price: number }).unit_price
+  const nameEl = (data as { name_el: string }).name_el
   const { error } = await supabase.from('order_items').update({
     quantity: newQty,
     total_price: unit * newQty,
@@ -514,7 +543,7 @@ export async function updateOrderItemQuantity(itemId: string, oldQty: number, ne
     orderId, childOrderId, orderItemId: itemId,
     tableName: 'order_items', fieldName: 'quantity',
     oldValue: String(oldQty), newValue: String(newQty),
-    label: `qty ${oldQty} → ${newQty}`, adminUser,
+    label: withDay(`Qty: ${nameEl} ${oldQty} → ${newQty}`, day), adminUser,
   })
   return recomputeOrderTotals(orderId, adminUser)
 }
@@ -576,11 +605,14 @@ export async function updateOrderItemVariant(params: {
     fat: params.fat ?? null,
   }).eq('id', params.itemId)
   if (error) return { error: error.message }
+  const vDay = await deliveryDayTag(params.childOrderId)
+  const vDesc = await itemDescriptor(params.itemId) // name (variant already updated above)
   await writeChangeLog({
     orderId: params.orderId, childOrderId: params.childOrderId, orderItemId: params.itemId,
     tableName: 'order_items', fieldName: 'variant',
     oldValue: params.oldLabel, newValue: params.variantLabelEl,
-    label: `variant → ${params.variantLabelEl}`, adminUser: params.adminUser,
+    label: withDay(`Variant: ${vDesc?.nameEl ?? ''} ${params.oldLabel || '—'} → ${params.variantLabelEl || '—'}`.trim(), vDay),
+    adminUser: params.adminUser,
   })
   return recomputeOrderTotals(params.orderId, params.adminUser)
 }
@@ -644,13 +676,17 @@ export async function restoreChildOrder(childOrderId: string, orderId: string, a
 }
 
 export async function deleteOrderItem(itemId: string, orderId: string, childOrderId: string, adminUser: string): Promise<{ error: string | null }> {
+  // WEC-603: capture descriptor + day BEFORE deleting so the timeline names the dish.
+  const day = await deliveryDayTag(childOrderId)
+  const desc = await itemDescriptor(itemId)
   const { error } = await supabase.from('order_items').delete().eq('id', itemId)
   if (error) return { error: error.message }
   await writeChangeLog({
     orderId, childOrderId, orderItemId: itemId,
-    tableName: 'order_items', fieldName: 'quantity',
+    tableName: 'order_items', fieldName: 'item',
     oldValue: null, newValue: 'removed',
-    label: 'item removed', adminUser,
+    label: withDay(`Removed: ${desc ? itemPhrase(desc.nameEl, desc.variantLabelEl, desc.quantity) : 'item'}`, day),
+    adminUser,
   })
   return recomputeOrderTotals(orderId, adminUser)
 }
@@ -697,6 +733,7 @@ export async function addOrderItem(params: {
     comment: params.comment?.trim() || null,
   }).select('id').single()
   if (error) return { error: error.message }
+  const addDay = await deliveryDayTag(params.childOrderId)
   await writeChangeLog({
     orderId: params.orderId,
     childOrderId: params.childOrderId,
@@ -704,8 +741,8 @@ export async function addOrderItem(params: {
     tableName: 'order_items',
     fieldName: 'item',
     oldValue: null,
-    newValue: `${params.nameEl}${params.variantLabelEl ? ` (${params.variantLabelEl})` : ''} ×${qty}`,
-    label: 'item added',
+    newValue: itemPhrase(params.nameEl, params.variantLabelEl, qty),
+    label: withDay(`Added: ${itemPhrase(params.nameEl, params.variantLabelEl, qty)}`, addDay),
     adminUser: params.adminUser,
   })
   return recomputeOrderTotals(params.orderId, params.adminUser)

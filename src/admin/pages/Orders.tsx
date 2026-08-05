@@ -1712,63 +1712,58 @@ function PaymentLinkBlock({ order, adminUser, onChanged }: { order: AdminOrder; 
 }
 
 function TimelineTab({ order }: { order: AdminOrder }) {
+  // WEC-603: render as a readable feed, not a debug table. Each row is
+  // When · What · By; the dish/variant/qty/day now live in the label (written
+  // at mutation time in adminOrders.ts). Money entries keep the WEC-566 € delta
+  // with red/green colouring, folded into the What line.
+  const eur = (v: string | null) => {
+    const n = Number(v)
+    return v != null && Number.isFinite(n) ? `${(n / 100).toFixed(2)} €` : (v ?? '—')
+  }
+  const fromDraft = !!order.submittedAt && new Date(order.submittedAt).getTime() - new Date(order.createdAt).getTime() > 1000
+
   return (
-    <div>
+    <div className="admin-timeline">
       <p className="admin-sub">Order placement + latest {order.changeLog.length} admin change(s):</p>
-      <table className="admin-table admin-table-tight">
-        <thead><tr><th>When</th><th>Field</th><th>Old</th><th>New</th><th>Label</th><th>By</th></tr></thead>
-        <tbody>
-          {/* WEC-404/590: synthetic first rows. When the order came from a
-              persisted draft (submitted_at differs from created_at by >1s), the
-              cart-creation shows FIRST so the draft age stays visible where it's
-              useful, then the real placement. Otherwise a single "Order placed". */}
-          {order.submittedAt && new Date(order.submittedAt).getTime() - new Date(order.createdAt).getTime() > 1000 && (
-            <tr>
-              <td className="admin-sub">{new Date(order.createdAt).toLocaleString('en-GB')}</td>
-              <td>orders.draft</td>
-              <td className="admin-sub">—</td>
-              <td className="admin-sub">draft</td>
-              <td>Cart created (draft)</td>
-              <td className="admin-sub">customer</td>
-            </tr>
-          )}
-          <tr>
-            <td className="admin-sub">{new Date(order.submittedAt ?? order.createdAt).toLocaleString('en-GB')}</td>
-            <td>orders.created</td>
-            <td className="admin-sub">—</td>
-            <td className="admin-sub">placed</td>
-            <td>Order placed</td>
-            <td className="admin-sub">customer</td>
-          </tr>
-          {[...order.changeLog]
-            .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime())
-            .map((l) => {
-            // WEC-566: money fields (total/subtotal/discount) store cents in
-            // old/new_value — render as € with a red/green delta so the money
-            // impact of an admin edit is visible, not just the field name.
-            const isMoney = l.tableName === 'orders' && (l.fieldName === 'total' || l.fieldName === 'subtotal' || l.fieldName === 'discount_amount')
-            const eur = (v: string | null) => {
-              const n = Number(v)
-              return v != null && Number.isFinite(n) ? `${(n / 100).toFixed(2)} €` : (v ?? '—')
-            }
-            const oldN = Number(l.oldValue)
-            const newN = Number(l.newValue)
-            const deltaColor = isMoney && Number.isFinite(oldN) && Number.isFinite(newN) && newN !== oldN
-              ? (newN > oldN ? '#15803d' : '#b91c1c')
-              : undefined
-            return (
-            <tr key={l.id}>
-              <td className="admin-sub">{new Date(l.createdAt).toLocaleString('en-GB')}</td>
-              <td>{l.tableName}.{l.fieldName}</td>
-              <td className="admin-sub">{isMoney ? eur(l.oldValue) : (l.oldValue ?? '—')}</td>
-              <td className="admin-sub" style={deltaColor ? { color: deltaColor, fontWeight: 700 } : undefined}>{isMoney ? eur(l.newValue) : (l.newValue ?? '—')}</td>
-              <td>{l.label}</td>
-              <td className="admin-sub">{l.adminUser}</td>
-            </tr>
-            )
-          })}
-        </tbody>
-      </table>
+
+      {/* WEC-404/590: synthetic rows first — draft creation (if any), then placement. */}
+      {fromDraft && (
+        <div className="admin-tl-row">
+          <div className="admin-tl-when">{new Date(order.createdAt).toLocaleString('en-GB')}</div>
+          <div className="admin-tl-what">Cart created (draft)</div>
+          <div className="admin-tl-by">customer</div>
+        </div>
+      )}
+      <div className="admin-tl-row">
+        <div className="admin-tl-when">{new Date(order.submittedAt ?? order.createdAt).toLocaleString('en-GB')}</div>
+        <div className="admin-tl-what">Order placed</div>
+        <div className="admin-tl-by">customer</div>
+      </div>
+
+      {[...order.changeLog]
+        .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime())
+        .map((l) => {
+          const isMoney = l.tableName === 'orders' && (l.fieldName === 'total' || l.fieldName === 'subtotal' || l.fieldName === 'discount_amount')
+          const oldN = Number(l.oldValue)
+          const newN = Number(l.newValue)
+          const deltaColor = isMoney && Number.isFinite(oldN) && Number.isFinite(newN) && newN !== oldN
+            ? (newN > oldN ? '#15803d' : '#b91c1c')
+            : undefined
+          return (
+            <div className="admin-tl-row" key={l.id}>
+              <div className="admin-tl-when">{new Date(l.createdAt).toLocaleString('en-GB')}</div>
+              <div className="admin-tl-what">
+                {l.label || `${l.tableName}.${l.fieldName}`}
+                {isMoney && (
+                  <span className="admin-tl-delta" style={deltaColor ? { color: deltaColor } : undefined}>
+                    {' '}· {eur(l.oldValue)} → {eur(l.newValue)}
+                  </span>
+                )}
+              </div>
+              <div className="admin-tl-by">{l.adminUser}</div>
+            </div>
+          )
+        })}
     </div>
   )
 }
