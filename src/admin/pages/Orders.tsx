@@ -5,7 +5,7 @@ import {
   listAdminOrders, getAdminOrder,
   setOrderStatus, setOrderPaymentStatus,
   updateOrderItemQuantity, updateChildOrderAddress, updateChildOrderTime,
-  refundOrder, regenerateVivaPaymentLink,
+  refundOrder, sendPaymentLinkLogged,
   sendOrderUpdateEmail,
   addOrderItem, fetchOnMenuDishIds,
   updateOrderItemVariant, cancelChildOrder, restoreChildOrder, updateOrderNotes,
@@ -929,7 +929,7 @@ function OverviewTab({ order, adminUser, onChanged }: { order: AdminOrder; admin
         )}
       </div>
 
-      <PaymentLinkBlock order={order} onChanged={onChanged} />
+      <PaymentLinkBlock order={order} adminUser={adminUser} onChanged={onChanged} />
 
       <NotesBlock order={order} adminUser={adminUser} onChanged={onChanged} />
     </div>
@@ -1595,19 +1595,26 @@ function RefundTab({ order, adminUser, onChanged }: { order: AdminOrder; adminUs
   )
 }
 
-/** WEC-176 — Payment link block for card/link orders. Shows status + URL + regenerate. */
-function PaymentLinkBlock({ order, onChanged }: { order: AdminOrder; onChanged: () => void }) {
+/** WEC-176 / WEC-598 — Payment link, inside the Payment area of the drawer.
+ *  Generate is gated on a confirmed order (with the reason shown inline); once a
+ *  link exists the primary action is Copy and a "sent" state + timestamp + code
+ *  are unmistakable; generating logs a timeline entry. */
+function PaymentLinkBlock({ order, adminUser, onChanged }: { order: AdminOrder; adminUser: string; onChanged: () => void }) {
   const [err, setErr] = useState<string | null>(null)
   const [working, setWorking] = useState(false)
   const [copied, setCopied] = useState(false)
 
   const link = order.paymentLink
-  const isLinkMethod = order.paymentMethod === 'link' || order.paymentMethod === 'card'
-  // WEC-569: also show on ANY pending order (cash / transfer / wallet) so an
-  // admin can generate + send a Viva link to collect it online, regardless of
-  // the method the order was placed with. Hidden only when it's neither a
-  // card/link order nor pending (nothing left to collect).
-  if (!isLinkMethod && order.paymentStatus !== 'pending') return null
+  // WEC-598 / WEC-181: nothing left to collect on a paid order — hide entirely.
+  if (order.paymentStatus === 'paid' || order.paymentStatus === 'refunded') return null
+  // Nothing to show on a cancelled order that never got a link.
+  if (!link && order.status === 'cancelled') return null
+
+  // WEC-598 #2: only a CONFIRMED (or further) order may collect money. A pending
+  // order that nobody has accepted must not send a payment request.
+  const collectableStatuses: OrderStatus[] = ['confirmed', 'preparing', 'delivering', 'delivered']
+  const canGenerate = collectableStatuses.includes(order.status) && order.paymentStatus === 'pending'
+  const blockedByPending = order.status === 'pending'
 
   async function copy() {
     if (!link?.paymentUrl) return
@@ -1615,14 +1622,15 @@ function PaymentLinkBlock({ order, onChanged }: { order: AdminOrder; onChanged: 
       await navigator.clipboard.writeText(link.paymentUrl)
       setCopied(true)
       setTimeout(() => setCopied(false), 2000)
-    } catch (e) {
+    } catch {
       setErr('Copy failed — browser blocked clipboard access.')
     }
   }
 
-  async function regenerate() {
+  async function generate() {
     setErr(null); setWorking(true)
-    const { error } = await regenerateVivaPaymentLink(order.id)
+    // firstTime distinguishes "sent" from "regenerated" in the timeline label.
+    const { error } = await sendPaymentLinkLogged(order.id, adminUser, !link)
     setWorking(false)
     if (error) { setErr(error); return }
     onChanged()
@@ -1635,36 +1643,61 @@ function PaymentLinkBlock({ order, onChanged }: { order: AdminOrder; onChanged: 
 
       {!link && (
         <>
-          <p className="admin-text-muted">No payment link generated for this order yet.</p>
-          {order.paymentStatus === 'pending' && (
-            <button className="admin-btn-primary" disabled={working} onClick={regenerate}>
-              {working ? 'Generating…' : 'Generate payment link'}
-            </button>
+          {blockedByPending ? (
+            <>
+              <button className="admin-btn-primary" disabled title="Confirm the order first">
+                Generate payment link
+              </button>
+              {/* WEC-598 #2: explain the disabled state — bilingual per ticket. */}
+              <p className="admin-text-muted" style={{ marginTop: 8, fontSize: 12, lineHeight: 1.4 }}>
+                Επιβεβαίωσε πρώτα την παραγγελία για να στείλεις link πληρωμής.
+                <br />
+                <span style={{ opacity: 0.75 }}>Confirm the order first to send a payment link.</span>
+              </p>
+            </>
+          ) : canGenerate ? (
+            <>
+              <p className="admin-text-muted" style={{ marginBottom: 8 }}>No payment link generated for this order yet.</p>
+              <button className="admin-btn-primary" disabled={working} onClick={generate}>
+                {working ? 'Generating…' : 'Generate payment link'}
+              </button>
+            </>
+          ) : (
+            <p className="admin-text-muted">No payment link for this order.</p>
           )}
         </>
       )}
 
       {link && (
         <>
-          <div style={{ marginBottom: 8 }}>
-            <span className={`admin-pill-${link.status === 'success' ? 'ok' : link.status === 'failure' ? 'err' : 'warn'}`}>
-              {link.status}
+          {/* WEC-598 #3: unmistakable "sent" state. */}
+          <div className="admin-paylink-sent" style={{ marginBottom: 8 }}>
+            <span className="admin-pill-ok">✓ Payment link sent</span>
+            <span className="admin-text-muted" style={{ marginLeft: 8, fontSize: 12 }}>
+              {new Date(link.createdAt).toLocaleString('en-GB', { dateStyle: 'short', timeStyle: 'short' })}
             </span>
-            {link.statusId && <span className="admin-text-muted" style={{ marginLeft: 8 }}>Viva statusId: {link.statusId}</span>}
           </div>
+          <dl className="admin-od-kv" style={{ marginBottom: 8 }}>
+            {link.vivaOrderCode && <div><dt>Viva code</dt><dd style={{ fontFamily: 'monospace' }}>{link.vivaOrderCode}</dd></div>}
+            <div><dt>Status</dt><dd>
+              <span className={`admin-pill-${link.status === 'success' ? 'ok' : link.status === 'failure' ? 'err' : 'warn'}`}>{link.status}</span>
+            </dd></div>
+          </dl>
           {link.paymentUrl && (
             <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 8 }}>
               <input className="admin-input" type="text" value={link.paymentUrl} readOnly style={{ flex: 1, fontFamily: 'monospace', fontSize: 12 }} />
-              <button className="admin-btn-ghost" onClick={copy}>{copied ? 'Copied!' : 'Copy'}</button>
+              {/* WEC-598 #4: Copy is the PRIMARY action when a link exists. */}
+              <button className="admin-btn-primary" onClick={copy}>{copied ? 'Copied! ✓' : 'Copy'}</button>
             </div>
           )}
-          {order.paymentStatus === 'pending' && (
-            <button className="admin-btn-ghost" disabled={working} onClick={regenerate}>
+          {/* Regenerate is the SECONDARY action, and only while still collectable. */}
+          {canGenerate && (
+            <button className="admin-btn-ghost admin-btn-sm" disabled={working} onClick={generate}>
               {working ? 'Regenerating…' : 'Regenerate link'}
             </button>
           )}
           <p className="admin-text-muted" style={{ marginTop: 8, fontSize: 12 }}>
-            Last verified: {link.lastVerifiedAt ? new Date(link.lastVerifiedAt).toLocaleString() : 'never'}
+            Last verified: {link.lastVerifiedAt ? new Date(link.lastVerifiedAt).toLocaleString('en-GB') : 'never'}
           </p>
         </>
       )}

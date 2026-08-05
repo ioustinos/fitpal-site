@@ -2007,3 +2007,5 @@
 .admin-changereq-err { margin-top: 8px; font-size: 12px; font-weight: 600; color: #b91c1c; background: #FEF2F2; border: 1px solid #FECACA; border-radius: 6px; padding: 6px 9px; }
 /* WEC-596: customer-selectable toggle in the dish recipe editor. */
 .admin-recipe-selectable { display: inline-flex; align-items: center; gap: 4px; margin-top: 6px; font-size: 12px; color: #4b5563; cursor: pointer; }
+/* WEC-598: payment-link "sent" state row. */
+.admin-paylink-sent { display: flex; align-items: center; flex-wrap: wrap; gap: 4px; }

@@ -933,6 +933,33 @@ export async function regenerateVivaPaymentLink(orderId: string): Promise<{ data
   return { data: json as { orderCode: string; paymentUrl: string }, error: null }
 }
 
+/**
+ * WEC-598: generate/regenerate a payment link AND record it on the order
+ * timeline. `firstTime` distinguishes the first send ("Payment link sent") from
+ * a re-issue ("Payment link regenerated") — WEC-581's mislabel bug. The log is
+ * best-effort: a link that generated but failed to log is still a live link, so
+ * we don't fail the whole action on a logging error.
+ */
+export async function sendPaymentLinkLogged(
+  orderId: string,
+  adminUser: string,
+  firstTime: boolean,
+): Promise<{ data: { orderCode: string; paymentUrl: string } | null; error: string | null }> {
+  const res = await regenerateVivaPaymentLink(orderId)
+  if (res.error || !res.data) return res
+  const hhmm = new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })
+  await writeChangeLog({
+    orderId,
+    tableName: 'payment_links',
+    fieldName: 'payment_url',
+    oldValue: null,
+    newValue: res.data.orderCode,
+    label: firstTime ? `Payment link sent — ${hhmm}` : `Payment link regenerated — ${hhmm}`,
+    adminUser,
+  })
+  return res
+}
+
 // ─── Admin-place-order (V1 stub) ─────────────────────────────────────────
 //
 // Full admin-placed-order flow (customer search + cart building + checkout)
