@@ -9,11 +9,11 @@ import { supabase } from '../supabase'
 // VALID_NEXT_STATUS (there's no transition INTO a draft, only OUT of it,
 // and that's done by the customer hitting Submit — handled by submit-order).
 export type OrderStatus = 'draft' | 'pending' | 'confirmed' | 'preparing' | 'delivering' | 'delivered' | 'cancelled'
-export type PaymentStatus = 'pending' | 'paid' | 'failed' | 'refunded'
+export type PaymentStatus = 'pending' | 'pending_link_sent' | 'paid' | 'failed' | 'refunded'
 export type PaymentMethod = 'cash' | 'card' | 'link' | 'transfer' | 'wallet'
 
 export const ORDER_STATUS_VALUES: OrderStatus[] = ['pending', 'confirmed', 'preparing', 'delivering', 'delivered', 'cancelled']
-export const PAYMENT_STATUS_VALUES: PaymentStatus[] = ['pending', 'paid', 'failed', 'refunded']
+export const PAYMENT_STATUS_VALUES: PaymentStatus[] = ['pending', 'pending_link_sent', 'paid', 'failed', 'refunded']
 
 /** Valid forward transitions for order status (admin can always force-cancel). */
 export const VALID_NEXT_STATUS: Record<OrderStatus, OrderStatus[]> = {

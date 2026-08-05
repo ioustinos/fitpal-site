@@ -36,7 +36,12 @@ const STATUS_COLOURS: Record<OrderStatus, string> = {
   delivering: '#14b8a6', delivered: '#10b981', cancelled: '#ef4444',
 }
 const PAYMENT_COLOURS: Record<PaymentStatus, string> = {
-  pending: '#f59e0b', paid: '#10b981', failed: '#ef4444', refunded: '#6b7280',
+  // WEC-599: pending_link_sent leans more orange than plain amber pending.
+  pending: '#f59e0b', pending_link_sent: '#ea580c', paid: '#10b981', failed: '#ef4444', refunded: '#6b7280',
+}
+// WEC-599: friendly labels for the badge (raw enum otherwise). English admin.
+const PAYMENT_STATUS_LABEL: Partial<Record<PaymentStatus, string>> = {
+  pending_link_sent: 'Pending (link sent)',
 }
 
 // WEC-370: only pending + confirmed are in active use for now. Cancel stays
@@ -127,7 +132,8 @@ export function Orders() {
       const sun = new Date(Date.now() + (6 - mondayOffset) * 86_400_000).toISOString().slice(0, 10)
       filters.deliveryDateFrom = mon; filters.deliveryDateTo = sun
     }
-    if (preset === 'pending-payment') { filters.paymentStatus = ['pending'] }
+    // WEC-599: "pending" folds in pending_link_sent — same unpaid bucket.
+    if (preset === 'pending-payment') { filters.paymentStatus = ['pending', 'pending_link_sent'] }
     const { data, error } = await listAdminOrders(filters)
     if (error) setErr(error)
     setOrders(data ?? [])
@@ -370,7 +376,7 @@ function StatusBadge({ status }: { status: OrderStatus }) {
   return <span className="admin-badge" style={{ background: `${STATUS_COLOURS[status]}22`, color: STATUS_COLOURS[status] }}>{status}</span>
 }
 function PaymentBadge({ status }: { status: PaymentStatus }) {
-  return <span className="admin-badge" style={{ background: `${PAYMENT_COLOURS[status]}22`, color: PAYMENT_COLOURS[status] }}>{status}</span>
+  return <span className="admin-badge" style={{ background: `${PAYMENT_COLOURS[status]}22`, color: PAYMENT_COLOURS[status] }}>{PAYMENT_STATUS_LABEL[status] ?? status}</span>
 }
 // WEC-577: raw payment-method badge. Distinct subtle colour per method
 // (WEC-520 lesson: same-colour pills read as one). Labels from the single

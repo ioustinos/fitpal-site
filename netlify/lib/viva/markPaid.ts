@@ -65,7 +65,10 @@ export async function markPaid(
     // 5-min airtable-reconcile then pushes it.
     .update({ payment_status: 'paid', airtable_dirty: true, updated_at: new Date().toISOString() })
     .eq('id', orderId)
-    .eq('payment_status', 'pending')
+    // WEC-599: «pending_link_sent» is still unpaid — the guard must accept it or
+    // the webhook/return/reconcile paths silently stop flipping link-sent orders
+    // to paid. Both values still funnel through the same idempotent single-row win.
+    .in('payment_status', ['pending', 'pending_link_sent'])
     .select('id')
     .maybeSingle()
 
@@ -143,7 +146,8 @@ export async function markFailed(
     .from('orders')
     .update({ payment_status: 'failed', updated_at: new Date().toISOString() })
     .eq('id', orderId)
-    .eq('payment_status', 'pending')
+    // WEC-599: accept «pending_link_sent» as well (still unpaid).
+    .in('payment_status', ['pending', 'pending_link_sent'])
     .select('id')
     .maybeSingle()
 

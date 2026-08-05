@@ -60,7 +60,10 @@ export async function createVivaOrder(args: CreateOrderArgs): Promise<CreateOrde
     .single()
 
   if (error || !order) throw new Error(`Order ${args.orderId} not found`)
-  if (order.payment_status !== 'pending') {
+  // WEC-599: «pending_link_sent» is still unpaid — a re-generated link on an
+  // order that already had one sent must be allowed. Only paid/failed/refunded
+  // (and anything non-pending) is blocked.
+  if (order.payment_status !== 'pending' && order.payment_status !== 'pending_link_sent') {
     throw new Error(
       `Order ${args.orderId} is not pending (payment_status=${order.payment_status})`,
     )

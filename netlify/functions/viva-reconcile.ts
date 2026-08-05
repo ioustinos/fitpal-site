@@ -208,7 +208,8 @@ export default async (request?: Request) => {
     // payment_links is cleaner — fetch viva_order_code in a follow-up query
     // to keep this readable.
     .in('payment_method', ['card', 'link'])
-    .eq('payment_status', 'pending')
+    // WEC-599: «pending_link_sent» is still an unpaid orphan candidate.
+    .in('payment_status', ['pending', 'pending_link_sent'])
     .lt('created_at', abandonThreshold)
   // Build a map of order_id → viva_order_code via payment_links for the
   // verify-before-cancel step.

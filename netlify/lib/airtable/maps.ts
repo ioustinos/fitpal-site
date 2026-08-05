@@ -14,7 +14,10 @@ export function mapPaid(paymentStatus: string): string {
     case 'refunded':
       return 'PAID_OFFLINE' // closest existing option; financial admin adjusts
     default:
-      return 'NO_PAYMENT' // pending / failed / cash-on-delivery
+      // pending / pending_link_sent (WEC-599) / failed / cash-on-delivery.
+      // pending_link_sent is still unpaid → NO_PAYMENT, so no new Airtable
+      // select option is required.
+      return 'NO_PAYMENT'
   }
 }
 

@@ -46,7 +46,8 @@ export async function fetchDashboardStats(): Promise<{ data: DashboardStats | nu
       .from('orders')
       .select('id', { count: 'exact', head: true })
       .neq('status', 'draft')
-      .or('status.eq.pending,payment_status.eq.pending'),
+      // WEC-599: pending_link_sent is still unpaid → still "needs attention".
+      .or('status.eq.pending,payment_status.eq.pending,payment_status.eq.pending_link_sent'),
     // Active weekly menu that covers today
     supabase
       .from('weekly_menus')

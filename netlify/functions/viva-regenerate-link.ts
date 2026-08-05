@@ -66,7 +66,9 @@ export default async (request: Request) => {
     .single()
   if (!order) return Response.json({ error: 'Order not found' }, { status: 404 })
 
-  if (order.payment_status !== 'pending') {
+  // WEC-599: allow regenerating a link on an order that already had one sent
+  // («pending_link_sent» is still unpaid). Only paid/failed/refunded is blocked.
+  if (order.payment_status !== 'pending' && order.payment_status !== 'pending_link_sent') {
     return Response.json({ error: `Order is not pending (payment_status=${order.payment_status})` }, { status: 400 })
   }
 
@@ -81,6 +83,16 @@ export default async (request: Request) => {
       mode,
       regenerate: true,
     })
+
+    // WEC-599: mark the order «pending_link_sent» on the FIRST send (guarded on
+    // 'pending' so a regenerate of an already-sent order is a no-op, and paid/
+    // failed can never be clobbered). This is the single server-side place the
+    // new status is set — customer inline card checkout stays plain 'pending'.
+    await service
+      .from('orders')
+      .update({ payment_status: 'pending_link_sent', updated_at: new Date().toISOString() })
+      .eq('id', order.id)
+      .eq('payment_status', 'pending')
 
     // Audit log for admin visibility.
     await service.from('admin_change_log').insert({
