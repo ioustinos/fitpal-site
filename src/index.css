@@ -3313,6 +3313,11 @@ a.btn-conf-done { display: inline-block; text-decoration: none; }
 .btn-auth { width: 100%; padding: 13px; background: var(--green); color: var(--white); border: none; border-radius: var(--radius); font-size: 14px; font-weight: 900; cursor: pointer; transition: all 0.22s; }
 .btn-auth:hover { background: var(--green-dark); box-shadow: 0 6px 20px rgba(0,185,107,0.4); }
 .btn-auth:disabled { opacity: 0.5; cursor: not-allowed; }
+/* WEC-600: OTP secondary button — same footprint as .btn-auth, bordered/subordinate, envelope icon. */
+.btn-auth-secondary { width: 100%; margin-top: 10px; padding: 12px; display: inline-flex; align-items: center; justify-content: center; gap: 8px; background: var(--white); color: var(--text); border: 1.5px solid var(--border); border-radius: var(--radius); font-size: 14px; font-weight: 700; cursor: pointer; transition: all 0.18s; }
+.btn-auth-secondary:hover { border-color: var(--green); color: var(--green); }
+.btn-auth-secondary:focus-visible { outline: 2px solid var(--green); outline-offset: 2px; }
+.btn-auth-ico { flex-shrink: 0; }
 .auth-coming-soon { font-size: 14px; color: var(--text-muted); font-weight: 600; text-align: center; padding: 20px 0; }
 
 /* ══════════════════════════════════════════

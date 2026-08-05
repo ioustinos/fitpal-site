@@ -274,11 +274,19 @@ export function AuthModal() {
             {busy ? '...' : (isEl ? 'Σύνδεση' : 'Sign In')}
           </button>
 
-          <div className="auth-otp-toggle">
-            <button type="button" onClick={() => { setLoginMode('otp'); setError(null) }}>
-              {isEl ? 'Ή στείλε μου κωδικό στο email' : 'Or send me a code by email'}
-            </button>
-          </div>
+          {/* WEC-600: OTP is our primary passwordless path — a real secondary
+              button with an envelope icon, not fine print. */}
+          <button
+            type="button"
+            className="btn-auth-secondary"
+            onClick={() => { setLoginMode('otp'); setError(null) }}
+          >
+            <svg className="btn-auth-ico" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <rect x="3" y="5" width="18" height="14" rx="2" />
+              <path d="m3 7 9 6 9-6" />
+            </svg>
+            {isEl ? 'Στείλε μου κωδικό στο email' : 'Send me a code by email'}
+          </button>
 
           <div className="auth-hint">Demo: demo@fitpal.gr / 1234</div>
           <div className="auth-switch">
