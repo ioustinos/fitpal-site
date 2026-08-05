@@ -1848,6 +1848,10 @@ header {
 .co-section-title { font-size: 15px; font-weight: 900; color: var(--green-dark); /* uppercase removed — WEC-187 */ letter-spacing: 0.6px; margin-bottom: 16px; }
 
 /* Contact info grid (WEC-130) — 3 inputs per row desktop, stacked on mobile */
+/* WEC-597: guest-only "log in" CTA above the contact fields — secondary to the form. */
+.co-login-cta { font-size: 13px; color: var(--text-muted); margin-bottom: 10px; }
+.co-login-cta-btn { background: none; border: none; padding: 0; font: inherit; font-weight: 700; color: var(--green); cursor: pointer; text-decoration: underline; }
+.co-login-cta-btn:hover { opacity: 0.85; }
 .co-contact-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; }
 .co-contact-field { display: flex; flex-direction: column; gap: 6px; }
 .co-contact-label { font-size: 11px; font-weight: 800; color: var(--text-muted); /* uppercase removed — WEC-187 */ letter-spacing: 0.3px; display: flex; align-items: center; gap: 3px; }

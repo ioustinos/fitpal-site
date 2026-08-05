@@ -117,7 +117,20 @@ export function AuthCallback() {
       }
 
       // Done — route by role.
-      navigate(user.isAdmin ? '/admin' : '/', { replace: true })
+      // WEC-597: if OAuth was started from checkout, return there (cart is
+      // persisted; goToCheckout re-renders CheckoutPage over the menu and its
+      // user-keyed prefill effects run on mount). Admins always go to /admin.
+      let returnToCheckout = false
+      try {
+        returnToCheckout = localStorage.getItem('fitpal_auth_return_checkout') === '1'
+        if (returnToCheckout) localStorage.removeItem('fitpal_auth_return_checkout')
+      } catch { /* ignore */ }
+      if (user.isAdmin) {
+        navigate('/admin', { replace: true })
+      } else {
+        navigate('/', { replace: true })
+        if (returnToCheckout) useUIStore.getState().goToCheckout()
+      }
     }
 
     tick()

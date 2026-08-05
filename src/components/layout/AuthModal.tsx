@@ -82,6 +82,12 @@ export function AuthModal() {
    */
   async function handleOAuth(provider: OAuthProvider) {
     setError(null); setBusy(true)
+    // WEC-597: OAuth is a full-page redirect that loses the in-memory checkout
+    // page. Stash a flag so AuthCallback can drop the user back onto checkout
+    // (cart is persisted) instead of the menu.
+    try {
+      if (useUIStore.getState().isCheckout) localStorage.setItem('fitpal_auth_return_checkout', '1')
+    } catch { /* storage disabled — fall through to default home landing */ }
     const { ok, error } = await signInWithOAuth(provider)
     if (!ok) {
       setError(

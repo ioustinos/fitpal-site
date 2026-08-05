@@ -3,6 +3,7 @@ import PhoneInput from 'react-phone-number-input'
 import flags from 'react-phone-number-input/flags'
 import 'react-phone-number-input/style.css'
 import { useUIStore } from '../../store/useUIStore'
+import { useAuthStore } from '../../store/useAuthStore'
 import { makeTr } from '../../lib/translations'
 import { COUNTRIES, DEFAULT_COUNTRY, isValidPhone, phoneLabels } from '../../lib/phone'
 import { isValidEmail } from '../../lib/email'
@@ -39,6 +40,10 @@ interface ContactSectionProps {
 export function ContactSection({ value, onChange, showErrors = false }: ContactSectionProps) {
   const lang = useUIStore((s) => s.lang)
   const t = makeTr(lang)
+  // WEC-597: guest-only "log in" CTA. Opens the existing AuthModal; the
+  // no-login-gate rule stands — guests still check out without ever logging in.
+  const user = useAuthStore((s) => s.user)
+  const openAuthModal = useUIStore((s) => s.openAuthModal)
 
   // WEC-220: keep these in sync with the validator in CheckoutPage.
   // Name ≥ 2 chars (was just non-empty — accepted "X"). Email pattern
@@ -54,7 +59,16 @@ export function ContactSection({ value, onChange, showErrors = false }: ContactS
   const labels = useMemo(() => phoneLabels(lang), [lang])
 
   return (
-    <div className="co-contact-grid">
+    <>
+      {!user && (
+        <div className="co-login-cta">
+          {lang === 'el' ? 'Έχεις ήδη λογαριασμό;' : 'Already have an account?'}{' '}
+          <button type="button" className="co-login-cta-btn" onClick={openAuthModal}>
+            {lang === 'el' ? 'Σύνδεση' : 'Log in'}
+          </button>
+        </div>
+      )}
+      <div className="co-contact-grid">
       <div className="co-contact-field">
         <label className="co-contact-label" htmlFor="co-contact-name">
           {t('coFullName')}
@@ -109,6 +123,7 @@ export function ContactSection({ value, onChange, showErrors = false }: ContactS
           autoComplete="tel"
         />
       </div>
-    </div>
+      </div>
+    </>
   )
 }
