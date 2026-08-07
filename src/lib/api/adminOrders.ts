@@ -506,11 +506,35 @@ export async function sendOrderUpdateEmail(orderId: string): Promise<{ error: st
 }
 
 export async function setOrderPaymentStatus(id: string, current: PaymentStatus, next: PaymentStatus, adminUser: string): Promise<{ error: string | null }> {
-  const { error } = await supabase.from('orders').update({ payment_status: next, updated_at: new Date().toISOString() }).eq('id', id)
+  // WEC-606: this is the MANUAL admin path (Viva/wallet payments update the order
+  // directly via markPaid / wallet_debit, never through here). A manual mark-paid
+  // counts as collecting the FULL order total at that moment (Ioustinos' decision —
+  // not editable), recorded in orders.manual_paid_amount so order_payment_summary
+  // has a number for cash / bank-transfer payments and the amount lands on the
+  // timeline.
+  const patch: Record<string, unknown> = { payment_status: next, updated_at: new Date().toISOString() }
+  let paidCents = 0
+  if (next === 'paid') {
+    // Manual payment TOPS UP to the full total — i.e. it covers whatever a paid
+    // link / wallet debit hasn't already. In the common cash case that's the whole
+    // total; if a link already paid part, we don't double-count.
+    const { data: o } = await supabase.from('orders').select('total').eq('id', id).maybeSingle()
+    const total = (o as { total: number } | null)?.total ?? 0
+    const { data: linkRows } = await supabase.from('payment_links').select('amount').eq('order_id', id).eq('status', 'success')
+    const linksSum = (linkRows ?? []).reduce((s, r) => s + ((r as { amount: number | null }).amount ?? 0), 0)
+    const { data: wRows } = await supabase.from('wallet_transactions').select('amount').eq('order_id', id).eq('type', 'debit')
+    const walletSum = (wRows ?? []).reduce((s, r) => s + ((r as { amount: number | null }).amount ?? 0), 0)
+    paidCents = Math.max(0, total - linksSum - walletSum)
+    patch.manual_paid_amount = paidCents
+  }
+  const { error } = await supabase.from('orders').update(patch).eq('id', id)
   if (error) return { error: error.message }
   await writeChangeLog({
     orderId: id, tableName: 'orders', fieldName: 'payment_status',
-    oldValue: current, newValue: next, label: `payment: ${current} → ${next}`,
+    oldValue: current, newValue: next,
+    label: next === 'paid'
+      ? `Marked paid manually — ${(paidCents / 100).toFixed(2)} €`
+      : `payment: ${current} → ${next}`,
     adminUser,
   })
   return { error: null }

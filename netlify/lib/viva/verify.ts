@@ -120,9 +120,16 @@ export async function verifyVivaTransaction(transactionId: string): Promise<Veri
   const amountCents = normalizeAmountCents(Number(data.amount), dbTotalCents)
 
   // Always record last_verified_at + the observed status/tx — even on mismatch.
+  // WEC-606: ALSO maintain payment_links.status — it was written once at creation
+  // ('pending') and never updated, so every paid link still said 'pending'. It is
+  // now the ledger (a paid link = money collected), so keep it truthful:
+  // F=finished→success, E/X=error/cancel→failure, anything else stays pending.
+  const linkStatus: 'success' | 'failure' | 'pending' =
+    statusId === 'F' ? 'success' : (statusId === 'E' || statusId === 'X') ? 'failure' : 'pending'
   await supabase
     .from('payment_links')
     .update({
+      status: linkStatus,
       status_id: statusId,
       transaction_id: transactionId,
       last_verified_at: new Date().toISOString(),
