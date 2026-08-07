@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { NumberField } from '../components/NumberField'
 import {
   fetchAdminZones, createZone, saveZone, deleteZone,
   createTimeSlot, saveTimeSlot, deleteTimeSlot,
@@ -175,11 +176,11 @@ function ZoneEditor({ zone, onSaved, onDeleted }: { zone: AdminZone; onSaved: ()
         </div>
         <div>
           <label className="admin-form-label">Min order override (€)</label>
-          <input
-            className="admin-input" type="number" min={0} step="0.5"
-            value={form.minOrderAmount == null ? '' : (form.minOrderAmount / 100).toFixed(2)}
+          <NumberField
+            className="admin-input" scale={100} min={0} allowBlank
+            value={form.minOrderAmount}
             placeholder="(use global)"
-            onChange={(e) => patch('minOrderAmount', e.target.value === '' ? null : Math.round((+e.target.value || 0) * 100))}
+            onChange={(v) => patch('minOrderAmount', v)}
           />
         </div>
         <div style={{ alignSelf: 'end' }}>

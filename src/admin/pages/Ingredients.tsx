@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { NumberField } from '../components/NumberField'
 import {
   fetchIngredients,
   saveIngredient,
@@ -207,9 +208,9 @@ export function Ingredients() {
               </div>
               <div className="admin-form-row">
                 <label className="admin-form-label">Default grams (optional)</label>
-                <input className="admin-input" type="number" min={0} step="0.5"
-                  value={editing.defaultGrams ?? ''}
-                  onChange={(e) => setEditing({ ...editing, defaultGrams: e.target.value === '' ? null : Number(e.target.value) })}
+                <NumberField className="admin-input" min={0} allowBlank
+                  value={editing.defaultGrams}
+                  onChange={(v) => setEditing({ ...editing, defaultGrams: v })}
                   placeholder="e.g. 100"
                 />
                 <small style={{ color: 'var(--a-text-muted)', fontSize: 11 }}>

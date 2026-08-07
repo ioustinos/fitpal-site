@@ -16,6 +16,7 @@ import {
   type RefundKind,
 } from '../../lib/api/adminOrders'
 import { fetchAdminDishes, type AdminDish } from '../../lib/api/adminDishes'
+import { NumberField } from '../components/NumberField'
 import { foldGreek } from '../../lib/text'
 // WEC-528: shared Order Type classifier (same module the Airtable push uses)
 import { orderTypeCode, ORDER_TYPE_LABELS, type OrderTypeCode } from '../../lib/orderType'
@@ -1312,7 +1313,7 @@ function DayItemRow({ item, dish, orderId, childOrderId, editable, adminUser, on
       <td className="admin-sub">{item.comment ? `💬 ${item.comment}` : '—'}</td>
       <td style={{ textAlign: 'center' }}>
         {editable
-          ? <input className="admin-input admin-input-tight" type="number" min={0} value={qty} onChange={(e) => setQty(Math.max(0, +e.target.value || 0))} style={{ width: 54 }} />
+          ? <NumberField className="admin-input admin-input-tight" integer min={0} value={qty} onChange={(v) => setQty(Math.max(0, v ?? 0))} style={{ width: 54 }} />
           : item.quantity}
       </td>
       <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>{(item.unitPrice / 100).toFixed(2)} €</td>
@@ -1461,8 +1462,7 @@ function AddItemPanel({
           <div className="admin-grid-2" style={{ marginTop: 10 }}>
             <div>
               <label className="admin-form-label">Quantity</label>
-              <input className="admin-input" type="number" min={1} value={qty}
-                onChange={(e) => setQty(Math.max(1, +e.target.value || 1))} />
+              <NumberField integer min={1} value={qty} onChange={(v) => setQty(Math.max(1, v ?? 1))} />
             </div>
             <div>
               <label className="admin-form-label">Comment (optional)</label>
@@ -1607,11 +1607,8 @@ function RefundTab({ order, adminUser, onChanged }: { order: AdminOrder; adminUs
       <div className="admin-form-section admin-grid-2">
         <div>
           <label className="admin-form-label">Amount (€)</label>
-          <input
-            className="admin-input" type="number" min={0} step="0.01"
-            value={(amount / 100).toFixed(2)}
-            onChange={(e) => setAmount(Math.round((+e.target.value || 0) * 100))}
-          />
+          {/* WEC-609: text field; scale 100 (cents), capped at refundable (WEC-608). */}
+          <NumberField scale={100} min={0} max={refundable} value={amount} onChange={(v) => setAmount(v ?? 0)} />
         </div>
         <div style={{ alignSelf: 'end' }}>
           <button

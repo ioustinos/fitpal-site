@@ -20,6 +20,7 @@ import {
 } from '../../lib/api/adminDishes'
 import { fetchDishRecipe } from '../../lib/api/dishRecipe'
 import { DishRecipeEditor, type RecipeRow } from '../components/DishRecipeEditor'
+import { NumberField } from '../components/NumberField'
 import { supabase } from '../../lib/supabase'
 import { parseIngredientList } from '../../lib/menu-csv/parse'
 import { foldGreek } from '../../lib/text'
@@ -678,10 +679,10 @@ function DishDrawer({
             </div>
             <div>
               <label className="admin-form-label">Discount %</label>
-              <input
-                className="admin-input" type="number" min={0} max={100}
+              <NumberField
+                className="admin-input" integer min={0} max={100}
                 value={form.discountPct}
-                onChange={(e) => patch('discountPct', Math.max(0, Math.min(100, +e.target.value || 0)))}
+                onChange={(v) => patch('discountPct', Math.max(0, Math.min(100, v ?? 0)))}
               />
             </div>
             <div style={{ alignSelf: 'end' }}>
@@ -720,10 +721,10 @@ function DishDrawer({
               {(['previewCal', 'previewPro', 'previewCarb', 'previewFat'] as const).map((k) => (
                 <div key={k}>
                   <div className="admin-dots-label">{k.replace('preview', '').replace('Cal', 'Calories').replace('Pro', 'Protein').replace('Carb', 'Carbs').replace('Fat', 'Fat')}</div>
-                  <input
-                    className="admin-input" type="number" min={1} max={5}
+                  <NumberField
+                    className="admin-input" integer min={1} max={5}
                     value={form[k]}
-                    onChange={(e) => patch(k, Math.max(1, Math.min(5, +e.target.value || 3)) as 1 | 2 | 3 | 4 | 5)}
+                    onChange={(v) => patch(k, Math.max(1, Math.min(5, v ?? 3)) as 1 | 2 | 3 | 4 | 5)}
                   />
                 </div>
               ))}
@@ -838,7 +839,6 @@ function DishDrawer({
 }
 
 function VariantRow({ v, onChange, onDelete, onSetDefault }: { v: AdminVariant; onChange: (v: AdminVariant) => void; onDelete: () => void; onSetDefault: () => void }) {
-  function num(n: string): number { return Math.max(0, +n || 0) }
   // The variant's code (212-1) IS its primary key. Once persisted it can't
   // change without orphaning order rows that snapshot it, so we display it
   // read-only post-save. For never-saved rows (id starts with "new-") we
@@ -869,14 +869,14 @@ function VariantRow({ v, onChange, onDelete, onSetDefault }: { v: AdminVariant; 
       />
       <input className="admin-input" placeholder="Label EL" value={v.labelEl} onChange={(e) => onChange({ ...v, labelEl: e.target.value })} />
       <input className="admin-input" placeholder="Label EN" value={v.labelEn} onChange={(e) => onChange({ ...v, labelEn: e.target.value })} />
-      <input className="admin-input numeric" type="number" step="0.01" min={0} placeholder="€"
-        value={v.price === 0 ? '' : (v.price / 100).toFixed(2)}
-        onChange={(e) => onChange({ ...v, price: Math.round((+e.target.value || 0) * 100) })}
+      <NumberField className="admin-input numeric" scale={100} min={0} allowBlank placeholder="€"
+        value={v.price === 0 ? null : v.price}
+        onChange={(val) => onChange({ ...v, price: val ?? 0 })}
       />
-      <input className="admin-input numeric" type="number" min={0} placeholder="kcal" value={v.calories || ''} onChange={(e) => onChange({ ...v, calories: num(e.target.value) })} />
-      <input className="admin-input numeric" type="number" min={0} placeholder="g" value={v.protein || ''} onChange={(e) => onChange({ ...v, protein: num(e.target.value) })} />
-      <input className="admin-input numeric" type="number" min={0} placeholder="g" value={v.carbs || ''} onChange={(e) => onChange({ ...v, carbs: num(e.target.value) })} />
-      <input className="admin-input numeric" type="number" min={0} placeholder="g" value={v.fat || ''} onChange={(e) => onChange({ ...v, fat: num(e.target.value) })} />
+      <NumberField className="admin-input numeric" integer min={0} allowBlank placeholder="kcal" value={v.calories || null} onChange={(val) => onChange({ ...v, calories: val ?? 0 })} />
+      <NumberField className="admin-input numeric" integer min={0} allowBlank placeholder="g" value={v.protein || null} onChange={(val) => onChange({ ...v, protein: val ?? 0 })} />
+      <NumberField className="admin-input numeric" integer min={0} allowBlank placeholder="g" value={v.carbs || null} onChange={(val) => onChange({ ...v, carbs: val ?? 0 })} />
+      <NumberField className="admin-input numeric" integer min={0} allowBlank placeholder="g" value={v.fat || null} onChange={(val) => onChange({ ...v, fat: val ?? 0 })} />
       <button className="admin-variant-del" onClick={onDelete} title="Remove variant">×</button>
     </div>
   )

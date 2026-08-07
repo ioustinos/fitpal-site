@@ -4,6 +4,7 @@ import {
   type SettingRow,
 } from '../../lib/api/adminSettings'
 import { PAYMENT_METHODS as PM } from '../../lib/paymentMethods'
+import { NumberField } from '../components/NumberField'
 
 const DAY_NAMES_FULL = ['', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
 
@@ -132,7 +133,7 @@ export function CutoffHourSection({ value, onSave }: { value: number; onSave: (v
   return (
     <SectionCard title="Default cutoff hour" desc="Hour on the previous calendar day at which ordering closes for the next-day delivery (unless an override below applies).">
       <div className="admin-inline-form">
-        <input className="admin-input" type="number" min={0} max={23} value={h} onChange={(e) => setH(Math.max(0, Math.min(23, +e.target.value || 0)))} style={{ width: 110 }} />
+        <NumberField className="admin-input" integer min={0} max={23} value={h} onChange={(v) => setH(Math.max(0, Math.min(23, v ?? 0)))} style={{ width: 110 }} />
         <span className="admin-text-muted">:00 (24-hour)</span>
         <button className="admin-btn-primary" disabled={h === value} onClick={() => onSave(h)}>Save</button>
       </div>
@@ -167,7 +168,7 @@ export function WeekdayOverridesSection({ value, onSave }: { value: WeekdayOverr
           <select className="admin-select" value={e.cutoffDow} onChange={(ev) => setEntries(entries.map((x, j) => j === i ? { ...x, cutoffDow: +ev.target.value } : x))}>
             {[1, 2, 3, 4, 5, 6, 7].map((d) => <option key={d} value={d}>{DAY_NAMES_FULL[d]}</option>)}
           </select>
-          <input className="admin-input" type="number" min={0} max={23} value={e.hour} onChange={(ev) => setEntries(entries.map((x, j) => j === i ? { ...x, hour: Math.max(0, Math.min(23, +ev.target.value || 0)) } : x))} style={{ width: 90 }} />
+          <NumberField className="admin-input" integer min={0} max={23} value={e.hour} onChange={(val) => setEntries(entries.map((x, j) => j === i ? { ...x, hour: Math.max(0, Math.min(23, val ?? 0)) } : x))} style={{ width: 90 }} />
           <span className="admin-text-muted">:00</span>
           <button className="admin-row-btn danger" onClick={() => remove(i)}>Remove</button>
         </div>
@@ -211,7 +212,7 @@ export function DateOverridesSection({ value, onSave }: { value: DateOverrides; 
           <label className="admin-text-muted">closes</label>
           <input className="admin-input" type="date" value={e.cutoffDate} onChange={(ev) => setEntries(entries.map((x, j) => j === i ? { ...x, cutoffDate: ev.target.value } : x))} />
           <label className="admin-text-muted">at</label>
-          <input className="admin-input" type="number" min={0} max={23} value={e.hour} onChange={(ev) => setEntries(entries.map((x, j) => j === i ? { ...x, hour: Math.max(0, Math.min(23, +ev.target.value || 0)) } : x))} style={{ width: 80 }} />
+          <NumberField className="admin-input" integer min={0} max={23} value={e.hour} onChange={(val) => setEntries(entries.map((x, j) => j === i ? { ...x, hour: Math.max(0, Math.min(23, val ?? 0)) } : x))} style={{ width: 80 }} />
           <span className="admin-text-muted">:00</span>
           <button className="admin-row-btn danger" onClick={() => remove(i)}>Remove</button>
         </div>
@@ -227,15 +228,14 @@ export function DateOverridesSection({ value, onSave }: { value: DateOverrides; 
 export function MinOrderSection({ value, onSave }: { value: number; onSave: (v: number) => void }) {
   const [v, setV] = useState(value)
   useEffect(() => setV(value), [value])
-  const euros = (v / 100).toFixed(2)
   return (
     <SectionCard title="Minimum order per day" desc="Applies to every child order. A zone-specific override in Delivery zones can raise this per zone.">
       <div className="admin-inline-form">
         <span>€</span>
-        <input
-          className="admin-input" type="number" step="0.50" min={0}
-          value={euros}
-          onChange={(e) => setV(Math.round((+e.target.value || 0) * 100))}
+        <NumberField
+          className="admin-input" scale={100} min={0}
+          value={v}
+          onChange={(val) => setV(val ?? 0)}
           style={{ width: 120 }}
         />
         <span className="admin-text-muted">({v} cents)</span>
@@ -390,13 +390,13 @@ export function VariantPillThresholdSection({ value, onSave }: { value: number; 
       desc="A dish with MORE THAN this many variants automatically renders the dropdown picker on the dish modal (per-ingredient gram pickers). At or below this number, it renders the pill rows. Per-dish admin overrides on /admin/dishes still win. Default 4. Range 2–20."
     >
       <div className="admin-inline-form">
-        <input
+        <NumberField
           className="admin-input"
-          type="number"
+          integer
           min={2}
           max={20}
           value={v}
-          onChange={(e) => setV(Math.max(2, Math.min(20, parseInt(e.target.value, 10) || 0)))}
+          onChange={(val) => setV(Math.max(2, Math.min(20, val ?? 0)))}
           style={{ width: 110 }}
         />
         <span className="admin-text-muted">variants → switch to dropdowns above this</span>

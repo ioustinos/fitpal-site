@@ -241,9 +241,9 @@ function VoucherEditor({
           <label>{form.type === 'pct' ? 'Discount %' : 'Amount (€)'}</label>
           <input
             className="admin-input"
-            type="number"
-            step={form.type === 'pct' ? '1' : '0.01'}
-            min="0"
+            type="text"
+            inputMode="decimal"
+            onWheel={(e) => e.currentTarget.blur()}
             value={form.valueDisplay}
             onChange={(e) => patch('valueDisplay', e.target.value)}
           />
@@ -254,9 +254,9 @@ function VoucherEditor({
             <label>Remaining (€)</label>
             <input
               className="admin-input"
-              type="number"
-              step="0.01"
-              min="0"
+              type="text"
+              inputMode="decimal"
+              onWheel={(e) => e.currentTarget.blur()}
               value={form.remainingDisplay}
               onChange={(e) => patch('remainingDisplay', e.target.value)}
             />
@@ -268,9 +268,9 @@ function VoucherEditor({
           <label>Min order (€)</label>
           <input
             className="admin-input"
-            type="number"
-            step="0.01"
-            min="0"
+            type="text"
+            inputMode="decimal"
+            onWheel={(e) => e.currentTarget.blur()}
             value={form.minOrderDisplay}
             onChange={(e) => patch('minOrderDisplay', e.target.value)}
           />
@@ -280,8 +280,9 @@ function VoucherEditor({
           <label>Max uses (total)</label>
           <input
             className="admin-input"
-            type="number"
-            min="0"
+            type="text"
+            inputMode="numeric"
+            onWheel={(e) => e.currentTarget.blur()}
             value={form.maxUses}
             onChange={(e) => patch('maxUses', e.target.value)}
             placeholder="Unlimited"
@@ -292,8 +293,9 @@ function VoucherEditor({
           <label>Per-user limit</label>
           <input
             className="admin-input"
-            type="number"
-            min="0"
+            type="text"
+            inputMode="numeric"
+            onWheel={(e) => e.currentTarget.blur()}
             value={form.perUserLimit}
             onChange={(e) => patch('perUserLimit', e.target.value)}
             placeholder="Unlimited"

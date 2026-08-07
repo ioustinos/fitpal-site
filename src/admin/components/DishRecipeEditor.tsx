@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import type { AdminVariant } from '../../lib/api/adminDishes'
 import { fetchIngredients, searchKey, type AdminIngredient } from '../../lib/api/adminIngredients'
+import { NumberField } from './NumberField'
 
 /**
  * Dish recipe editor (WEC-249).
@@ -180,16 +181,13 @@ export function DishRecipeEditor({ variants, value, onChange }: Props) {
             {/* Grams input(s) */}
             <div className="admin-recipe-row-grams">
               {!r.isVariant && (
-                <input
+                <NumberField
                   className="admin-input"
-                  type="number"
                   min={0}
-                  step="0.5"
+                  allowBlank
                   placeholder="γρ"
-                  value={r.fixedGrams ?? ''}
-                  onChange={(e) =>
-                    update(idx, { fixedGrams: e.target.value === '' ? null : Number(e.target.value) })
-                  }
+                  value={r.fixedGrams}
+                  onChange={(v) => update(idx, { fixedGrams: v })}
                 />
               )}
               {r.isVariant && (
@@ -198,17 +196,12 @@ export function DishRecipeEditor({ variants, value, onChange }: Props) {
                     {variants.map((v, vi) => (
                       <div key={v.id} className="admin-recipe-variant-cell">
                         <label className="admin-recipe-variant-label">v{vi + 1}</label>
-                        <input
+                        <NumberField
                           className="admin-input"
-                          type="number"
                           min={0}
-                          step="0.5"
                           placeholder="γρ"
-                          value={r.perVariant[v.id] ?? ''}
-                          onChange={(e) => {
-                            const n = e.target.value === '' ? 0 : Number(e.target.value)
-                            update(idx, { perVariant: { ...r.perVariant, [v.id]: n } })
-                          }}
+                          value={r.perVariant[v.id] ?? 0}
+                          onChange={(val) => update(idx, { perVariant: { ...r.perVariant, [v.id]: val ?? 0 } })}
                         />
                       </div>
                     ))}

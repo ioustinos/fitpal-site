@@ -566,10 +566,9 @@ function GrantCreditModal({
             <label>Amount (€)</label>
             <input
               className="admin-input"
-              type="number"
-              step="0.01"
-              min="0"
-              max="500"
+              type="text"
+              inputMode="decimal"
+              onWheel={(e) => e.currentTarget.blur()}
               value={amountStr}
               onChange={(e) => setAmountStr(e.target.value)}
               placeholder="e.g. 10.00"

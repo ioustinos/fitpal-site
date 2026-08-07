@@ -414,8 +414,9 @@ function PricingMatrixEditor({ value, onSave, justSaved }: PricingMatrixEditorPr
                 <div key={meal} className="admin-pricing-cell">
                   <label>{MEAL_LABEL[meal]}</label>
                   <input
-                    type="number"
-                    step={0.0001}
+                    type="text"
+                    inputMode="decimal"
+                    onWheel={(e) => e.currentTarget.blur()}
                     className="admin-input"
                     value={draft.intercepts[meal]}
                     onChange={(e) => setIntercept(meal, e.target.value)}
@@ -432,8 +433,9 @@ function PricingMatrixEditor({ value, onSave, justSaved }: PricingMatrixEditorPr
                 <div key={macro} className="admin-pricing-cell">
                   <label>{MACRO_LABEL[macro]} (kcal/g)</label>
                   <input
-                    type="number"
-                    step={0.1}
+                    type="text"
+                    inputMode="decimal"
+                    onWheel={(e) => e.currentTarget.blur()}
                     className="admin-input"
                     value={draft.kcalPerGram[macro]}
                     onChange={(e) => setKcalPerGram(macro, e.target.value)}
@@ -486,7 +488,7 @@ interface MatrixGridProps {
   onChange: (macro: Macro, meal: MealKey, value: string) => void
 }
 
-function MatrixGrid({ title, active, coeffs, step, onChange }: MatrixGridProps) {
+function MatrixGrid({ title, active, coeffs, onChange }: MatrixGridProps) {
   return (
     <div className={`admin-pricing-matrix${active ? ' is-active' : ''}`}>
       <div className="admin-pricing-matrix-head">
@@ -507,8 +509,9 @@ function MatrixGrid({ title, active, coeffs, step, onChange }: MatrixGridProps) 
               {MEALS.map((meal) => (
                 <td key={meal}>
                   <input
-                    type="number"
-                    step={step}
+                    type="text"
+                    inputMode="decimal"
+                    onWheel={(e) => e.currentTarget.blur()}
                     value={coeffs[macro][meal]}
                     onChange={(e) => onChange(macro, meal, e.target.value)}
                     className="admin-input"

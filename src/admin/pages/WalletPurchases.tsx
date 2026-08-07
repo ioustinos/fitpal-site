@@ -262,8 +262,9 @@ function Drawer({ detail, loading, onClose, onRefunded }: DrawerProps) {
                     />
                     <input
                       className="admin-input"
-                      type="number"
-                      step="0.01"
+                      type="text"
+                      inputMode="decimal"
+                      onWheel={(e) => e.currentTarget.blur()}
                       placeholder={`Amount in € (leave empty for full ${((detail.amountToPayCents - detail.refundAmountCents) / 100).toFixed(2)} €)`}
                       value={refundAmount}
                       onChange={(e) => setRefundAmount(e.target.value)}
