@@ -378,13 +378,17 @@ function mapOrderRow(r: unknown, childOrders: AdminChildOrder[], voucherUses: Ad
 
 // ─── Audit log writer ─────────────────────────────────────────────────────
 
+// WEC-604: this used to fire-and-forget the insert, so a failed audit write was
+// invisible — the third silent-failure bug this week (cf. WEC-594, WEC-602).
+// Now it ALWAYS console.errors and RETURNS the error, so money-affecting
+// callers can fail loudly (e.g. don't delete an item you couldn't log).
 async function writeChangeLog(args: {
-  orderId?: string; childOrderId?: string; orderItemId?: string;
+  orderId?: string; childOrderId?: string; orderItemId?: string | null;
   tableName: string; fieldName: string;
   oldValue: string | null; newValue: string | null;
   label: string; adminUser: string;
-}) {
-  await supabase.from('admin_change_log').insert({
+}): Promise<{ error: string | null }> {
+  const { error } = await supabase.from('admin_change_log').insert({
     order_id: args.orderId ?? null,
     child_order_id: args.childOrderId ?? null,
     order_item_id: args.orderItemId ?? null,
@@ -395,6 +399,8 @@ async function writeChangeLog(args: {
     label: args.label,
     admin_user: args.adminUser,
   })
+  if (error) console.error('[writeChangeLog] insert failed:', args.tableName, args.fieldName, error.message)
+  return { error: error?.message ?? null }
 }
 
 // WEC-603: timeline labels name the dish, variant, qty and the delivery day
@@ -517,16 +523,22 @@ export async function updateOrderItemQuantity(itemId: string, oldQty: number, ne
   if (newQty <= 0) {
     // WEC-603: capture the dish descriptor BEFORE deleting so the label names it.
     const desc = await itemDescriptor(itemId)
-    const { error } = await supabase.from('order_items').delete().eq('id', itemId)
-    if (error) return { error: error.message }
-    await writeChangeLog({
-      orderId, childOrderId, orderItemId: itemId,
-      // WEC-603: field 'item' (not 'quantity') so add/remove are distinguishable.
+    // WEC-604: log BEFORE the delete, with orderItemId=NULL. The old order was
+    // delete-then-log-with-the-deleted-id → 23503 FK violation, silently
+    // swallowed → removals never appeared and money rows had no cause. Logging
+    // first + null ref (the id has no value once the row is gone) fixes it; and
+    // if the log itself fails we bail WITHOUT deleting, so a money-affecting
+    // change can never again happen unrecorded.
+    const logRes = await writeChangeLog({
+      orderId, childOrderId, orderItemId: null,
       tableName: 'order_items', fieldName: 'item',
       oldValue: String(oldQty), newValue: '0 (removed)',
       label: withDay(`Removed: ${desc ? itemPhrase(desc.nameEl, desc.variantLabelEl, oldQty) : 'item'}`, day),
       adminUser,
     })
+    if (logRes.error) return { error: `Could not record removal — item not deleted: ${logRes.error}` }
+    const { error } = await supabase.from('order_items').delete().eq('id', itemId)
+    if (error) return { error: error.message }
     return recomputeOrderTotals(orderId, adminUser)
   }
   // Fetch current unit price to recompute total + name for the label.
@@ -679,15 +691,18 @@ export async function deleteOrderItem(itemId: string, orderId: string, childOrde
   // WEC-603: capture descriptor + day BEFORE deleting so the timeline names the dish.
   const day = await deliveryDayTag(childOrderId)
   const desc = await itemDescriptor(itemId)
-  const { error } = await supabase.from('order_items').delete().eq('id', itemId)
-  if (error) return { error: error.message }
-  await writeChangeLog({
-    orderId, childOrderId, orderItemId: itemId,
+  // WEC-604: log BEFORE the delete with orderItemId=NULL (see updateOrderItemQuantity).
+  // Bail without deleting if the audit write fails — never a silent money change.
+  const logRes = await writeChangeLog({
+    orderId, childOrderId, orderItemId: null,
     tableName: 'order_items', fieldName: 'item',
     oldValue: null, newValue: 'removed',
     label: withDay(`Removed: ${desc ? itemPhrase(desc.nameEl, desc.variantLabelEl, desc.quantity) : 'item'}`, day),
     adminUser,
   })
+  if (logRes.error) return { error: `Could not record removal — item not deleted: ${logRes.error}` }
+  const { error } = await supabase.from('order_items').delete().eq('id', itemId)
+  if (error) return { error: error.message }
   return recomputeOrderTotals(orderId, adminUser)
 }
 
@@ -816,6 +831,10 @@ async function recomputeOrderTotals(orderId: string, adminUser: string = 'system
 // ─── Child-order edits (address + time) ───────────────────────────────────
 
 export async function updateChildOrderAddress(childId: string, orderId: string, patch: { street?: string; area?: string; zip?: string; floor?: string }, adminUser: string): Promise<{ error: string | null }> {
+  // WEC-604: capture the OLD address + delivery day so the timeline shows a
+  // real before → after with the day, not «address updated» + raw JSON.
+  const { data: bRow } = await supabase.from('child_orders').select('address_street, address_area, delivery_date').eq('id', childId).maybeSingle()
+  const b = (bRow ?? {}) as { address_street?: string | null; address_area?: string | null; delivery_date?: string }
   const update: Record<string, string | null> = {}
   if (patch.street !== undefined) update.address_street = patch.street || null
   if (patch.area !== undefined) update.address_area = patch.area || null
@@ -823,25 +842,34 @@ export async function updateChildOrderAddress(childId: string, orderId: string, 
   if (patch.floor !== undefined) update.address_floor = patch.floor || null
   const { error } = await supabase.from('child_orders').update(update).eq('id', childId)
   if (error) return { error: error.message }
+  const fmtAddr = (s?: string | null, a?: string | null) => [s, a].filter(Boolean).join(', ') || '—'
+  const oldStr = fmtAddr(b.address_street, b.address_area)
+  const newStr = fmtAddr(patch.street ?? b.address_street, patch.area ?? b.address_area)
+  const day = await deliveryDayTag(childId)
   await writeChangeLog({
     orderId, childOrderId: childId,
     tableName: 'child_orders', fieldName: 'address',
-    oldValue: null, newValue: JSON.stringify(patch),
-    label: 'address updated', adminUser,
+    oldValue: fmtAddr(b.address_street, b.address_area), newValue: JSON.stringify(patch),
+    label: withDay(`Address: ${oldStr} → ${newStr}`, day), adminUser,
   })
   return { error: null }
 }
 
 export async function updateChildOrderTime(childId: string, orderId: string, timeFrom: string | null, timeTo: string | null, adminUser: string): Promise<{ error: string | null }> {
+  // WEC-604: capture OLD slot + day for a readable before → after.
+  const { data: bRow } = await supabase.from('child_orders').select('time_from, time_to').eq('id', childId).maybeSingle()
+  const b = (bRow ?? {}) as { time_from?: string | null; time_to?: string | null }
   const { error } = await supabase.from('child_orders').update({
     time_from: timeFrom, time_to: timeTo,
   }).eq('id', childId)
   if (error) return { error: error.message }
+  const fmtSlot = (f?: string | null, t?: string | null) => (f && t ? `${f.slice(0, 5)}–${t.slice(0, 5)}` : '—')
+  const day = await deliveryDayTag(childId)
   await writeChangeLog({
     orderId, childOrderId: childId,
     tableName: 'child_orders', fieldName: 'time',
-    oldValue: null, newValue: `${timeFrom} — ${timeTo}`,
-    label: 'time window updated', adminUser,
+    oldValue: fmtSlot(b.time_from, b.time_to), newValue: `${timeFrom} — ${timeTo}`,
+    label: withDay(`Time: ${fmtSlot(b.time_from, b.time_to)} → ${fmtSlot(timeFrom, timeTo)}`, day), adminUser,
   })
   return { error: null }
 }
@@ -985,14 +1013,15 @@ export async function sendPaymentLinkLogged(
 ): Promise<{ data: { orderCode: string; paymentUrl: string } | null; error: string | null }> {
   const res = await regenerateVivaPaymentLink(orderId)
   if (res.error || !res.data) return res
-  const hhmm = new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })
+  // WEC-604: no hardcoded local time in the label — the feed's When column
+  // already shows the timestamp (and a baked-in time is wrong in any other tz).
   await writeChangeLog({
     orderId,
     tableName: 'payment_links',
     fieldName: 'payment_url',
     oldValue: null,
     newValue: res.data.orderCode,
-    label: firstTime ? `Payment link sent — ${hhmm}` : `Payment link regenerated — ${hhmm}`,
+    label: firstTime ? 'Payment link sent' : 'Payment link regenerated',
     adminUser,
   })
   return res

@@ -94,16 +94,12 @@ export default async (request: Request) => {
       .eq('id', order.id)
       .eq('payment_status', 'pending')
 
-    // Audit log for admin visibility.
-    await service.from('admin_change_log').insert({
-      order_id: order.id,
-      table_name: 'payment_links',
-      field_name: 'viva_order_code',
-      old_value: null,
-      new_value: result.orderCode,
-      label: 'Regenerated Viva payment link',
-      admin_user: who.userId,
-    })
+    // WEC-604: the timeline entry is written by the caller (sendPaymentLinkLogged,
+    // WEC-598) with the admin's EMAIL and the correct «sent» vs «regenerated»
+    // label. The old audit insert here duplicated that row AND wrote the admin's
+    // raw uuid into the By column (which everywhere else holds an email) AND
+    // always said «Regenerated» even on first generation. Removed — one row, one
+    // source of truth.
 
     // Fire Klaviyo "Payment Link Sent" event. Fail-soft — never block admin
     // action on email delivery. Lang routes EL/EN template via Klaviyo flow's
