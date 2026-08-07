@@ -799,14 +799,16 @@ async function recomputeOrderTotals(orderId: string, adminUser: string = 'system
     await writeChangeLog({
       orderId, tableName: 'orders', fieldName: 'subtotal',
       oldValue: String(oldSubtotal), newValue: String(subtotal),
-      label: `Υποσύνολο ${fmtEur(oldSubtotal)} → ${fmtEur(subtotal)}`, adminUser,
+      // WEC-603: English admin label; the € delta is rendered by the timeline
+      // feed from old/new_value, so the label is just the field name (no dup).
+      label: 'Subtotal', adminUser,
     })
   }
   if (total !== oldTotal) {
     await writeChangeLog({
       orderId, tableName: 'orders', fieldName: 'total',
       oldValue: String(oldTotal), newValue: String(total),
-      label: `Σύνολο ${fmtEur(oldTotal)} → ${fmtEur(total)}`, adminUser,
+      label: 'Total', adminUser,
     })
   }
   return { error: null }

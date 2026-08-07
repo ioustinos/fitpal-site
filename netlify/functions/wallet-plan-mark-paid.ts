@@ -100,7 +100,7 @@ export default async (request: Request) => {
         field_name: 'payment_status',
         old_value: 'pending',
         new_value: 'paid',
-        label: `${plan.payment_method === 'cash' ? 'Cash (Αντικαταβολή)' : 'Bank transfer'} marked paid (manual, admin)`,
+        label: `${plan.payment_method === 'cash' ? 'Cash on delivery' : 'Bank transfer'} marked paid (manual, admin)`,
         admin_user: who.userId,
       })
     } catch { /* non-fatal */ }
