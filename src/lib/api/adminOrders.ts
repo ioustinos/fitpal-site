@@ -786,43 +786,42 @@ export async function fetchOnMenuDishIds(date: string): Promise<Set<string>> {
 }
 
 async function recomputeOrderTotals(orderId: string, adminUser: string = 'system'): Promise<{ error: string | null }> {
+  // Preserve prior behaviour: with NO active child orders (e.g. every delivery
+  // day cancelled), don't zero the money — refund reconciliation still needs
+  // the order total. Skip the recompute entirely.
   const { data: cos, error: cosErr } = await supabase.from('child_orders').select('id').eq('order_id', orderId).is('cancelled_at', null)
   if (cosErr) return { error: cosErr.message }
-  const cIds = (cos ?? []).map((r) => r.id as string)
-  if (cIds.length === 0) return { error: null }
-  const { data: items, error: itErr } = await supabase.from('order_items').select('total_price').in('child_order_id', cIds)
-  if (itErr) return { error: itErr.message }
-  const subtotal = (items ?? []).reduce((s, r) => s + ((r as { total_price: number }).total_price ?? 0), 0)
-  // Keep existing discount — admin should refund rather than retroactively discount.
-  // WEC-566: also read the OLD subtotal/total so we can log the money delta.
-  const { data: ord, error: oErr } = await supabase.from('orders').select('subtotal, total, discount_amount').eq('id', orderId).single()
-  if (oErr) return { error: oErr.message }
-  const oldSubtotal = (ord as { subtotal: number | null }).subtotal ?? 0
-  const oldTotal = (ord as { total: number | null }).total ?? 0
-  const discount = ((ord as { discount_amount: number | null }).discount_amount ?? 0)
-  const total = Math.max(0, subtotal - discount)
-  const { error } = await supabase.from('orders').update({
-    subtotal, total, updated_at: new Date().toISOString(),
-  }).eq('id', orderId)
-  if (error) return { error: error.message }
+  if ((cos ?? []).length === 0) return { error: null }
 
-  // WEC-566/603: audit the money impact of the edit so the Timeline shows
-  // old → new totals. Cents stored in old/new_value; the feed renders the €
-  // delta (red/green) from those, so the label is just the English field name.
-  if (subtotal !== oldSubtotal) {
+  // WEC-605: recompute subtotal + voucher discount + total ATOMICALLY in the DB
+  // (a pct voucher now tracks the new basket; a voucher below its min_order is
+  // dropped; orders + voucher_uses stay in lockstep). Returns old/new for logs.
+  const { data, error } = await supabase.rpc('recompute_order_money', { p_order_id: orderId })
+  if (error) return { error: error.message }
+  const row = (Array.isArray(data) ? data[0] : data) as {
+    old_subtotal: number; old_discount: number; old_total: number
+    new_subtotal: number; new_discount: number; new_total: number
+  } | undefined
+  if (!row) return { error: null }
+
+  // WEC-566/603: log each money change; the feed renders the € delta from
+  // old/new_value, so the label is just the English field name.
+  if (row.new_subtotal !== row.old_subtotal) {
     await writeChangeLog({
       orderId, tableName: 'orders', fieldName: 'subtotal',
-      oldValue: String(oldSubtotal), newValue: String(subtotal),
-      // WEC-603: English admin label; the € delta is rendered by the timeline
-      // feed from old/new_value, so the label is just the field name (no dup).
-      label: 'Subtotal', adminUser,
+      oldValue: String(row.old_subtotal), newValue: String(row.new_subtotal), label: 'Subtotal', adminUser,
     })
   }
-  if (total !== oldTotal) {
+  if (row.new_discount !== row.old_discount) {
+    await writeChangeLog({
+      orderId, tableName: 'orders', fieldName: 'discount_amount',
+      oldValue: String(row.old_discount), newValue: String(row.new_discount), label: 'Discount', adminUser,
+    })
+  }
+  if (row.new_total !== row.old_total) {
     await writeChangeLog({
       orderId, tableName: 'orders', fieldName: 'total',
-      oldValue: String(oldTotal), newValue: String(total),
-      label: 'Total', adminUser,
+      oldValue: String(row.old_total), newValue: String(row.new_total), label: 'Total', adminUser,
     })
   }
   return { error: null }
