@@ -791,10 +791,9 @@ async function recomputeOrderTotals(orderId: string, adminUser: string = 'system
   }).eq('id', orderId)
   if (error) return { error: error.message }
 
-  // WEC-566: audit the money impact of the edit so the Timeline shows old → new
-  // totals (not just the field change). Cents stored in old/new_value; label
-  // carries the € formatting for a readable row.
-  const fmtEur = (c: number) => `${(c / 100).toFixed(2)} €`
+  // WEC-566/603: audit the money impact of the edit so the Timeline shows
+  // old → new totals. Cents stored in old/new_value; the feed renders the €
+  // delta (red/green) from those, so the label is just the English field name.
   if (subtotal !== oldSubtotal) {
     await writeChangeLog({
       orderId, tableName: 'orders', fieldName: 'subtotal',
