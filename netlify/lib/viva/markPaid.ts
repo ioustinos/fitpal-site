@@ -57,6 +57,26 @@ export async function markPaid(
 ): Promise<boolean> {
   const supabase = serviceClient()
 
+  // WEC-607: payments can now be PARTIAL — a link may be for less than the order
+  // total, and several links can coexist. The just-paid link is already marked
+  // 'success' by verify.ts, so the payment ledger (order_payment_summary)
+  // already counts it. Flip the whole order to 'paid' ONLY when the sum of
+  // everything collected covers the total; otherwise leave it pending (partial).
+  const { data: sum } = await supabase.rpc('order_payment_summary', { p_order_id: orderId })
+  const s = (Array.isArray(sum) ? sum[0] : sum) as { total: number; paid: number } | undefined
+  const total = s?.total ?? 0
+  const paid = s?.paid ?? 0
+
+  if (!(total > 0 && paid >= total)) {
+    // Partial payment — order stays pending. verify.ts only calls markPaid on the
+    // FIRST transition of a given link (guarded), so this logs once per link.
+    await audit(
+      orderId, 'partial', 'partial',
+      `Viva partial payment · tx=${transactionId} · €${(amountCents / 100).toFixed(2)} · collected ${(paid / 100).toFixed(2)}/${(total / 100).toFixed(2)} €`,
+    )
+    return false
+  }
+
   const { data, error } = await supabase
     .from('orders')
     // WEC-477: a card order is only Airtable-mirror-eligible once paid. It was
@@ -79,7 +99,7 @@ export async function markPaid(
 
   if (!data) return false
 
-  await audit(orderId, 'pending', 'paid', `Viva paid · tx=${transactionId} · €${(amountCents / 100).toFixed(2)}`)
+  await audit(orderId, 'pending', 'paid', `Viva paid · tx=${transactionId} · €${(amountCents / 100).toFixed(2)} · covers total`)
 
   // WEC-397: server-side Purchase to Meta CAPI. Card orders redirect to Viva
   // before the confirmation screen, so the browser never fires Purchase — this
@@ -141,6 +161,16 @@ export async function markFailed(
   reason: string,
 ): Promise<boolean> {
   const supabase = serviceClient()
+
+  // WEC-607: with coexisting links, one link failing/cancelling must NOT fail an
+  // order that already collected a partial payment on another link. Only fail
+  // when nothing has been collected yet.
+  const { data: sum } = await supabase.rpc('order_payment_summary', { p_order_id: orderId })
+  const s = (Array.isArray(sum) ? sum[0] : sum) as { paid: number } | undefined
+  if ((s?.paid ?? 0) > 0) {
+    await audit(orderId, 'partial', 'partial', `Viva link failed · tx=${transactionId} · ${reason} (order kept — partial payment on file)`)
+    return false
+  }
 
   const { data } = await supabase
     .from('orders')

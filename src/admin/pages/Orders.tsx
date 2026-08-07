@@ -1642,6 +1642,10 @@ function PaymentLinkBlock({ order, adminUser, onChanged }: { order: AdminOrder; 
   const [err, setErr] = useState<string | null>(null)
   const [working, setWorking] = useState(false)
   const [copied, setCopied] = useState(false)
+  // WEC-607: admin-chosen amount, prefilled with the remaining balance.
+  const remaining = order.payment.remaining || order.total
+  const [amountEuros, setAmountEuros] = useState((remaining / 100).toFixed(2))
+  const [confirmOver, setConfirmOver] = useState(false)
 
   const link = order.paymentLink
   // WEC-598 / WEC-181: nothing left to collect on a paid order — hide entirely.
@@ -1651,9 +1655,15 @@ function PaymentLinkBlock({ order, adminUser, onChanged }: { order: AdminOrder; 
 
   // WEC-598 #2: only a CONFIRMED (or further) order may collect money. A pending
   // order that nobody has accepted must not send a payment request.
+  // WEC-607: also allow generating while «pending_link_sent» so a SECOND link
+  // (for the remaining balance) can be sent after the first.
   const collectableStatuses: OrderStatus[] = ['confirmed', 'preparing', 'delivering', 'delivered']
-  const canGenerate = collectableStatuses.includes(order.status) && order.paymentStatus === 'pending'
+  const canGenerate = collectableStatuses.includes(order.status)
+    && (order.paymentStatus === 'pending' || order.paymentStatus === 'pending_link_sent')
   const blockedByPending = order.status === 'pending'
+
+  const amountCents = Math.round((parseFloat(amountEuros.replace(',', '.')) || 0) * 100)
+  const overAmount = amountCents > remaining
 
   async function copy() {
     if (!link?.paymentUrl) return
@@ -1667,13 +1677,44 @@ function PaymentLinkBlock({ order, adminUser, onChanged }: { order: AdminOrder; 
   }
 
   async function generate() {
-    setErr(null); setWorking(true)
+    setErr(null)
+    // WEC-607: validate the admin-entered amount; over-amount needs an explicit tick.
+    if (amountCents <= 0) { setErr('Enter an amount greater than 0.'); return }
+    if (overAmount && !confirmOver) {
+      setErr(`Amount exceeds the remaining ${(remaining / 100).toFixed(2)} € — tick the box to confirm an extra charge.`)
+      return
+    }
+    setWorking(true)
     // firstTime distinguishes "sent" from "regenerated" in the timeline label.
-    const { error } = await sendPaymentLinkLogged(order.id, adminUser, !link)
+    const { error } = await sendPaymentLinkLogged(order.id, adminUser, !link, amountCents)
     setWorking(false)
     if (error) { setErr(error); return }
     onChanged()
   }
+
+  // WEC-607: shared amount input + send button (first link and "send another").
+  const amountControls = (btnLabel: string) => (
+    <div style={{ marginTop: 4 }}>
+      <label className="admin-form-label" style={{ fontSize: 12 }}>
+        Amount (€) · remaining {(remaining / 100).toFixed(2)} €
+      </label>
+      <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+        <input
+          className="admin-input" inputMode="decimal" value={amountEuros}
+          onChange={(e) => setAmountEuros(e.target.value)} style={{ width: 120 }}
+        />
+        <button className="admin-btn-primary" disabled={working} onClick={generate}>
+          {working ? 'Sending…' : btnLabel}
+        </button>
+      </div>
+      {overAmount && (
+        <label className="admin-recipe-selectable" style={{ marginTop: 6 }}>
+          <input type="checkbox" checked={confirmOver} onChange={(e) => setConfirmOver(e.target.checked)} />{' '}
+          Charge more than the remaining balance (extra charge on request)
+        </label>
+      )}
+    </div>
+  )
 
   return (
     <section className="admin-form-section">
@@ -1696,10 +1737,8 @@ function PaymentLinkBlock({ order, adminUser, onChanged }: { order: AdminOrder; 
             </>
           ) : canGenerate ? (
             <>
-              <p className="admin-text-muted" style={{ marginBottom: 8 }}>No payment link generated for this order yet.</p>
-              <button className="admin-btn-primary" disabled={working} onClick={generate}>
-                {working ? 'Generating…' : 'Generate payment link'}
-              </button>
+              <p className="admin-text-muted" style={{ marginBottom: 8 }}>Set the amount and send a payment link.</p>
+              {amountControls('Generate payment link')}
             </>
           ) : (
             <p className="admin-text-muted">No payment link for this order.</p>
@@ -1729,11 +1768,12 @@ function PaymentLinkBlock({ order, adminUser, onChanged }: { order: AdminOrder; 
               <button className="admin-btn-primary" onClick={copy}>{copied ? 'Copied! ✓' : 'Copy'}</button>
             </div>
           )}
-          {/* Regenerate is the SECONDARY action, and only while still collectable. */}
+          {/* WEC-607: send ANOTHER link (e.g. for the remaining balance) — links coexist. */}
           {canGenerate && (
-            <button className="admin-btn-ghost admin-btn-sm" disabled={working} onClick={generate}>
-              {working ? 'Regenerating…' : 'Regenerate link'}
-            </button>
+            <div style={{ marginTop: 4 }}>
+              <p className="admin-text-muted" style={{ fontSize: 12, marginBottom: 4 }}>Send another link (e.g. for the remaining balance):</p>
+              {amountControls('Send another link')}
+            </div>
           )}
           <p className="admin-text-muted" style={{ marginTop: 8, fontSize: 12 }}>
             Last verified: {link.lastVerifiedAt ? new Date(link.lastVerifiedAt).toLocaleString('en-GB') : 'never'}

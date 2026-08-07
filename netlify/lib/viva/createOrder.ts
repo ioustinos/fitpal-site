@@ -130,14 +130,12 @@ export async function createVivaOrder(args: CreateOrderArgs): Promise<CreateOrde
   }
   const paymentUrl = checkoutUrl(orderCode)
 
-  // Regenerate mode: fail any pending row for this order first.
-  if (args.regenerate) {
-    await supabase
-      .from('payment_links')
-      .update({ status: 'failure', updated_at: new Date().toISOString() })
-      .eq('order_id', args.orderId)
-      .eq('status', 'pending')
-  }
+  // WEC-607: links now COEXIST — a partial payment needs the older link(s) to
+  // stay live (e.g. €40 link paid, then a €41.91 link for the rest). We no
+  // longer auto-fail prior pending rows on regenerate; each generate is its own
+  // link for its own amount, and the payment ledger reconciles what's covered.
+  // (args.regenerate is retained for callers/log semantics but no longer voids
+  // earlier links.)
 
   const { error: insertErr } = await supabase.from('payment_links').insert({
     order_id: args.orderId,

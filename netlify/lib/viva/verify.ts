@@ -91,9 +91,12 @@ export async function verifyVivaTransaction(transactionId: string): Promise<Veri
     logVivaEvent(supabase, { source: 'return_verify', kind: 'order', orderCode, transactionId, statusId, outcome, payload: data, ...extra })
 
   // Look up our payment_links row by Viva orderCode.
+  // WEC-607: also read the link's amount — a link may be for LESS than the order
+  // total (partial payment), so we validate the captured amount against THIS
+  // link, not against orders.total.
   const { data: link } = await supabase
     .from('payment_links')
-    .select('order_id')
+    .select('order_id, amount')
     .eq('viva_order_code', orderCode)
     .maybeSingle()
 
@@ -117,19 +120,18 @@ export async function verifyVivaTransaction(transactionId: string): Promise<Veri
   const orderId = order.id as string
   const orderNumber = order.order_number as string
   const dbTotalCents = order.total as number
-  const amountCents = normalizeAmountCents(Number(data.amount), dbTotalCents)
+  // WEC-607: validate against what THIS link is for (may be a partial amount),
+  // falling back to the order total for legacy links with no stored amount.
+  const linkAmountCents = ((link as { amount: number | null }).amount ?? dbTotalCents) as number
+  const amountCents = normalizeAmountCents(Number(data.amount), linkAmountCents)
 
   // Always record last_verified_at + the observed status/tx — even on mismatch.
-  // WEC-606: ALSO maintain payment_links.status — it was written once at creation
-  // ('pending') and never updated, so every paid link still said 'pending'. It is
-  // now the ledger (a paid link = money collected), so keep it truthful:
-  // F=finished→success, E/X=error/cancel→failure, anything else stays pending.
-  const linkStatus: 'success' | 'failure' | 'pending' =
-    statusId === 'F' ? 'success' : (statusId === 'E' || statusId === 'X') ? 'failure' : 'pending'
+  // The link's `status` is set in the branches below (guarded), so that only the
+  // FIRST layer (return / webhook / reconcile) to see a finished payment credits
+  // it once (WEC-606/607).
   await supabase
     .from('payment_links')
     .update({
-      status: linkStatus,
       status_id: statusId,
       transaction_id: transactionId,
       last_verified_at: new Date().toISOString(),
@@ -138,26 +140,40 @@ export async function verifyVivaTransaction(transactionId: string): Promise<Veri
     .eq('viva_order_code', orderCode)
 
   if (statusId === 'F') {
-    if (amountCents !== dbTotalCents) {
-      // CRITICAL: never mark paid on amount mismatch. Log loudly.
+    if (amountCents !== linkAmountCents) {
+      // CRITICAL: never credit on amount mismatch (captured ≠ what the link was for).
       console.error(
-        '[viva-verify] AMOUNT MISMATCH orderId=%s orderCode=%s vivaCents=%d dbCents=%d',
-        orderId, orderCode, amountCents, dbTotalCents,
+        '[viva-verify] AMOUNT MISMATCH orderId=%s orderCode=%s vivaCents=%d linkCents=%d',
+        orderId, orderCode, amountCents, linkAmountCents,
       )
-      await log('mismatch', { orderId, amountCents, message: `viva=${amountCents} db=${dbTotalCents}` })
+      await log('mismatch', { orderId, amountCents, message: `viva=${amountCents} link=${linkAmountCents}` })
       return {
         status: 'mismatch',
         orderId, orderNumber, transactionId,
-        vivaCents: amountCents, dbCents: dbTotalCents,
+        vivaCents: amountCents, dbCents: linkAmountCents,
       }
     }
-    await markPaid(orderId, transactionId, amountCents)
+    // WEC-607: mark THIS link paid, guarded on pending so exactly one layer
+    // credits it; markPaid then decides full-vs-partial from the ledger.
+    const { data: flipped } = await supabase
+      .from('payment_links')
+      .update({ status: 'success', updated_at: new Date().toISOString() })
+      .eq('viva_order_code', orderCode)
+      .eq('status', 'pending')
+      .select('id')
+      .maybeSingle()
+    if (flipped) await markPaid(orderId, transactionId, amountCents)
     await log('paid', { orderId, amountCents })
     return { status: 'paid', orderId, orderNumber, amountCents, transactionId }
   }
 
   if (statusId === 'E' || statusId === 'X') {
     const reason = data.errorText ? `${statusId}: ${data.errorText}` : `statusId=${statusId}`
+    await supabase
+      .from('payment_links')
+      .update({ status: 'failure', updated_at: new Date().toISOString() })
+      .eq('viva_order_code', orderCode)
+      .eq('status', 'pending')
     await markFailed(orderId, transactionId, reason)
     await log('failed', { orderId, message: reason })
     return { status: 'failed', orderId, orderNumber, reason, transactionId }

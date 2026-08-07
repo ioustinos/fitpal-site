@@ -1053,7 +1053,7 @@ export async function refundOrder(
 
 // ─── Payment link (WEC-176) ──────────────────────────────────────────────
 
-export async function regenerateVivaPaymentLink(orderId: string): Promise<{ data: { orderCode: string; paymentUrl: string } | null; error: string | null }> {
+export async function regenerateVivaPaymentLink(orderId: string, amountCents?: number): Promise<{ data: { orderCode: string; paymentUrl: string } | null; error: string | null }> {
   const { data: session } = await supabase.auth.getSession()
   const token = session?.session?.access_token
   if (!token) return { data: null, error: 'Not authenticated' }
@@ -1064,7 +1064,8 @@ export async function regenerateVivaPaymentLink(orderId: string): Promise<{ data
       'Content-Type': 'application/json',
       Authorization: `Bearer ${token}`,
     },
-    body: JSON.stringify({ orderId }),
+    // WEC-607: pass the admin-chosen amount (cents); omitted → server uses total.
+    body: JSON.stringify(amountCents != null ? { orderId, amountCents } : { orderId }),
   })
   const json = await res.json().catch(() => ({}))
   if (!res.ok) return { data: null, error: (json as { error?: string }).error ?? `Regenerate failed (${res.status})` }
@@ -1082,18 +1083,20 @@ export async function sendPaymentLinkLogged(
   orderId: string,
   adminUser: string,
   firstTime: boolean,
+  amountCents?: number,
 ): Promise<{ data: { orderCode: string; paymentUrl: string } | null; error: string | null }> {
-  const res = await regenerateVivaPaymentLink(orderId)
+  const res = await regenerateVivaPaymentLink(orderId, amountCents)
   if (res.error || !res.data) return res
   // WEC-604: no hardcoded local time in the label — the feed's When column
-  // already shows the timestamp (and a baked-in time is wrong in any other tz).
+  // already shows the timestamp. WEC-607: state the link amount.
+  const amtLabel = amountCents != null ? ` — ${(amountCents / 100).toFixed(2)} €` : ''
   await writeChangeLog({
     orderId,
     tableName: 'payment_links',
     fieldName: 'payment_url',
     oldValue: null,
     newValue: res.data.orderCode,
-    label: firstTime ? 'Payment link sent' : 'Payment link regenerated',
+    label: (firstTime ? 'Payment link sent' : 'Payment link regenerated') + amtLabel,
     adminUser,
   })
   return res

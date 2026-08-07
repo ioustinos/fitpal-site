@@ -47,13 +47,17 @@ export default async (request: Request) => {
   const who = await assertAdmin(token)
   if ('error' in who) return Response.json({ error: who.error }, { status: who.status })
 
-  let body: { orderId?: string }
+  // WEC-607: the admin may set the link amount (cents). Absent → full order total.
+  let body: { orderId?: string; amountCents?: number }
   try {
     body = (await request.json()) as typeof body
   } catch {
     return Response.json({ error: 'Invalid JSON' }, { status: 400 })
   }
   if (!body.orderId) return Response.json({ error: 'orderId required' }, { status: 400 })
+  if (body.amountCents != null && (!Number.isInteger(body.amountCents) || body.amountCents <= 0)) {
+    return Response.json({ error: 'amountCents must be a positive integer (cents)' }, { status: 400 })
+  }
 
   // Pull order data needed by createVivaOrder — name/email are on orders row.
   const service = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY, {
@@ -73,11 +77,13 @@ export default async (request: Request) => {
   }
 
   const mode = order.payment_method === 'link' ? 'link' : 'card'
+  // WEC-607: admin-entered amount, default to the full order total.
+  const linkAmountCents = body.amountCents ?? (order.total as number)
 
   try {
     const result = await createVivaOrder({
       orderId: order.id as string,
-      amountCents: order.total as number,
+      amountCents: linkAmountCents,
       customerEmail: (order.customer_email as string) ?? '',
       customerFullName: (order.customer_name as string) ?? '',
       mode,
@@ -125,7 +131,8 @@ export default async (request: Request) => {
         first_name: linkFirstName,
         order_number: order.order_number,
         payment_url: result.paymentUrl,
-        total: (order.total as number) / 100,
+        // WEC-607: email states the LINK amount (may be partial), not order total.
+        total: linkAmountCents / 100,
         // camelCase (legacy / downstream)
         orderNumber: order.order_number,
         paymentUrl: result.paymentUrl,
