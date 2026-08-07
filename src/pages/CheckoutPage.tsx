@@ -410,10 +410,13 @@ export function CheckoutPage() {
         phone: prev.phone || user?.phone || '',
       }))
     } else if (user) {
+      // WEC-597: profile WINS over guest-typed values on mid-checkout login,
+      // falling back to whatever the guest typed only when the profile field is
+      // empty (so a field never ends up blank).
       setContact((prev) => ({
-        name: prev.name || user.name || '',
-        email: prev.email || user.email || '',
-        phone: prev.phone || user.phone || '',
+        name: user.name || prev.name || '',
+        email: user.email || prev.email || '',
+        phone: user.phone || prev.phone || '',
       }))
     } else {
       const guest = readGuestContact()
