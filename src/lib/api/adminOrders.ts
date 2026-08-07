@@ -113,6 +113,18 @@ export interface AdminOrder {
   changeLog: AdminChangeLogEntry[]
   /** WEC-171/176: Viva payment link (null for non-Viva orders). */
   paymentLink: AdminPaymentLink | null
+  /** WEC-606: derived payment ledger — actually-collected / remaining / refundable. */
+  payment: OrderPaymentSummary
+}
+
+/** WEC-606 — the one shared "how much was actually paid" answer
+ *  (from the order_payment_summary DB function). All money in cents. */
+export interface OrderPaymentSummary {
+  total: number
+  paid: number        // Σ paid-link amounts + Σ wallet debits + manual_paid_amount
+  refunded: number    // orders.refund_amount
+  remaining: number   // still to collect = total − paid + refunded
+  refundable: number  // can't refund more than collected = paid − refunded
 }
 
 /** WEC-171/176 — Viva payment link snapshot for the admin drawer. */
@@ -124,6 +136,8 @@ export interface AdminPaymentLink {
   status: 'pending' | 'success' | 'failure'
   paymentUrl: string | null
   lastVerifiedAt: string | null
+  /** WEC-606/607: what this link is for (cents). A paid link = that much collected. */
+  amount: number | null
   createdAt: string
   updatedAt: string
 }
@@ -245,12 +259,14 @@ export async function getAdminOrder(id: string): Promise<{ data: AdminOrder | nu
   const orderRes = await supabase.from('orders').select('*').eq('id', id).single()
   if (orderRes.error) return { data: null, error: orderRes.error.message }
 
-  const [cosRes, vuRes, logRes, plRes] = await Promise.all([
+  const [cosRes, vuRes, logRes, plRes, sumRes] = await Promise.all([
     supabase.from('child_orders').select('*').eq('order_id', id).order('delivery_date'),
     supabase.from('voucher_uses').select('*, vouchers(code)').eq('order_id', id),
     supabase.from('admin_change_log').select('*').eq('order_id', id).order('created_at', { ascending: false }).limit(50),
     // WEC-171/176 — most recent payment_links row for this order.
     supabase.from('payment_links').select('*').eq('order_id', id).order('updated_at', { ascending: false }).limit(1).maybeSingle(),
+    // WEC-606 — derived payment ledger (paid / remaining / refundable).
+    supabase.rpc('order_payment_summary', { p_order_id: id }),
   ])
   if (cosRes.error) return { data: null, error: cosRes.error.message }
 
@@ -329,6 +345,7 @@ export async function getAdminOrder(id: string): Promise<{ data: AdminOrder | nu
       status: 'pending' | 'success' | 'failure'
       payment_url: string | null
       last_verified_at: string | null
+      amount: number | null
       created_at: string
       updated_at: string
     }
@@ -340,15 +357,28 @@ export async function getAdminOrder(id: string): Promise<{ data: AdminOrder | nu
       status: plRow.status,
       paymentUrl: plRow.payment_url,
       lastVerifiedAt: plRow.last_verified_at,
+      amount: plRow.amount ?? null,
       createdAt: plRow.created_at,
       updatedAt: plRow.updated_at,
     }
   }
 
-  return { data: mapOrderRow(orderRes.data, childOrders, voucherUses, changeLog, paymentLink), error: null }
+  // WEC-606: order_payment_summary returns a single row (may arrive as an array).
+  const sumRow = (Array.isArray(sumRes.data) ? sumRes.data[0] : sumRes.data) as
+    | { total: number; paid: number; refunded: number; remaining: number; refundable: number }
+    | undefined
+  const payment: OrderPaymentSummary = {
+    total: sumRow?.total ?? (orderRes.data as { total?: number }).total ?? 0,
+    paid: sumRow?.paid ?? 0,
+    refunded: sumRow?.refunded ?? 0,
+    remaining: sumRow?.remaining ?? 0,
+    refundable: sumRow?.refundable ?? 0,
+  }
+
+  return { data: mapOrderRow(orderRes.data, childOrders, voucherUses, changeLog, paymentLink, payment), error: null }
 }
 
-function mapOrderRow(r: unknown, childOrders: AdminChildOrder[], voucherUses: AdminVoucherUse[], changeLog: AdminChangeLogEntry[], paymentLink: AdminPaymentLink | null = null): AdminOrder {
+function mapOrderRow(r: unknown, childOrders: AdminChildOrder[], voucherUses: AdminVoucherUse[], changeLog: AdminChangeLogEntry[], paymentLink: AdminPaymentLink | null = null, payment: OrderPaymentSummary | null = null): AdminOrder {
   const row = r as {
     id: string; order_number: string; user_id: string | null;
     customer_name: string | null; customer_email: string | null; customer_phone: string | null;
@@ -373,6 +403,9 @@ function mapOrderRow(r: unknown, childOrders: AdminChildOrder[], voucherUses: Ad
     createdAt: row.created_at, submittedAt: row.submitted_at ?? null, updatedAt: row.updated_at,
     childOrders, voucherUses, changeLog,
     paymentLink,
+    // List view doesn't fetch the summary — fall back to a total-only default
+    // (the drawer, which is what renders payment UI, always passes the real one).
+    payment: payment ?? { total: row.total, paid: 0, refunded: row.refund_amount ?? 0, remaining: row.total, refundable: 0 },
   }
 }
 
@@ -847,6 +880,20 @@ async function recomputeOrderTotals(orderId: string, adminUser: string = 'system
       orderId, tableName: 'orders', fieldName: 'total',
       oldValue: String(row.old_total), newValue: String(row.new_total), label: 'Total', adminUser,
     })
+    // WEC-606: if the total changed while money was already collected for a
+    // different amount, record a drift warning on the timeline (the drawer also
+    // shows a live banner). Fires only on a total change, so no spam.
+    const { data: sum } = await supabase.rpc('order_payment_summary', { p_order_id: orderId })
+    const s = (Array.isArray(sum) ? sum[0] : sum) as { paid: number } | undefined
+    const paid = s?.paid ?? 0
+    if (paid > 0 && paid !== row.new_total) {
+      await writeChangeLog({
+        orderId, tableName: 'orders', fieldName: 'payment_drift',
+        oldValue: String(paid), newValue: String(row.new_total),
+        label: `⚠ Payment drift — collected ${(paid / 100).toFixed(2)} €, order total now ${(row.new_total / 100).toFixed(2)} €`,
+        adminUser,
+      })
+    }
   }
   return { error: null }
 }
@@ -921,7 +968,8 @@ export async function refundOrder(
   reason: string = '',
 ): Promise<{ error: string | null }> {
   if (amountCents <= 0) return { error: 'Refund amount must be > 0' }
-  if (amountCents > order.total - (order.refundAmount ?? 0)) {
+  // WEC-608: ceiling is actually-collected − already-refunded, not order.total.
+  if (amountCents > order.payment.refundable) {
     return { error: 'Refund exceeds remaining refundable balance' }
   }
 
@@ -983,8 +1031,9 @@ export async function refundOrder(
   if (balErr) return { error: balErr.message }
 
   // Update orders.refund_amount + flip status if fully refunded.
+  // WEC-608: fully refunded ⇔ refunds ≥ actually collected, not ≥ order.total.
   const newRefund = (order.refundAmount ?? 0) + amountCents
-  const isFull = newRefund >= order.total
+  const isFull = newRefund >= order.payment.paid
   const updates: Record<string, unknown> = {
     refund_amount: newRefund,
     updated_at: new Date().toISOString(),

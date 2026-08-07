@@ -879,10 +879,35 @@ function OverviewTab({ order, adminUser, onChanged }: { order: AdminOrder; admin
           <dl className="admin-od-kv">
             <div><dt>Method</dt><dd className="admin-od-method">{order.paymentMethod ?? '—'}</dd></div>
             <div><dt>Status</dt><dd><PaymentBadge status={order.paymentStatus} /></dd></div>
+            {/* WEC-606: actually-collected + still-to-collect, from the payment ledger. */}
+            {order.payment.paid > 0 && (
+              <div><dt>Paid</dt><dd>{(order.payment.paid / 100).toFixed(2)} €</dd></div>
+            )}
             {(order.refundAmount ?? 0) > 0 && (
               <div><dt>Refunded</dt><dd>{((order.refundAmount ?? 0) / 100).toFixed(2)} €</dd></div>
             )}
+            {order.payment.remaining > 0 && order.payment.paid > 0 && (
+              <div><dt>Remaining</dt><dd>{(order.payment.remaining / 100).toFixed(2)} €</dd></div>
+            )}
           </dl>
+          {/* WEC-606: drift warning — collected money or an unpaid link no longer
+              matches the current order total (edited after payment / link sent). */}
+          {(() => {
+            const link = order.paymentLink
+            const unpaidLinkDrift = !!link && link.status === 'pending' && link.amount != null && link.amount !== order.total
+            const paidDrift = order.payment.paid > 0 && order.payment.paid !== order.total && order.paymentStatus !== 'refunded'
+            if (!unpaidLinkDrift && !paidDrift) return null
+            return (
+              <div className="admin-warn-banner" style={{ marginTop: 8 }}>
+                {unpaidLinkDrift && (
+                  <div>⚠ Unpaid link is for {((link!.amount ?? 0) / 100).toFixed(2)} €, but the order total is now {(order.total / 100).toFixed(2)} €.</div>
+                )}
+                {paidDrift && (
+                  <div>⚠ Collected {(order.payment.paid / 100).toFixed(2)} € but order total is {(order.total / 100).toFixed(2)} € ({order.payment.paid > order.total ? 'over' : 'short'} by {(Math.abs(order.payment.paid - order.total) / 100).toFixed(2)} €).</div>
+                )}
+              </div>
+            )
+          })()}
         </div>
 
         {/* Totals */}
@@ -1499,9 +1524,13 @@ function AddressTimeEditor({ child, orderId, adminUser, onDone, onCancel }: {
 }
 
 function RefundTab({ order, adminUser, onChanged }: { order: AdminOrder; adminUser: string; onChanged: () => void }) {
-  const remaining = order.total - (order.refundAmount ?? 0)
+  // WEC-608: the refund ceiling is what was ACTUALLY COLLECTED minus what's
+  // already refunded — NOT order.total (which drifts when items are edited after
+  // payment, making some of the customer's money unrefundable). refundable =
+  // paid − refunded, from the WEC-606 payment ledger.
+  const refundable = order.payment.refundable
   const canVivaRefund = !!order.paymentLink?.transactionId
-  const [amount, setAmount] = useState(remaining)
+  const [amount, setAmount] = useState(refundable)
   const [kind, setKind] = useState<RefundKind>(canVivaRefund ? 'viva' : 'wallet')
   const [reason, setReason] = useState<'legal' | 'kitchen_error' | 'customer_request' | 'other'>('customer_request')
   const [reasonText, setReasonText] = useState('')
@@ -1520,21 +1549,25 @@ function RefundTab({ order, adminUser, onChanged }: { order: AdminOrder; adminUs
     onChanged()
   }
 
-  if (order.paymentStatus === 'refunded') {
-    return <div className="admin-info-banner">This order is fully refunded ({((order.refundAmount ?? 0) / 100).toFixed(2)} €).</div>
+  // WEC-608: fully refunded ⇔ refunds ≥ collected (nothing left refundable),
+  // not payment_status alone.
+  if (order.paymentStatus === 'refunded' || refundable <= 0) {
+    return <div className="admin-info-banner">This order is fully refunded ({(order.payment.refunded / 100).toFixed(2)} € of {(order.payment.paid / 100).toFixed(2)} € collected).</div>
   }
 
   return (
     <div>
       {done && <div className="admin-info-banner">Refund issued.</div>}
       {err && <div className="admin-error-banner">{err}</div>}
+      {/* WEC-608: collected / refunded / remaining-refundable on one line, vs the
+          order total (which may differ if the order was edited after payment). */}
       <p className="admin-sub">
-        Total paid: {(order.total / 100).toFixed(2)} €
-        {(order.refundAmount ?? 0) > 0 && (
-          <>
-            {' · Already refunded: €'}{((order.refundAmount ?? 0) / 100).toFixed(2)}
-            {' · Remaining: €'}{(remaining / 100).toFixed(2)}
-          </>
+        Collected: {(order.payment.paid / 100).toFixed(2)} €
+        {' · Refunded: '}{(order.payment.refunded / 100).toFixed(2)} €
+        {' · Remaining refundable / Υπόλοιπο προς επιστροφή: '}
+        <strong>{(refundable / 100).toFixed(2)} €</strong>
+        {order.payment.paid !== order.total && (
+          <span> · order total {(order.total / 100).toFixed(2)} €</span>
         )}
       </p>
 
@@ -1586,7 +1619,7 @@ function RefundTab({ order, adminUser, onChanged }: { order: AdminOrder; adminUs
             disabled={
               working
               || amount <= 0
-              || amount > remaining
+              || amount > refundable
               || (kind === 'viva' && !canVivaRefund)
               || (kind === 'wallet' && !order.userId)
               || (reason === 'other' && !reasonText.trim())

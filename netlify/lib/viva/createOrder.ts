@@ -144,6 +144,10 @@ export async function createVivaOrder(args: CreateOrderArgs): Promise<CreateOrde
     viva_order_code: orderCode,
     payment_url: paymentUrl,
     status: 'pending',
+    // WEC-606/607: the amount this link is FOR. A paid link = that much collected,
+    // so the payment ledger (order_payment_summary) can sum it. Defaults to the
+    // amount the order was created for; WEC-607 lets the admin set it explicitly.
+    amount: args.amountCents,
   })
 
   if (insertErr) {

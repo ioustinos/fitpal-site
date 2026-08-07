@@ -65,15 +65,23 @@ export async function refundVivaTransaction(args: RefundArgs): Promise<RefundRes
     throw new Error('No Viva transaction found on this order — refund via wallet or mark manually')
   }
 
-  const totalCents = order.total as number
+  // WEC-608: the refund ceiling is what was ACTUALLY COLLECTED minus what's
+  // already refunded — NOT order.total (which drifts if the order was edited
+  // after payment, leaving some of the customer's money unrefundable). Derive
+  // "paid" from the WEC-606 payment ledger.
+  const { data: sumData } = await supabase.rpc('order_payment_summary', { p_order_id: args.orderId })
+  const summary = (Array.isArray(sumData) ? sumData[0] : sumData) as
+    | { paid: number; refunded: number; refundable: number }
+    | undefined
   const currentRefund = (order.refund_amount ?? 0) as number
-  const remaining = totalCents - currentRefund
-  if (remaining <= 0) throw new Error('Order has no refundable balance remaining')
+  const paidCents = summary?.paid ?? (order.total as number)
+  const refundableCents = summary?.refundable ?? Math.max(0, paidCents - currentRefund)
+  if (refundableCents <= 0) throw new Error('Order has no refundable balance remaining')
 
-  const refundCents = args.amountCents ?? remaining
+  const refundCents = args.amountCents ?? refundableCents
   if (!Number.isInteger(refundCents) || refundCents <= 0) throw new Error('Refund amount must be a positive integer (cents)')
-  if (refundCents > remaining) {
-    throw new Error(`Refund €${(refundCents / 100).toFixed(2)} exceeds remaining €${(remaining / 100).toFixed(2)}`)
+  if (refundCents > refundableCents) {
+    throw new Error(`Refund €${(refundCents / 100).toFixed(2)} exceeds refundable €${(refundableCents / 100).toFixed(2)}`)
   }
 
   // Call Viva refund via DELETE /api/transactions/{id}/ on the CHECKOUT host
@@ -107,7 +115,8 @@ export async function refundVivaTransaction(args: RefundArgs): Promise<RefundRes
   }
 
   const newTotalRefunded = currentRefund + refundCents
-  const isFullyRefunded = newTotalRefunded >= totalCents
+  // WEC-608: fully refunded ⇔ refunds ≥ actually collected, not ≥ order.total.
+  const isFullyRefunded = newTotalRefunded >= paidCents
 
   const updates: Record<string, unknown> = {
     refund_amount: newTotalRefunded,
