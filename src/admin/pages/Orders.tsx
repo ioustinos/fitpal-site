@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import { useAuthStore } from '../../store/useAuthStore'
 import {
   listAdminOrders, getAdminOrder,
@@ -156,6 +156,20 @@ export function Orders() {
     refreshDetail(id)
   }
   function closeDetail() { setSelectedId(null); setDetail(null) }
+
+  // WEC-601: deep link from the admin-notification email —
+  // /admin/orders?order=<id> opens that order's drawer on mount, then clears
+  // the param so a later close/refresh doesn't re-open it.
+  const [searchParams, setSearchParams] = useSearchParams()
+  useEffect(() => {
+    const oid = searchParams.get('order')
+    if (!oid) return
+    void openDetail(oid)
+    const next = new URLSearchParams(searchParams)
+    next.delete('order')
+    setSearchParams(next, { replace: true })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   // WEC-528: client-side Order Type filter (derived classification).
   const visibleOrders = filterType.length

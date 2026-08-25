@@ -33,20 +33,33 @@ function mapRow(r: Record<string, unknown>): OrderChangeRequest {
   }
 }
 
-/** Customer: submit a change request for one of their orders. */
+/** Customer: submit a change request for one of their orders.
+ *  WEC-601: creation is now SERVER-SIDE (/api/submit-change-request) so the
+ *  admin-notification email can't be skipped. The server validates that the
+ *  caller's JWT owns the order, inserts via the service role, and emails staff
+ *  (fail-soft). `userId` is kept for the caller's convenience but the server
+ *  derives the authoritative user id from the bearer token. */
 export async function createOrderChangeRequest(input: {
   orderId: string
   userId: string
   reason: OrderChangeReason
   message: string
 }): Promise<{ error: string | null }> {
-  const { error } = await supabase.from('order_change_requests').insert({
-    order_id: input.orderId,
-    user_id: input.userId,
-    reason: input.reason,
-    message: input.message.trim() || null,
-  })
-  return { error: error?.message ?? null }
+  const { data: session } = await supabase.auth.getSession()
+  const token = session?.session?.access_token
+  if (!token) return { error: 'Πρέπει να είσαι συνδεδεμένος για να υποβάλεις αίτημα.' }
+  try {
+    const res = await fetch('/api/submit-change-request', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ orderId: input.orderId, reason: input.reason, message: input.message }),
+    })
+    const json = (await res.json().catch(() => ({}))) as { error?: string }
+    if (!res.ok) return { error: json.error ?? `Request failed (${res.status})` }
+    return { error: null }
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : String(e) }
+  }
 }
 
 /** Customer: existing requests for a set of orders (to show "request pending"). */
