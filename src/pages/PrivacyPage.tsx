@@ -31,8 +31,8 @@ export function PrivacyPage() {
           <h2>{isEl ? '1. Ποιοι είμαστε' : '1. Who we are'}</h2>
           <p>
             {isEl
-              ? 'Η Fitpal είναι ελληνική επιχείρηση παρασκευής και διανομής ισορροπημένων γευμάτων με έδρα την Αθήνα. Η ιστοσελίδα order.fitpal.gr λειτουργεί ως πλατφόρμα παραγγελιοληψίας για τους πελάτες μας.'
-              : 'Fitpal is a Greek balanced-meals preparation and delivery business based in Athens. The site order.fitpal.gr is the ordering platform we operate for our customers.'}
+              ? 'Η Fitpal είναι ελληνική επιχείρηση παρασκευής και διανομής ισορροπημένων γευμάτων με έδρα την Αθήνα. Η ιστοσελίδα orders.fitpal.gr λειτουργεί ως πλατφόρμα παραγγελιοληψίας για τους πελάτες μας.'
+              : 'Fitpal is a Greek balanced-meals preparation and delivery business based in Athens. The site orders.fitpal.gr is the ordering platform we operate for our customers.'}
           </p>
         </section>
 

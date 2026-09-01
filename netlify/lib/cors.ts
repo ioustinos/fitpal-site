@@ -18,12 +18,12 @@ const ALLOWED_ORIGINS = new Set<string>([
   'http://localhost:5173',
   'https://dev--fitpal-order.netlify.app',
   'https://fitpal-order.netlify.app',
-  'https://order.fitpal.gr', // future production domain (cutover: WEC-306)
+  'https://orders.fitpal.gr', // production domain (WEC-306, live 2026-09-01)
 ])
 
 // Default echoed when the caller's Origin isn't allow-listed (or absent, e.g.
 // server-to-server). Production host is the safe default.
-const DEFAULT_ORIGIN = 'https://fitpal-order.netlify.app'
+const DEFAULT_ORIGIN = 'https://orders.fitpal.gr'
 
 // Netlify deploy-preview subdomains: deploy-preview-123--fitpal-order.netlify.app
 const PREVIEW_RE = /^https:\/\/[a-z0-9-]+--fitpal-order\.netlify\.app$/

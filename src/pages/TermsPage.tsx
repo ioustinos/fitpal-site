@@ -30,8 +30,8 @@ export function TermsPage() {
           <h2>{isEl ? '1. Αποδοχή των όρων' : '1. Acceptance of terms'}</h2>
           <p>
             {isEl
-              ? 'Με τη χρήση της πλατφόρμας order.fitpal.gr αποδέχεσαι τους παρόντες όρους. Αν δεν συμφωνείς, παρακαλούμε μη χρησιμοποιήσεις την υπηρεσία.'
-              : 'By using the order.fitpal.gr platform you accept these terms. If you do not agree, please do not use the service.'}
+              ? 'Με τη χρήση της πλατφόρμας orders.fitpal.gr αποδέχεσαι τους παρόντες όρους. Αν δεν συμφωνείς, παρακαλούμε μη χρησιμοποιήσεις την υπηρεσία.'
+              : 'By using the orders.fitpal.gr platform you accept these terms. If you do not agree, please do not use the service.'}
           </p>
         </section>
 

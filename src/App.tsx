@@ -106,7 +106,10 @@ export default function App() {
   // matching the production host (Netlify previews, local dev, custom
   // staging URLs) stays noindexed.
   useEffect(() => {
-    const PROD_HOST = 'fitpal-order.netlify.app'
+    // WEC-306: the production host is orders.fitpal.gr (note the PLURAL).
+    // fitpal-order.netlify.app deliberately stays noindexed so the .netlify.app
+    // copy can't compete with the real domain in search results.
+    const PROD_HOST = 'orders.fitpal.gr'
     if (typeof window === 'undefined') return
     const meta = document.querySelector('meta[name="robots"]')
     if (!meta) return
