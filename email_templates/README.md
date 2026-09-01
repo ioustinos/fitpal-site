@@ -1,141 +1,87 @@
-# Fitpal — Transactional emails setup
+# Fitpal — email templates
 
-Two providers, one job each:
+Last full rebuild: **2026-08-15** (agency redesign, Linear WEC-642).
 
-| Layer | Who fires it | Where the templates live |
-|---|---|---|
-| **Brevo** (via Supabase Auth SMTP) | Supabase Auth — `signInWithOtp`, `resetPasswordForEmail`, signup, email change | **Supabase Dashboard → Auth → Email Templates** |
-| **Klaviyo** | Our backend (`netlify/lib/klaviyo.ts` → `track('Order Placed', …)` etc) | **Klaviyo Dashboard → Templates** + **Flows** |
+## Don't hand-edit the HTML
 
-All HTML in this folder is **source-of-truth on disk**. If a Klaviyo or Supabase admin edits a template via the dashboard, copy their version back here.
+Templates are generated. Edit `build_templates.py`, then:
 
----
-
-## Brevo / Supabase Auth — paste guide (4 templates)
-
-Open **Supabase Dashboard → Auth → Email Templates** and paste each `.html` file in this folder into the matching template type:
-
-| File | Supabase template type | Notes |
-|---|---|---|
-| `supabase_auth/01_signup_confirmation.html` | **Confirm signup** | Uses `{{ .ConfirmationURL }}` |
-| `supabase_auth/02_magic_link_otp.html` | **Magic Link** AND **Email OTP** | Uses `{{ .Token }}` — same template for both since we show the code, not a link |
-| `supabase_auth/03_password_reset.html` | **Reset Password** | Uses `{{ .ConfirmationURL }}` |
-| `supabase_auth/04_email_change.html` | **Change Email Address** | Uses `{{ .ConfirmationURL }}` |
-
-**Language routing** — every template uses a Go-template conditional:
-
-```
-{{ if eq .UserMetaData.lang "el" }}
-  Ελληνικά block
-{{ else }}
-  English block
-{{ end }}
+```bash
+python3 build_templates.py     # reads the agency pack, writes ./out/
 ```
 
-For this to work, our client code passes `data: { lang }` on every Supabase Auth call. Already wired in `signInWithOtp` / `resetPasswordForEmail` / etc — see `src/lib/api/auth.ts`.
+The build gates on: unresolved `*-BASE` placeholders, unbalanced Liquid blocks, unbalanced `<table>/<tr>/<td>`, `|date:` filters, em-dash defaults on fields the backend doesn't send, untranslated Greek in EN output, and the expected `{% unsubscribe %}` count.
 
-**Brevo SMTP creds** — already configured in Supabase Dashboard → Auth → SMTP (per project memory `feedback_klaviyo_pitfalls.md`). Don't touch unless emails stop arriving.
+Source pack: the agency ZIP, extracted to `/tmp/fpnew` (override with `FITPAL_AGENCY_SRC`).
 
----
+## Layout
 
-## Klaviyo — already pushed
+| Folder | What |
+|---|---|
+| `out/` | **Build output — the source of truth.** 11 templates. |
+| `klaviyo/` | Mirror of what's live in Klaviyo. Copied from `out/`. |
+| `supabase_auth/` | Mirror of what's live in Supabase Auth. Copied from `out/`. |
+| `assets/` | 17 optimised images (heroes JPEG, rest PNG). Uploaded to Supabase Storage. |
+| `_backup_2026-08-14/` | **Rollback.** Live Klaviyo HTML as of 2026-08-14, before the redesign. |
 
-All 14 customer-facing templates are **already live in your Klaviyo workspace**. They were created via the Klaviyo MCP. Reference IDs:
+## Assets
 
-| Email | EL template ID | EN template ID |
-|---|---|---|
-| Order Confirmation | `SAvFw9` | `VJMqFY` |
-| Payment Link Sent | `UF5Qcf` | `VvXDGx` |
-| Order Refunded | `SzjrnU` | `UzC5M4` |
-| Order Cancelled | `Ughyuc` | `SB7bvY` |
-| Subscription Purchased | `XxNNci` | `XbgLEd` |
-| Wallet Credit Granted | `XW8zRt` | `XPujmy` |
+Public Supabase bucket `email-assets`:
+`https://rhwetztxwjxfstffalwl.supabase.co/storage/v1/object/public/email-assets/`
 
-Direct edit URL: `https://www.klaviyo.com/email-editor/{TEMPLATE_ID}/edit`
+Heroes are JPEG (agency shipped 1.5 MB PNGs — the set went 9.6 MB → 0.9 MB). Logo, stickers, icons and social remain PNG for transparency.
 
-**Existing "Order Confirmed" template (`WpaRis`, drag-and-drop)** is left untouched as a backup. Delete once you've verified the new templates render.
+## Klaviyo — how it actually works
 
----
+**A flow message does not use the library template.** Attaching a template makes Klaviyo take its own copy. Editing the library template afterwards changes nothing for customers. To change a live email you must edit the flow message's copy in the UI — the API returns 404 on those IDs.
 
-## Klaviyo Flows — still to configure
+Library templates are kept in sync anyway, as the staging source for UI copy-paste.
 
-Klaviyo flows route each event metric to an EL or EN template based on `event.lang`. For each event, create one flow with a conditional split:
-
-```
-Trigger: <Metric>
-  ↓
-Conditional split: event.lang
-  ├─ "el" → Email → <EL template>
-  └─ else → Email → <EN template>
-```
-
-| Metric (event name) | EL template | EN template | Status |
+| Email | Library ID (EL / EN) | Live flow message ID (EL / EN) | Flow |
 |---|---|---|---|
-| `Order Placed` | `SAvFw9` | `VJMqFY` | **Replace existing "Order Placed (Cash)" + "Order Placed (Bank)" flows with one unified flow with EL/EN split. The Order Confirmation template's payment-method conditional handles cash/bank/card/wallet internally.** |
-| `Order Refunded` | `SzjrnU` | `UzC5M4` | New flow |
-| `Order Cancelled` | `Ughyuc` | `SB7bvY` | New flow |
-| `Payment Link Sent` | `UF5Qcf` | `VvXDGx` | New flow |
-| `Subscription Purchased` | `XxNNci` | `XbgLEd` | New flow |
-| `Wallet Credit Granted` | `XW8zRt` | `XPujmy` | New flow |
+| Order confirmation | `SAvFw9` / `VJMqFY` | `TZbfHW` / `VUn9HN` | Order Placed `UnqvNz` |
+| Payment link sent | `UF5Qcf` / `VvXDGx` | `XnCYeM` / `TWddQN` | Payment Link Sent `TQCHs9` |
+| Order refunded | `SzjrnU` / `UzC5M4` | `TdJaRv` / `Ukhvx3` | Order Refunded `VnzjUB` |
+| Subscription purchased | `XxNNci` / `XbgLEd` | `SjpR42` / `UbCuQ6` | Subscription Purchased `Rk62UK` |
 
-Each flow's sender = `info@fitpal.gr` (account default — verified during template push).
+Flows split on `event.lang` — Greek on the Yes branch, English on No.
 
----
+**No new design:** Order Cancelled (`Ughyuc`/`SB7bvY`, flow `Wx3aGF`) and Wallet Credit Granted (`XW8zRt`/`XPujmy`, flow `QQrePR`) still run the June templates.
 
-## Backend trigger wiring — what's done vs TODO
+### Editing a live Klaviyo email
 
-**Already firing from code:**
-| Event | Site | lang status |
-|---|---|---|
-| `Order Placed` | `netlify/functions/submit-order.ts` | ✅ — reads `body.lang` (CheckoutPage passes it from `useUIStore.lang`) |
-| `Order Refunded` | `netlify/functions/viva-refund.ts` | ✅ — looks up `user_prefs.lang` |
-| `Subscription Purchased` (transfer path) | `netlify/functions/wallet-plan-purchase.ts` | ✅ — reads `body.lang` |
+1. Update the source → `python3 build_templates.py`
+2. Push `out/` to the library template ID via the API
+3. In the Klaviyo UI, open the flow message → Edit email → paste → Save
 
-**Not yet firing — wire in a follow-up session:**
-| Event | Should fire when | File to edit |
-|---|---|---|
-| `Subscription Purchased` (card/link path) | `verifyWalletPlanTransaction` flips to paid | `netlify/lib/wallet/verifyWalletPlanTransaction.ts` |
-| `Payment Link Sent` | Admin clicks "Regenerate link" | `netlify/functions/viva-regenerate-link.ts` |
-| `Order Cancelled` | Admin sets `status=cancelled` | `src/lib/api/adminOrders.ts` `setOrderStatus` (or a server fn behind it) |
-| `Wallet Credit Granted` | Admin grants credit in `/admin/wallets` | wherever the credit-grant button posts to |
+⚠️ **Editing a flow message strips its transactional status.** Re-apply per message: set status to Manual → tick "Apply for transactional status" → Submit for review → back to Live. Metric-triggered flows are auto-reviewed, ~24h.
 
-**WalletPage `lang` plumbing:** the `PurchaseBody` already accepts `lang`. WalletPage's `purchaseWalletPlan(...)` call needs `lang: useUIStore.getState().lang` added. Quick — single line.
+Set the Monaco/Ace editor value and click Save in **separate steps** — doing both in one go means React never registers the change and Save silently persists the old content.
 
----
+## Supabase Auth
 
-## Variables each Klaviyo template expects
+Brevo SMTP relays these. Settings: Authentication → Emails → SMTP Settings.
+Host `smtp-relay.brevo.com:587`, account `info@wecook.gr`, sends as `noreply@fitpal.gr`.
 
-The template HTML files in this folder are commented with the exact `event.X` variables required. Quick reference:
+| File | Supabase template |
+|---|---|
+| `supabase_auth/01_signup_confirmation.html` | Confirm sign up |
+| `supabase_auth/02_magic_link_otp.html` | Magic link or OTP |
+| `supabase_auth/03_password_reset.html` | Reset password |
+| `supabase_auth/04_email_change.html` | Change email address — **old design, not rebuilt** |
 
-### Order Placed
-`event.first_name`, `event.order_number`, `event.subtotal`, `event.discount_amount`, `event.total`, `event.payment_method`, `event.days[]` (`day_label_el`, `day_label_en`, `time_window`, `address`, `day_total`, `day_macros`, `items[]`), `event.bank_transfer_infos[]`, `event.lang`
+**Language switch changed.** The old templates used `{{ if eq .UserMetaData.lang "el" }}` with English in the `else`. `.UserMetaData` is undocumented — Supabase documents `{{ .Data }}`. If it never resolved, every Greek customer got English (see WEC-515). The rebuilt three use:
 
-### Order Refunded
-`event.order_number`, `event.order_total`, `event.refund_amount`, `event.cumulative_refund_amount`, `event.is_full_refund`, `event.reason`, `event.lang`
+```
+{{ if eq .Data.lang "en" }} …English… {{ else }} …Greek… {{ end }}
+```
 
-### Order Cancelled
-`event.order_number`, `event.total`, `event.payment_method`, `event.was_paid`, `event.reason`, `event.lang`
+English is now the explicit branch and **Greek the default**, so a failed accessor degrades to Greek. `04_email_change.html` still has the old pattern.
 
-### Payment Link Sent
-`event.order_number`, `event.total`, `event.payment_url`, `event.lang`
+## Known gaps
 
-### Subscription Purchased
-`event.first_name`, `event.plan_length_label`, `event.meals_per_week`, `event.amount_paid`, `event.bonus_credits`, `event.new_balance`, `event.lang`
-
-### Wallet Credit Granted
-`event.amount`, `event.bonus_expires_at`, `event.new_balance`, `event.reason`, `event.lang`
-
----
-
-## Testing each email
-
-1. **Klaviyo:** open any template in the editor → click "Preview & test" → paste event JSON (use the variables list above) → choose your email → "Send test" → check inbox.
-2. **Supabase Auth:** trigger a real signup / OTP / reset flow on `dev--fitpal-order.netlify.app` using a sandbox email. The Brevo dashboard logs every send.
-
----
-
-## Brand assets
-
-Logo URL used in all headers: `https://dev--fitpal-order.netlify.app/brand/on-dark-green.png`. Swap to a production URL when prod cutover happens.
-
-Brand colours (locked, from WEC-439): green `#004739` (header), neon-green `#00B96B` (CTA), cream `#F9F2E1` (body), lime `#CFD72B` (footer links), text `#1C2B1C`.
+- **Not sent by the backend:** `event.billing_name` / `billing_address` / `billing_mobile`, and the `*_formatted` currency strings. Rows are conditional, so they're hidden rather than showing em-dashes. → WEC-644
+- **`|date:` doesn't work in Klaviyo** on our ISO strings — returns empty, then trips `default`. `|format_date_string` is worse: it 400s the whole render. Send preformatted strings instead.
+- **Klaviyo strips the Google Fonts `<link>`** on ingest, so Geologica won't load. Recipients get the Arial fallback.
+- **Dev URL:** the subscription templates link to `dev--fitpal-order.netlify.app`. Change `SITE` in `build_templates.py` at prod cutover, rebuild, re-push.
+- **Parked, built but not wired:** 02 bank transfer standalone (needs a flow branch + de-dupe against 01), 06 renewal reminder (no auto-renewal event), 10 voucher campaign, 11 newsletter opt-in.
