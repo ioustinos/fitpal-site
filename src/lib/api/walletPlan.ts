@@ -19,6 +19,9 @@ export interface WalletPlanPurchaseInput extends WalletCalcInput {
   voucherCode?: string
   /** Customer display language — routes EL/EN Klaviyo Subscription Purchased template. */
   lang?: 'el' | 'en'
+  /** WEC-658: invoice details when Τιμολόγιο is chosen; the server rejects an
+   *  invoice without a name + valid Greek VAT. */
+  invoice?: { name: string; vat: string } | null
 }
 
 export type WalletPlanPurchaseResponse =

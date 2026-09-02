@@ -24,6 +24,7 @@ import { createWalletPlanVivaOrder } from '../lib/wallet/createWalletPlanOrder'
 import { track } from '../lib/klaviyo'
 import { corsHeaders } from '../lib/cors'
 import type { WalletCalcInput, PaymentMethod } from '../../src/lib/wallet/types'
+import { isValidGreekVat } from '../../src/lib/vat'
 
 const SUPABASE_URL = process.env.VITE_SUPABASE_URL ?? ''
 const SUPABASE_ANON_KEY = process.env.VITE_SUPABASE_ANON_KEY ?? ''
@@ -34,6 +35,9 @@ interface PurchaseBody extends WalletCalcInput {
   /** Customer display language — routes EL/EN Klaviyo template. */
   lang?: 'el' | 'en'
   voucherCode?: string
+  /** WEC-658: present only when the customer chose Τιμολόγιο. When present,
+   *  name + a valid 9-digit Greek VAT are mandatory (rejected otherwise). */
+  invoice?: { name?: string; vat?: string } | null
 }
 
 interface PurchaseResultCard {
@@ -353,5 +357,11 @@ function validateInput(b: PurchaseBody): string | null {
   if (!b.services || typeof b.services !== 'object') return 'services invalid'
   // WEC-554: cash (Αντικαταβολή) is now a valid subscription payment method.
   if (!['card','link','transfer','cash'].includes(b.paymentMethod)) return 'paymentMethod invalid (must be card|link|transfer|cash)'
+  // WEC-658: if an invoice was requested, name + valid Greek VAT are mandatory.
+  // A crafted request can't bypass the disabled UI submit button.
+  if (b.invoice) {
+    if (!b.invoice.name || !b.invoice.name.trim()) return 'invoice requires a company name (επωνυμία)'
+    if (!b.invoice.vat || !isValidGreekVat(b.invoice.vat)) return 'invoice requires a valid 9-digit Greek VAT (ΑΦΜ)'
+  }
   return null
 }

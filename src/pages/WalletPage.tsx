@@ -482,7 +482,11 @@ export function WalletPage() {
         }
       }
 
-      const { data, error } = await purchaseWalletPlan({ ...buildInput(), paymentMethod, lang })
+      const { data, error } = await purchaseWalletPlan({
+        ...buildInput(), paymentMethod, lang,
+        // WEC-658: send invoice details so the server enforces name + valid VAT.
+        invoice: wantInvoice ? { name: invoiceName.trim(), vat: invoiceVat } : null,
+      })
       if (error || !data) { setErrMsg(error ?? 'Purchase failed'); return }
 
       if (data.paymentMethod === 'transfer') {
