@@ -259,6 +259,8 @@ export function WalletPage() {
   // WEC-658: cash-on-delivery is capped (settings.cash_max_amount, default €500);
   // τιμολόγιο requires ΑΦΜ + επωνυμία. Both also enforced server-side.
   const cashMaxAmount = useMenuStore((s) => s.settings.cashMaxAmount)
+  // WEC-691: support address for the "didn't get a code" fallback.
+  const supportEmail = useMenuStore((s) => s.settings.contact.supportEmail) || 'info@fitpal.gr'
   const cashOverCap = result.amountToPay > cashMaxAmount
   const invoiceIncomplete =
     wantInvoice && (!invoiceName.trim() || invoiceVat.length !== 9 || !isValidGreekVat(invoiceVat))
@@ -275,6 +277,9 @@ export function WalletPage() {
   const [demoOpen, setDemoOpen] = useState(false)
   const [signupOpen, setSignupOpen] = useState(false)
   const [signupStep, setSignupStep] = useState<'identity' | 'verify'>('identity')
+  // WEC-691: rate-limit OTP resend to Supabase's 60s window, and drive the
+  // "Δεν έλαβες κωδικό;" fallback (shown once the cooldown elapses).
+  const [resendIn, setResendIn] = useState(0)
   const [suName, setSuName] = useState('')
   const [suEmail, setSuEmail] = useState('')
   const [suOtp, setSuOtp] = useState('')
@@ -285,6 +290,44 @@ export function WalletPage() {
   const [startDate, setStartDate] = useState<string | null>(null)
   const [indAddr, setIndAddr] = useState<IndicativeAddress>({ street: '', area: '', zip: '' })
   const [indAddrInZone, setIndAddrInZone] = useState(false)
+
+  // WEC-691: the OTP confirmation link reloads the page (fresh load), which
+  // would wipe the in-memory plan. Persist the plan inputs so the customer
+  // lands back on the wizard with their plan intact, not an empty form.
+  const WIZARD_KEY = 'fitpal_wizard_plan_v1'
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(WIZARD_KEY)
+      if (!raw) return
+      const s = JSON.parse(raw) as Record<string, unknown>
+      if (s.goal) setGoal(s.goal as Goal)
+      if (s.sex) setSex(s.sex as Sex)
+      if (typeof s.age === 'string') setAge(s.age)
+      if (typeof s.heightCm === 'string') setHeightCm(s.heightCm)
+      if (typeof s.weightKg === 'string') setWeightKg(s.weightKg)
+      if (s.activity) setActivity(s.activity as ActivityLevel)
+      if (s.meals) setMeals(s.meals as MealsSelection)
+      if (s.planLength) setPlanLength(s.planLength as PlanLength)
+      if (s.daysPerWeek) setDaysPerWeek(s.daysPerWeek as DaysPerWeek)
+      if (s.indAddr && typeof s.indAddr === 'object') setIndAddr(s.indAddr as IndicativeAddress)
+      if (typeof s.startDate === 'string') setStartDate(s.startDate)
+    } catch { /* corrupt / unavailable — ignore */ }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+  useEffect(() => {
+    try {
+      localStorage.setItem(WIZARD_KEY, JSON.stringify({
+        goal, sex, age, heightCm, weightKg, activity, meals, planLength, daysPerWeek, indAddr, startDate,
+      }))
+    } catch { /* quota / private mode — non-fatal */ }
+  }, [goal, sex, age, heightCm, weightKg, activity, meals, planLength, daysPerWeek, indAddr, startDate])
+
+  // WEC-691: tick down the resend cooldown.
+  useEffect(() => {
+    if (resendIn <= 0) return
+    const id = window.setInterval(() => setResendIn((s) => Math.max(0, s - 1)), 1000)
+    return () => window.clearInterval(id)
+  }, [resendIn > 0])
 
   /* Memoise the validity callback so the gate doesn't fire onValidityChange
      on every parent re-render. */
@@ -485,7 +528,21 @@ export function WalletPage() {
     const { ok, error } = await sendEmailOtp(suEmail.trim(), suName.trim())
     setBusy(false)
     if (!ok) { setErrMsg(error ?? 'Could not send code'); return }
+    setResendIn(60)
     setSignupStep('verify')
+  }
+
+  // WEC-691: real resend (was: just bounced back to the identity step),
+  // rate-limited to Supabase's 60s OTP window via `resendIn`.
+  async function handleSignupResend() {
+    if (resendIn > 0 || busy) return
+    setBusy(true)
+    setErrMsg(null)
+    const { ok, error } = await sendEmailOtp(suEmail.trim(), suName.trim())
+    setBusy(false)
+    if (!ok) { setErrMsg(error ?? 'Could not resend the code'); return }
+    setResendIn(60)
+    setSuOtp('')
   }
 
   async function handleSignupVerify() {
@@ -1361,9 +1418,31 @@ export function WalletPage() {
                     <button className="wpv2-signup-btn" onClick={handleSignupVerify} disabled={suOtp.length !== 6 || busy}>
                       {isEl ? 'Επαλήθευση & πληρωμή' : 'Verify & continue'}
                     </button>
-                    <button className="wpv2-signup-resend" type="button" onClick={() => setSignupStep('identity')}>
-                      {isEl ? 'Στείλε ξανά' : 'Resend'}
-                    </button>
+                    {resendIn > 0 ? (
+                      <div className="wpv2-signup-resend-wait">
+                        {isEl
+                          ? `Μπορείς να ζητήσεις νέο κωδικό σε ${resendIn}s`
+                          : `You can request a new code in ${resendIn}s`}
+                      </div>
+                    ) : (
+                      <div className="wpv2-signup-fallback">
+                        <span className="wpv2-signup-fallback-q">
+                          {isEl ? 'Δεν έλαβες κωδικό;' : "Didn't get the code?"}
+                        </span>
+                        <button
+                          className="wpv2-signup-resend"
+                          type="button"
+                          onClick={handleSignupResend}
+                          disabled={busy}
+                        >
+                          {isEl ? 'Στείλε ξανά' : 'Resend'}
+                        </button>
+                        <div className="wpv2-signup-support">
+                          {isEl ? 'Δες και τα ανεπιθύμητα, ή γράψε μας στο ' : 'Check your spam folder, or email us at '}
+                          <a href={`mailto:${supportEmail}`}>{supportEmail}</a>
+                        </div>
+                      </div>
+                    )}
                   </>
                 )}
               </div>

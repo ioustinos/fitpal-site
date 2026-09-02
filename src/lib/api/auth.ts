@@ -240,7 +240,13 @@ export async function sendEmailOtp(
   email: string,
   name?: string,
 ): Promise<{ ok: boolean; error?: string }> {
-  const emailRedirectTo = typeof window !== 'undefined' ? window.location.origin : undefined
+  // WEC-691: preserve the path + query (e.g. `/?view=subscription`) so the
+  // confirmation link returns the customer to the wizard they were in, not the
+  // bare menu. `origin` alone dropped everything after the host. (Hash omitted
+  // to keep the URL matching Supabase's redirect allow-list cleanly.)
+  const emailRedirectTo = typeof window !== 'undefined'
+    ? `${window.location.origin}${window.location.pathname}${window.location.search}`
+    : undefined
 
   // WEC-272: log the exact request shape so we can correlate the browser
   // request with what Supabase auth logs say (the auth-log `action` value
