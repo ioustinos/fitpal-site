@@ -787,6 +787,10 @@ export function CheckoutPage() {
     // Viva. Show confirmation with a soft warning; admin can regenerate
     // the payment link later (WEC-176).
     if (data?.paymentUrl && payment.method === 'card') {
+      // WEC-681: remember the order we're about to send to Viva, so if the
+      // customer cancels there and lands on /order/pending/failure we can
+      // revert it to draft — the retry then reuses the same row (no duplicate).
+      try { if (data.orderId) sessionStorage.setItem('fitpal_pending_viva_order', data.orderId) } catch { /* ignore */ }
       window.location.replace(data.paymentUrl)
       return
     }

@@ -69,6 +69,28 @@ export function OrderReturn({ mode }: Props) {
 
     if (!t) {
       if (mode === 'failure') {
+        // WEC-681: Viva's cancel return carries no `t`/merchantTrns — so we
+        // rely on the orderId we stashed before redirecting. Revert that
+        // abandoned order to draft so a retry reuses the same row instead of
+        // creating a duplicate, and void its outstanding link. Cart + draftId
+        // are intentionally left intact so the retry maps back to this row.
+        const pendingOrderId = (() => {
+          try { return sessionStorage.getItem('fitpal_pending_viva_order') } catch { return null }
+        })()
+        if (pendingOrderId) {
+          void (async () => {
+            try {
+              const { data: sess } = await supabase.auth.getSession()
+              const tok = sess?.session?.access_token
+              await fetch('/api/revert-order-to-draft', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', ...(tok ? { Authorization: `Bearer ${tok}` } : {}) },
+                body: JSON.stringify({ orderId: pendingOrderId }),
+              })
+            } catch { /* non-fatal — viva-reconcile backstops after 48h */ }
+            finally { try { sessionStorage.removeItem('fitpal_pending_viva_order') } catch { /* ignore */ } }
+          })()
+        }
         setOutcome({ status: 'failed', orderNumber: '', reason: params.get('eci') ?? 'cancelled' })
       } else {
         setOutcome({ status: 'unknown', message: 'Missing transaction reference' })
