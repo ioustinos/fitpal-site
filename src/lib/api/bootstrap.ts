@@ -104,6 +104,8 @@ export interface WireDish {
   nameEn: string
   descEl: string | null
   descEn: string | null
+  ingredientsEl: string | null
+  ingredientsEn: string | null
   imageUrl: string | null
   emoji: string | null
   discountPct: number | null
@@ -266,6 +268,8 @@ export function wireDishToDish(w: WireDish): Dish {
     nameEn: w.nameEn,
     descEl: w.descEl ?? undefined,
     descEn: w.descEn ?? undefined,
+    ingredientsEl: w.ingredientsEl ?? undefined,
+    ingredientsEn: w.ingredientsEn ?? undefined,
     catId: w.categoryId,
     tags: w.tagIds.length > 0 ? w.tagIds : undefined,
     discount: w.discountPct ?? undefined,

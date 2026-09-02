@@ -98,7 +98,8 @@ export function DishModal() {
   const finalPrice = basePrice
 
   const name = lang === 'el' ? dish.nameEl : dish.nameEn
-  const desc = lang === 'el' ? dish.descEl : dish.descEn
+  // WEC-660: prefer ingredients over the description when present (fallback to desc).
+  const desc = lang === 'el' ? (dish.ingredientsEl ?? dish.descEl) : (dish.ingredientsEn ?? dish.descEn)
   const macros = variant.macros
 
   // Is the day this modal was opened in still orderable?

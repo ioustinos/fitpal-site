@@ -85,7 +85,8 @@ export function DishCard({ dish, dayIndex }: DishCardProps) {
   const macros = preselectedVariant.macros
   const macrosDisplay = settings.macrosDisplay
   const name = lang === 'el' ? dish.nameEl : dish.nameEn
-  const desc = lang === 'el' ? dish.descEl : dish.descEn
+  // WEC-660: prefer ingredients over the description when present (fallback to desc).
+  const desc = lang === 'el' ? (dish.ingredientsEl ?? dish.descEl) : (dish.ingredientsEn ?? dish.descEn)
 
   function handleAdd(e: React.MouseEvent) {
     e.stopPropagation()

@@ -35,6 +35,8 @@ export interface AdminDish {
   nameEn: string
   descEl: string
   descEn: string
+  ingredientsEl: string
+  ingredientsEn: string
   imageUrl: string | null
   emoji: string | null
   discountPct: number
@@ -143,7 +145,7 @@ export async function fetchAdminDishes(): Promise<{ data: AdminDish[] | null; er
   const dishes: AdminDish[] = (dishesRes.data ?? []).map((d) => {
     const r = d as {
       id: string; category_id: string; name_el: string; name_en: string | null;
-      desc_el: string | null; desc_en: string | null; image_url: string | null; emoji: string | null;
+      desc_el: string | null; desc_en: string | null; ingredients_el: string | null; ingredients_en: string | null; image_url: string | null; emoji: string | null;
       discount_pct: number | null; active: boolean; created_at: string; updated_at: string;
       preview_cal: number; preview_pro: number; preview_carb: number; preview_fat: number;
       external_id: string | null;
@@ -156,6 +158,8 @@ export async function fetchAdminDishes(): Promise<{ data: AdminDish[] | null; er
       nameEn: r.name_en ?? '',
       descEl: r.desc_el ?? '',
       descEn: r.desc_en ?? '',
+      ingredientsEl: r.ingredients_el ?? '',
+      ingredientsEn: r.ingredients_en ?? '',
       imageUrl: r.image_url,
       emoji: r.emoji,
       discountPct: r.discount_pct ?? 0,
@@ -227,6 +231,8 @@ interface SaveDishInput {
   nameEn: string
   descEl: string
   descEn: string
+  ingredientsEl: string
+  ingredientsEn: string
   imageUrl: string | null
   emoji: string | null
   discountPct: number
@@ -262,6 +268,8 @@ export async function saveDish(input: SaveDishInput): Promise<{ data: { id: stri
     name_en: input.nameEn,
     desc_el: input.descEl || null,
     desc_en: input.descEn || null,
+    ingredients_el: input.ingredientsEl || null,
+    ingredients_en: input.ingredientsEn || null,
     image_url: input.imageUrl,
     emoji: input.emoji || null,
     discount_pct: input.discountPct,

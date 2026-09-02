@@ -30,6 +30,9 @@ export interface Dish {
   nameEn: string
   descEl?: string
   descEn?: string
+  /** WEC-660: recipe ingredients; shown in place of desc when set. */
+  ingredientsEl?: string
+  ingredientsEn?: string
   catId: string
   tags?: string[]
   discount?: number

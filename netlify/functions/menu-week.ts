@@ -50,6 +50,8 @@ interface WireDish {
   nameEn: string
   descEl: string | null
   descEn: string | null
+  ingredientsEl: string | null
+  ingredientsEn: string | null
   imageUrl: string | null
   emoji: string | null
   discountPct: number | null
@@ -95,6 +97,8 @@ interface DbDish {
   name_en: string
   desc_el: string | null
   desc_en: string | null
+  ingredients_el: string | null
+  ingredients_en: string | null
   image_url: string | null
   emoji: string | null
   discount_pct: number | null
@@ -206,7 +210,7 @@ export const handler: Handler = async (event) => {
       supabase
         .from('dishes')
         .select(
-          'id, category_id, name_el, name_en, desc_el, desc_en, image_url, emoji, discount_pct, active, preview_cal, preview_pro, preview_carb, preview_fat, variant_ux_mode',
+          'id, category_id, name_el, name_en, desc_el, desc_en, ingredients_el, ingredients_en, image_url, emoji, discount_pct, active, preview_cal, preview_pro, preview_carb, preview_fat, variant_ux_mode',
         )
         .in('id', dishIds)
         .eq('active', true),
@@ -267,6 +271,8 @@ export const handler: Handler = async (event) => {
       nameEn: d.name_en,
       descEl: d.desc_el,
       descEn: d.desc_en,
+      ingredientsEl: d.ingredients_el,
+      ingredientsEn: d.ingredients_en,
       imageUrl: d.image_url,
       emoji: d.emoji,
       discountPct: d.discount_pct,
