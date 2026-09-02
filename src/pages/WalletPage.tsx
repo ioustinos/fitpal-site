@@ -256,6 +256,16 @@ export function WalletPage() {
 
   /* ── Payment method (default card; transfer shows bank info) ─ */
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('card')
+  // WEC-658: cash-on-delivery is capped (settings.cash_max_amount, default €500);
+  // τιμολόγιο requires ΑΦΜ + επωνυμία. Both also enforced server-side.
+  const cashMaxAmount = useMenuStore((s) => s.settings.cashMaxAmount)
+  const cashOverCap = result.amountToPay > cashMaxAmount
+  const invoiceIncomplete =
+    wantInvoice && (!invoiceName.trim() || invoiceVat.length !== 9 || !isValidGreekVat(invoiceVat))
+  // If the plan grows past the cap while cash is selected, fall back to card.
+  useEffect(() => {
+    if (paymentMethod === 'cash' && cashOverCap) setPaymentMethod('card')
+  }, [paymentMethod, cashOverCap])
 
   /* ── Inline signup state ───────────────────────────────────── */
   // WEC-338: collapsed from 3 steps to 2 — phone is collected on the
@@ -377,6 +387,19 @@ export function WalletPage() {
 
   /** Fire the real /api/wallet-plan-purchase call. Assumes a session exists. */
   async function startPurchase(opts: { skipQuoteCheck?: boolean } = {}) {
+    // WEC-658: last-line client guards (server enforces these too).
+    if (paymentMethod === 'cash' && cashOverCap) {
+      setErrMsg(isEl
+        ? `Η αντικαταβολή δεν είναι διαθέσιμη για ποσά άνω των ${cashMaxAmount}€.`
+        : `Cash on delivery isn't available for amounts over €${cashMaxAmount}.`)
+      return
+    }
+    if (invoiceIncomplete) {
+      setErrMsg(isEl
+        ? 'Για τιμολόγιο, συμπλήρωσε επωνυμία και έγκυρο 9ψήφιο ΑΦΜ.'
+        : 'For an invoice, enter a company name and a valid 9-digit VAT number.')
+      return
+    }
     setBusy(true)
     setErrMsg(null)
     try {
@@ -1147,20 +1170,32 @@ export function WalletPage() {
             <div className="wpv2-paymethods">
               <div className="wpv2-paymethods-label">{isEl ? 'Τρόποι πληρωμής' : 'Payment methods'}</div>
               <div className="wpv2-paymethods-grid">
-                {(['card','cash','transfer','link'] as PaymentMethod[]).map((pm) => (
+                {/* WEC-658: «Link πληρωμής αργότερα» removed from the customer
+                    subscription view (admins still send links via the order tools). */}
+                {(['card','cash','transfer'] as PaymentMethod[]).map((pm) => (
                   <button
                     key={pm}
                     type="button"
                     className={`wpv2-paymethod${paymentMethod === pm ? ' sel' : ''}`}
                     onClick={() => setPaymentMethod(pm)}
+                    disabled={pm === 'cash' && cashOverCap}
+                    title={pm === 'cash' && cashOverCap
+                      ? (isEl ? `Μη διαθέσιμη άνω των ${cashMaxAmount}€` : `Unavailable over €${cashMaxAmount}`)
+                      : undefined}
                   >
                     {pm === 'card'     && (isEl ? 'Χρεωστική/πιστωτική κάρτα' : 'Debit/credit card')}
                     {pm === 'cash'     && (isEl ? 'Αντικαταβολή'             : 'Cash on delivery')}
                     {pm === 'transfer' && (isEl ? 'Τραπεζική κατάθεση'       : 'Bank transfer')}
-                    {pm === 'link'     && (isEl ? 'Link πληρωμής αργότερα'   : 'Payment link later')}
                   </button>
                 ))}
               </div>
+              {cashOverCap && (
+                <div className="wpv2-paymethods-hint">
+                  {isEl
+                    ? `Η αντικαταβολή δεν είναι διαθέσιμη για ποσά άνω των ${cashMaxAmount}€.`
+                    : `Cash on delivery isn't available for amounts over €${cashMaxAmount}.`}
+                </div>
+              )}
               {paymentMethod === 'cash' && (
                 <div className="wpv2-paymethods-hint">
                   {isEl

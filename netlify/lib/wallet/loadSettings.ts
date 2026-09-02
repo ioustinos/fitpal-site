@@ -49,6 +49,8 @@ export interface FullWalletConfig {
   servicesCatalog: ServiceCatalogItem[]
   /** Minimum total (cents) for a wallet purchase */
   minAmountCents: number
+  /** WEC-658: cash-on-delivery disabled above this total (cents); default €500. */
+  cashMaxCents: number
   /** Bank wire details shown on the transfer-payment success overlay */
   bankTransferInfo: BankTransferInfo
 }
@@ -84,6 +86,7 @@ export async function loadWalletConfig(opts: { force?: boolean } = {}): Promise<
       'wallet_voucher_enabled',
       'wallet_services_catalog',
       'wallet_min_amount_cents',
+      'cash_max_amount',
       'bank_transfer_info',
     ])
 
@@ -115,6 +118,7 @@ export async function loadWalletConfig(opts: { force?: boolean } = {}): Promise<
     voucherEnabled:   (map.get('wallet_voucher_enabled')   as boolean)                 ?? true,
     servicesCatalog:  (map.get('wallet_services_catalog')  as ServiceCatalogItem[])    ?? [],
     minAmountCents:   (map.get('wallet_min_amount_cents')  as number)                  ?? 3000,
+    cashMaxCents:     (map.get('cash_max_amount')          as number)                  ?? 50000,
     // WEC-260: bank_transfer_info is now an array of up to 5 entries.
     // Wallet-plan-purchase only renders one IBAN on its success overlay,
     // so we always pick the first valid entry. Falls back to a placeholder
@@ -237,6 +241,7 @@ function defaultConfig(): FullWalletConfig {
     voucherEnabled: true,
     servicesCatalog: [],
     minAmountCents: 3000,
+    cashMaxCents: 50000,
     bankTransferInfo: { iban: '', beneficiary: '' },
   }
 }

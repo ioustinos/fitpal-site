@@ -117,6 +117,7 @@ export const useMenuStore = create<MenuStore>((set, get) => ({
     pickupLocations: [],
     variantPillThreshold: 4,
     timeSlots: [],
+    cashMaxAmount: 500,
   },
   dietCatalog: null,
   isLoading: false,

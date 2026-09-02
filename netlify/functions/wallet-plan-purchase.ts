@@ -128,6 +128,13 @@ export default async (request: Request) => {
         error: `Payment method ${body.paymentMethod} not allowed for wallet purchases`,
       }, { status: 400, headers: cors })
     }
+    // WEC-658: cash-on-delivery capped — the courier can't carry unlimited cash.
+    // Enforced here so a crafted request can't bypass the disabled UI button.
+    if (body.paymentMethod === 'cash' && chargeCents > config.cashMaxCents) {
+      return Response.json({
+        error: `Cash on delivery is not available for amounts over €${(config.cashMaxCents / 100).toFixed(0)}`,
+      }, { status: 400, headers: cors })
+    }
 
     // 5. Persist profile fields (sex/birth_year/h/w/activity/goal)
     const currentYear = new Date().getFullYear()

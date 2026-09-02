@@ -134,6 +134,12 @@ export interface AppSettings {
    * start → latest end) from this instead of hardcoding "9:00–15:00".
    */
   timeSlots: string[]
+  /**
+   * WEC-658: cash-on-delivery is disabled once the order/plan total exceeds
+   * this amount (euros). Stored in settings.cash_max_amount (cents); default
+   * €500. Enforced client-side (disable + reason) and server-side.
+   */
+  cashMaxAmount: number
 }
 
 const ALL_METHODS: PaymentMethodId[] = ['cash', 'card', 'link', 'transfer', 'wallet']
@@ -160,6 +166,7 @@ const DEFAULTS: AppSettings = {
   pickupLocations: [],
   variantPillThreshold: 4,
   timeSlots: [],
+  cashMaxAmount: 500,
 }
 
 // ─── Query ──────────────────────────────────────────────────────────────────
@@ -324,6 +331,10 @@ export async function fetchSettings(): Promise<{ data: AppSettings; error: strin
     ? (rawSlots as unknown[]).filter((s): s is string => typeof s === 'string')
     : []
 
+  // cash_max_amount — cents in DB; euros in AppSettings. WEC-658.
+  const cashMaxAmount =
+    typeof map.cash_max_amount === 'number' ? map.cash_max_amount / 100 : DEFAULTS.cashMaxAmount
+
   return {
     data: {
       minOrder: typeof map.min_order === 'number' ? map.min_order / 100 : DEFAULTS.minOrder,
@@ -338,6 +349,7 @@ export async function fetchSettings(): Promise<{ data: AppSettings; error: strin
       pickupLocations,
       variantPillThreshold,
       timeSlots,
+      cashMaxAmount,
     },
     error: null,
   }
