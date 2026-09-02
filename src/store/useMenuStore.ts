@@ -116,6 +116,7 @@ export const useMenuStore = create<MenuStore>((set, get) => ({
     macrosDisplay: 'numbers',
     pickupLocations: [],
     variantPillThreshold: 4,
+    timeSlots: [],
   },
   dietCatalog: null,
   isLoading: false,

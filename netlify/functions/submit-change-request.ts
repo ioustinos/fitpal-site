@@ -78,7 +78,7 @@ const mailer = nodemailer.createTransport({
 
 async function sendAdminMail(to: string[], subject: string, html: string): Promise<boolean> {
   try {
-    await mailer.sendMail({ from: '"Fitpal" <noreply@fitpal.gr>', to: to.join(','), subject, html })
+    await mailer.sendMail({ from: '"Fitpal" <info@fitpal.gr>', to: to.join(','), subject, html })
     return true
   } catch (e) {
     console.error('[change-request] brevo smtp send failed:', e)

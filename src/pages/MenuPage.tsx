@@ -3,6 +3,7 @@ import { useUIStore } from '../store/useUIStore'
 import { useCartStore, reconcileCartAgainstMenu, reconcileCartAgeAndDates } from '../store/useCartStore'
 import { useAuthStore } from '../store/useAuthStore'
 import { useMenuStore } from '../store/useMenuStore'
+import { deliveryHoursRange } from '../lib/helpers'
 import { DayNav } from '../components/menu/DayNav'
 import { CategoryFilter } from '../components/menu/CategoryFilter'
 import { CutoffBar } from '../components/menu/CutoffBar'
@@ -48,6 +49,13 @@ export function MenuPage() {
   const isLoading = useMenuStore((s) => s.isLoading)
   const menuError = useMenuStore((s) => s.error)
   const loadMenu = useMenuStore((s) => s.load)
+  // WEC-676: banner minimum-order must reflect settings.min_order (the DB rule
+  // checkout + server already enforce), not a hardcoded €15.
+  const minOrder = useMenuStore((s) => s.settings.minOrder)
+  // WEC-676: banner delivery hours derive from settings.time_slots (earliest
+  // start → latest end), not a hardcoded range. Falls back if none configured.
+  const timeSlots = useMenuStore((s) => s.settings.timeSlots)
+  const hoursRange = deliveryHoursRange(timeSlots) ?? '09:00–15:00'
 
   useEffect(() => { loadMenu() }, [loadMenu])
 
@@ -178,8 +186,14 @@ export function MenuPage() {
                   </div>
                   <div className="banner-pills">
                     <div className="banner-pill">{weekWord} {dateRange}</div>
-                    <div className="banner-pill green">{t('pillMin')}</div>
-                    <div className="banner-pill">{t('pillDelivery')}</div>
+                    <div className="banner-pill green">
+                      {lang === 'el'
+                        ? `Ελάχιστη παραγγελία ${minOrder} €`
+                        : `Minimum order ${minOrder} €`}
+                    </div>
+                    <div className="banner-pill">
+                      {lang === 'el' ? `Παράδοση ${hoursRange}` : `Delivery ${hoursRange}`}
+                    </div>
                   </div>
                 </div>
 
@@ -247,7 +261,7 @@ export function MenuPage() {
                       </div>
                       <h3 className="sub-promo-headline">
                         {lang === 'el' ? (
-                          <>Φάγε για τον<br /><em>στόχο σου</em>.</>
+                          <>Φάε για τον<br /><em>στόχο σου</em>.</>
                         ) : (
                           <>Eat for your<br /><em>goal</em>.</>
                         )}

@@ -307,8 +307,15 @@ export function CheckoutPage() {
       zip: del?.zip ?? null,
       pickupLocationId: del?.pickupLocationId ?? null,
     }
+    // WEC-676: a zone can raise the minimum above the global default. Once the
+    // customer has entered an address we resolve that zone and use its minimum,
+    // so the per-day warning matches the number the server actually enforces.
+    const dayZone = resolveZone(del?.zip ?? undefined, zones)
+    const dayMinCents = dayZone?.minOrderAmount != null
+      ? dayZone.minOrderAmount
+      : Math.round(minOrder * 100)
     const ctx: DayValidationCtx = {
-      minOrderCents: Math.round(minOrder * 100),
+      minOrderCents: dayMinCents,
       pickupLocationCount: pickupLocations.length,
       zipInZone: (zip) => zipInZone(zip, zones),
       slotInZone, // WEC-525

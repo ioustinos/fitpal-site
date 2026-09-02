@@ -41,7 +41,7 @@ const STR = {
   lAbout: ['About Us', 'Η Ομάδα μας'] as Tuple,
   lFaq:   ['FAQ', 'Συχνές Ερωτήσεις'] as Tuple,
   lTerms: ['Terms & Privacy', 'Όροι Χρήσης & Πολιτική Απορρήτου'] as Tuple,
-  hours:  ['Delivery hours: Mon–Fri · 09:00–13:00', 'Ώρες Delivery: Δευτ–Παρ · 09:00–13:00'] as Tuple,
+  hours:  ['Delivery hours: Mon–Fri · 09:00–15:00', 'Ώρες Delivery: Δευτ–Παρ · 09:00–15:00'] as Tuple,
   rights: ['© 2025 Fitpal Meals. All rights reserved.', '© 2025 Fitpal Meals. Με επιφύλαξη παντός δικαιώματος.'] as Tuple,
   made:   ['Made in Athens', 'Made in Athens'] as Tuple,
 };

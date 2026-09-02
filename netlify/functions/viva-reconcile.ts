@@ -282,10 +282,10 @@ export default async (request?: Request) => {
     // exactly who flipped them. Best-effort; failure to log doesn't undo.
     try {
       await supabase.from('admin_change_log').insert([
-        { table_name: 'orders', row_id: cand.id, field_name: 'status',
+        { table_name: 'orders', order_id: cand.id, field_name: 'status',
           old_value: 'pending', new_value: 'cancelled',
           label: 'reconcile-orphan-timeout', admin_user: 'system_reconcile' },
-        { table_name: 'orders', row_id: cand.id, field_name: 'payment_status',
+        { table_name: 'orders', order_id: cand.id, field_name: 'payment_status',
           old_value: 'pending', new_value: 'failed',
           label: 'reconcile-orphan-timeout', admin_user: 'system_reconcile' },
       ])

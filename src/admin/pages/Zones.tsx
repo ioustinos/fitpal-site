@@ -69,6 +69,20 @@ export function Zones() {
                   {z.postcodes.length} codes · {z.timeSlots.length} slots
                   {!z.active && <> · <em>inactive</em></>}
                 </div>
+                {/* WEC-670: an active zone with zero ACTIVE slots is a silent
+                    dead end — customers there clear the postcode check but
+                    can't pick a delivery window. Flag it so it can't recur. */}
+                {z.active && z.timeSlots.filter((s) => s.active).length === 0 && (
+                  <div
+                    className="admin-zone-item-warn"
+                    style={{
+                      color: '#dc2626', fontWeight: 700, fontSize: 11,
+                      marginTop: 3, textTransform: 'uppercase', letterSpacing: '0.03em',
+                    }}
+                  >
+                    No active slots — customers can’t order
+                  </div>
+                )}
               </button>
             ))}
             <div className="admin-inline-form" style={{ padding: 10 }}>

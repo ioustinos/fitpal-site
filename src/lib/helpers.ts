@@ -163,6 +163,28 @@ export const zoneByPostcode = (postcode: string, zones: DeliveryZone[]): Deliver
 export const zipInZone = (zip: string | undefined, zones: DeliveryZone[]): boolean =>
   !!resolveZone(zip, zones)
 
+/**
+ * WEC-676: derive a display range like "09:00–15:00" from `settings.time_slots`
+ * ("09:00-11:00", …, "13:00-15:00") — earliest start → latest end. Returns null
+ * when there are no parseable slots so the caller can fall back. The banner uses
+ * this so the advertised hours always match the windows the DB actually offers.
+ */
+export const deliveryHoursRange = (slots: string[]): string | null => {
+  const pad = (t: string) => (t.length === 4 ? `0${t}` : t) // "9:00" → "09:00"
+  const starts: string[] = []
+  const ends: string[] = []
+  for (const s of slots) {
+    const m = /^(\d{1,2}:\d{2})\s*[-–]\s*(\d{1,2}:\d{2})$/.exec(s.trim())
+    if (!m) continue
+    starts.push(pad(m[1]))
+    ends.push(pad(m[2]))
+  }
+  if (!starts.length || !ends.length) return null
+  const minStart = starts.reduce((a, b) => (a <= b ? a : b))
+  const maxEnd = ends.reduce((a, b) => (a >= b ? a : b))
+  return `${minStart}–${maxEnd}`
+}
+
 // ─── Time slots (loaded from Supabase via useMenuStore) ───────────────────────
 
 /** Minutes-since-midnight from a "H:MM" / "HH:MM[:SS]" time string. */

@@ -128,6 +128,12 @@ export interface AppSettings {
    * from /admin/menu-options (Settings split — WEC-274 child).
    */
   variantPillThreshold: number
+  /**
+   * Default delivery windows as "HH:MM-HH:MM" strings (settings.time_slots).
+   * WEC-676: the menu banner derives its displayed hours range (earliest
+   * start → latest end) from this instead of hardcoding "9:00–15:00".
+   */
+  timeSlots: string[]
 }
 
 const ALL_METHODS: PaymentMethodId[] = ['cash', 'card', 'link', 'transfer', 'wallet']
@@ -153,6 +159,7 @@ const DEFAULTS: AppSettings = {
   macrosDisplay: 'numbers',
   pickupLocations: [],
   variantPillThreshold: 4,
+  timeSlots: [],
 }
 
 // ─── Query ──────────────────────────────────────────────────────────────────
@@ -310,6 +317,13 @@ export async function fetchSettings(): Promise<{ data: AppSettings; error: strin
       ? Math.max(2, Math.min(20, rawThreshold))
       : DEFAULTS.variantPillThreshold
 
+  // time_slots — array of "HH:MM-HH:MM" default windows (WEC-676). The menu
+  // banner shows the earliest→latest range derived from this.
+  const rawSlots = map.time_slots
+  const timeSlots = Array.isArray(rawSlots)
+    ? (rawSlots as unknown[]).filter((s): s is string => typeof s === 'string')
+    : []
+
   return {
     data: {
       minOrder: typeof map.min_order === 'number' ? map.min_order / 100 : DEFAULTS.minOrder,
@@ -323,6 +337,7 @@ export async function fetchSettings(): Promise<{ data: AppSettings; error: strin
       macrosDisplay,
       pickupLocations,
       variantPillThreshold,
+      timeSlots,
     },
     error: null,
   }

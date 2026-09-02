@@ -5,7 +5,6 @@
 
 import { useEffect, useState } from 'react'
 import { Modal } from '../ui/Modal'
-import { useToast } from '../ui/Toast'
 import {
   createOrderChangeRequest,
   fetchMyChangeRequests,
@@ -30,7 +29,6 @@ interface Props {
 
 export function OrderChangeRequestButton({ orderId, orderStatusRaw, userId, lang }: Props) {
   const isEl = lang === 'el'
-  const toast = useToast((s) => s.show)
 
   const [open, setOpen] = useState(false)
   const [reason, setReason] = useState<OrderChangeReason>('cancel')
@@ -38,6 +36,14 @@ export function OrderChangeRequestButton({ orderId, orderStatusRaw, userId, lang
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState<string | null>(null)
   const [alreadyRequested, setAlreadyRequested] = useState(false)
+  // WEC-664: post-submit confirmation is a centred «Ελήφθη» that auto-dismisses
+  // after 7s and has an × to close early. No toast, no acknowledgement email.
+  const [received, setReceived] = useState(false)
+  useEffect(() => {
+    if (!received) return
+    const id = window.setTimeout(() => setReceived(false), 7000)
+    return () => window.clearTimeout(id)
+  }, [received])
 
   // Only actionable orders can be changed. (Guard AFTER hooks to keep hook order stable.)
   const actionable = !!orderStatusRaw && ACTIONABLE.has(orderStatusRaw)
@@ -64,7 +70,7 @@ export function OrderChangeRequestButton({ orderId, orderStatusRaw, userId, lang
     setOpen(false)
     setAlreadyRequested(true)
     setMessage('')
-    toast(isEl ? 'Το αίτημα αλλαγής υποβλήθηκε — θα επικοινωνήσουμε μαζί σου.' : "Change request submitted — we'll be in touch.")
+    setReceived(true)
   }
 
   return (
@@ -117,6 +123,41 @@ export function OrderChangeRequestButton({ orderId, orderStatusRaw, userId, lang
           </div>
         </div>
       </Modal>
+
+      {received && (
+        <div
+          role="status"
+          onClick={() => setReceived(false)}
+          style={{
+            position: 'fixed', inset: 0, zIndex: 1000,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            background: 'rgba(0,0,0,0.35)',
+          }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              position: 'relative', background: '#fff', borderRadius: 16,
+              padding: '28px 44px', boxShadow: '0 12px 40px rgba(0,0,0,0.2)',
+              fontSize: 20, fontWeight: 700, color: '#0f172a',
+            }}
+          >
+            <button
+              type="button"
+              aria-label={isEl ? 'Κλείσιμο' : 'Close'}
+              onClick={() => setReceived(false)}
+              style={{
+                position: 'absolute', top: 6, right: 12, border: 'none',
+                background: 'transparent', fontSize: 24, lineHeight: 1,
+                cursor: 'pointer', color: '#64748b',
+              }}
+            >
+              ×
+            </button>
+            {isEl ? 'Ελήφθη' : 'Received'}
+          </div>
+        </div>
+      )}
     </div>
   )
 }

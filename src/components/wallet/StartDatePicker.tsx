@@ -75,15 +75,24 @@ export function StartDatePicker({ lang, value, onChange, daysCount = 8, minLeadD
       orderable: boolean
       inactive: boolean
     }> = []
-    for (let i = 0; i < daysCount; i++) {
+    // WEC-657: weekends are removed entirely (Fitpal runs Mon–Fri) — skip
+    // Sat/Sun rather than render them disabled, so the row shows only weekday
+    // options. Keep scanning forward until we've collected `daysCount`
+    // weekdays; cap the scan so a long closed stretch can't loop forever.
+    let offset = minLeadDays
+    const MAX_SCAN = minLeadDays + daysCount + 14
+    while (out.length < daysCount && offset <= MAX_SCAN) {
       const d = new Date(today)
-      d.setDate(today.getDate() + minLeadDays + i)
+      d.setDate(today.getDate() + offset)
+      offset++
+      const jsDay = d.getDay()
+      if (jsDay === 0 || jsDay === 6) continue // Sun/Sat — gone, not disabled
       const iso = toIso(d)
       const inactive = inactiveDates.has(iso)
       const orderable = !inactive && isDayOrderable(iso, settings, now)
       out.push({
         iso,
-        jsDay: d.getDay(),
+        jsDay,
         dom: d.getDate(),
         monthIdx: d.getMonth(),
         orderable,

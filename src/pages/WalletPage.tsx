@@ -533,8 +533,8 @@ export function WalletPage() {
         <h1 className="wpv2-h-title">{isEl ? 'Φτιάξε το πλάνο σου' : 'Build your plan'}</h1>
         <p className="wpv2-h-sub">
           {isEl
-            ? 'Επίλεξε στόχο, γεύματα και διάρκεια — εμείς φροντίζουμε τα υπόλοιπα.'
-            : 'Pick your goal, meals and duration — we handle the rest.'}
+            ? 'Επίλεξε στόχο, αριθμό γευμάτων και διάρκεια — εμείς φροντίζουμε τα υπόλοιπα.'
+            : 'Pick your goal, number of meals and duration — we handle the rest.'}
         </p>
         <button className="wpv2-h-cta" onClick={() => setDemoOpen(true)}>
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
@@ -1253,8 +1253,8 @@ export function WalletPage() {
             {!indAddrInZone && (
               <div className="wpv2-aside-hint">
                 {isEl
-                  ? 'Συμπλήρωσε έγκυρο Τ.Κ. στην ενότητα 10 για να συνεχίσεις.'
-                  : 'Add a valid postcode in section 10 to continue.'}
+                  ? 'Συμπλήρωσε έγκυρο Τ.Κ. στην ενότητα 9 για να συνεχίσεις.'
+                  : 'Add a valid postcode in section 9 to continue.'}
               </div>
             )}
 
@@ -1338,7 +1338,7 @@ export function WalletPage() {
               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
               </svg>
-              {isEl ? 'Ασφαλής πληρωμή · Δωρεάν παράδοση Αττική & Θεσσαλονίκη' : 'Secure payment · Free delivery in Attica & Thessaloniki'}
+              {isEl ? 'Ασφαλής πληρωμή · Δωρεάν παράδοση στην Αττική' : 'Secure payment · Free delivery in Attica'}
             </div>
           </div>
         </aside>

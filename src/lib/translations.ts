@@ -161,7 +161,7 @@ const T = {
     subPromoGoalsSub: 'Δες τη συνδρομή σου, την πρόοδό σου και τα γεύματα που σου ταιριάζουν.',
     subPromoGoalsCta: 'Δες τους στόχους μου',
     subPromoSubEyebrow: 'ΣΥΝΔΡΟΜΗ FITPAL',
-    subPromoSubSub: 'Εξατομικευμένο πλάνο διατροφής. Έκπτωση έως 18%.',
+    subPromoSubSub: 'Εξατομικευμένο πλάνο διατροφής. Έκπτωση έως 20%.',
     subPromoSubCta: 'Φτιάξε το πλάνο μου',
     // DishModal (WEC-499)
     dietBasedOn: 'Με βάση τη διατροφή σου:',
@@ -267,7 +267,7 @@ const T = {
     coContactInfoUpper: 'ΣΤΟΙΧΕΙΑ ΕΠΙΚΟΙΝΩΝΙΑΣ',
     coDeliveryDetailsUpper: 'ΣΤΟΙΧΕΙΑ ΠΑΡΑΔΟΣΗΣ',
     coFulfillmentUpper: 'ΤΡΟΠΟΣ ΠΑΡΑΔΟΣΗΣ',
-    coHomeDelivery: 'Παράδοση στο σπίτι',
+    coHomeDelivery: 'Παράδοση στον χώρο μου',
     coPickupNotAvailableDay: 'Παραλαβή μη διαθέσιμη αυτή την ημέρα',
     coPickupFromStore: 'Παραλαβή από κατάστημα',
     coPickupWindowUpper: 'ΠΑΡΑΘΥΡΟ ΠΑΡΑΛΑΒΗΣ',

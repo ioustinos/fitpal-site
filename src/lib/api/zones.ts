@@ -7,6 +7,10 @@ export interface DeliveryZone {
   nameEl: string
   nameEn: string
   postcodes: string[]
+  /** WEC-676/WEC-119: per-zone minimum order in **cents**; null → fall back to
+   *  the global settings.min_order. Used so the checkout per-day warning shows
+   *  the same minimum the server will enforce for that zone. */
+  minOrderAmount: number | null
 }
 
 export interface TimeSlot {
@@ -28,6 +32,7 @@ interface DbZone {
   name_en: string
   postcodes: string[]
   active: boolean
+  min_order_amount: number | null
 }
 
 interface DbSlot {
@@ -51,7 +56,7 @@ export async function fetchZones(): Promise<{ data: ZonesData | null; error: str
   const [zonesRes, slotsRes] = await Promise.all([
     supabase
       .from('delivery_zones')
-      .select('id, name_el, name_en, postcodes, active')
+      .select('id, name_el, name_en, postcodes, active, min_order_amount')
       .eq('active', true)
       .order('name_el'),
     supabase
@@ -69,6 +74,7 @@ export async function fetchZones(): Promise<{ data: ZonesData | null; error: str
     nameEl: z.name_el,
     nameEn: z.name_en,
     postcodes: z.postcodes ?? [],
+    minOrderAmount: z.min_order_amount,
   }))
 
   const slots: TimeSlot[] = (slotsRes.data as DbSlot[]).map((s) => ({

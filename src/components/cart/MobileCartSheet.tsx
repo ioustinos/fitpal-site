@@ -243,7 +243,11 @@ export function MobileCartSheet({ mode = 'menu' }: Props) {
                 )}
 
                 {!canCheckout && hasItems && mode === 'menu' && (
-                  <div className="min-warn">{t('minWarn')}</div>
+                  <div className="min-warn">
+                    {lang === 'el'
+                      ? `Ελάχιστη παραγγελία ${minOrder} € ανά ημέρα`
+                      : `Minimum order ${minOrder} € per day`}
+                  </div>
                 )}
               </div>
             </>
