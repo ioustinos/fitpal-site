@@ -501,6 +501,32 @@ export async function setOrderStatus(id: string, current: OrderStatus, next: Ord
   return { error: null }
 }
 
+// WEC-668: inline-editable order fields on the drawer (no separate page). Same
+// audit trail (admin_change_log) as every other admin write, and the error is
+// returned to the caller so the UI surfaces it (no silent-write repeat of
+// WEC-594/602/604).
+export async function updateOrderPaymentMethod(id: string, current: PaymentMethod | null, next: PaymentMethod, adminUser: string): Promise<{ error: string | null }> {
+  const { error } = await supabase.from('orders').update({ payment_method: next, updated_at: new Date().toISOString() }).eq('id', id)
+  if (error) return { error: error.message }
+  await writeChangeLog({
+    orderId: id, tableName: 'orders', fieldName: 'payment_method',
+    oldValue: current ?? '', newValue: next, label: `payment method: ${current ?? '—'} → ${next}`,
+    adminUser,
+  })
+  return { error: null }
+}
+
+export async function updateOrderCutlery(id: string, current: boolean, next: boolean, adminUser: string): Promise<{ error: string | null }> {
+  const { error } = await supabase.from('orders').update({ cutlery: next, updated_at: new Date().toISOString() }).eq('id', id)
+  if (error) return { error: error.message }
+  await writeChangeLog({
+    orderId: id, tableName: 'orders', fieldName: 'cutlery',
+    oldValue: current ? 'yes' : 'no', newValue: next ? 'yes' : 'no', label: `cutlery: ${next ? 'yes' : 'no'}`,
+    adminUser,
+  })
+  return { error: null }
+}
+
 /**
  * WEC-487: admin-triggered "your order has changed" email. Posts to the
  * notify-order-updated function which validates admin, loads the current

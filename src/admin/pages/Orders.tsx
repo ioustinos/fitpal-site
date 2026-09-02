@@ -14,6 +14,8 @@ import {
   type OrderFilters, type OrderStatus, type PaymentStatus,
   type PaymentMethod,
   type RefundKind,
+  updateOrderPaymentMethod,
+  updateOrderCutlery,
 } from '../../lib/api/adminOrders'
 import { fetchAdminDishes, type AdminDish } from '../../lib/api/adminDishes'
 import { NumberField } from '../components/NumberField'
@@ -846,6 +848,25 @@ function OrderDrawer({
 
 function OverviewTab({ order, adminUser, onChanged }: { order: AdminOrder; adminUser: string; onChanged: () => void }) {
   const hasDiscount = order.voucherUses.length > 0 || order.discountAmount > 0
+  // WEC-668: inline edits on the order (payment method + cutlery), no separate
+  // page. Errors are surfaced — never a silent write (WEC-594/602/604).
+  const [editErr, setEditErr] = useState<string | null>(null)
+  const [savingField, setSavingField] = useState<string | null>(null)
+  async function editPaymentMethod(next: PaymentMethod) {
+    if (next === order.paymentMethod) return
+    setSavingField('method'); setEditErr(null)
+    const { error } = await updateOrderPaymentMethod(order.id, order.paymentMethod, next, adminUser)
+    setSavingField(null)
+    if (error) { setEditErr(`Couldn't change payment method: ${error}`); return }
+    onChanged()
+  }
+  async function toggleCutlery() {
+    setSavingField('cutlery'); setEditErr(null)
+    const { error } = await updateOrderCutlery(order.id, order.cutlery, !order.cutlery, adminUser)
+    setSavingField(null)
+    if (error) { setEditErr(`Couldn't change cutlery: ${error}`); return }
+    onChanged()
+  }
   return (
     <div className="admin-od">
       <div className="admin-od-grid">
@@ -891,8 +912,21 @@ function OverviewTab({ order, adminUser, onChanged }: { order: AdminOrder; admin
         {/* Payment */}
         <div className="admin-od-card admin-od-col-3">
           <span className="admin-od-card-title"><Ico name="card" /> Payment</span>
+          {editErr && <div className="admin-error-banner" style={{ marginBottom: 6 }}>{editErr}</div>}
           <dl className="admin-od-kv">
-            <div><dt>Method</dt><dd className="admin-od-method">{order.paymentMethod ?? '—'}</dd></div>
+            <div><dt>Method</dt><dd className="admin-od-method">
+              {/* WEC-668: inline-editable payment method. */}
+              <select
+                className="admin-input"
+                value={order.paymentMethod ?? ''}
+                disabled={savingField === 'method'}
+                onChange={(e) => editPaymentMethod(e.target.value as PaymentMethod)}
+                style={{ padding: '2px 6px', fontSize: 13 }}
+              >
+                {order.paymentMethod == null && <option value="">—</option>}
+                {PAYMENT_METHOD_IDS.map((m) => <option key={m} value={m}>{m}</option>)}
+              </select>
+            </dd></div>
             <div><dt>Status</dt><dd><PaymentBadge status={order.paymentStatus} /></dd></div>
             {/* WEC-606: actually-collected + still-to-collect, from the payment ledger. */}
             {order.payment.paid > 0 && (
@@ -941,7 +975,15 @@ function OverviewTab({ order, adminUser, onChanged }: { order: AdminOrder; admin
         <div className="admin-od-card admin-od-col-3">
           <span className="admin-od-card-title"><Ico name="info" /> Extras</span>
           <div className="admin-od-chips">
-            <span className={`admin-od-chip${order.cutlery ? ' on' : ''}`}><Ico name="utensils" /> Cutlery {order.cutlery ? '✓' : '—'}</span>
+            {/* WEC-668: click to toggle cutlery inline (audit-logged). */}
+            <button
+              type="button"
+              className={`admin-od-chip${order.cutlery ? ' on' : ''}`}
+              disabled={savingField === 'cutlery'}
+              onClick={toggleCutlery}
+              style={{ cursor: 'pointer', border: 'none', font: 'inherit' }}
+              title="Click to toggle cutlery"
+            ><Ico name="utensils" /> Cutlery {order.cutlery ? '✓' : '—'}</button>
             {/* WEC-403: distinguish invoice (Τιμολόγιο, B2B with company+ΑΦΜ)
                 from receipt (Απόδειξη). Invoice chip highlights so the admin
                 can see at a glance that this is a business-invoice order. */}
