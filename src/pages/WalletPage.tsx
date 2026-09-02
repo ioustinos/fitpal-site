@@ -261,6 +261,12 @@ export function WalletPage() {
   const cashMaxAmount = useMenuStore((s) => s.settings.cashMaxAmount)
   // WEC-691: support address for the "didn't get a code" fallback.
   const supportEmail = useMenuStore((s) => s.settings.contact.supportEmail) || 'info@fitpal.gr'
+  // WEC-665: after a subscription purchase completes, send the customer back to
+  // the landing site. Dev hosts go to the dev landing so testers stay on dev.
+  const LANDING_URL = (typeof window !== 'undefined' &&
+    (window.location.host.startsWith('dev--') || window.location.host.includes('localhost')))
+    ? 'https://dev--fitpal-landing.netlify.app'
+    : 'https://fitpal.gr'
   const cashOverCap = result.amountToPay > cashMaxAmount
   const invoiceIncomplete =
     wantInvoice && (!invoiceName.trim() || invoiceVat.length !== 9 || !isValidGreekVat(invoiceVat))
@@ -1466,11 +1472,19 @@ export function WalletPage() {
       {bankInfo && (
         <div className="wpv2-bank-overlay" onClick={() => setBankInfo(null)}>
           <div className="wpv2-bank-card" onClick={(e) => e.stopPropagation()}>
-            <h3>{isEl ? 'Πλάνο δημιουργήθηκε ✓' : 'Plan created ✓'}</h3>
-            <p>
+            {/* WEC-665: order — (1) plan created (2) dietitian calls (3) payment. */}
+            <h3>{isEl ? 'Το πλάνο δημιουργήθηκε ✓' : 'Your plan is created ✓'}</h3>
+            <p className="wpv2-bank-promise">
               {isEl
-                ? 'Το πλάνο σου είναι σε αναμονή. Στείλε έμβασμα στα παρακάτω στοιχεία και θα ενεργοποιηθεί εντός 1 εργάσιμης ημέρας.'
-                : 'Your plan is pending. Wire the amount below and it will activate within 1 business day.'}
+                ? 'Η διατροφολογική μας ομάδα θα σε καλέσει εντός 1 εργάσιμης ημέρας για να χτίσουμε μαζί τα γεύματά σου — χωρίς κόπο.'
+                : 'Our dietitian team will call you within 1 business day to build your meals together — zero effort.'}
+            </p>
+            <p>
+              {isEl ? (
+                <>Για την έναρξη της συνδρομής σου, κάνε την κατάθεση στα παρακάτω στοιχεία και στείλε μας το αποδεικτικό κατάθεσης στο <a href="mailto:orders@fitpal.gr">orders@fitpal.gr</a>.</>
+              ) : (
+                <>To start your subscription, transfer to the details below and send us the deposit receipt at <a href="mailto:orders@fitpal.gr">orders@fitpal.gr</a>.</>
+              )}
             </p>
             <dl className="wpv2-bank-details">
               {/* WEC-556 O17 — copy buttons on the two values people paste into
@@ -1480,14 +1494,8 @@ export function WalletPage() {
               <dt>{isEl ? 'Αιτιολογία' : 'Reference'}</dt>   <dd className="bank-info-copyrow"><span>{bankInfo.reference}</span><CopyButton value={bankInfo.reference} lang={lang} ariaLabel={isEl ? 'Αντιγραφή αιτιολογίας' : 'Copy reference'} /></dd>
               <dt>{isEl ? 'Ποσό'       : 'Amount'}</dt>      <dd>{fmtEur(total)}</dd>
             </dl>
-            {/* WEC-551 O7 — post-purchase reassurance: the dietitian team calls. */}
-            <p className="wpv2-bank-promise">
-              {isEl
-                ? 'Θα σε καλέσουμε εντός 1 εργάσιμης ημέρας για να χτίσουμε μαζί τα γεύματά σου — χωρίς κόπο.'
-                : "We'll call you within 1 business day to build your meals together — zero effort."}
-            </p>
-            <button className="wpv2-bank-close" onClick={() => setBankInfo(null)}>
-              {isEl ? 'Κλείσιμο' : 'Close'}
+            <button className="wpv2-bank-close" onClick={() => { window.location.href = LANDING_URL }}>
+              {isEl ? 'Ολοκλήρωση' : 'Done'}
             </button>
           </div>
         </div>

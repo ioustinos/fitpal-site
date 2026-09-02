@@ -22,6 +22,7 @@ import { createWalletPlanVivaOrder } from '../lib/wallet/createWalletPlanOrder'
 // 2026-06-24 incident fix: trackAsync was racing Netlify post-response kill.
 // Use awaited track() so Subscription Purchased events actually reach Klaviyo.
 import { track } from '../lib/klaviyo'
+import { notifySubscriptionAdmins } from '../lib/notifySubscriptionAdmins'
 import { corsHeaders } from '../lib/cors'
 import type { WalletCalcInput, PaymentMethod } from '../../src/lib/wallet/types'
 import { isValidGreekVat } from '../../src/lib/vat'
@@ -295,6 +296,16 @@ export default async (request: Request) => {
         paymentStatus: 'pending',
       })
       if (!subFire.ok) console.warn('[wallet-plan-purchase] klaviyo:', subFire.error)
+
+      // WEC-664: the admin notification list also receives subscription
+      // purchases (same mechanism as order confirmations — fire the event to
+      // each admin email so Klaviyo delivers a copy). Fail-soft.
+      await notifySubscriptionAdmins(supabase, {
+        subLang, userEmail, firstName: subFirstName,
+        planLengthLabel: body.planLength, mealsPerWeek: body.daysPerWeek,
+        goalLabel: subGoalLabel, mealsLabel: subMealsLabel,
+        amountPaid: chargeCents / 100, walletPlanId,
+      })
 
       const reference = `WP-${walletPlanId.slice(0, 8).toUpperCase()}`
 

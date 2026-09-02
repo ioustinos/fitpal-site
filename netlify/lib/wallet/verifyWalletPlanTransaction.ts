@@ -15,6 +15,7 @@ import { sendMetaCapiEvent, metaConfigured, hashLower, hashPhone } from '../meta
 // after the wallet plan is verified. See submit-order.ts for the full
 // backstory of why fire-and-forget was unreliable on Netlify.
 import { track, subscribeProfileToMarketing, EVT } from '../klaviyo'
+import { notifySubscriptionAdmins } from '../notifySubscriptionAdmins'
 // WEC-529: populate account macro goals from the plan's diet profile on paid.
 import { applyPlanGoalsToUser } from './applyPlanGoals'
 // WEC-504: durable Viva audit logging.
@@ -340,6 +341,20 @@ async function fireSubscriptionPurchasedKlaviyo(
         subFailed.length, subFires.length,
         subFailed.map((r) => r.error).join(' | '))
     }
+
+    // WEC-664: also notify the admin list on card/link paid subscriptions.
+    await notifySubscriptionAdmins(supabase, {
+      subLang: custLang,
+      userEmail: email,
+      firstName,
+      planLengthLabel: plan.plan_length ?? '',
+      mealsPerWeek: plan.days_per_week ?? 0,
+      goalLabel,
+      mealsLabel,
+      amountPaid: amountCents / 100,
+      walletPlanId: plan.id,
+      paymentStatus: 'paid',
+    })
   } catch (e) {
     console.warn('[verifyWalletPlanTransaction] Subscription Purchased Klaviyo failed (non-fatal):', e)
   }
