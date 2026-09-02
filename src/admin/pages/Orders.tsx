@@ -1656,7 +1656,14 @@ function PaymentLinkBlock({ order, adminUser, onChanged }: { order: AdminOrder; 
   // WEC-607: admin-chosen amount, prefilled with the remaining balance.
   const remaining = order.payment.remaining || order.total
   const [amountEuros, setAmountEuros] = useState((remaining / 100).toFixed(2))
+  const [amountDirty, setAmountDirty] = useState(false)
   const [confirmOver, setConfirmOver] = useState(false)
+  // WEC-678 Bug 2: the drawer can stay open while items are removed, which
+  // recomputes `remaining`. Re-sync the amount field to the new remaining
+  // UNLESS the admin has typed a value (don't clobber deliberate input).
+  useEffect(() => {
+    if (!amountDirty) setAmountEuros((remaining / 100).toFixed(2))
+  }, [remaining, amountDirty])
 
   const link = order.paymentLink
   // WEC-598 / WEC-181: nothing left to collect on a paid order — hide entirely.
@@ -1697,7 +1704,7 @@ function PaymentLinkBlock({ order, adminUser, onChanged }: { order: AdminOrder; 
     }
     setWorking(true)
     // firstTime distinguishes "sent" from "regenerated" in the timeline label.
-    const { error } = await sendPaymentLinkLogged(order.id, adminUser, !link, amountCents)
+    const { error } = await sendPaymentLinkLogged(order.id, adminUser, !link, amountCents, confirmOver)
     setWorking(false)
     if (error) { setErr(error); return }
     onChanged()
@@ -1712,7 +1719,7 @@ function PaymentLinkBlock({ order, adminUser, onChanged }: { order: AdminOrder; 
       <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
         <input
           className="admin-input" inputMode="decimal" value={amountEuros}
-          onChange={(e) => setAmountEuros(e.target.value)} style={{ width: 120 }}
+          onChange={(e) => { setAmountEuros(e.target.value); setAmountDirty(true) }} style={{ width: 120 }}
         />
         <button className="admin-btn-primary" disabled={working} onClick={generate}>
           {working ? 'Sending…' : btnLabel}

@@ -27,6 +27,9 @@ export interface CreateOrderArgs {
    * "regenerate link" admin action (sub-issue 7 / WEC-176).
    */
   regenerate?: boolean
+  /** WEC-678: allow an amount ABOVE the order total (admin explicitly ticked
+   *  "charge more than the remaining balance"). Default false. */
+  allowOverAmount?: boolean
 }
 
 export interface CreateOrderResult {
@@ -68,9 +71,17 @@ export async function createVivaOrder(args: CreateOrderArgs): Promise<CreateOrde
       `Order ${args.orderId} is not pending (payment_status=${order.payment_status})`,
     )
   }
-  if (order.total !== args.amountCents) {
+  // WEC-678: partial payment links are supported end-to-end (WEC-606/607 built
+  // payment_links.amount, verify.ts and markPaid.ts around it). The old
+  // exact-match guard blocked every partial/adjusted amount — it was the only
+  // thing stopping the feature. amountCents > 0 is already enforced above; here
+  // we only reject an amount ABOVE the order total, and only when the admin
+  // didn't explicitly confirm the overcharge. The customer flow (submit-order)
+  // passes amountCents = order total, so it is unaffected either way.
+  if (args.amountCents > order.total && !args.allowOverAmount) {
     throw new Error(
-      `Amount mismatch: order.total=${order.total}, args.amountCents=${args.amountCents}`,
+      `Amount ${args.amountCents} exceeds order total ${order.total}. ` +
+        `Tick "charge more than the remaining balance" to allow.`,
     )
   }
 

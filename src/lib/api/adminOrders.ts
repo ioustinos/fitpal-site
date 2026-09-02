@@ -1053,7 +1053,7 @@ export async function refundOrder(
 
 // ─── Payment link (WEC-176) ──────────────────────────────────────────────
 
-export async function regenerateVivaPaymentLink(orderId: string, amountCents?: number): Promise<{ data: { orderCode: string; paymentUrl: string } | null; error: string | null }> {
+export async function regenerateVivaPaymentLink(orderId: string, amountCents?: number, allowOverAmount?: boolean): Promise<{ data: { orderCode: string; paymentUrl: string } | null; error: string | null }> {
   const { data: session } = await supabase.auth.getSession()
   const token = session?.session?.access_token
   if (!token) return { data: null, error: 'Not authenticated' }
@@ -1064,8 +1064,14 @@ export async function regenerateVivaPaymentLink(orderId: string, amountCents?: n
       'Content-Type': 'application/json',
       Authorization: `Bearer ${token}`,
     },
-    // WEC-607: pass the admin-chosen amount (cents); omitted → server uses total.
-    body: JSON.stringify(amountCents != null ? { orderId, amountCents } : { orderId }),
+    // WEC-607: admin-chosen amount (cents); omitted → server uses total.
+    // WEC-678: allowOverAmount carries the "charge more than remaining" tick to
+    // the server, which is the only place that can actually permit an overcharge.
+    body: JSON.stringify({
+      orderId,
+      ...(amountCents != null ? { amountCents } : {}),
+      ...(allowOverAmount ? { allowOverAmount: true } : {}),
+    }),
   })
   const json = await res.json().catch(() => ({}))
   if (!res.ok) return { data: null, error: (json as { error?: string }).error ?? `Regenerate failed (${res.status})` }
@@ -1084,8 +1090,9 @@ export async function sendPaymentLinkLogged(
   adminUser: string,
   firstTime: boolean,
   amountCents?: number,
+  allowOverAmount?: boolean,
 ): Promise<{ data: { orderCode: string; paymentUrl: string } | null; error: string | null }> {
-  const res = await regenerateVivaPaymentLink(orderId, amountCents)
+  const res = await regenerateVivaPaymentLink(orderId, amountCents, allowOverAmount)
   if (res.error || !res.data) return res
   // WEC-604: no hardcoded local time in the label — the feed's When column
   // already shows the timestamp. WEC-607: state the link amount.

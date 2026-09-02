@@ -48,7 +48,7 @@ export default async (request: Request) => {
   if ('error' in who) return Response.json({ error: who.error }, { status: who.status })
 
   // WEC-607: the admin may set the link amount (cents). Absent → full order total.
-  let body: { orderId?: string; amountCents?: number }
+  let body: { orderId?: string; amountCents?: number; allowOverAmount?: boolean }
   try {
     body = (await request.json()) as typeof body
   } catch {
@@ -88,6 +88,8 @@ export default async (request: Request) => {
       customerFullName: (order.customer_name as string) ?? '',
       mode,
       regenerate: true,
+      // WEC-678: only honoured when the amount exceeds the order total.
+      allowOverAmount: body.allowOverAmount === true,
     })
 
     // WEC-599: mark the order «pending_link_sent» on the FIRST send (guarded on
