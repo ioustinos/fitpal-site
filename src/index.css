@@ -173,7 +173,7 @@ header {
 .page-banner::after { content: ''; position: absolute; right: -40px; top: -40px; width: 200px; height: 200px; background: var(--lime); border-radius: 50%; opacity: 0.16; }
 .page-banner::before { content: ''; position: absolute; right: 60px; bottom: -60px; width: 140px; height: 140px; background: var(--green); border-radius: 50%; opacity: 0.08; }
 /* WEC-338 — banner row now splits 50/50; both cards carry equal visual weight. */
-.banner-row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 22px; }
+.banner-row { display: flex; align-items: stretch; gap: 16px; margin-bottom: 22px; }
 .banner-row .page-banner { margin-bottom: 0; }
 .banner-top { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; position: relative; z-index: 1; }
 .banner-heading { font-size: 22px; font-weight: 900; color: var(--white); letter-spacing: -0.5px; }
@@ -1671,36 +1671,40 @@ header {
   font-variant-numeric: tabular-nums;
 }
 
-/* WEC-647 Option 2 — subscription banner previews the plan wizard. */
-.sub-promo-wizard { gap: 10px; justify-content: flex-start; z-index: 1; }
-.sub-promo-wizard-top {
-  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+/* WEC-647 Option 2 — subscription banner previews the plan wizard.
+   Matched to the Claude Design pack (docs/design/subscription-banner-2026-08). */
+.sub-wizard-card {
+  flex: 1; min-width: 0; height: 208px; background: #fff; border-radius: 20px;
+  box-shadow: 0 8px 22px rgba(0, 55, 44, 0.12);
+  display: flex; overflow: hidden; cursor: pointer;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
 }
-.sub-promo-disc-pill {
-  background: #F26A21; color: #fff; font-weight: 800; font-size: 11px;
-  letter-spacing: 0.04em; padding: 3px 9px; border-radius: 999px; white-space: nowrap;
-}
-.sub-promo-headline-sm { font-size: 22px; line-height: 1.15; margin: 0; }
-.sub-promo-fields { display: flex; flex-direction: column; gap: 6px; max-width: 320px; }
-.sub-promo-field {
-  height: 12px; border-radius: 6px;
-  background: rgba(0, 71, 57, 0.10);
-  border: 1px solid rgba(0, 71, 57, 0.06);
-}
-.sub-promo-field:nth-child(2) { width: 88%; }
-.sub-promo-field:nth-child(3) { width: 76%; }
-.sub-promo-field:nth-child(4) { width: 64%; }
-.sub-promo-progress { display: flex; align-items: center; gap: 8px; max-width: 320px; }
-.sub-promo-progress-bar {
-  flex: 1; height: 5px; border-radius: 999px; overflow: hidden;
-  background: rgba(0, 71, 57, 0.12);
-}
-.sub-promo-progress-bar span {
-  display: block; height: 100%; border-radius: 999px; background: var(--green, #00b96b);
-}
-.sub-promo-progress-label {
-  font-size: 11px; font-weight: 700; color: var(--green-dark, #004739); white-space: nowrap;
-}
+.sub-wizard-card:hover { transform: translateY(-2px); box-shadow: 0 12px 28px rgba(0, 55, 44, 0.18); }
+.sub-wizard-card:focus-visible { outline: 2px solid var(--green-dark); outline-offset: 3px; }
+.swc-photo { flex: none; width: 112px; height: 208px; background-size: cover; background-position: center; }
+.swc-body { flex: 1; min-width: 0; padding: 14px 18px; display: flex; flex-direction: column; justify-content: space-between; }
+.swc-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.swc-head-txt { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.swc-eyebrow { font-size: 11px; font-weight: 600; letter-spacing: 0.14em; color: #00875a; }
+.swc-headline { font-size: 21px; font-weight: 800; color: #004739; letter-spacing: -0.01em; line-height: 1.15; }
+.swc-disc { flex: none; background: #F7A81B; color: #00382C; font-size: 15px; font-weight: 800; padding: 7px 14px; border-radius: 999px; white-space: nowrap; }
+.swc-progress { display: flex; gap: 6px; align-items: center; }
+.swc-progress-fill { flex: none; width: 60px; height: 4px; border-radius: 2px; background: #2DB56A; }
+.swc-progress-track { flex: 1; height: 4px; border-radius: 2px; background: #E8E1CE; }
+.swc-fields { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.swc-field { border: 1px solid #DFE7E1; border-radius: 12px; padding: 11px 12px; display: flex; align-items: center; justify-content: space-between; gap: 5px; white-space: nowrap; overflow: hidden; }
+.swc-field > span:first-child { font-size: 11px; font-weight: 600; color: #8c9990; overflow: hidden; text-overflow: ellipsis; }
+.swc-chev { font-size: 11px; font-weight: 600; color: #B9C4BD; flex: none; }
+.swc-cta-row { display: flex; align-items: center; justify-content: flex-end; }
+.swc-cta { background: #004739; color: #fff; font-size: 14px; font-weight: 800; padding: 13px 20px; border: none; border-radius: 999px; cursor: pointer; white-space: nowrap; transition: background 0.18s ease; }
+.swc-cta:hover { background: #00382C; }
+
+/* Banner row: informative menu banner shrinks to 260px next to the 624px card. */
+.banner-row .page-banner { flex: none; width: 260px; display: flex; flex-direction: column; justify-content: space-between; }
+.banner-row .page-banner .banner-heading { font-size: 17px; }
+.banner-row .page-banner .banner-sub { display: none; }
+.banner-row .page-banner .banner-pills { flex-direction: column; align-items: flex-start; gap: 6px; margin-top: auto; }
+.banner-row .sub-promo { flex: 1; min-width: 0; }
 
 @media (max-width: 720px) {
   .sub-promo { padding: 18px 18px; min-height: 0; }
@@ -3504,7 +3508,15 @@ a.btn-conf-done { display: inline-block; text-decoration: none; }
      width. */
   .layout { grid-template-columns: minmax(0, 1fr); }
   .sidebar { display: none; }
-  .banner-row { grid-template-columns: 1fr; }
+  .banner-row { flex-direction: column; }
+  .banner-row .page-banner { width: auto; }
+  .banner-row .page-banner .banner-pills { flex-direction: row; flex-wrap: wrap; }
+  /* WEC-647: on a narrow stack the tall side photo cramps the card — drop it,
+     let the wizard preview use full width. */
+  .sub-wizard-card { height: auto; }
+  .swc-photo { display: none; }
+  .swc-headline { font-size: 18px; }
+  .swc-body { gap: 10px; }
   .payment-methods { grid-template-columns: 1fr; }
   /* React layout */
   .menu-layout { grid-template-columns: 1fr; }

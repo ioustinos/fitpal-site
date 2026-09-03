@@ -197,101 +197,76 @@ export function MenuPage() {
                   </div>
                 </div>
 
-                <div
-                  className="sub-promo"
-                  onClick={cardCta}
-                  role="button"
-                  tabIndex={0}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' || e.key === ' ') {
-                      e.preventDefault()
-                      cardCta()
-                    }
-                  }}
-                >
-                  <svg
-                    className="sub-promo-glyph"
-                    viewBox="0 0 120 120"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="1.5"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    aria-hidden="true"
+                {subscribed ? (
+                  <div
+                    className="sub-promo"
+                    onClick={cardCta}
+                    role="button"
+                    tabIndex={0}
+                    onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); cardCta() } }}
                   >
-                    <path d="M20 62a40 40 0 0080 0" />
-                    <path d="M16 62h88" />
-                    <path d="M60 36c-6-6-6-14 0-20 6 6 6 14 0 20z" />
-                    <path d="M48 42c-8-2-12-8-10-16 8 2 12 8 10 16z" />
-                    <path d="M72 42c8-2 12-8 10-16-8 2-12 8-10 16z" />
-                  </svg>
-
-                  {subscribed ? (
+                    <svg className="sub-promo-glyph" viewBox="0 0 120 120" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                      <path d="M20 62a40 40 0 0080 0" />
+                      <path d="M16 62h88" />
+                      <path d="M60 36c-6-6-6-14 0-20 6 6 6 14 0 20z" />
+                      <path d="M48 42c-8-2-12-8-10-16 8 2 12 8 10 16z" />
+                      <path d="M72 42c8-2 12-8 10-16-8 2-12 8-10 16z" />
+                    </svg>
                     <div className="sub-promo-inner">
                       <div className="sub-promo-eyebrow">
                         <span className="sub-promo-dot" aria-hidden="true" />
                         {t('subPromoGoalsEyebrow')}
                       </div>
                       <h3 className="sub-promo-headline">
-                        {lang === 'el' ? (
-                          <>Οι <em>Στόχοι</em><br />μου.</>
-                        ) : (
-                          <>My <em>Goals</em>.</>
-                        )}
+                        {lang === 'el' ? (<>Οι <em>Στόχοι</em><br />μου.</>) : (<>My <em>Goals</em>.</>)}
                       </h3>
-                      <div className="sub-promo-sub">
-                        {t('subPromoGoalsSub')}
-                      </div>
-                      <button
-                        type="button"
-                        className="sub-promo-cta"
-                        onClick={(e) => { e.stopPropagation(); goToAccount('goals') }}
-                      >
+                      <div className="sub-promo-sub">{t('subPromoGoalsSub')}</div>
+                      <button type="button" className="sub-promo-cta" onClick={(e) => { e.stopPropagation(); goToAccount('goals') }}>
                         {t('subPromoGoalsCta')}
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" width="12" height="12" aria-hidden="true">
                           <line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/>
                         </svg>
                       </button>
                     </div>
-                  ) : (
-                    // WEC-647 Option 2 — the card previews the plan wizard (empty
-                    // step fields + «Βήμα 1 από 4» bar). Still just a banner + a
-                    // button that opens the wizard.
-                    <div className="sub-promo-inner sub-promo-wizard">
-                      <div className="sub-promo-wizard-top">
-                        <div className="sub-promo-eyebrow">
-                          <span className="sub-promo-dot" aria-hidden="true" />
-                          {t('subBannerEyebrow')}
+                  </div>
+                ) : (
+                  /* WEC-647 Option 2 — wizard-preview banner, matched to the Claude
+                     Design pack: dish photo · eyebrow + headline + ΕΩΣ -20% pill ·
+                     progress bar · 2×2 wizard-step fields · dark-green CTA. */
+                  <div
+                    className="sub-wizard-card"
+                    onClick={() => goToWalletPage()}
+                    role="button"
+                    tabIndex={0}
+                    onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); goToWalletPage() } }}
+                  >
+                    <div className="swc-photo" style={{ backgroundImage: 'url(/banner-dish.jpg)' }} aria-hidden="true" />
+                    <div className="swc-body">
+                      <div className="swc-head">
+                        <div className="swc-head-txt">
+                          <span className="swc-eyebrow">{t('subBannerEyebrow')}</span>
+                          <span className="swc-headline">{t('subBannerHeadline')}</span>
                         </div>
-                        <span className="sub-promo-disc-pill">{t('subBannerDiscount')}</span>
+                        <span className="swc-disc">{t('subBannerDiscount')}</span>
                       </div>
-                      <h3 className="sub-promo-headline sub-promo-headline-sm">
-                        {t('subBannerHeadline')}
-                      </h3>
-                      {/* four empty step fields (decorative preview of the wizard) */}
-                      <div className="sub-promo-fields" aria-hidden="true">
-                        <span className="sub-promo-field" />
-                        <span className="sub-promo-field" />
-                        <span className="sub-promo-field" />
-                        <span className="sub-promo-field" />
+                      <div className="swc-progress" aria-hidden="true">
+                        <span className="swc-progress-fill" />
+                        <span className="swc-progress-track" />
                       </div>
-                      <div className="sub-promo-progress" aria-hidden="true">
-                        <div className="sub-promo-progress-bar"><span style={{ width: '25%' }} /></div>
-                        <span className="sub-promo-progress-label">{t('subBannerStep')}</span>
+                      <div className="swc-fields" aria-hidden="true">
+                        <div className="swc-field"><span>{t('subBannerStep1')}</span><span className="swc-chev">⌄</span></div>
+                        <div className="swc-field"><span>{t('subBannerStep2')}</span><span className="swc-chev">⌄</span></div>
+                        <div className="swc-field"><span>{t('subBannerStep3')}</span><span className="swc-chev">⌄</span></div>
+                        <div className="swc-field"><span>{t('subBannerStep4')}</span><span className="swc-chev">—</span></div>
                       </div>
-                      <button
-                        type="button"
-                        className="sub-promo-cta"
-                        onClick={(e) => { e.stopPropagation(); goToWalletPage() }}
-                      >
-                        {t('subBannerCta')}
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" width="12" height="12" aria-hidden="true">
-                          <line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/>
-                        </svg>
-                      </button>
+                      <div className="swc-cta-row">
+                        <button type="button" className="swc-cta" onClick={(e) => { e.stopPropagation(); goToWalletPage() }}>
+                          {t('subBannerCta')} →
+                        </button>
+                      </div>
                     </div>
-                  )}
-                </div>
+                  </div>
+                )}
               </div>
             )
           })()}
