@@ -67,6 +67,11 @@ export function AccountPage() {
     if (accountTab) setTab(normalizeTab(accountTab))
   }, [accountTab])
 
+  // WEC-663: switching account sections should scroll back to the top — the
+  // team flagged that changing tab (e.g. Παρατηρήσεις → Στόχοι) left the user
+  // stranded mid-page.
+  useEffect(() => { window.scrollTo({ top: 0, behavior: 'smooth' }) }, [tab])
+
   if (!user) return null
 
   const initials = (user.name ?? '')
@@ -410,6 +415,12 @@ function PrefsTab({ user, lang, updatePrefs }: any) {
           </div>
         </div>
         <div className="prefs-day-grid">
+          {/* WEC-663: column headers — «Διεύθυνση παράδοσης» + «Ωράριο Παράδοσης». */}
+          <div className="prefs-day-row prefs-day-head">
+            <span className="prefs-day-label" aria-hidden="true" />
+            <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-muted)' }}>{t('prefColAddress')}</span>
+            <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-muted)' }}>{t('prefColTime')}</span>
+          </div>
           {days.map((d) => (
             <div key={d.key} className="prefs-day-row">
               <span className="prefs-day-label">{lang === 'el' ? d.el : d.en}</span>

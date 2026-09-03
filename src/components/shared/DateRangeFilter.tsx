@@ -24,12 +24,14 @@ export interface DateRangeFilterProps {
   summary?: string
 }
 
+// WEC-663: exact wording the team asked for (PDF): τρέχουσα/προηγούμενη
+// εβδομάδα · τρέχων/προηγούμενος μήνας. Shared, so Orders + ΣΤΟΧΟΙ stay in sync.
 const PRESETS: Array<{ id: RangePreset; el: string; en: string }> = [
-  { id: 'this_week',  el: 'Αυτή η εβδομάδα',    en: 'This week' },
-  { id: 'last_week',  el: 'Περασμένη εβδομάδα', en: 'Last week' },
-  { id: 'this_month', el: 'Αυτός ο μήνας',      en: 'This month' },
-  { id: 'last_month', el: 'Περασμένος μήνας',   en: 'Last month' },
-  { id: 'custom',     el: 'Προσαρμογή',         en: 'Custom' },
+  { id: 'this_week',  el: 'Τρέχουσα εβδομάδα',    en: 'This week' },
+  { id: 'last_week',  el: 'Προηγούμενη εβδομάδα', en: 'Last week' },
+  { id: 'this_month', el: 'Τρέχων μήνας',         en: 'This month' },
+  { id: 'last_month', el: 'Προηγούμενος μήνας',   en: 'Last month' },
+  { id: 'custom',     el: 'Προσαρμογή',           en: 'Custom' },
 ]
 
 export function DateRangeFilter({
