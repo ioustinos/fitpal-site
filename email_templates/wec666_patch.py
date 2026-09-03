@@ -38,6 +38,13 @@ INLINE = [
     # Sign-up confirmation title (Greek only per the ticket)
     ("Καλωσήρθες στην παρέα<br />του Fitpal!", "Καλώς ήρθες στην παρέα<br />των Fitpal meals!"),
     ("Καλωσήρθες στην παρέα<br />του Fitpal,", "Καλώς ήρθες στην παρέα<br />των Fitpal meals,"),
+    # WEC-690: the «Στοιχεία χρέωσης» block rendered {{ person.email }} — which
+    # on an admin BCC copy is the ADMIN, telling them they placed the order.
+    # Prefer the customer's email from the event (added in the WEC-690 server
+    # leg), fall back to person.email. Anchored to the billing suffix so the
+    # footer's own {{ person.email }} (the real recipient) is left alone.
+    ("{{ person.email }}{% if event.billing_mobile %}",
+     "{{ event.customer_email|default:person.email }}{% if event.billing_mobile %}"),
 ]
 
 # --- full <tr> blocks to REMOVE, matched by a stable inner anchor (DOTALL) ---
