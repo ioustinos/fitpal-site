@@ -1,0 +1,184 @@
+{
+  "name": "Fitpal DEV — Reconcile (every 15 min)",
+  "nodes": [
+    {
+      "parameters": {
+        "url": "https://dev--fitpal-order.netlify.app/.netlify/functions/airtable-reconcile",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "248017bd-74a9-4b26-9bef-2236f604f62c",
+      "name": "Trigger reconcile",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        23088,
+        25728
+      ],
+      "disabled": true
+    },
+    {
+      "parameters": {
+        "url": "https://dev--fitpal-order.netlify.app/.netlify/functions/airtable-reconcile",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "50822206-cb6a-471a-9957-f8b0c7bf6330",
+      "name": "Trigger reconcile1",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        23088,
+        25936
+      ],
+      "disabled": true
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes",
+              "minutesInterval": 15
+            }
+          ]
+        }
+      },
+      "id": "494feaf9-0651-41f6-a024-393612ada7c0",
+      "name": "Every 15 minutes",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        22848,
+        25728
+      ],
+      "disabled": true
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes",
+              "minutesInterval": 15
+            }
+          ]
+        }
+      },
+      "id": "594d1425-aea2-4e24-baaf-467e4d518235",
+      "name": "Every 15 minutes1",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        22848,
+        25936
+      ],
+      "disabled": true
+    },
+    {
+      "parameters": {
+        "url": "https://dev--fitpal-order.netlify.app/.netlify/functions/airtable-reconcile",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "50c866ce-73ee-461d-9396-fe0bec13e6d8",
+      "name": "Trigger Airtable reconcile",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        23760,
+        26176
+      ]
+    },
+    {
+      "parameters": {
+        "url": "https://dev--fitpal-order.netlify.app/.netlify/functions/viva-reconcile",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "d2c85a1a-9139-4b5e-a45e-0ffcc0cba2e3",
+      "name": "Trigger Viva reconcile",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        23760,
+        26368
+      ]
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes",
+              "minutesInterval": 15
+            }
+          ]
+        }
+      },
+      "id": "c0ee0e55-2656-4d8e-a7b6-df3e9af7d8f0",
+      "name": "Every 15 minutes2",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        23520,
+        26272
+      ]
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Every 15 minutes": {
+      "main": [
+        [
+          {
+            "node": "Trigger reconcile",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Every 15 minutes1": {
+      "main": [
+        [
+          {
+            "node": "Trigger reconcile1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Every 15 minutes2": {
+      "main": [
+        [
+          {
+            "node": "Trigger Airtable reconcile",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Trigger Viva reconcile",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "032b88a1-b078-4a40-8d12-9dfb309a20e0",
+  "meta": {
+    "instanceId": "b86c64619aa85f6888533d2d2f9b9353a374b47d43580e52d2dbd62c9d42ab6d"
+  },
+  "id": "QZ52tBjmt9q8kP5u",
+  "tags": []
+}
