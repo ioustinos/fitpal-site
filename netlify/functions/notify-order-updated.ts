@@ -243,6 +243,11 @@ export default async (request: Request) => {
     lang: custLang,
     // ── snake_case (template-expected) ───────────────────────────────────
     first_name: firstNameUpd,
+    // WEC-690: carry the customer's identity so admin BCC copies render the
+    // CUSTOMER under «Στοιχεία χρέωσης», not the recipient admin.
+    customer_email: (order.customer_email as string | null) ?? null,
+    customer_name:  (order.customer_name as string | null) ?? null,
+    customer_phone: (order.customer_phone as string | null) ?? null,
     order_number: order.order_number,
     total: (order.total as number) / 100,
     subtotal: (order.subtotal as number) / 100,

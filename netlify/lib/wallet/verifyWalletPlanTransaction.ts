@@ -100,7 +100,7 @@ export async function verifyWalletPlanTransaction(
 
   const { data: plan } = await supabase
     .from('wallet_plans')
-    .select('id, wallet_id, amount_to_pay_cents, bonus_credits_cents, wallet_credit_cents, plan_length, days_per_week, goal, daily_kcal, meal_breakfast, meal_lunch, meal_dinner, meal_snack, services, payment_status, viva_order_code')
+    .select('id, wallet_id, amount_to_pay_cents, bonus_credits_cents, wallet_credit_cents, plan_length, days_per_week, goal, daily_kcal, meal_breakfast, meal_lunch, meal_dinner, meal_snack, services, payment_status, viva_order_code, invoice_type, invoice_name, invoice_vat')
     .eq('id', walletPlanId)
     .maybeSingle()
 
@@ -252,6 +252,9 @@ async function fireSubscriptionPurchasedKlaviyo(
     meal_dinner?: boolean | null
     meal_snack?: boolean | null
     services?: { dieticianManaged?: boolean; bodyFatMeasurement?: boolean; bodyFatFeeCents?: number } | null
+    invoice_type?: string | null
+    invoice_name?: string | null
+    invoice_vat?: string | null
   },
   amountCents: number,
 ): Promise<void> {
@@ -318,6 +321,10 @@ async function fireSubscriptionPurchasedKlaviyo(
       bonus_credits: (plan.bonus_credits_cents ?? 0) / 100,
       new_balance: newBalanceCents != null ? newBalanceCents / 100 : null,
       payment_status: 'paid',
+      // WEC-693: echo the receipt vs invoice choice + ΑΦΜ in the confirmation.
+      invoice_type: plan.invoice_type ?? 'receipt',
+      invoice_name: plan.invoice_name ?? null,
+      invoice_vat:  plan.invoice_vat ?? null,
       // camelCase (legacy / downstream)
       walletPlanId: plan.id,
       planLengthLabel: plan.plan_length ?? null,

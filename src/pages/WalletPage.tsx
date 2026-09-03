@@ -509,7 +509,11 @@ export function WalletPage() {
         if (user) refreshUser(user.id)
         return
       }
-      // card / link → redirect to Viva hosted checkout
+      // card / link → redirect to Viva hosted checkout.
+      // WEC-682: stash the plan id so that if the customer backs out of the Viva
+      // screen and lands on /order/pending/failure, we can mark that abandoned
+      // pending plan `failed` instead of leaving a phantom «Pending» purchase.
+      try { sessionStorage.setItem('fitpal_pending_viva_wallet_plan', data.walletPlanId) } catch { /* ignore */ }
       window.location.href = data.paymentUrl
     } catch (err) {
       setErrMsg(err instanceof Error ? err.message : 'Network error')

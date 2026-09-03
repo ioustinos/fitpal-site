@@ -96,22 +96,37 @@ export function WalletPurchases() {
             </tr>
           </thead>
           <tbody>
-            {rows.map((r) => (
-              <tr key={r.id}>
+            {rows.map((r) => {
+              // WEC-682: a pending card/link plan with no Viva transaction is an
+              // abandoned checkout (customer closed the tab). Fade it + label it
+              // so it doesn't read as an equal sibling of a real purchase.
+              const abandoned = r.paymentStatus === 'pending' && (r.paymentMethod === 'card' || r.paymentMethod === 'link') && !r.vivaTransactionId
+              return (
+              <tr key={r.id} style={abandoned ? { opacity: 0.55 } : undefined}>
                 <td>{new Date(r.createdAt).toLocaleString('el-GR')}</td>
                 <td>
-                  <div>{r.customerName ?? '—'}</div>
+                  <div>
+                    {r.customerName ?? '—'}
+                    {/* WEC-693: flag purchases that requested a τιμολόγιο so the
+                        team doesn't have to open every row to find them. */}
+                    {r.invoiceType === 'invoice' && (
+                      <span className="admin-pill-invoice" style={{ marginLeft: 6, fontSize: 10, fontWeight: 700, letterSpacing: '.04em', background: '#eef2ff', color: '#3730a3', border: '1px solid #c7d2fe', borderRadius: 4, padding: '1px 5px', verticalAlign: 'middle' }}>ΤΙΜΟΛΟΓΙΟ</span>
+                    )}
+                  </div>
                   <div className="admin-text-muted">{r.customerEmail ?? '—'}</div>
                 </td>
                 <td>{r.goal ?? '—'}</td>
                 <td>{r.planLength ?? '—'} · {r.daysPerWeek ?? '?'}d/wk · {r.selectedMeals.length} meals</td>
                 <td>{r.paymentMethod ?? '—'}</td>
-                <td><span className={`admin-pill-${r.paymentStatus}`}>{STATUS_LABELS[r.paymentStatus] ?? r.paymentStatus}</span></td>
+                <td>
+                  <span className={`admin-pill-${r.paymentStatus}`}>{STATUS_LABELS[r.paymentStatus] ?? r.paymentStatus}</span>
+                  {abandoned && <div className="admin-text-muted" style={{ fontSize: 10, fontStyle: 'italic' }}>abandoned checkout</div>}
+                </td>
                 <td>{(r.amountToPayCents / 100).toFixed(2)} €</td>
                 <td>{(r.walletCreditCents / 100).toFixed(2)} €</td>
                 <td><button className="admin-btn-secondary admin-btn-sm" onClick={() => openDrawer(r.id)}>Details</button></td>
               </tr>
-            ))}
+            )})}
           </tbody>
         </table>
       )}
@@ -181,6 +196,18 @@ function Drawer({ detail, loading, onClose, onRefunded }: DrawerProps) {
                 <KV k="Name" v={detail.customerName ?? '—'} />
                 <KV k="Email" v={detail.customerEmail ?? '—'} />
                 <KV k="User ID" v={detail.userId ?? '—'} mono />
+              </Section>
+
+              {/* WEC-693: invoice request — 'invoice' means the customer asked for
+                  a τιμολόγιο and accounting must issue one. */}
+              <Section title="Παραστατικό (Invoice)">
+                <KV k="Type" v={detail.invoiceType === 'invoice' ? 'Τιμολόγιο (invoice)' : 'Απόδειξη (receipt)'} />
+                {detail.invoiceType === 'invoice' && (
+                  <>
+                    <KV k="Επωνυμία (name)" v={detail.invoiceName ?? '—'} />
+                    <KV k="ΑΦΜ (VAT)" v={detail.invoiceVat ?? '—'} mono />
+                  </>
+                )}
               </Section>
 
               <Section title="Plan">

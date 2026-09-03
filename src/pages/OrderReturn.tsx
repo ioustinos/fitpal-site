@@ -60,7 +60,11 @@ export function OrderReturn({ mode }: Props) {
   // wallet-plan purchase, which doesn't use the cart.)
   const clearAll = useCartStore((s) => s.clearAll)
   useEffect(() => {
-    if (outcome.status === 'paid') clearAll()
+    if (outcome.status === 'paid') {
+      clearAll()
+      // WEC-682: a completed purchase must not leave a stale revert key behind.
+      try { sessionStorage.removeItem('fitpal_pending_viva_wallet_plan') } catch { /* ignore */ }
+    }
   }, [outcome.status, clearAll])
 
   useEffect(() => {
@@ -89,6 +93,27 @@ export function OrderReturn({ mode }: Props) {
               })
             } catch { /* non-fatal — viva-reconcile backstops after 48h */ }
             finally { try { sessionStorage.removeItem('fitpal_pending_viva_order') } catch { /* ignore */ } }
+          })()
+        }
+        // WEC-682: the same cancel, but for a subscription (plan) purchase. The
+        // wallet flow redirects to the SAME Viva return URLs, so we stash the
+        // plan id under its own key and mark it `failed` on cancel — otherwise
+        // the retry inserts a second snapshot and admin shows the package twice.
+        const pendingWalletPlanId = (() => {
+          try { return sessionStorage.getItem('fitpal_pending_viva_wallet_plan') } catch { return null }
+        })()
+        if (pendingWalletPlanId) {
+          void (async () => {
+            try {
+              const { data: sess } = await supabase.auth.getSession()
+              const tok = sess?.session?.access_token
+              await fetch('/api/revert-wallet-plan', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', ...(tok ? { Authorization: `Bearer ${tok}` } : {}) },
+                body: JSON.stringify({ walletPlanId: pendingWalletPlanId }),
+              })
+            } catch { /* non-fatal — viva-reconcile backstops */ }
+            finally { try { sessionStorage.removeItem('fitpal_pending_viva_wallet_plan') } catch { /* ignore */ } }
           })()
         }
         setOutcome({ status: 'failed', orderNumber: '', reason: params.get('eci') ?? 'cancelled' })

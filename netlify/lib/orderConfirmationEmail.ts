@@ -294,6 +294,13 @@ export async function fireOrderConfirmationFromDb(
       lang,
       // ── snake_case (template-expected) ──
       first_name: firstName,
+      // WEC-690: carry the customer's identity so «Στοιχεία χρέωσης» renders the
+      // CUSTOMER, not the recipient. Without this the template falls back to
+      // {{ person.email }} — correct on the customer's own copy, but on an admin
+      // BCC copy it tells the admin THEY placed the order.
+      customer_email: order.customer_email ?? null,
+      customer_name:  order.customer_name ?? null,
+      customer_phone: order.customer_phone ?? null,
       order_number: order.order_number,
       total: (order.total ?? 0) / 100,
       subtotal: (order.subtotal ?? 0) / 100,

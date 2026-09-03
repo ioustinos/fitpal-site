@@ -27,6 +27,10 @@ export interface AdminWalletPlanRow {
   // WEC-553: bodyFatMeasurement + its fee (cents) snapshot.
   services: { dieticianManaged?: boolean; bodyFatMeasurement?: boolean; bodyFatFeeCents?: number }
   dailyKcal: number | null
+  // WEC-693: invoice request snapshot ('invoice' = τιμολόγιο, 'receipt' = απόδειξη).
+  invoiceType: string | null
+  invoiceName: string | null
+  invoiceVat: string | null
 }
 
 export interface AdminWalletPlanDetail extends AdminWalletPlanRow {
@@ -83,6 +87,9 @@ function rowToBase(row: Record<string, unknown>): AdminWalletPlanRow {
     confirmedAt: row.confirmed_at as string | null,
     services: (row.services as { dieticianManaged?: boolean; bodyFatMeasurement?: boolean; bodyFatFeeCents?: number }) ?? {},
     dailyKcal: row.daily_kcal as number | null,
+    invoiceType: (row.invoice_type as string | null) ?? null,
+    invoiceName: (row.invoice_name as string | null) ?? null,
+    invoiceVat:  (row.invoice_vat  as string | null) ?? null,
   }
 }
 

@@ -227,6 +227,11 @@ export default async (request: Request) => {
         // Payment
         payment_method: body.paymentMethod,
         payment_status: 'pending',
+        // WEC-693: persist the invoice request (was validated then discarded).
+        // invoice present → τιμολόγιο; absent → plain απόδειξη (receipt).
+        invoice_type: body.invoice ? 'invoice' : 'receipt',
+        invoice_name: body.invoice?.name?.trim() || null,
+        invoice_vat:  body.invoice?.vat?.trim()  || null,
         // Legacy mirror columns (kept for back-compat with admin UI)
         cost: chargeCents,
         credits: walletCreditCents,
@@ -286,6 +291,10 @@ export default async (request: Request) => {
         bonus_credits: bonusCents / 100,
         new_balance: walletCreditCents / 100,
         payment_status: 'pending',
+        // WEC-693: tell the customer their receipt vs invoice choice was registered.
+        invoice_type: body.invoice ? 'invoice' : 'receipt',
+        invoice_name: body.invoice?.name?.trim() || null,
+        invoice_vat:  body.invoice?.vat?.trim()  || null,
         // camelCase (legacy / downstream)
         walletPlanId,
         planLengthLabel: body.planLength,
