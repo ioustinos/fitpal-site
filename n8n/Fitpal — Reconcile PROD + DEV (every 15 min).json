@@ -1,0 +1,153 @@
+{
+  "name": "Fitpal — Reconcile PROD + DEV (every 15 min)",
+  "nodes": [
+    {
+      "parameters": {
+        "content": "## Fitpal — Reconcile (PROD + DEV)\n\n3rd gate of payment reconciliation. One 15-minute trigger, four calls:\n`viva-reconcile` + `airtable-reconcile` on **prod** and on **dev**.\n\n### Runs ALONGSIDE Netlify's own `*/5` cron — on purpose\nMeasured 2026-09-03 against `reconcile_runs`: Netlify cron *is* firing on prod, but skipped **70 times in 48h, worst gap 25.1 min**. This workflow covers those holes.\n\nSafe to double-fire: `markPaid` is a guarded `UPDATE ... WHERE payment_status='pending'`, so two triggers produce exactly one row change. Only cost is extra `reconcile_runs` rows.\n\n### Error handling is asymmetric, deliberately\nThe two **DEV** nodes are set to continue on failure — a dev branch-deploy outage must never stop the prod calls in the same execution.\nThe two **PROD** nodes use the default, so a real prod failure turns the execution **red** and you can see it in Executions.\n\n### ⚠️ Do not edit casually\nA manual edit of the old dev-only workflow left `viva-reconcile` untriggered for **17 days** (23 Jun – 10 Jul 2026, found in WEC-532). After ANY change, verify:\n\n```sql\nselect provider, count(*) as runs_20min, max(run_at) as latest,\n       now() - max(run_at) as age\nfrom reconcile_runs\nwhere run_at > now() - interval '20 minutes'\ngroup by provider;\n```\n\nSource of truth: `n8n/` in the fitpal-site repo.\n\nLinear: **WEC-534** scheduler cutover · **WEC-646** liveness alerting (STILL MISSING — nothing shouts if this AND Netlify both die) · **WEC-485** Netlify scheduler failure, never root-caused",
+        "height": 720,
+        "width": 480,
+        "color": 4
+      },
+      "id": "11a77f59-cbe1-4666-8f8f-48ff4f77def0",
+      "name": "README",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        40,
+        40
+      ]
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes",
+              "minutesInterval": 15
+            }
+          ]
+        }
+      },
+      "id": "9c8a56cb-b772-42df-a1f6-905b0661fe7c",
+      "name": "Every 15 minutes",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        400,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "url": "https://orders.fitpal.gr/.netlify/functions/viva-reconcile",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "f68f4f67-3702-4116-b8d9-27b1a0863cb5",
+      "name": "PROD · Viva reconcile",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        640,
+        220
+      ],
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 5000
+    },
+    {
+      "parameters": {
+        "url": "https://orders.fitpal.gr/.netlify/functions/airtable-reconcile",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "a8721ba0-c7e1-4dbd-9f47-34850cc54a4c",
+      "name": "PROD · Airtable reconcile",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        640,
+        360
+      ],
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 5000
+    },
+    {
+      "parameters": {
+        "url": "https://dev--fitpal-order.netlify.app/.netlify/functions/viva-reconcile",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "f02504c1-0c23-4d58-a4cb-aa27ce8f9b90",
+      "name": "DEV · Viva reconcile",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        640,
+        500
+      ],
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 5000,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "url": "https://dev--fitpal-order.netlify.app/.netlify/functions/airtable-reconcile",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "af070fa2-5cea-4ebb-8a68-49765d0b1dda",
+      "name": "DEV · Airtable reconcile",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        640,
+        640
+      ],
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 5000,
+      "onError": "continueRegularOutput"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Every 15 minutes": {
+      "main": [
+        [
+          {
+            "node": "PROD · Viva reconcile",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "PROD · Airtable reconcile",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "DEV · Viva reconcile",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "DEV · Airtable reconcile",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "tags": []
+}
