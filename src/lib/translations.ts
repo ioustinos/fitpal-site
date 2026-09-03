@@ -4,7 +4,7 @@ const T = {
   el: {
     // Banner / heading
     heading: 'Εβδομαδιαίο Μενού',
-    sub: 'Επίλεξε μέρα, πρόσθεσε τα αγαπημένα σου και παραγγείλε με ένα κλικ',
+    sub: 'Επίλεξε μέρα, πρόσθεσε τα αγαπημένα σου πιάτα και παραγγείλε με ένα κλικ',
     pillMin: 'Ελάχιστη παραγγελία 15 €',
     pillDelivery: 'Παράδοση 9:00–15:00',
     daylabel: 'Επιλεξε ημερα',
@@ -431,7 +431,7 @@ const T = {
   },
   en: {
     heading: 'Weekly Menu',
-    sub: 'Pick a day, add your favourites and order with one click',
+    sub: 'Pick a day, add your favourite dishes and order with one click',
     pillMin: 'Minimum order 15 €',
     pillDelivery: 'Delivery 9:00–15:00',
     daylabel: 'Select a day',
