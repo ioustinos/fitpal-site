@@ -26,12 +26,24 @@ export async function notifySubscriptionAdmins(
   p: SubAdminNotifyProps,
 ): Promise<void> {
   try {
-    const { data: adminRow } = await supabase
+    // WEC-666: subscription purchases have their OWN recipient list so we can
+    // add maria@fitpal.gr to package notifications WITHOUT also mailing her
+    // every à-la-carte order. Falls back to the shared order list when the
+    // dedicated key isn't set, so existing coverage never regresses.
+    const { data: subRow } = await supabase
       .from('settings')
       .select('value')
-      .eq('key', 'order_confirmation_admin_emails')
+      .eq('key', 'subscription_notify_admin_emails')
       .maybeSingle()
-    const rawAdmins = adminRow?.value
+    let rawAdmins = subRow?.value
+    if (!Array.isArray(rawAdmins) || rawAdmins.length === 0) {
+      const { data: adminRow } = await supabase
+        .from('settings')
+        .select('value')
+        .eq('key', 'order_confirmation_admin_emails')
+        .maybeSingle()
+      rawAdmins = adminRow?.value
+    }
     const adminEmails = Array.isArray(rawAdmins)
       ? (rawAdmins as unknown[])
           .filter((v): v is string => typeof v === 'string' && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v.trim()))

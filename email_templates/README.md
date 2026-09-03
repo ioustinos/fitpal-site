@@ -10,6 +10,19 @@ Templates are generated. Edit `build_templates.py`, then:
 python3 build_templates.py     # reads the agency pack, writes ./out/
 ```
 
+### ⚠️ WEC-666 copy changes live in `wec666_patch.py` (not yet folded into the build)
+
+The WEC-666 non-blocking copy edits (Υποσύνολο→Κόστος παραγγελίας, bank-transfer
+proof line, payment-link intro + post-CTA trim, refunded closing trim,
+subscription heading + remove menu button + add "we'll call you" line, signup
+title) were applied to the built HTML by `python3 wec666_patch.py`, because the
+agency source pack wasn't available to rebuild from at the time. The script is
+**idempotent** — after any real `build_templates.py` run, re-run
+`python3 wec666_patch.py` to re-apply, until these edits are folded into
+`build_templates.py` proper (and its gates verify them). BLUE-DOT-blocked items
+(the «φωτιά στα τηγάνια» line, the end icon, the subscription title/subtitle) and
+the renewal reminder are intentionally NOT in the patch.
+
 The build gates on: unresolved `*-BASE` placeholders, unbalanced Liquid blocks, unbalanced `<table>/<tr>/<td>`, `|date:` filters, em-dash defaults on fields the backend doesn't send, untranslated Greek in EN output, and the expected `{% unsubscribe %}` count.
 
 Source pack: the agency ZIP, extracted to `/tmp/fpnew` (override with `FITPAL_AGENCY_SRC`).

@@ -177,7 +177,7 @@
       <td class="pad-side" style="padding:24px 48px 0 48px;">
         <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="font-family:'Geologica',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif;">
           <tr>
-            <td align="left"  style="padding:0 0 9px 0; font-size:14px; font-weight:700; color:#004636;">Subtotal</td>
+            <td align="left"  style="padding:0 0 9px 0; font-size:14px; font-weight:700; color:#004636;">Order cost</td>
             <td align="right" style="padding:0 0 9px 0; font-size:14px; font-weight:400; color:#004636;">
               {% if event.subtotal_formatted %}{{ event.subtotal_formatted }}{% else %}{{ event.subtotal|floatformat:2 }} &euro;{% endif %}
             </td>
@@ -261,7 +261,7 @@
               {% for b in event.bank_transfer_infos %}IBAN: <strong>{{ b.iban }}</strong><br />
               Beneficiary: {{ b.beneficiary }}{% if b.bank_name %} &middot; {{ b.bank_name }}{% endif %}<br />
               {% endfor %}Reference: <strong>{{ event.order_number }}</strong><br />
-              <span style="color:#7A957A;">Your order activates as soon as we confirm receipt.</span>
+              <span style="color:#7A957A;">To confirm your order, email your deposit receipt to orders@fitpal.gr.</span>
             </td>
           </tr>
         </table>

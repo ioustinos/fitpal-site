@@ -66,12 +66,12 @@
     <!-- ── Headline ───────────────────────────────────────────────────── -->
     <!-- PLAIN FALLBACK, if the name guard below ever errors on a signup with
          no metadata, replace the <h1> contents with just:
-             {{ if eq .Data.lang "en" }}Welcome to the<br />Fitpal family!{{ else }}Καλωσήρθες στην παρέα<br />του Fitpal!{{ end }}
+             {{ if eq .Data.lang "en" }}Welcome to the<br />Fitpal family!{{ else }}Καλώς ήρθες στην παρέα<br />των Fitpal meals!{{ end }}
     -->
     <tr>
       <td class="pad-side" align="center" style="padding:40px 48px 0 48px;">
         <h1 class="h1" style="margin:0; font-family:'Geologica',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif; font-size:30px; line-height:1.22; font-weight:800; color:#004636; letter-spacing:-0.3px;">
-          {{ if .Data.first_name }}{{ if eq .Data.lang "en" }}Welcome to the<br />Fitpal family,{{ else }}Καλωσήρθες στην παρέα<br />του Fitpal,{{ end }} {{ .Data.first_name }}!{{ else }}{{ if eq .Data.lang "en" }}Welcome to the<br />Fitpal family!{{ else }}Καλωσήρθες στην παρέα<br />του Fitpal!{{ end }}{{ end }}
+          {{ if .Data.first_name }}{{ if eq .Data.lang "en" }}Welcome to the<br />Fitpal family,{{ else }}Καλώς ήρθες στην παρέα<br />των Fitpal meals,{{ end }} {{ .Data.first_name }}!{{ else }}{{ if eq .Data.lang "en" }}Welcome to the<br />Fitpal family!{{ else }}Καλώς ήρθες στην παρέα<br />των Fitpal meals!{{ end }}{{ end }}
         </h1>
       </td>
     </tr>
