@@ -50,6 +50,42 @@ function serviceClient(): SupabaseClient {
   })
 }
 
+/**
+ * WEC-695: which of these orderCodes belong to the OTHER Viva merchant.
+ *
+ * dev and prod share one Supabase project but talk to two different Viva
+ * accounts (demo vs live). The live merchant returns nothing useful for a
+ * demo orderCode, so reconciling across the boundary can only ever produce
+ * noise — and it did, on every run, for five weeks.
+ *
+ * `payment_links.payment_url` already encodes the environment (checkoutUrl()
+ * in lib/viva/env.ts builds it from `checkoutHost`), so no migration is
+ * needed. Returns codes we can POSITIVELY identify as foreign; anything
+ * unknown is left in, because a missing link row is not evidence.
+ */
+async function findForeignEnvCodes(
+  supabase: SupabaseClient,
+  ourCheckoutHost: string,
+  codes: string[],
+): Promise<Set<string>> {
+  const foreign = new Set<string>()
+  if (codes.length === 0) return foreign
+  const { data, error } = await supabase
+    .from('payment_links')
+    .select('viva_order_code, payment_url')
+    .in('viva_order_code', codes)
+  if (error) {
+    // Non-fatal: fall through and reconcile everything, as before.
+    console.error('[viva-reconcile] env partition lookup failed:', error)
+    return foreign
+  }
+  for (const row of (data ?? []) as Array<{ viva_order_code: string; payment_url: string | null }>) {
+    const url = row.payment_url ?? ''
+    if (url && !url.includes(ourCheckoutHost)) foreign.add(row.viva_order_code)
+  }
+  return foreign
+}
+
 /** WEC-425: parse `?dryRun=1` from the request URL. Scheduled invocations
  *  may pass no Request at all (Netlify scheduled fn signature); treat that
  *  as live. Accepts `1`, `true`, `yes` (case-insensitive). */
@@ -99,7 +135,58 @@ export default async (request?: Request) => {
   const dryRun = readDryRun(request)
   const startMs = Date.now()
   const supabase = serviceClient()
+  const creds = getVivaCreds()
+
+  // ── 0. OAuth PREFLIGHT ────────────────────────────────────────────
+  // WEC-695: previously the token was fetched lazily inside
+  // listVivaTransactionSummaries, i.e. once PER ORDER. When the credentials
+  // are wrong that meant 13 identical "invalid_client" lines per run, 13
+  // wasted round-trips, and a notes column so full of duplicates that the
+  // real signal — "we cannot authenticate at all" — was invisible. This
+  // failure ran unnoticed from 29 July to 3 September.
+  //
+  // Fail fast, once, with a message that names the environment and the host
+  // so the next person doesn't have to reverse-engineer which merchant we
+  // were talking to.
+  try {
+    await getVivaAccessToken()
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err)
+    const note =
+      `OAUTH PREFLIGHT FAILED (env=${creds.env}, host=${creds.accountsHost}, ` +
+      `clientId=${creds.clientId.slice(0, 8)}…): ${msg} — every verification in this run ` +
+      `would fail identically, so the run was aborted. Check VIVA_CLIENT_ID_` +
+      `${creds.env.toUpperCase()} / VIVA_CLIENT_SECRET_${creds.env.toUpperCase()}.`
+    console.error('[viva-reconcile]', note)
+    if (!dryRun) {
+      await supabase.from('reconcile_runs').insert({
+        provider: 'viva',
+        checked: 0, paid: 0, failed: 0, still_pending: 0, cancelled_timeout: 0,
+        errors: 1,
+        duration_ms: Date.now() - startMs,
+        notes: note,
+      }).then(undefined, (e) => console.error('[viva-reconcile] log failed:', e))
+    }
+    return Response.json({ error: note, env: creds.env, checked: 0 }, { status: 500 })
+  }
+
+  // ── 0b. Environment sanity ────────────────────────────────────────
+  // dev and prod share one Supabase project, and VIVA_ENV silently outranks
+  // Netlify's CONTEXT in resolveEnv(). A production deploy quietly talking to
+  // the demo merchant is a state that must never pass unremarked.
+  if (process.env.CONTEXT === 'production' && creds.env !== 'prod') {
+    console.warn(
+      '[viva-reconcile] ⚠️ CONTEXT=production but Viva env resolved to "%s" — ' +
+      'VIVA_ENV is overriding the production context and this deploy is talking ' +
+      'to the DEMO merchant. Real payments will not reconcile.', creds.env,
+    )
+  }
+
   let checked = 0, paid = 0, failedN = 0, stillPending = 0, cancelledTimeout = 0, errors = 0
+  // WEC-695: orders created against the OTHER Viva merchant. Shared database,
+  // two merchants — the live merchant has never heard of a demo orderCode and
+  // vice versa, so these can only ever error. Counted, not errored.
+  let skippedForeignEnv = 0
   // WEC-425: verify-before-cancel saved counters. A non-zero "rescued" count
   // is a LOUD canary — Phase 2 was about to cancel a row Viva considers paid.
   let rescuedFromCancelOrders = 0, rescuedFromCancelWalletPlans = 0
@@ -116,7 +203,25 @@ export default async (request?: Request) => {
   }
   const pendingRows: PendingRow[] = (rows ?? []) as PendingRow[]
 
+  // WEC-695: partition by which Viva merchant created the order.
+  // `payment_links.payment_url` is the discriminator — dev links point at
+  // demo.vivapayments.com, prod at www.vivapayments.com — and it needs no
+  // migration because it is already written on every link we create.
+  //
+  // Unknown codes are NOT skipped: absence of a link row is not evidence the
+  // order is foreign, and silently skipping real work is worse than a
+  // retryable error.
+  const foreignCodes = await findForeignEnvCodes(
+    supabase,
+    creds.checkoutHost,
+    pendingRows.map((r) => r.viva_order_code),
+  )
+
   for (const row of pendingRows) {
+    if (foreignCodes.has(row.viva_order_code)) {
+      skippedForeignEnv++
+      continue
+    }
     checked++
     try {
       // WEC-425: in dry-run, use the summary call (which doesn't mutate) and
@@ -163,7 +268,16 @@ export default async (request?: Request) => {
     errorNotes.push(`wallet_rpc: ${walletFnErr.message}`)
   } else {
     const planRows: PendingWalletPlanRow[] = (walletRows ?? []) as PendingWalletPlanRow[]
+    const foreignPlanCodes = await findForeignEnvCodes(
+      supabase,
+      creds.checkoutHost,
+      planRows.map((r) => r.viva_order_code),
+    )
     for (const row of planRows) {
+      if (foreignPlanCodes.has(row.viva_order_code)) {
+        skippedForeignEnv++
+        continue
+      }
       walletChecked++
       try {
         const txs = await listVivaTransactionSummaries(row.viva_order_code)
@@ -347,8 +461,17 @@ export default async (request?: Request) => {
     cancelledWalletTimeout++
   }
 
+  if (skippedForeignEnv > 0) {
+    console.info(
+      '[viva-reconcile] skipped %d order(s) belonging to the other Viva merchant ' +
+      '(we are env=%s, host=%s)', skippedForeignEnv, creds.env, creds.checkoutHost,
+    )
+  }
+
   const summary = {
     dryRun,
+    env: creds.env,
+    skippedForeignEnv,
     checked, paid, failed: failedN, stillPending, cancelledTimeout, errors,
     walletChecked, walletPaid, walletFailed, walletStillPending, cancelledWalletTimeout,
     rescuedFromCancelOrders, rescuedFromCancelWalletPlans,
@@ -385,7 +508,12 @@ export default async (request?: Request) => {
       cancelled_timeout: cancelledTimeout,
       errors,
       duration_ms: durationMs,
-      notes: errorNotes.length ? errorNotes.slice(0, 10).join(' | ') : null,
+      notes: [
+        skippedForeignEnv > 0
+          ? `skipped ${skippedForeignEnv} order(s) from the other Viva merchant (env=${creds.env})`
+          : null,
+        ...errorNotes.slice(0, 10),
+      ].filter(Boolean).join(' | ') || null,
     })
   } catch (err) {
     console.error('[viva-reconcile] failed to log run:', err)
