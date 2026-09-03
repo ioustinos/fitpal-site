@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { useAuthStore } from '../../store/useAuthStore'
+import { useAdminFilters } from '../../lib/useAdminFilters'
 import {
   listAdminOrders, getAdminOrder,
   setOrderStatus, setOrderPaymentStatus,
@@ -98,15 +99,43 @@ export function Orders() {
   const [detail, setDetail] = useState<AdminOrder | null>(null)
   const [detailLoading, setDetailLoading] = useState(false)
 
-  const [preset, setPreset] = useState<Preset>('all')
-  const [search, setSearch] = useState('')
-  const [filterStatus, setFilterStatus] = useState<OrderStatus[]>([])
-  const [filterPayment, setFilterPayment] = useState<PaymentStatus[]>([])
+  // WEC-687: filters survive navigation (URL + per-admin localStorage). The hook
+  // resolves the initial set (URL → saved → defaults); we keep the existing
+  // useState calls and just seed + persist them, so no setter call-site changes.
+  const { initial: initFilters, persist: persistFilters, clear: clearSavedFilters } = useAdminFilters(
+    'orders', user?.id,
+    {
+      preset: 'all' as Preset,
+      search: '',
+      status: [] as OrderStatus[],
+      payment: [] as PaymentStatus[],
+      method: [] as PaymentMethod[],
+      type: [] as OrderTypeCode[],
+    },
+  )
+  const [preset, setPreset] = useState<Preset>(initFilters.preset)
+  const [search, setSearch] = useState(initFilters.search)
+  const [filterStatus, setFilterStatus] = useState<OrderStatus[]>(initFilters.status)
+  const [filterPayment, setFilterPayment] = useState<PaymentStatus[]>(initFilters.payment)
   // WEC-577: raw payment METHOD filter — server-side (mirrors paymentStatus).
-  const [filterMethod, setFilterMethod] = useState<PaymentMethod[]>([])
+  const [filterMethod, setFilterMethod] = useState<PaymentMethod[]>(initFilters.method)
   // WEC-528: Order Type is DERIVED (payment_method × admin_order_id), no DB
   // column — so this filter is applied client-side on the loaded list.
-  const [filterType, setFilterType] = useState<OrderTypeCode[]>([])
+  const [filterType, setFilterType] = useState<OrderTypeCode[]>(initFilters.type)
+
+  // WEC-687: reflect the current filter set into the URL + per-admin storage on
+  // every change (replace: true — no history spam while typing search).
+  useEffect(() => {
+    persistFilters({
+      preset, search, status: filterStatus, payment: filterPayment, method: filterMethod, type: filterType,
+    })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [preset, search, filterStatus, filterPayment, filterMethod, filterType])
+
+  function clearAllFilters() {
+    setPreset('all'); setSearch(''); setFilterStatus([]); setFilterPayment([])
+    setFilterMethod([]); setFilterType([]); clearSavedFilters()
+  }
   // WEC-557: order ids with an unhandled customer change request — drives the
   // per-row pending indicator + a count pill so ops notices without opening drawers.
   const [pendingReqIds, setPendingReqIds] = useState<Set<string>>(new Set())
@@ -162,14 +191,13 @@ export function Orders() {
   // WEC-601: deep link from the admin-notification email —
   // /admin/orders?order=<id> opens that order's drawer on mount, then clears
   // the param so a later close/refresh doesn't re-open it.
-  const [searchParams, setSearchParams] = useSearchParams()
+  // WEC-687: read-only now — the filter-persist effect owns URL writes, so this
+  // just opens the deep-linked drawer once. The ?order= param is harmless to
+  // leave (the [] deps mean it can't re-open on later renders).
+  const [searchParams] = useSearchParams()
   useEffect(() => {
     const oid = searchParams.get('order')
-    if (!oid) return
-    void openDetail(oid)
-    const next = new URLSearchParams(searchParams)
-    next.delete('order')
-    setSearchParams(next, { replace: true })
+    if (oid) void openDetail(oid)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
@@ -289,6 +317,13 @@ export function Orders() {
             ))}
           </div>
         </details>
+
+        {/* WEC-687: explicit clear — wipes URL + this admin's saved set. */}
+        {(preset !== 'all' || search || filterStatus.length || filterPayment.length || filterMethod.length || filterType.length) && (
+          <button className="admin-btn-ghost" onClick={clearAllFilters} title="Καθαρισμός φίλτρων">
+            ✕ Clear filters
+          </button>
+        )}
       </div>
 
       {err && <div className="admin-error-banner">{err}</div>}

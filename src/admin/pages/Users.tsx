@@ -8,6 +8,8 @@ import { useImpersonationStore } from '../../store/useImpersonationStore'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { fetchActivePlanDetails, type PlanDetails } from '../../lib/api/planDetails'
 import { PlanDetailsPanel } from '../../components/shared/PlanDetailsPanel'
+import { useAdminFilters } from '../../lib/useAdminFilters'
+import { useAuthStore } from '../../store/useAuthStore'
 
 const PAGE_SIZE = 50
 
@@ -28,17 +30,23 @@ const PAGE_SIZE = 50
 export function Users() {
   const navigate = useNavigate()
   const startImpersonation = useImpersonationStore((s) => s.start)
-  const [searchParams, setSearchParams] = useSearchParams()
+  const [searchParams] = useSearchParams()
   // WEC-263: deep-link from /admin/orders → /admin/users?userId=<uuid>.
   // Read once on mount; we strip the param after consuming it so back-nav
   // doesn't keep re-selecting on refresh.
   const deepLinkUserId = searchParams.get('userId')
 
+  // WEC-687: remember this admin's search across navigation (URL + per-admin
+  // localStorage). Low-touch: seed state from `initial`, persist on change.
+  const adminUser = useAuthStore((s) => s.user)
+  const { initial: initUserFilters, persist: persistUserFilters, clear: clearSavedUserFilters } = useAdminFilters(
+    'users', adminUser?.id, { search: '' },
+  )
   const [rows, setRows] = useState<AdminUserRow[]>([])
   const [total, setTotal] = useState(0)
   const [page, setPage] = useState(0)
-  const [search, setSearch] = useState('')
-  const [searchInput, setSearchInput] = useState('')
+  const [search, setSearch] = useState(initUserFilters.search)
+  const [searchInput, setSearchInput] = useState(initUserFilters.search)
   const [loading, setLoading] = useState(true)
   const [err, setErr] = useState<string | null>(null)
 
@@ -65,12 +73,16 @@ export function Users() {
   useEffect(() => {
     if (!deepLinkUserId || loading) return
     loadDetail(deepLinkUserId)
-    // Strip the param so back/forward + refresh behaves naturally.
-    const next = new URLSearchParams(searchParams)
-    next.delete('userId')
-    setSearchParams(next, { replace: true })
+    // WEC-687: read-only now — the filter-persist effect owns URL writes; the
+    // ?userId= param is harmless to leave (runs once after load).
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [deepLinkUserId, loading])
+
+  // WEC-687: reflect the search into the URL + per-admin storage on change.
+  useEffect(() => {
+    persistUserFilters({ search })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [search])
 
   async function loadDetail(userId: string) {
     setSelectedId(userId); setDetailLoading(true)
@@ -127,7 +139,7 @@ export function Users() {
             <button
               className="admin-btn-ghost"
               type="button"
-              onClick={() => { setSearchInput(''); setSearch(''); setPage(0); refresh({ page: 0, search: '' }) }}
+              onClick={() => { setSearchInput(''); setSearch(''); setPage(0); clearSavedUserFilters(); refresh({ page: 0, search: '' }) }}
             >
               Clear
             </button>
