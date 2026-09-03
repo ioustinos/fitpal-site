@@ -395,12 +395,14 @@ export async function saveDishRecipe(
     const { error: upErr } = await supabase
       .from('ingredients')
       .upsert(newRows, { onConflict: 'search_key', ignoreDuplicates: true })
-    if (upErr) return { error: upErr.message }
+    // WEC-660: name the failing step so the next report is diagnosable instantly
+    // (this path failed for Christos with no usable message).
+    if (upErr) return { error: `create ingredients: ${upErr.message}` }
     const { data: rows, error: lookupErr } = await supabase
       .from('ingredients')
       .select('id, search_key')
       .in('search_key', Array.from(missingSk))
-    if (lookupErr) return { error: lookupErr.message }
+    if (lookupErr) return { error: `look up ingredients: ${lookupErr.message}` }
     for (const r of (rows ?? []) as Array<{ id: string; search_key: string }>) {
       skToId.set(r.search_key, r.id)
     }
@@ -413,16 +415,24 @@ export async function saveDishRecipe(
   }
 
   // 2. Delete existing recipe rows for this dish.
-  const { error: delAmtErr } = await supabase
-    .from('dish_variant_ingredient_amounts')
-    .delete()
-    .in('variant_id', (await supabase.from('dish_variants').select('id').eq('dish_id', dishId)).data?.map((v) => v.id as string) ?? [])
-  if (delAmtErr) return { error: delAmtErr.message }
+  // WEC-660: fetch variant ids first and only issue the amounts-delete when
+  // there ARE variants — an empty `.in('variant_id', [])` can 400 in PostgREST
+  // (e.g. a dish still being set up with no variants yet).
+  const { data: vRows, error: vErr } = await supabase.from('dish_variants').select('id').eq('dish_id', dishId)
+  if (vErr) return { error: `load variants: ${vErr.message}` }
+  const variantIds = (vRows ?? []).map((v) => v.id as string)
+  if (variantIds.length > 0) {
+    const { error: delAmtErr } = await supabase
+      .from('dish_variant_ingredient_amounts')
+      .delete()
+      .in('variant_id', variantIds)
+    if (delAmtErr) return { error: `clear variant amounts: ${delAmtErr.message}` }
+  }
   const { error: delDIErr } = await supabase
     .from('dish_ingredients')
     .delete()
     .eq('dish_id', dishId)
-  if (delDIErr) return { error: delDIErr.message }
+  if (delDIErr) return { error: `clear dish ingredients: ${delDIErr.message}` }
 
   if (resolved.length === 0) return { error: null }
 
@@ -437,7 +447,7 @@ export async function saveDishRecipe(
     customer_selectable: e.isVariant ? e.customerSelectable : true,
   }))
   const { error: insDIErr } = await supabase.from('dish_ingredients').insert(diRows)
-  if (insDIErr) return { error: insDIErr.message }
+  if (insDIErr) return { error: `save dish ingredients: ${insDIErr.message}` }
 
   // 4. Insert per-variant amounts for is_variant=true entries.
   const amtRows: Array<{ variant_id: string; ingredient_id: string; grams: number }> = []
@@ -449,7 +459,7 @@ export async function saveDishRecipe(
   }
   if (amtRows.length > 0) {
     const { error: insAmtErr } = await supabase.from('dish_variant_ingredient_amounts').insert(amtRows)
-    if (insAmtErr) return { error: insAmtErr.message }
+    if (insAmtErr) return { error: `save variant amounts: ${insAmtErr.message}` }
   }
 
   return { error: null }
