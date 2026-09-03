@@ -1,6 +1,20 @@
 # State of play — 3 September 2026
 
-Everything below is verified against Linear, the Netlify API and git today. Not from memory.
+> ## ⚠️ CORRECTION — first version of this doc was wrong in five places
+>
+> The production section below was copied out of `LAUNCH-CHECKLIST-2026-09.md` **without checking any of it.** Ioustinos had already done these and told me so, in some cases repeatedly:
+>
+> | I claimed | Reality |
+> | --- | --- |
+> | `SUPABASE_SERVICE_ROLE_KEY` missing on production | **Set.** Done when first asked. |
+> | `NETLIFY_PURGE_API_TOKEN` missing | **Set.** Asked ~6 times, answered every time. |
+> | `RATE_LIMIT_DISABLED=TRUE` is an oversight | **Deliberate.** Rate limiting stays off until the production load test has run. Turning it on first would block the test. |
+> | Load/stress testing "done" | **Dev only, a month ago.** A production run has never happened. See §4. |
+> | WEC-199 cart TTL still open | **Shipped months ago.** Verified in code; ticket closed today with evidence. |
+>
+> Lesson recorded: a checklist file is a record of what someone *intended* to do, not evidence of state. Verify or say "unverified".
+
+Everything below is verified against Linear, the database, the Netlify API and git today — or explicitly marked unverified.
 
 ---
 
@@ -125,32 +139,43 @@ The board is not short of work that's *done*. It's short of work that's *verifie
 
 ⚠️ **Klaviyo trap:** editing a flow message strips its transactional status, ~24h to re-approve. Every Klaviyo edit above must happen in **one sitting**.
 
-## Cache — mostly done, one loose end
+## Cache — done. Nothing to do.
 
-The hard part shipped: **WEC-350** «Edge-cache menu data» and **WEC-387** «Edge-cache dish recipe» are Done. Public read endpoints run `s-maxage` + `stale-while-revalidate` + cache tags; the Viva OAuth token and wallet config are cached in-memory per container; the client memoises in-tab with in-flight dedupe.
+**WEC-350** «Edge-cache menu data» and **WEC-387** «Edge-cache dish recipe» are Done. Public read endpoints run `s-maxage` + `stale-while-revalidate` + cache tags; the Viva OAuth token and wallet config are cached in-memory per container; the client memoises in-tab with in-flight dedupe.
 
-**Open: WEC-351** «Instant CDN invalidation via Netlify Cache Tags + admin save hooks» *(In Progress, Low)*. The `purge-menu-cache` function **is deployed to production** — I verified it. What's missing is `NETLIFY_PURGE_API_TOKEN` in the production env.
+**WEC-351** «Instant CDN invalidation via Netlify Cache Tags + admin save hooks»: the `purge-menu-cache` function is deployed to production (verified via the Netlify API) and **`NETLIFY_PURGE_API_TOKEN` is set** — Ioustinos did this a while ago. I have listed it as outstanding several times; that was me re-reading the checklist instead of asking once and recording the answer.
 
-**Consequence if left:** Nena edits the menu and it takes up to 5 minutes to appear instead of being instant. Annoying, not broken. Worth 10 minutes.
+**Only thing worth doing:** confirm a real admin menu edit shows up instantly on `orders.fitpal.gr`, then close WEC-351. That is a five-minute check by whoever next edits the menu, not a dev task.
 
-## Grafana / load testing — done, and it found a real bug that got fixed
+## Load testing — the DEV run is done. The PRODUCTION run has never happened.
 
-**WEC-535** «Stress & concurrency testing — k6 load suite (cutoff rush + money-path races)» is **Done**. The suite lives in `load-tests/` and runs from your Mac (the sandbox has no network).
+I called this "done" and that was wrong. **WEC-535** «Stress & concurrency testing — k6 load suite» is closed because the *suite was built and run on dev, roughly a month ago*. Production has never been load-tested.
 
-It found two things, both since fixed:
+What the dev run bought us — two real bugs, both fixed:
 
-- **WEC-536** «Optimize save-draft — stop rewriting the whole draft tree on every save» — was p95 2.89s at 6 VUs. **Done.**
-- **WEC-542** «order_number collisions under load → submit-order 500 "Failed to promote draft"» — **Done.**
+- **WEC-536** «Optimize save-draft — stop rewriting the whole draft tree on every save» — was p95 2.89s at 6 VUs. Done.
+- **WEC-542** «order_number collisions under load → submit-order 500 "Failed to promote draft"» — Done.
 
-**Still open: WEC-388** «Pre-launch: scale Supabase + Netlify for launch traffic» *(Backlog, High)*. Nobody has sized the Supabase plan against expected launch traffic.
+**A production run is still needed, and it is the reason `RATE_LIMIT_DISABLED` is TRUE.** Ioustinos's decision: rate limiting stays off until the prod load test has run, because turning it on first would throttle the test itself. So the order is fixed:
 
-⚠️ Standing rule: test results that live only in a Grafana tab are invisible to every other chat. Every run's summary must land in the repo or on a ticket the same day.
+1. Run the k6 suite against `orders.fitpal.gr` (from Ioustinos's Mac — the sandbox has no network)
+2. Read the results, fix whatever it surfaces
+3. **Then** set `RATE_LIMIT_DISABLED=FALSE` and redeploy
 
-## Zustand — nothing structural, one small ticket
+⚠️ Until step 3, the public site has no rate limiting. That is a known, accepted, temporary position — not an oversight. It should not sit there for weeks.
 
-No architectural work outstanding. Cart, UI and auth stores are all Zustand, working. Past bugs are closed: **WEC-424** «Zip code not persisted to Zustand cart store» Done, **WEC-409** «Multi-tab cart desync» Done.
+⚠️ Results must land in the repo or on a ticket the same day. A Grafana tab is invisible to every other chat.
 
-**One open: WEC-199** «Cart persistence: 24h TTL + past-day pruning on hydrate» *(In Progress, Medium)*. Without it a stale cart can hydrate with days that have already passed. Worth closing before launch — a customer seeing yesterday's menu in their cart is a support call.
+**Also still open: WEC-388** «Pre-launch: scale Supabase + Netlify for launch traffic» *(Backlog, High)* — nobody has sized the Supabase plan against expected launch traffic. The prod load test is what tells you whether it needs sizing up.
+
+## Zustand — nothing open
+
+Cart, UI and auth stores are all Zustand and working. Everything is closed: **WEC-424** «Zip code not persisted to Zustand cart store», **WEC-409** «Multi-tab cart desync», and **WEC-199** «Cart persistence: 24h TTL + past-day pruning» — which I wrongly listed as open. It shipped months ago; closed today with code evidence:
+
+- `TTL_MS = 24h` and `reconcileCartAgeAndDates()` in `src/store/useCartStore.ts:493-575`
+- Called from `src/pages/MenuPage.tsx:79` on hydrate, before the menu reconcile
+- Past-day pruning uses a **local**-date compare, deliberately not UTC (off-by-one near midnight for every Greek customer)
+- Has since absorbed **WEC-591** — a persisted voucher is dropped when reconciliation empties the cart, so an old code can't silently discount a fresh order
 
 ---
 
@@ -165,27 +190,33 @@ The cutover **started on 1 Sept and stalled.** Already verified done:
 - Email links repointed from the dev site to `orders.fitpal.gr`
 - Both scheduled functions registered on production cron
 
-## 🔴 Blocking
+## ✅ Already done — do not ask again
 
-1. **`SUPABASE_SERVICE_ROLE_KEY` on the production context.** Set on branch-deploy only. Without it `save-draft`, `menu-quote` and the payment leg of `submit-order` all 502. Same key — dev and prod share the Supabase project. *(I can't verify env vars through the API; confirm in the Netlify UI.)*
-2. **Redeploy** — env changes never apply to an existing build. Batch every env change below into this one deploy.
-3. **Promote `dev` → `main`** — see the headline.
-4. **Viva webhooks registered AND Active** on `www.vivapayments.com`, pointing at `https://orders.fitpal.gr/api/viva-webhook`, all three event types. **Reload the page and confirm each shows Active** — on the sandbox one sat Inactive for two months and payments resolved via the return URL alone (WEC-497).
-5. **Real-money smoke test** — order ≥ €10 on your own account, cancel at Viva first, then pay, confirm a `webhook_events` row appears, refund it, check the bank statement tomorrow. **Never** `demo@fitpal.gr`.
+| Item | |
+| --- | --- |
+| `SUPABASE_SERVICE_ROLE_KEY` on production | Set. Checkout works. |
+| `NETLIFY_PURGE_API_TOKEN` | Set. |
+| `RATE_LIMIT_DISABLED = TRUE` | **Deliberate**, pending the production load test. Not an oversight. |
+| Both reconcile crons registered on production | Verified via the Netlify API AND against `reconcile_runs` — firing on a clean 5-minute cadence right now |
 
-## 🟠 Before you let customers in
+## 🔴 Actually blocking
 
-6. **`RATE_LIMIT_DISABLED` is TRUE on all contexts** — rate limiting is switched off on a public site.
-7. **Google Maps / Places** — key is in Netlify; still needs Maps JavaScript API + **Places API (New)** enabled, billing attached, and the referrer restrictions. Not a blocker (address degrades to a text box), and it also closes **WEC-238**, open since May.
-8. **Supabase Auth URL configuration** — Site URL + Redirect URLs for `orders.fitpal.gr` with the mandatory `/**`. Without it Google login, OTP and password reset all fail on the new domain.
-9. **Legal pages** — **WEC-313** «Go-live: legal pages — Terms, Privacy, Refund policy, Cookie consent». They exist; read them once. Viva's review checks delivery, cancellations and refunds.
-10. **Bank transfer info** — the `bank_transfer_info` setting still has a `GR00 0000…` placeholder in some environments. Check it holds the real IBAN.
+1. **Promote `dev` → `main`.** Production is behind. See the headline.
+2. **Viva webhooks registered AND Active** on `www.vivapayments.com`, pointing at `https://orders.fitpal.gr/api/viva-webhook`, all three event types. **Reload the page and confirm each shows Active** — on the sandbox one sat Inactive for two months and payments resolved via the return URL alone (WEC-497). *Unverified from here — I cannot see the Viva dashboard.*
+3. **Real-money smoke test** — order ≥ €10 on your own account, cancel at Viva first, then pay, confirm a `webhook_events` row appears, refund it, check the bank statement tomorrow. **Never** `demo@fitpal.gr`.
+4. **Production load test**, then rate limiting on. See §4.
 
-## 🟡 Decide
+## 🟠 Unverified from here — someone has to look
 
-11. **Tracking on or off** — `VITE_TRACKING_ENABLED` is off in production. WEC-397 is unverified and GDPR wants a consent banner first.
-12. **`NETLIFY_PURGE_API_TOKEN`** — see the cache section.
-13. **Google OAuth consent screen branding** — currently reads *"to continue to rhwetztxwjxfstffalwl.supabase.co"*. Works, looks unprofessional. ⚠️ The complete fix is Supabase's paid Custom Domain add-on, which **changes the auth callback** — do not do that this week.
+5. **Google Maps / Places** — Maps JavaScript API + **Places API (New)** enabled, billing attached, referrer restrictions. Not a blocker (the address field degrades to plain text). Also closes **WEC-238**, open since May.
+6. **Supabase Auth URL configuration** — Site URL + Redirect URLs for `orders.fitpal.gr` with the mandatory `/**`. If this were wrong, Google login and OTP would be failing on the live domain — so it is probably already right. Confirm rather than assume.
+7. **Legal pages** — **WEC-313** «Go-live: legal pages — Terms, Privacy, Refund policy, Cookie consent». They exist and the domain was fixed. Read them once; Viva's review checks delivery, cancellations and refunds.
+8. **Bank transfer info** — check the `bank_transfer_info` setting holds a real IBAN, not the `GR00 0000…` placeholder.
+
+## 🟡 Genuinely open decisions
+
+9. **Tracking on or off** — `VITE_TRACKING_ENABLED` is off in production. **WEC-397** «Tracking Phase 1 — Meta Pixel + CAPI + Klaviyo (gated)» is In Review and unverified, and GDPR wants the consent banner first.
+10. **Google OAuth consent screen branding** — reads *"to continue to rhwetztxwjxfstffalwl.supabase.co"*. Works, looks unprofessional. ⚠️ The complete fix is Supabase's paid Custom Domain add-on, which **changes the auth callback** — not this week.
 
 ## The go-live epic nobody has touched
 
@@ -197,12 +228,52 @@ Of these, the ones I would not launch without: **WEC-315** (a real end-to-end ru
 
 ---
 
-# 6 · What I'd do, in order
+# 6 · Reconcile: n8n or Netlify cron? — Netlify is working, keep n8n as the net
 
-1. **Promote `dev` → `main`.** Two days of fixes are sitting unused.
-2. **Service role key + redeploy.** One deploy carries the promotion, the key, the rate-limit fix and the Maps key.
+**Measured today, not assumed.** `reconcile_runs` over the last 48h, `provider='viva'`:
+
+| | |
+| --- | --- |
+| Runs in 24h | 215 (viva) + 353 (airtable) |
+| Latest run | 1m38s before I checked |
+| Cadence | clean 5-minute, on the boundary — `:35:10`, `:30:20`, `:25:10`, `:20:13`… |
+| Intervals in 48h | 494 |
+| Normal (250–350s) | 418 |
+| **Gaps over 6.5 min** | **70** |
+| **Worst gap** | **25.1 minutes** (ended 2 Sept 16:50) |
+
+Two conclusions:
+
+1. **Netlify's scheduler IS firing on production.** The 5-minute boundary cadence is Netlify's `*/5`, not n8n's 15-minute interval. The **WEC-485** failure (scheduler stopped firing on this site around 23 June, never root-caused) is not currently happening.
+2. **But it skips.** 70 misses in 48h, worst 25 minutes. That is ~85% reliable. For the *third* gate of payment reconciliation — the thing that catches a customer who paid but whose order still says pending — 85% is not something to lean on alone.
+
+### So: don't choose. Keep both.
+
+**Recommendation — point the n8n workflow at production and leave it running.**
+
+- It costs nothing. `viva-reconcile` is idempotent — `markPaid` is a guarded `UPDATE ... WHERE payment_status = 'pending'`, so concurrent runs from two triggers produce exactly one row change. Overlapping triggers are noisy in `reconcile_runs`, never harmful.
+- It covers Netlify's 25-minute holes.
+- It survives the WEC-485 failure mode recurring, which nobody ever explained and therefore nobody can rule out.
+
+**What to change in n8n:** the workflow currently hits the **dev** URLs. Both HTTP nodes in `Fitpal DEV — Reconcile (every 15 min) FIXED.json` point at:
+
+```
+https://dev--fitpal-order.netlify.app/.netlify/functions/airtable-reconcile
+https://dev--fitpal-order.netlify.app/.netlify/functions/viva-reconcile
+```
+
+Either duplicate the workflow as **"Fitpal PROD — Reconcile"** with `https://orders.fitpal.gr/api/...`, or edit the two URLs in place. **Duplicating is safer** — history lesson from WEC-532: a manual edit of that workflow left `viva-reconcile` untriggered for **17 days** (23 June – 10 July) and nobody noticed.
+
+**Then the real gap: nothing alerts if BOTH stop.** That is **WEC-646** «Reconcile scheduler idle on dev since 2026-07-29 — add liveness alerting before go-live» and **WEC-534** «Go-live: reconcile scheduler cutover». A liveness check is one query — *"no `reconcile_runs` row in the last 20 minutes → shout"*. Without it, the safety net can fail silently for weeks, which has already happened twice.
+
+---
+
+# 7 · What I'd do, in order
+
+1. **Promote `dev` → `main`.** Days of fixes sitting unused, including the phantom-order and payment-link fixes.
+2. **Duplicate the n8n workflow to a PROD version** and leave both triggers running.
 3. **Verify the Viva webhooks are Active,** then the real-money smoke test.
-4. **Clear the In-Review queue,** money tickets first — WEC-608, WEC-594, WEC-604, WEC-691.
-5. **WEC-690** (wrong customer address in emails) → then the WEC-666 email rewrite, one Klaviyo sitting.
-6. **Answer the seven decisions in §1.** Several of them block a developer today.
-7. **WEC-314** monitoring and **WEC-318** backup drill, before you rely on the thing.
+4. **Run the k6 suite against production** → fix what it finds → then turn rate limiting on.
+5. **Clear the In-Review queue,** money tickets first — WEC-608, WEC-594, WEC-604, WEC-691.
+6. **Answer the decisions in §1.** Several block a developer today.
+7. **WEC-646 liveness alerting**, **WEC-314** monitoring, **WEC-318** backup drill — before you rely on any of this.
