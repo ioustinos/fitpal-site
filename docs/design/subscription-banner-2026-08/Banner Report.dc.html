@@ -1,0 +1,479 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geologica:wght@400;600;800&display=swap" rel="stylesheet">
+<script src="./image-slot.js"></script>
+<style>
+  * { box-sizing: border-box; }
+  body { margin: 0; background: #EFE9DA; font-family: Geologica, system-ui, sans-serif; }
+  a { color: #00875a; text-decoration: none; }
+  a:hover { color: #004739; }
+</style>
+</helmet>
+
+<div style="max-width:1060px;margin:0 auto;padding:56px 40px 96px;display:flex;flex-direction:column;gap:56px">
+
+  <div style="display:flex;flex-direction:column;gap:14px;border-bottom:2px solid #004739;padding-bottom:22px">
+    <div style="display:flex;align-items:baseline;justify-content:space-between;gap:20px">
+      <span style="font-size:12px;font-weight:600;letter-spacing:.18em;color:#7d8a80">FITPAL MEALS · ORDERING SITE</span>
+      <span style="font-size:12px;font-weight:600;letter-spacing:.06em;color:#7d8a80">21.08.2026 · για απόφαση ομάδας</span>
+    </div>
+    <div style="font-size:40px;font-weight:800;color:#004739;letter-spacing:-.02em;line-height:1.1">Banner συνδρομής στη σελίδα μενού</div>
+    <div style="font-size:16px;font-weight:400;color:#4c5a51;line-height:1.6;max-width:760px;text-wrap:pretty">Τέσσερις επιλογές σχεδίασης και πέντε επιλογές κειμένου. Το banner «Εβδομαδιαίο Μενού» παραμένει στη θέση του — χρησιμεύει για την επικοινωνία των απλών χρηστών — άρα η κάρτα συνδρομής δουλεύει σε 624px πλάτος δίπλα του, σε ύψος 208px — ανάμεσα στα σημερινά 240px και στα 152px της πρώτης πρότασης. Όλα τα ελληνικά strings είναι από το live landing· δεν έχει γραφτεί νέο κείμενο. Οι φωτογραφίες είναι κομμένες από το τρέχον μενού του ordering site.</div>
+  </div>
+
+  <div style="display:flex;flex-direction:column;gap:14px">
+    <div style="font-size:12px;font-weight:600;letter-spacing:.16em;color:#00875a">ΤΟ ΠΡΟΒΛΗΜΑ ΤΟΥ ΣΗΜΕΡΙΝΟΥ BANNER</div>
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px">
+      <div style="background:#FFFFFF;border-radius:16px;padding:18px 20px;display:flex;flex-direction:column;gap:6px">
+        <div style="font-size:15px;font-weight:800;color:#004739">Καμία αντίθεση</div>
+        <div style="font-size:13px;font-weight:400;color:#4c5a51;line-height:1.5">Κρεμ κάρτα σε κρεμ σελίδα: το μάτι τη διαβάζει ως φόντο.</div>
+      </div>
+      <div style="background:#FFFFFF;border-radius:16px;padding:18px 20px;display:flex;flex-direction:column;gap:6px">
+        <div style="font-size:15px;font-weight:800;color:#004739">Η έκπτωση κρύβεται</div>
+        <div style="font-size:13px;font-weight:400;color:#4c5a51;line-height:1.5">Το «έως 20%» βρίσκεται μέσα σε πρόταση, σε γκρι, σε 12px.</div>
+      </div>
+      <div style="background:#FFFFFF;border-radius:16px;padding:18px 20px;display:flex;flex-direction:column;gap:6px">
+        <div style="font-size:15px;font-weight:800;color:#004739">Άγνωστο τι ακολουθεί</div>
+        <div style="font-size:13px;font-weight:400;color:#4c5a51;line-height:1.5">Το κλικ ανοίγει wizard 4 βημάτων που δεν προαναγγέλλεται πουθενά.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== OPTION 1 ===== -->
+  <div style="display:flex;flex-direction:column;gap:18px">
+    <div style="display:flex;gap:14px;align-items:baseline">
+      <span style="flex:none;background:#004739;color:#F9F2E1;font-size:13px;font-weight:800;padding:5px 11px;border-radius:999px">1</span>
+      <div style="display:flex;flex-direction:column;gap:5px">
+        <div style="font-size:22px;font-weight:800;color:#004739;letter-spacing:-.01em">Συνέχεια του landing</div>
+        <div style="font-size:14px;font-weight:400;color:#4c5a51;line-height:1.55;max-width:800px">Ίδιο eyebrow, ίδιος τίτλος και ίδια κάρτα «Το πλάνο σου» με το hero των συνδρομών, ώστε το banner να διαβάζεται ως συνέχεια της σελίδας και όχι ως promo. <b style="font-weight:600">Κείμενο: D · GOAL</b> — «Φάε για τον στόχο σου.»</div>
+      </div>
+    </div>
+
+    <div style="background:#F9F2E1;padding:22px;border-radius:18px;overflow-x:auto">
+      <div style="width:900px;min-width:900px;display:flex;gap:16px;align-items:stretch">
+        <div style="flex:none;width:260px;background:#00382C;border-radius:18px;padding:18px;display:flex;flex-direction:column;justify-content:space-between">
+          <div style="font-size:17px;font-weight:800;color:#F9F2E1;line-height:1.2">Εβδομαδιαίο Μενού</div>
+          <div style="display:flex;flex-direction:column;gap:6px;align-items:flex-start">
+            <span style="font-size:11px;font-weight:600;color:#00382C;background:#8fdcae;padding:5px 10px;border-radius:999px;white-space:nowrap">Εβδομάδα 24 – 28 Αυγ</span>
+            <span style="font-size:11px;font-weight:600;color:#cfe6d9;background:rgba(255,255,255,.1);padding:5px 10px;border-radius:999px;white-space:nowrap">Ελάχιστη παραγγελία 15 €</span>
+            <span style="font-size:11px;font-weight:600;color:#cfe6d9;background:rgba(255,255,255,.1);padding:5px 10px;border-radius:999px;white-space:nowrap">Παράδοση 9:00–15:00</span>
+          </div>
+        </div>
+        <div style="flex:1;min-width:0;height:208px;background:#FFFFFF;border-radius:20px;box-shadow:0 8px 22px rgba(0,55,44,.12);display:flex;overflow:hidden;cursor:pointer">
+        <div style="flex:none;width:112px;height:208px">
+          <image-slot id="rep-1" shape="rect" src="photos/dish-1.png" placeholder="πιάτο"></image-slot>
+        </div>
+        <div style="flex:1;min-width:0;padding:16px 20px;display:flex;flex-direction:column;justify-content:space-between">
+          <div style="display:flex;flex-direction:column;gap:6px">
+            <div style="display:flex;align-items:center;gap:8px;white-space:nowrap">
+              <span style="width:22px;height:2px;background:#2DB56A;border-radius:2px"></span>
+              <span style="font-size:11px;font-weight:600;letter-spacing:.14em;color:#00875a">ΣΥΝΔΡΟΜΕΣ · ΕΩΣ -20%</span>
+            </div>
+            <div style="font-size:22px;font-weight:800;color:#004739;letter-spacing:-.01em;line-height:1.15;white-space:nowrap">Φάε για τον στόχο σου.</div>
+            <div style="font-size:14px;font-weight:400;color:#4c5a51;white-space:nowrap">Απλά, ευέλικτα και γευστικά.</div>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:8px;align-items:flex-start">
+            <div style="background:#2DB56A;color:#FFFFFF;font-size:14px;font-weight:800;padding:13px 20px;border-radius:999px;white-space:nowrap" style-hover="background:#00b96b">Φτιάξε το Πλάνο σου →</div>
+            <div style="font-size:11px;font-weight:400;color:#5a6760;white-space:nowrap">Έως −20% · Δωρεάν Delivery · Pause Anytime</div>
+          </div>
+        </div>
+        <div style="flex:none;width:214px;padding:14px 14px 14px 0">
+          <div style="height:100%;background:#F4FAF6;border-radius:14px;padding:12px 14px;display:flex;flex-direction:column;justify-content:space-between">
+            <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;white-space:nowrap">
+              <span style="font-size:12px;font-weight:800;color:#004739">Το πλάνο σου</span>
+              <span style="background:#F7A81B;color:#00382C;font-size:12px;font-weight:800;padding:4px 10px;border-radius:999px">έως -20%</span>
+            </div>
+            <div style="display:flex;justify-content:space-between;white-space:nowrap"><span style="font-size:11px;color:#7f8c84">Διάρκεια Πακέτου</span><span style="font-size:11px;font-weight:600;color:#004739">4 εβδομάδες</span></div>
+            <div style="display:flex;justify-content:space-between;white-space:nowrap"><span style="font-size:11px;color:#7f8c84">Ημέρες ανά Εβδομάδα</span><span style="font-size:11px;font-weight:600;color:#004739">5 / εβδομάδα</span></div>
+            <div style="display:flex;justify-content:space-between;white-space:nowrap"><span style="font-size:11px;color:#7f8c84">Αριθμός Γευμάτων</span><span style="font-size:11px;font-weight:600;color:#004739">2 / ημέρα</span></div>
+          </div>
+        </div>
+        </div>
+      </div>
+    </div>
+
+    <div style="display:flex;gap:22px;align-items:flex-start">
+      <div style="flex:none;width:384px;background:#F9F2E1;padding:12px;border-radius:16px">
+        <div style="background:#FFFFFF;border-radius:18px;box-shadow:0 6px 18px rgba(0,55,44,.12);overflow:hidden;cursor:pointer;width:360px">
+          <div style="display:flex;gap:12px;padding:12px;align-items:center">
+            <div style="flex:none;width:64px;height:64px;border-radius:14px;overflow:hidden">
+              <image-slot id="rep-1-m" shape="rounded" radius="14" src="photos/dish-1.png" placeholder="+"></image-slot>
+            </div>
+            <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:4px">
+              <div style="display:flex;align-items:center;gap:6px;white-space:nowrap">
+                <span style="width:16px;height:2px;background:#2DB56A;border-radius:2px"></span>
+                <span style="font-size:10px;font-weight:600;letter-spacing:.12em;color:#00875a">ΣΥΝΔΡΟΜΕΣ · ΕΩΣ -20%</span>
+              </div>
+              <div style="font-size:17px;font-weight:800;color:#004739;line-height:1.15">Φάε για τον στόχο σου.</div>
+              <div style="font-size:12px;font-weight:400;color:#4c5a51">Απλά, ευέλικτα και γευστικά.</div>
+            </div>
+          </div>
+          <div style="margin:0 12px;background:#F4FAF6;border-radius:12px;padding:9px 11px;display:flex;flex-direction:column;gap:5px">
+            <div style="display:flex;justify-content:space-between;white-space:nowrap"><span style="font-size:11px;color:#7f8c84">Διάρκεια Πακέτου</span><span style="font-size:11px;font-weight:600;color:#004739">4 εβδομάδες</span></div>
+            <div style="display:flex;justify-content:space-between;white-space:nowrap"><span style="font-size:11px;color:#7f8c84">Αριθμός Γευμάτων</span><span style="font-size:11px;font-weight:600;color:#004739">2 / ημέρα</span></div>
+          </div>
+          <div style="padding:12px;display:flex;flex-direction:column;gap:8px">
+            <div style="font-size:11px;font-weight:400;color:#5a6760;line-height:1.4">Έως −20% · Δωρεάν Delivery · Pause Anytime · Διατροφολογική Υποστήριξη</div>
+            <div style="background:#2DB56A;color:#FFFFFF;font-size:14px;font-weight:800;padding:13px;border-radius:999px;text-align:center">Φτιάξε το Πλάνο σου →</div>
+          </div>
+        </div>
+      </div>
+      <div style="font-size:13px;font-weight:400;color:#4c5a51;line-height:1.6;padding-top:14px">Mobile 360px: κρατά την πράσινη παύλα και τον τίτλο του hero· η κάρτα πλάνου κρατά δύο από τα τέσσερα πεδία του wizard.<br><br><b style="font-weight:600">Μέγεθος:</b> 624 × 208px, δίπλα στο «Εβδομαδιαίο Μενού» (260px).</div>
+    </div>
+  </div>
+
+  <!-- ===== OPTION 2 ===== -->
+  <div style="display:flex;flex-direction:column;gap:18px">
+    <div style="display:flex;gap:14px;align-items:baseline">
+      <span style="flex:none;background:#004739;color:#F9F2E1;font-size:13px;font-weight:800;padding:5px 11px;border-radius:999px">2</span>
+      <div style="display:flex;flex-direction:column;gap:5px">
+        <div style="font-size:22px;font-weight:800;color:#004739;letter-spacing:-.01em">Προεπισκόπηση του wizard</div>
+        <div style="font-size:14px;font-weight:400;color:#4c5a51;line-height:1.55;max-width:800px">Το banner δείχνει τη φόρμα που ακολουθεί: τα τέσσερα πραγματικά βήματα ως κενά πεδία, με μπάρα προόδου. Λύνει το «δεν ξέρω τι ανοίγει». <b style="font-weight:600">Κείμενο: E · WIZARD</b> — «Βρες το πλάνο που σου ταιριάζει».</div>
+      </div>
+    </div>
+
+    <div style="background:#F9F2E1;padding:22px;border-radius:18px;overflow-x:auto">
+      <div style="width:900px;min-width:900px;display:flex;gap:16px;align-items:stretch">
+        <div style="flex:none;width:260px;background:#00382C;border-radius:18px;padding:18px;display:flex;flex-direction:column;justify-content:space-between">
+          <div style="font-size:17px;font-weight:800;color:#F9F2E1;line-height:1.2">Εβδομαδιαίο Μενού</div>
+          <div style="display:flex;flex-direction:column;gap:6px;align-items:flex-start">
+            <span style="font-size:11px;font-weight:600;color:#00382C;background:#8fdcae;padding:5px 10px;border-radius:999px;white-space:nowrap">Εβδομάδα 24 – 28 Αυγ</span>
+            <span style="font-size:11px;font-weight:600;color:#cfe6d9;background:rgba(255,255,255,.1);padding:5px 10px;border-radius:999px;white-space:nowrap">Ελάχιστη παραγγελία 15 €</span>
+            <span style="font-size:11px;font-weight:600;color:#cfe6d9;background:rgba(255,255,255,.1);padding:5px 10px;border-radius:999px;white-space:nowrap">Παράδοση 9:00–15:00</span>
+          </div>
+        </div>
+        <div style="flex:1;min-width:0;height:208px;background:#FFFFFF;border-radius:20px;box-shadow:0 8px 22px rgba(0,55,44,.12);display:flex;overflow:hidden;cursor:pointer">
+        <div style="flex:none;width:112px;height:208px">
+          <image-slot id="rep-2" shape="rect" src="photos/dish-3.png" placeholder="πιάτο"></image-slot>
+        </div>
+        <div style="flex:1;min-width:0;padding:14px 18px;display:flex;flex-direction:column;justify-content:space-between">
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;white-space:nowrap">
+            <div style="display:flex;flex-direction:column;gap:2px">
+              <span style="font-size:11px;font-weight:600;letter-spacing:.14em;color:#00875a">ΣΥΝΔΡΟΜΗ FITPAL</span>
+              <span style="font-size:21px;font-weight:800;color:#004739;letter-spacing:-.01em;line-height:1.15">Βρες το πλάνο που σου ταιριάζει</span>
+            </div>
+            <span style="flex:none;background:#F7A81B;color:#00382C;font-size:15px;font-weight:800;padding:7px 14px;border-radius:999px">ΕΩΣ -20%</span>
+          </div>
+          <div style="display:flex;gap:6px;align-items:center">
+            <span style="flex:none;width:60px;height:4px;border-radius:2px;background:#2DB56A"></span>
+            <span style="flex:1;height:4px;border-radius:2px;background:#E8E1CE"></span>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px">
+            <div style="flex:none;border:1px solid #DFE7E1;border-radius:12px;padding:11px 12px;display:flex;align-items:center;justify-content:space-between;gap:5px;white-space:nowrap;overflow:hidden">
+              <span style="font-size:11px;font-weight:600;color:#8c9990">Διάρκεια Πακέτου</span>
+              <span style="font-size:11px;font-weight:600;color:#B9C4BD">⌄</span>
+            </div>
+            <div style="flex:none;border:1px solid #DFE7E1;border-radius:12px;padding:11px 12px;display:flex;align-items:center;justify-content:space-between;gap:5px;white-space:nowrap;overflow:hidden">
+              <span style="font-size:11px;font-weight:600;color:#8c9990">Ημέρες ανά Εβδομάδα</span>
+              <span style="font-size:11px;font-weight:600;color:#B9C4BD">⌄</span>
+            </div>
+            <div style="flex:none;border:1px solid #DFE7E1;border-radius:12px;padding:11px 12px;display:flex;align-items:center;justify-content:space-between;gap:5px;white-space:nowrap;overflow:hidden">
+              <span style="font-size:11px;font-weight:600;color:#8c9990">Αριθμός Γευμάτων</span>
+              <span style="font-size:11px;font-weight:600;color:#B9C4BD">⌄</span>
+            </div>
+            <div style="flex:none;border:1px solid #DFE7E1;border-radius:12px;padding:11px 12px;display:flex;align-items:center;justify-content:space-between;gap:5px;white-space:nowrap;overflow:hidden">
+              <span style="font-size:11px;font-weight:600;color:#8c9990">Πληρωμή</span>
+              <span style="font-size:11px;font-weight:600;color:#B9C4BD">⌄</span>
+            </div>
+          </div>
+          <div style="display:flex;align-items:center;justify-content:flex-end;white-space:nowrap">
+            <div style="flex:none;background:#004739;color:#FFFFFF;font-size:14px;font-weight:800;padding:13px 20px;border-radius:999px" style-hover="background:#00382C">Φτιάξε το Πλάνο σου →</div>
+          </div>
+        </div>
+        </div>
+      </div>
+    </div>
+
+    <div style="display:flex;gap:22px;align-items:flex-start">
+      <div style="flex:none;width:384px;background:#F9F2E1;padding:12px;border-radius:16px">
+        <div style="background:#FFFFFF;border-radius:18px;box-shadow:0 6px 18px rgba(0,55,44,.12);cursor:pointer;width:360px;padding:12px;display:flex;flex-direction:column;gap:10px">
+          <div style="display:flex;align-items:center;gap:10px">
+            <div style="flex:none;width:54px;height:54px;border-radius:12px;overflow:hidden">
+              <image-slot id="rep-2-m" shape="rounded" radius="12" src="photos/dish-3.png" placeholder="+"></image-slot>
+            </div>
+            <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:3px">
+              <div style="display:flex;align-items:center;gap:8px;white-space:nowrap">
+                <span style="font-size:10px;font-weight:600;letter-spacing:.12em;color:#00875a">ΣΥΝΔΡΟΜΗ FITPAL</span>
+                <span style="background:#F7A81B;color:#00382C;font-size:10px;font-weight:800;padding:2px 7px;border-radius:999px">ΕΩΣ -20%</span>
+              </div>
+              <div style="font-size:16px;font-weight:800;color:#004739;line-height:1.2">Βρες το πλάνο που σου ταιριάζει</div>
+            </div>
+          </div>
+          <div style="display:flex;gap:6px;align-items:center">
+            <span style="flex:none;width:46px;height:4px;border-radius:2px;background:#2DB56A"></span>
+            <span style="flex:1;height:4px;border-radius:2px;background:#E8E1CE"></span>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px">
+            <div style="border:1px solid #DFE7E1;border-radius:10px;padding:6px 8px;display:flex;justify-content:space-between;white-space:nowrap;overflow:hidden"><span style="font-size:11px;color:#8c9990;font-weight:600">Διάρκεια</span><span style="font-size:11px;color:#B9C4BD">⌄</span></div>
+            <div style="border:1px solid #DFE7E1;border-radius:10px;padding:6px 8px;display:flex;justify-content:space-between;white-space:nowrap;overflow:hidden"><span style="font-size:11px;color:#8c9990;font-weight:600">Ημέρες</span><span style="font-size:11px;color:#B9C4BD">⌄</span></div>
+            <div style="border:1px solid #DFE7E1;border-radius:10px;padding:6px 8px;display:flex;justify-content:space-between;white-space:nowrap;overflow:hidden"><span style="font-size:11px;color:#8c9990;font-weight:600">Γεύματα</span><span style="font-size:11px;color:#B9C4BD">⌄</span></div>
+            <div style="border:1px solid #DFE7E1;border-radius:10px;padding:6px 8px;display:flex;justify-content:space-between;white-space:nowrap;overflow:hidden"><span style="font-size:11px;color:#8c9990;font-weight:600">Πληρωμή</span><span style="font-size:11px;color:#B9C4BD">—</span></div>
+          </div>
+          <div style="background:#004739;color:#FFFFFF;font-size:14px;font-weight:800;padding:13px;border-radius:999px;text-align:center">Φτιάξε το Πλάνο σου →</div>
+        </div>
+      </div>
+      <div style="font-size:13px;font-weight:400;color:#4c5a51;line-height:1.6;padding-top:14px">Mobile 360px: τέσσερα πεδία σε 2×2 με συντομευμένες ετικέτες· η μπάρα προόδου παραμένει γιατί αυτή υπόσχεται «σύντομο».<br><br><b style="font-weight:600">Μέγεθος:</b> 624 × 208px. Καθαρίστηκε: πεδία μονής σειράς όπως στο mobile, η προσφορά μόνο μία φορά και σε 15px· ο υπότιτλος των βημάτων αφαιρέθηκε — τα πεδία τον λένε ήδη.</div>
+    </div>
+  </div>
+
+  <!-- ===== OPTION 3 ===== -->
+  <div style="display:flex;flex-direction:column;gap:18px">
+    <div style="display:flex;gap:14px;align-items:baseline">
+      <span style="flex:none;background:#004739;color:#F9F2E1;font-size:13px;font-weight:800;padding:5px 11px;border-radius:999px">3</span>
+      <div style="display:flex;flex-direction:column;gap:5px">
+        <div style="font-size:22px;font-weight:800;color:#004739;letter-spacing:-.01em">Εξήγηση + CTA-μπλοκ σε όλο το ύψος</div>
+        <div style="font-size:14px;font-weight:400;color:#4c5a51;line-height:1.55;max-width:800px">Για κοινό που δεν ξέρει τι είναι η συνδρομή: τίτλος ευκολίας, μία σειρά εξήγησης και το μεγαλύτερο hit target των τεσσάρων. <b style="font-weight:600">Κείμενο: B · CONVENIENCE</b> — «Ξέχνα το “Τι θα φάμε σήμερα;”».</div>
+      </div>
+    </div>
+
+    <div style="background:#F9F2E1;padding:22px;border-radius:18px;overflow-x:auto">
+      <div style="width:900px;min-width:900px;display:flex;gap:16px;align-items:stretch">
+        <div style="flex:none;width:260px;background:#00382C;border-radius:18px;padding:18px;display:flex;flex-direction:column;justify-content:space-between">
+          <div style="font-size:17px;font-weight:800;color:#F9F2E1;line-height:1.2">Εβδομαδιαίο Μενού</div>
+          <div style="display:flex;flex-direction:column;gap:6px;align-items:flex-start">
+            <span style="font-size:11px;font-weight:600;color:#00382C;background:#8fdcae;padding:5px 10px;border-radius:999px;white-space:nowrap">Εβδομάδα 24 – 28 Αυγ</span>
+            <span style="font-size:11px;font-weight:600;color:#cfe6d9;background:rgba(255,255,255,.1);padding:5px 10px;border-radius:999px;white-space:nowrap">Ελάχιστη παραγγελία 15 €</span>
+            <span style="font-size:11px;font-weight:600;color:#cfe6d9;background:rgba(255,255,255,.1);padding:5px 10px;border-radius:999px;white-space:nowrap">Παράδοση 9:00–15:00</span>
+          </div>
+        </div>
+        <div style="flex:1;min-width:0;height:208px;background:#FFFFFF;border-radius:20px;box-shadow:0 8px 22px rgba(0,55,44,.12);display:flex;overflow:hidden;cursor:pointer">
+        <div style="flex:none;width:100px;height:208px">
+          <image-slot id="rep-3" shape="rect" src="photos/dish-2.png" placeholder="πιάτο"></image-slot>
+        </div>
+        <div style="flex:1;min-width:0;padding:16px 20px;display:flex;flex-direction:column;justify-content:center;gap:9px">
+          <div style="display:flex;align-items:center;gap:10px;white-space:nowrap">
+            <span style="font-size:11px;font-weight:600;letter-spacing:.14em;color:#00875a">ΣΥΝΔΡΟΜΗ FITPAL</span>
+            <span style="background:#F7A81B;color:#00382C;font-size:14px;font-weight:800;padding:5px 12px;border-radius:999px">ΕΩΣ -20%</span>
+          </div>
+          <div style="font-size:20px;font-weight:800;color:#004739;letter-spacing:-.01em;line-height:1.15;white-space:nowrap">Ξέχνα το «Τι θα φάμε σήμερα;»</div>
+          <div style="font-size:13px;font-weight:400;color:#4c5a51;line-height:1.4;text-wrap:pretty">Άφησε τη διατροφολογική μας ομάδα να αναλάβει τα γεύματά σου.</div>
+          <div style="font-size:12px;font-weight:600;color:#00875a;line-height:1.45">Έως −20% · Δωρεάν Delivery · Pause Anytime · Διατροφολογική Υποστήριξη</div>
+        </div>
+        <div style="flex:none;width:162px;background:#2DB56A;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;padding:0 14px" style-hover="background:#00b96b">
+          <div style="font-size:16px;font-weight:800;color:#FFFFFF;text-align:center;line-height:1.3">Φτιάξε το<br>Πλάνο σου →</div>
+        </div>
+        </div>
+      </div>
+    </div>
+
+    <div style="display:flex;gap:22px;align-items:flex-start">
+      <div style="flex:none;width:384px;background:#F9F2E1;padding:12px;border-radius:16px">
+        <div style="background:#FFFFFF;border-radius:18px;box-shadow:0 6px 18px rgba(0,55,44,.12);overflow:hidden;cursor:pointer;width:360px">
+          <div style="display:flex;gap:12px;padding:12px 12px 10px;align-items:center">
+            <div style="flex:none;width:60px;height:60px;border-radius:14px;overflow:hidden">
+              <image-slot id="rep-3-m" shape="rounded" radius="14" src="photos/dish-2.png" placeholder="+"></image-slot>
+            </div>
+            <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:4px">
+              <div style="display:flex;align-items:center;gap:6px;white-space:nowrap">
+                <span style="font-size:10px;font-weight:600;letter-spacing:.12em;color:#00875a">ΣΥΝΔΡΟΜΗ FITPAL</span>
+                <span style="background:#F7A81B;color:#00382C;font-size:10px;font-weight:800;padding:2px 7px;border-radius:999px">ΕΩΣ -20%</span>
+              </div>
+              <div style="font-size:16px;font-weight:800;color:#004739;line-height:1.2">Ξέχνα το «Τι θα φάμε σήμερα;»</div>
+            </div>
+          </div>
+          <div style="padding:0 12px 10px;display:flex;flex-direction:column;gap:6px">
+            <div style="font-size:12px;font-weight:400;color:#4c5a51;line-height:1.45;text-wrap:pretty">Άφησε τη διατροφολογική μας ομάδα να αναλάβει τα γεύματά σου.</div>
+            <div style="font-size:11px;font-weight:600;color:#00875a;line-height:1.4">Έως −20% · Δωρεάν Delivery · Pause Anytime</div>
+          </div>
+          <div style="background:#2DB56A;padding:14px;display:flex;flex-direction:column;align-items:center;gap:2px">
+            <div style="font-size:15px;font-weight:800;color:#FFFFFF">Φτιάξε το Πλάνο σου →</div>
+          </div>
+        </div>
+      </div>
+      <div style="font-size:13px;font-weight:400;color:#4c5a51;line-height:1.6;padding-top:14px">Mobile 360px: το πράσινο μπλοκ πηγαίνει στη βάση σε πλήρες πλάτος, 52px ύψος αφής.<br><br><b style="font-weight:600">Μέγεθος:</b> 624 × 208px — η πλήρης σειρά proof χωρά εδώ σε δύο σειρές.</div>
+    </div>
+  </div>
+
+  <!-- ===== OPTION 4 ===== -->
+  <div style="display:flex;flex-direction:column;gap:18px">
+    <div style="display:flex;gap:14px;align-items:baseline">
+      <span style="flex:none;background:#004739;color:#F9F2E1;font-size:13px;font-weight:800;padding:5px 11px;border-radius:999px">4</span>
+      <div style="display:flex;flex-direction:column;gap:5px">
+        <div style="font-size:22px;font-weight:800;color:#004739;letter-spacing:-.01em">Φωτογραφία σε όλο το πλάτος</div>
+        <div style="font-size:14px;font-weight:400;color:#4c5a51;line-height:1.55;max-width:800px">Η φωτογραφία γίνεται η επιφάνεια και το πράσινο gradient κρατά το κείμενο ευανάγνωστο. Η μεγαλύτερη αντίθεση στην κρεμ σελίδα, με τη λιγότερη τυπογραφία. <b style="font-weight:600">Κείμενο: A · OFFER-LED</b> — «Έως 20% φθηνότερα γεύματα».</div>
+      </div>
+    </div>
+
+    <div style="background:#F9F2E1;padding:22px;border-radius:18px;overflow-x:auto">
+      <div style="width:900px;min-width:900px;display:flex;gap:16px;align-items:stretch">
+        <div style="flex:none;width:260px;background:#00382C;border-radius:18px;padding:18px;display:flex;flex-direction:column;justify-content:space-between">
+          <div style="font-size:17px;font-weight:800;color:#F9F2E1;line-height:1.2">Εβδομαδιαίο Μενού</div>
+          <div style="display:flex;flex-direction:column;gap:6px;align-items:flex-start">
+            <span style="font-size:11px;font-weight:600;color:#00382C;background:#8fdcae;padding:5px 10px;border-radius:999px;white-space:nowrap">Εβδομάδα 24 – 28 Αυγ</span>
+            <span style="font-size:11px;font-weight:600;color:#cfe6d9;background:rgba(255,255,255,.1);padding:5px 10px;border-radius:999px;white-space:nowrap">Ελάχιστη παραγγελία 15 €</span>
+            <span style="font-size:11px;font-weight:600;color:#cfe6d9;background:rgba(255,255,255,.1);padding:5px 10px;border-radius:999px;white-space:nowrap">Παράδοση 9:00–15:00</span>
+          </div>
+        </div>
+        <div style="flex:1;min-width:0;height:208px;border-radius:20px;overflow:hidden;position:relative;cursor:pointer;box-shadow:0 10px 24px rgba(0,55,44,.18)">
+        <div style="position:absolute;inset:0">
+          <image-slot id="rep-4" shape="rect" src="photos/dish-2.png" placeholder="φωτογραφία full-bleed"></image-slot>
+        </div>
+        <div style="position:absolute;inset:0;background:linear-gradient(90deg,#00382C 0%,rgba(0,56,44,.9) 36%,rgba(0,56,44,.18) 60%,rgba(0,56,44,.6) 100%);pointer-events:none"></div>
+        <div style="position:absolute;inset:0;padding:20px;display:flex;align-items:center;justify-content:space-between;gap:14px;pointer-events:none">
+          <div style="display:flex;flex-direction:column;gap:7px">
+            <div style="display:flex;align-items:center;gap:10px;white-space:nowrap">
+              <span style="background:#F7A81B;color:#00382C;font-size:15px;font-weight:800;padding:6px 13px;border-radius:999px">ΕΩΣ -20%</span>
+              <span style="font-size:11px;font-weight:600;letter-spacing:.14em;color:#a8c4b7">ΣΥΝΔΡΟΜΗ FITPAL</span>
+            </div>
+            <div style="font-size:24px;font-weight:800;color:#FFFFFF;letter-spacing:-.01em;line-height:1.1;white-space:nowrap">Έως 20% φθηνότερα γεύματα</div>
+            <div style="font-size:13px;font-weight:400;color:#cfe6d9;white-space:nowrap">Όσο πιο σταθερός είσαι, τόσο λιγότερο πληρώνεις.</div>
+          </div>
+          <div style="flex:none;display:flex;flex-direction:column;align-items:flex-end;gap:6px">
+            <div style="background:#2DB56A;color:#FFFFFF;font-size:14px;font-weight:800;padding:13px 20px;border-radius:999px;pointer-events:auto;white-space:nowrap">Φτιάξε το Πλάνο σου →</div>
+            <span style="font-size:11px;font-weight:400;color:#cfe6d9;white-space:nowrap">Διάρκεια · Ημέρες · Γεύματα</span>
+          </div>
+        </div>
+        </div>
+      </div>
+    </div>
+
+    <div style="display:flex;gap:22px;align-items:flex-start">
+      <div style="flex:none;width:384px;background:#F9F2E1;padding:12px;border-radius:16px">
+        <div style="width:360px;height:152px;border-radius:18px;overflow:hidden;position:relative;cursor:pointer">
+          <div style="position:absolute;inset:0">
+            <image-slot id="rep-4-m" shape="rect" src="photos/dish-2.png" placeholder="φωτογραφία"></image-slot>
+          </div>
+          <div style="position:absolute;inset:0;background:linear-gradient(180deg,rgba(0,56,44,.5) 0%,rgba(0,56,44,.9) 52%,#00382C 100%);pointer-events:none"></div>
+          <div style="position:absolute;inset:0;padding:12px;display:flex;flex-direction:column;justify-content:space-between;pointer-events:none">
+            <div style="display:flex;flex-direction:column;gap:5px">
+              <div style="display:flex;align-items:center;gap:6px;white-space:nowrap">
+                <span style="background:#F7A81B;color:#00382C;font-size:11px;font-weight:800;padding:3px 9px;border-radius:999px">ΕΩΣ -20%</span>
+                <span style="font-size:10px;font-weight:600;letter-spacing:.12em;color:#a8c4b7">ΣΥΝΔΡΟΜΗ FITPAL</span>
+              </div>
+              <div style="font-size:19px;font-weight:800;color:#FFFFFF;line-height:1.15">Έως 20% φθηνότερα γεύματα</div>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:6px">
+              <span style="font-size:11px;font-weight:400;color:#cfe6d9">Διάρκεια · Ημέρες · Γεύματα — σε 4 βήματα.</span>
+              <div style="background:#2DB56A;color:#FFFFFF;font-size:14px;font-weight:800;padding:12px;border-radius:999px;text-align:center;pointer-events:auto">Φτιάξε το Πλάνο σου →</div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div style="font-size:13px;font-weight:400;color:#4c5a51;line-height:1.6;padding-top:14px">Mobile 360px: το gradient γυρίζει κατακόρυφα ώστε το φαγητό να μένει ορατό πάνω και το κείμενο σε συμπαγές πράσινο.<br><br><b style="font-weight:600">Μέγεθος:</b> 624 × 208px. Το περιεχόμενο απλώνεται πλέον σε όλο το πλάτος — τίτλος αριστερά, CTA δεξιά, φαγητό στο κέντρο.</div>
+    </div>
+  </div>
+
+  <!-- ===== COPY MATRIX ===== -->
+  <div style="display:flex;flex-direction:column;gap:18px">
+    <div style="display:flex;flex-direction:column;gap:6px">
+      <div style="font-size:12px;font-weight:600;letter-spacing:.16em;color:#00875a">ΕΠΙΛΟΓΕΣ ΚΕΙΜΕΝΟΥ</div>
+      <div style="font-size:22px;font-weight:800;color:#004739;letter-spacing:-.01em">Πέντε τίτλοι — διαφορετική έμφαση, ίδιο CTA</div>
+      <div style="font-size:14px;font-weight:400;color:#4c5a51;line-height:1.55;max-width:800px">Κάθε τίτλος δουλεύει σε οποιαδήποτε από τις τέσσερις σχεδιάσεις. Η αντιστοίχιση που προτείνω είναι σημειωμένη δεξιά.</div>
+    </div>
+
+    <div style="display:flex;flex-direction:column;gap:10px">
+      <div style="background:#FFFFFF;border-radius:16px;padding:18px 20px;display:flex;gap:20px;align-items:center">
+        <span style="flex:none;width:132px;font-size:11px;font-weight:800;letter-spacing:.1em;color:#F7A81B">A · OFFER-LED</span>
+        <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:3px">
+          <div style="font-size:19px;font-weight:800;color:#004739;line-height:1.2">Έως 20% φθηνότερα γεύματα</div>
+          <div style="font-size:13px;font-weight:400;color:#4c5a51">Όσο πιο σταθερός είσαι, τόσο λιγότερο πληρώνεις.</div>
+        </div>
+        <span style="flex:none;font-size:11px;font-weight:600;color:#00875a;background:#EAF6EF;padding:6px 12px;border-radius:999px;white-space:nowrap">Επιλογή 4</span>
+      </div>
+      <div style="background:#FFFFFF;border-radius:16px;padding:18px 20px;display:flex;gap:20px;align-items:center">
+        <span style="flex:none;width:132px;font-size:11px;font-weight:800;letter-spacing:.1em;color:#7d8a80">B · CONVENIENCE</span>
+        <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:3px">
+          <div style="font-size:19px;font-weight:800;color:#004739;line-height:1.2">Ξέχνα το «Τι θα φάμε σήμερα;»</div>
+          <div style="font-size:13px;font-weight:400;color:#4c5a51">Άφησε τη διατροφολογική μας ομάδα να αναλάβει τα γεύματά σου.</div>
+        </div>
+        <span style="flex:none;font-size:11px;font-weight:600;color:#00875a;background:#EAF6EF;padding:6px 12px;border-radius:999px;white-space:nowrap">Επιλογή 3</span>
+      </div>
+      <div style="background:#FFFFFF;border-radius:16px;padding:18px 20px;display:flex;gap:20px;align-items:center">
+        <span style="flex:none;width:132px;font-size:11px;font-weight:800;letter-spacing:.1em;color:#7d8a80">C · EXPERT</span>
+        <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:3px">
+          <div style="font-size:19px;font-weight:800;color:#004739;line-height:1.2">Ο διατροφολόγος σχεδιάζει τα γεύματά σου</div>
+          <div style="font-size:13px;font-weight:400;color:#4c5a51">Πλήρως προσωποποιημένη υπηρεσία, από ειδικούς.</div>
+        </div>
+        <span style="flex:none;font-size:11px;font-weight:600;color:#8c9990;background:#F2F5F3;padding:6px 12px;border-radius:999px;white-space:nowrap">εφεδρικό</span>
+      </div>
+      <div style="background:#FFFFFF;border-radius:16px;padding:18px 20px;display:flex;gap:20px;align-items:center;box-shadow:inset 0 0 0 2px #2DB56A">
+        <span style="flex:none;width:132px;font-size:11px;font-weight:800;letter-spacing:.1em;color:#00875a">D · GOAL</span>
+        <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:3px">
+          <div style="font-size:19px;font-weight:800;color:#004739;line-height:1.2">Φάε για τον στόχο σου.</div>
+          <div style="font-size:13px;font-weight:400;color:#4c5a51">Απλά, ευέλικτα και γευστικά. — hero του landing, μέγιστη αναγνωρισιμότητα</div>
+        </div>
+        <span style="flex:none;font-size:11px;font-weight:600;color:#00875a;background:#EAF6EF;padding:6px 12px;border-radius:999px;white-space:nowrap">Επιλογή 1</span>
+      </div>
+      <div style="background:#FFFFFF;border-radius:16px;padding:18px 20px;display:flex;gap:20px;align-items:center">
+        <span style="flex:none;width:132px;font-size:11px;font-weight:800;letter-spacing:.1em;color:#7d8a80">E · WIZARD</span>
+        <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:3px">
+          <div style="font-size:19px;font-weight:800;color:#004739;line-height:1.2">Βρες το πλάνο που σου ταιριάζει</div>
+          <div style="font-size:13px;font-weight:400;color:#4c5a51">Διάρκεια · Ημέρες · Γεύματα — σε 4 βήματα.</div>
+        </div>
+        <span style="flex:none;font-size:11px;font-weight:600;color:#00875a;background:#EAF6EF;padding:6px 12px;border-radius:999px;white-space:nowrap">Επιλογή 2</span>
+      </div>
+    </div>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+      <div style="background:#004739;border-radius:16px;padding:18px 20px;display:flex;flex-direction:column;gap:10px">
+        <div style="font-size:11px;font-weight:600;letter-spacing:.14em;color:#8fdcae">EYEBROW — ΔΥΟ ΠΡΟΣ ΔΟΚΙΜΗ</div>
+        <div style="display:flex;flex-direction:column;gap:8px">
+          <div style="display:flex;align-items:center;gap:10px">
+            <span style="font-size:13px;font-weight:600;letter-spacing:.12em;color:#FFFFFF">ΣΥΝΔΡΟΜΗ FITPAL</span>
+            <span style="font-size:11px;color:#a8c4b7">τρέχον στο ordering site</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:10px">
+            <span style="font-size:13px;font-weight:600;letter-spacing:.12em;color:#F7A81B">ΣΥΝΔΡΟΜΕΣ · ΕΩΣ -20%</span>
+            <span style="font-size:11px;color:#a8c4b7">του landing — ελευθερώνει τον τίτλο</span>
+          </div>
+        </div>
+      </div>
+      <div style="background:#FFFFFF;border-radius:16px;padding:18px 20px;display:flex;flex-direction:column;gap:10px">
+        <div style="font-size:11px;font-weight:600;letter-spacing:.14em;color:#00875a">ΣΕΙΡΑ PROOF — ΠΡΟΑΙΡΕΤΙΚΗ</div>
+        <div style="display:flex;flex-direction:column;gap:8px">
+          <div style="display:flex;flex-direction:column;gap:2px">
+            <span style="font-size:11px;font-weight:600;color:#8c9990">Πλήρης — χωρά σε 624px σε δύο σειρές (Επιλογή 3)</span>
+            <span style="font-size:13px;font-weight:400;color:#31403a;line-height:1.45">Έως −20% · Δωρεάν Delivery · Pause Anytime · Διατροφολογική Υποστήριξη</span>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:2px">
+            <span style="font-size:11px;font-weight:600;color:#8c9990">Σύντομη — μία σειρά (Επιλογή 1)</span>
+            <span style="font-size:13px;font-weight:400;color:#31403a;line-height:1.45">Έως −20% · Δωρεάν Delivery · Pause Anytime</span>
+          </div>
+          <div style="font-size:12px;font-weight:400;color:#5a6760;line-height:1.45">Στις Επιλογές 2 και 4 δεν εμφανίζεται καθόλου: τα πεδία και ο τίτλος καλύπτουν το ίδιο μήνυμα. Η Επιλογή 3 έχει χώρο για την πλήρη μορφή, η Επιλογή 1 για τη σύντομη.</div>
+        </div>
+      </div>
+      <div style="background:#FFFFFF;border-radius:16px;padding:18px 20px;display:flex;flex-direction:column;gap:10px">
+        <div style="font-size:11px;font-weight:600;letter-spacing:.14em;color:#00875a">ΣΤΑΘΕΡΑ ΣΕ ΟΛΕΣ ΤΙΣ ΕΠΙΛΟΓΕΣ</div>
+        <div style="display:flex;flex-direction:column;gap:8px">
+          <div style="font-size:14px;font-weight:800;color:#004739">Φτιάξε το Πλάνο σου →</div>
+          <div style="font-size:12px;font-weight:400;color:#5a6760;line-height:1.45">Βήματα wizard: Διάρκεια Πακέτου · Ημέρες ανά Εβδομάδα · Αριθμός Γευμάτων · Πληρωμή</div>
+          <div style="font-size:12px;font-weight:400;color:#5a6760;line-height:1.45">Στο desktop όλα τα βήματα εμφανίζονται αυτολεξεί. Μόνο στο mobile 360px της Επιλογής 2 συντομεύονται σε «Διάρκεια · Ημέρες · Γεύματα · Πληρωμή» — χρειάζεται έγκριση.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== RECOMMENDATION ===== -->
+  <div style="background:#00382C;border-radius:20px;padding:28px 30px;display:flex;flex-direction:column;gap:14px">
+    <div style="font-size:11px;font-weight:600;letter-spacing:.16em;color:#8fdcae">ΠΡΟΤΑΣΗ</div>
+    <div style="font-size:24px;font-weight:800;color:#FFFFFF;letter-spacing:-.01em">Επιλογή 2 σε production, Επιλογή 4 ως A/B</div>
+    <div style="font-size:15px;font-weight:400;color:#cfe6d9;line-height:1.6;max-width:820px;text-wrap:pretty">Η Επιλογή 2 είναι η μόνη που απαντά στο «τι γίνεται αν κλικάρω»: δείχνει τα τέσσερα πραγματικά βήματα και τη μπάρα προόδου, άρα η μετάβαση στον wizard δεν εκπλήσσει κανέναν. Η Επιλογή 4 δίνει τη μεγαλύτερη οπτική αντίθεση και οδηγεί με την προσφορά — αξίζει να τρέξει απέναντι στη 2 για δύο εβδομάδες. Η Επιλογή 1 είναι η ασφαλής, αν προτεραιότητα είναι η απόλυτη συνέχεια με το landing.</div>
+    <div style="display:flex;flex-direction:column;gap:8px;padding-top:6px">
+      <div style="font-size:11px;font-weight:600;letter-spacing:.14em;color:#8fdcae">ΤΙ ΧΡΕΙΑΖΟΜΑΙ ΑΠΟ ΤΗΝ ΟΜΑΔΑ</div>
+      <div style="display:flex;gap:12px;flex-wrap:wrap">
+        <span style="font-size:13px;font-weight:600;color:#00382C;background:#8fdcae;padding:8px 14px;border-radius:999px">1 · Επιλογή σχεδίασης</span>
+        <span style="font-size:13px;font-weight:600;color:#00382C;background:#8fdcae;padding:8px 14px;border-radius:999px">2 · Επιλογή τίτλου (A–E)</span>
+        <span style="font-size:13px;font-weight:600;color:#00382C;background:#8fdcae;padding:8px 14px;border-radius:999px">3 · Eyebrow</span>
+        <span style="font-size:13px;font-weight:600;color:#00382C;background:#8fdcae;padding:8px 14px;border-radius:999px">4 · Φωτογραφίες σε τετράγωνο crop</span>
+        <span style="font-size:13px;font-weight:600;color:#00382C;background:#8fdcae;padding:8px 14px;border-radius:999px">5 · Αγγλικά strings</span>
+      </div>
+    </div>
+  </div>
+
+  <div style="font-size:12px;font-weight:400;color:#7d8a80;line-height:1.6">Σημείωση: καμία νέα λέξη δεν γράφτηκε. Οι δύο συντομεύσεις που χρειάζονται έγκριση είναι η σύντομη σειρά proof (Επιλογή 1) και οι ετικέτες των βημάτων στο mobile της Επιλογής 2. Οι σχεδιάσεις για συνδρομητές («My Goals») χρησιμοποιούν τον ίδιο σκελετό — ίδιο πλάτος 624px, ίδιο ύψος, ίδιες θέσεις.</div>
+
+</div>
+
+</x-dc>
+</body>
+</html>
