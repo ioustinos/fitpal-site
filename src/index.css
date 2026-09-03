@@ -2706,10 +2706,14 @@ a.btn-conf-done { display: inline-block; text-decoration: none; }
 .order-macro-card.protein { background: #E6FFE6; border-color: #A8DFAA; }
 .order-macro-card.fat { background: #FFF5E6; border-color: #FFDCA8; }
 .order-macro-icon { width: 20px; height: 20px; flex-shrink: 0; }
-.order-macro-icon.cal svg { stroke: #D97706; }
-.order-macro-icon.carbs svg { stroke: #B8860B; }
-.order-macro-icon.protein svg { stroke: #059669; }
-.order-macro-icon.fat svg { stroke: #C2703A; }
+/* WEC-673: the brand macro icons are FILLED, not stroked, so these must set
+   `color` (which the SVG picks up via fill="currentColor") — a `stroke:` rule
+   here colours nothing. Every other macro-icon rule in this file already uses
+   `color`, which is why this was the only block that needed changing. */
+.order-macro-icon.cal { color: #D97706; }
+.order-macro-icon.carbs { color: #B8860B; }
+.order-macro-icon.protein { color: #059669; }
+.order-macro-icon.fat { color: #C2703A; }
 .order-macro-label { font-size: 10px; font-weight: 800; color: var(--text-muted); letter-spacing: 0.3px; }
 .order-macro-val { font-size: 18px; font-weight: 900; color: var(--green-dark); line-height: 1; }
 .order-macro-val small { font-size: 12px; font-weight: 700; color: var(--text-muted); }
