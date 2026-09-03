@@ -1658,7 +1658,10 @@ function SubscriptionTab({ user, lang }: any) {
     setPastOpen(true)
   }
 
-  const pageTitle = isEl ? 'Συνδρομή & Πορτοφόλι' : 'Subscription & Wallet'
+  // WEC-663: retitled «Συνδρομές» per the team; the wallet balance + κινήσεις
+  // stay on the page (WEC-589 merge kept), the plan info is slimmed to the
+  // eight fields they asked for.
+  const pageTitle = isEl ? 'Συνδρομές' : 'Subscriptions'
 
   // No wallet at all → subscription empty state (build your plan).
   if (!wallet?.active) {
@@ -1692,25 +1695,23 @@ function SubscriptionTab({ user, lang }: any) {
   }
   const renewDate = fmtDate(wallet.nextRenewal)
   const eur = (n: number | undefined | null) => (typeof n === 'number' ? `${n.toFixed(2)} €` : '—')
-  const pct = (n: number | undefined | null) => (typeof n === 'number' ? `+${n}%` : '—')
 
   const baseBalance = wallet.baseBalance ?? wallet.balance
   const bonusBalance = wallet.bonusBalance ?? 0
-  const bonusPctValue = wallet.bonusPct ?? (legacyPlan?.bonusPct ?? null)
   const cycleCost = wallet.monthlyAmount ?? legacyPlan?.price ?? null
-  // WEC-510: total credits = base + bonus (never re-apply bonus %).
-  const cycleCredits = (wallet.baseBalance != null || wallet.bonusBalance != null)
-    ? (wallet.baseBalance ?? 0) + (wallet.bonusBalance ?? 0)
-    : (wallet.creditAmount ?? legacyPlan?.credits ?? null)
 
   const TODO_DASH = '—'
   const startDateStr = fmtDate(wallet.startDate)
-  const bonusExpiresStr = fmtDate(wallet.bonusExpiresAt)
   // WEC-686: use the shared helper so Σνακ is never dropped again (three
   // hand-rolled copies had missed it). Map the wallet.meals shape → helper keys.
   const selectedMeals = wallet.meals
     ? MEAL_KEYS.filter((k) => wallet.meals![k]).map((k) => ({ key: k, label: mealLabel(k, lang) }))
     : []
+  // WEC-663: plan-type label + purchase date for the slimmed subscription card.
+  const goalLabel = wallet.goal
+    ? ({ lose: isEl ? 'Απώλεια βάρους' : 'Weight loss', maintain: isEl ? 'Διατήρηση' : 'Maintain', gain: isEl ? 'Αύξηση μυϊκής μάζας' : 'Muscle gain' } as Record<string, string>)[wallet.goal] ?? wallet.goal
+    : TODO_DASH
+  const purchaseDateStr = fmtDate(wallet.purchaseDate)
 
   return (
     <div className="tab-section">
@@ -1725,22 +1726,6 @@ function SubscriptionTab({ user, lang }: any) {
               <span className="subs-status-dot" />
               {t('acActive')}
             </span>
-          </div>
-          <div className="subs-hero-meta">
-            <div className="subs-meta-item">
-              <span className="subs-meta-label">{t('acStart')}</span>
-              <span className="subs-meta-value">{startDateStr ?? TODO_DASH}</span>
-            </div>
-            <div className="subs-meta-divider" aria-hidden />
-            <div className="subs-meta-item">
-              <span className="subs-meta-label">{t('acNextRenewal')}</span>
-              <span className="subs-meta-value">{renewDate ?? TODO_DASH}</span>
-            </div>
-            <div className="subs-meta-divider" aria-hidden />
-            <div className="subs-meta-item">
-              <span className="subs-meta-label">{t('acBonusExpires')}</span>
-              <span className="subs-meta-value">{bonusExpiresStr ?? TODO_DASH}</span>
-            </div>
           </div>
         </div>
       )}
@@ -1761,74 +1746,23 @@ function SubscriptionTab({ user, lang }: any) {
         )}
       </div>
 
-      {/* 3. TWO-COL GRID: composition + pricing (plan only) */}
+      {/* 3. WEC-663: slimmed subscription details — exactly the eight fields the
+             team asked for; everything else on the old plan cards is removed. */}
       {hasPlan && (
-        <div className="subs-grid">
-          <div className="subs-card">
-            <div className="subs-card-title">{t('acPlanComposition')}</div>
-            <div className="subs-rows">
-              <div className="subs-row">
-                <span className="subs-row-key">{t('acMeals')}</span>
-                <span className="subs-row-val">
-                  {selectedMeals.length > 0
-                    ? selectedMeals.map((m) => (<span key={m.key} className="subs-pill">{m.label}</span>))
-                    : <span className="subs-pill subs-pill-dim">{TODO_DASH}</span>}
-                </span>
-              </div>
-              <div className="subs-row">
-                <span className="subs-row-key">{t('acPeople')}</span>
-                <span className="subs-row-val">{wallet.people ?? TODO_DASH}</span>
-              </div>
-              <div className="subs-row">
-                <span className="subs-row-key">{t('acDaysPerWeek')}</span>
-                <span className="subs-row-val">{wallet.daysPerWeek ?? TODO_DASH}</span>
-              </div>
-            </div>
-          </div>
-
-          <div className="subs-card">
-            <div className="subs-card-title">{t('acPricingBonus')}</div>
-            <div className="subs-rows">
-              <div className="subs-row">
-                <span className="subs-row-key">{t('acCycleCost')}</span>
-                <span className="subs-row-val">{eur(cycleCost)}</span>
-              </div>
-              <div className="subs-row">
-                <span className="subs-row-key">{t('acBonus')}</span>
-                <span className="subs-row-val subs-emph">{pct(bonusPctValue)}</span>
-              </div>
-              <div className="subs-row">
-                <span className="subs-row-key">{t('acTotalCredits')}</span>
-                <span className="subs-row-val">{eur(cycleCredits)}</span>
-              </div>
-              <div className="subs-row">
-                <span className="subs-row-key">{t('acAutoRenew')}</span>
-                <span className="subs-row-val">{wallet.autoRenew ? t('acYes') : t('acNo')}</span>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* 4. Αρχική αγορά (initial purchase) — plan only */}
-      {hasPlan && (
-        <div className="subs-card subs-initial">
-          <div className="subs-card-title">{isEl ? 'Αρχική αγορά' : 'Initial purchase'}</div>
+        <div className="subs-card">
+          <div className="subs-card-title">{isEl ? 'Στοιχεία συνδρομής' : 'Subscription details'}</div>
           <div className="subs-rows">
+            <div className="subs-row"><span className="subs-row-key">{isEl ? 'Ημερομηνία έναρξης' : 'Start date'}</span><span className="subs-row-val">{startDateStr ?? TODO_DASH}</span></div>
+            <div className="subs-row"><span className="subs-row-key">{isEl ? 'Επόμενη ανανέωση' : 'Next renewal'}</span><span className="subs-row-val">{renewDate ?? TODO_DASH}</span></div>
+            <div className="subs-row"><span className="subs-row-key">{isEl ? 'Κόστος πλάνου' : 'Plan cost'}</span><span className="subs-row-val">{eur(cycleCost)}</span></div>
+            <div className="subs-row"><span className="subs-row-key">{isEl ? 'Ημερομηνία αγοράς' : 'Purchase date'}</span><span className="subs-row-val">{purchaseDateStr ?? TODO_DASH}</span></div>
             <div className="subs-row">
-              <span className="subs-row-key">{isEl ? 'Ποσό αγοράς' : 'Amount paid'}</span>
-              <span className="subs-row-val">{eur(wallet.purchaseAmount)}</span>
+              <span className="subs-row-key">{isEl ? 'Αριθμός γευμάτων' : 'Number of meals'}</span>
+              <span className="subs-row-val">{selectedMeals.length > 0 ? `${selectedMeals.length} (${selectedMeals.map((m) => m.label).join(', ')})` : TODO_DASH}</span>
             </div>
-            <div className="subs-row">
-              <span className="subs-row-key">{isEl ? 'Δώρο (bonus)' : 'Bonus credit'}</span>
-              <span className="subs-row-val subs-emph">
-                {typeof wallet.purchaseBonus === 'number' && wallet.purchaseBonus > 0 ? `+${eur(wallet.purchaseBonus)}` : '—'}
-              </span>
-            </div>
-            <div className="subs-row">
-              <span className="subs-row-key">{isEl ? 'Συνολικό αρχικό υπόλοιπο' : 'Total initial balance'}</span>
-              <span className="subs-row-val subs-emph">{eur(wallet.purchaseCredit)}</span>
-            </div>
+            <div className="subs-row"><span className="subs-row-key">{isEl ? 'Ημέρες εβδομάδας' : 'Days per week'}</span><span className="subs-row-val">{wallet.daysPerWeek ?? TODO_DASH}</span></div>
+            <div className="subs-row"><span className="subs-row-key">{isEl ? 'Τύπος πλάνου' : 'Plan type'}</span><span className="subs-row-val">{goalLabel}</span></div>
+            <div className="subs-row"><span className="subs-row-key">{isEl ? 'Λιπομέτρηση' : 'Body-fat measurement'}</span><span className="subs-row-val">{wallet.bodyFatMeasurement ? (isEl ? 'Ναι' : 'Yes') : (isEl ? 'Όχι' : 'No')}</span></div>
           </div>
         </div>
       )}

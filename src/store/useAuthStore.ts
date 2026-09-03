@@ -70,7 +70,11 @@ export interface UserWallet {
   frequency?: string        // wallet_frequency enum: biweekly | monthly | quarterly
   people?: number
   daysPerWeek?: number
-  meals?: { breakfast: boolean; lunch: boolean; dinner: boolean }
+  meals?: { breakfast: boolean; lunch: boolean; dinner: boolean; snack: boolean }
+  // WEC-663: fields for the slimmed Συνδρομές tab.
+  goal?: string             // wallet_plans.goal: lose | maintain | gain
+  bodyFatMeasurement?: boolean  // services.bodyFatMeasurement (λιπομέτρηση)
+  purchaseDate?: string     // ISO date — confirmed_at (fallback created_at)
   transactions?: WalletTransaction[]
   /**
    * When true, only an admin (via impersonation) can spend this wallet —

@@ -110,6 +110,10 @@ export async function fetchWallet(userId: string): Promise<{
   let people: number | undefined
   let daysPerWeek: number | undefined
   let meals: { breakfast: boolean; lunch: boolean; dinner: boolean; snack: boolean } | undefined
+  // WEC-663: fields the Συνδρομές tab needs but weren't exposed before.
+  let goal: string | undefined
+  let bodyFatMeasurement: boolean | undefined
+  let purchaseDate: string | undefined
 
   if (w.active_plan_id) {
     const { data: planRow } = await supabase
@@ -157,6 +161,14 @@ export async function fetchWallet(userId: string): Promise<{
         dinner: !!plan.meal_dinner,
         snack: !!plan.meal_snack, // WEC-686: snack was missing → customer didn't see it
       }
+      // WEC-663: plan type (goal), λιπομέτρηση, and purchase date (confirmed_at,
+      // falling back to created_at) for the slimmed Συνδρομές tab.
+      const pr = planRow as Record<string, unknown>
+      goal = (pr.goal as string | null) ?? undefined
+      const svc = (pr.services as { bodyFatMeasurement?: boolean } | null) ?? {}
+      bodyFatMeasurement = !!svc?.bodyFatMeasurement
+      const confirmedAt = pr.confirmed_at as string | null
+      purchaseDate = confirmedAt ? confirmedAt.split('T')[0] : startDate
     }
   }
 
@@ -193,6 +205,9 @@ export async function fetchWallet(userId: string): Promise<{
       people,
       daysPerWeek,
       meals,
+      goal,
+      bodyFatMeasurement,
+      purchaseDate,
       transactions,
       adminManaged: w.admin_managed ?? false,
     },
