@@ -1,14 +1,14 @@
 {
-  "name": "Fitpal — Reconcile PROD + DEV (every 15 min)",
+  "name": "Fitpal — Reconcile PROD + DEV (Viva + Airtable, every 15 min)",
   "nodes": [
     {
       "parameters": {
-        "content": "## Fitpal — Reconcile (PROD + DEV)\n\n### ⚠️ Set the token in the «Token» node — ONE place, both envs\nPaste the value of `RECONCILE_TRIGGER_TOKEN` (Netlify env var) into the Set node.\nBoth HTTP nodes read it from there, so there is no second copy to forget.\n\n### Why /reconcile-run and not /viva-reconcile\n`viva-reconcile` and `airtable-reconcile` are Netlify **scheduled** functions.\nNetlify: *\"You can't invoke scheduled functions directly with a URL.\"*\nCalling them over HTTP returns a bare **403** — which is what the previous\nversion of this workflow did, every 15 min, silently, since it was created.\n`reconcile-run` is deliberately NOT scheduled, so it is reachable, and it\ncalls the same two handlers. One implementation, not two.\n\n### This is a SECOND trigger, on purpose\nNetlify's own `*/5` cron runs these on **production only** (branch deploys\nnever run scheduled functions — so DEV has never had a reconcile at all).\nMeasured 2026-09-03: prod cron fires, but skipped **70 times in 48h,\nworst gap 25.1 min**. Safe to double-fire — `markPaid` is a guarded\n`UPDATE ... WHERE payment_status='pending'`.\n\n### Error handling is asymmetric, deliberately\n**DEV** node continues on failure — a dev outage must never stop the prod call.\n**PROD** node uses the default, so a real failure turns the execution RED.\n`reconcile-run` returns **500** if either provider throws, so a dead reconcile\nshows up instead of hiding behind a green run.\n\n### Verify — row-exists is NOT enough\n```sql\nselect provider, max(run_at) filter (where errors = 0) as last_clean,\n       count(*) filter (where errors > 0\n         and run_at > now() - interval '1 day') as erroring_24h\nfrom reconcile_runs group by provider;\n```\nWEC-695 (Viva OAuth) and WEC-537 (Airtable field) both ran for over a MONTH\nwriting rows with `errors: 13`. Always check `errors = 0`.\n\nSource of truth: `n8n/` in the fitpal-site repo.\nLinear: **WEC-696** (this endpoint) · **WEC-534** · **WEC-646** liveness alerting",
-        "height": 900,
-        "width": 520,
+        "content": "## Fitpal — Reconcile (PROD + DEV)\n\n### ✅ Airtable IS included\nTwo nodes, not four — but nothing was dropped. Each call is\n`/reconcile-run?target=both`, and **`both` = viva-reconcile + airtable-reconcile**.\nOne HTTP call per environment, both reconcilers run inside it.\n(Use `?target=viva` or `?target=airtable` if you ever want just one.)\n\n### ⚠️ Token goes in the «Token» node — ONE place, both envs\nPaste the value of the `RECONCILE_TRIGGER_TOKEN` Netlify env var there.\nBoth HTTP nodes read it from that node, so there's no second copy to forget.\n\n### Why /reconcile-run and not /viva-reconcile\n`viva-reconcile` and `airtable-reconcile` are Netlify **scheduled** functions.\nNetlify blocks HTTP requests to those: *\"You can't invoke scheduled functions\ndirectly with a URL.\"* They return a bare **403** — which is what the previous\nversion of this workflow got, every 15 min, silently, since April.\n`reconcile-run` is deliberately NOT scheduled, so it's reachable, and it calls\nthe same two handlers. One implementation, not two.\n\n### This is a SECOND trigger, on purpose\nNetlify's own `*/5` cron runs these on **production only** — branch deploys never\nrun scheduled functions, so DEV has never had a reconcile at all until now.\nMeasured 2026-09-03: prod cron fires but skipped **70 times in 48h, worst gap\n25.1 min**. Safe to double-fire — `markPaid` is a guarded\n`UPDATE ... WHERE payment_status='pending'`.\n\n### Error handling is asymmetric, deliberately\n**DEV** continues on failure — a dev outage must never stop the PROD call.\n**PROD** uses the default, so a real failure turns the execution RED.\n\n### Verify — row-exists is NOT enough\n```sql\nselect provider, max(run_at) filter (where errors = 0) as last_clean,\n       count(*) filter (where errors > 0\n         and run_at > now() - interval '1 day') as erroring_24h\nfrom reconcile_runs group by provider;\n```\nWEC-695 and WEC-537 both ran for over a MONTH writing rows with `errors: 13`.\nAlways check `errors = 0`, never just that a row exists.\n\nRepo: `n8n/` in fitpal-site · Linear: **WEC-696** · **WEC-534** · **WEC-646**",
+        "height": 940,
+        "width": 540,
         "color": 4
       },
-      "id": "7e7f01b1-8768-4d0c-90d1-7c8b3d3c5c87",
+      "id": "2eb77ae6-8350-4901-8c84-e09672e8b9e2",
       "name": "README",
       "type": "n8n-nodes-base.stickyNote",
       "typeVersion": 1,
@@ -28,7 +28,7 @@
           ]
         }
       },
-      "id": "524fa893-9e28-4fc9-8532-b158440fe71b",
+      "id": "4b6e5767-ddaa-468f-8eb2-479c6b5338d1",
       "name": "Every 15 minutes",
       "type": "n8n-nodes-base.scheduleTrigger",
       "typeVersion": 1.2,
@@ -42,7 +42,7 @@
         "assignments": {
           "assignments": [
             {
-              "id": "3dff4c05-649b-45f2-9f3b-3f9e740defba",
+              "id": "85cced2e-8877-47f4-99e4-49f65c1346d2",
               "name": "token",
               "value": "REPLACE_WITH_RECONCILE_TRIGGER_TOKEN",
               "type": "string"
@@ -51,14 +51,16 @@
         },
         "options": {}
       },
-      "id": "e915763f-bd14-4ae3-bfb5-264936a638b5",
+      "id": "3e465f09-6dee-4943-b234-4932350ef010",
       "name": "Token",
       "type": "n8n-nodes-base.set",
       "typeVersion": 3.4,
       "position": [
         760,
         400
-      ]
+      ],
+      "notes": "Paste RECONCILE_TRIGGER_TOKEN here. Single source for both HTTP nodes.",
+      "notesInFlow": true
     },
     {
       "parameters": {
@@ -76,8 +78,8 @@
           "timeout": 60000
         }
       },
-      "id": "b3a83eec-72d8-430a-9d02-c100bc39d83d",
-      "name": "PROD · reconcile-run",
+      "id": "ddf0cb6a-303f-406b-b58d-d015a67bfb38",
+      "name": "PROD · Viva + Airtable reconcile",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
@@ -86,7 +88,9 @@
       ],
       "retryOnFail": true,
       "maxTries": 2,
-      "waitBetweenTries": 5000
+      "waitBetweenTries": 5000,
+      "notes": "?target=both -> runs BOTH viva-reconcile AND airtable-reconcile in one call.",
+      "notesInFlow": true
     },
     {
       "parameters": {
@@ -104,8 +108,8 @@
           "timeout": 60000
         }
       },
-      "id": "6936dfdb-a1d3-44fa-a2f7-ef777bc3cfcf",
-      "name": "DEV · reconcile-run",
+      "id": "7957a9a2-dc4a-41b1-8184-b3da3552052e",
+      "name": "DEV · Viva + Airtable reconcile",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
@@ -115,6 +119,8 @@
       "retryOnFail": true,
       "maxTries": 2,
       "waitBetweenTries": 5000,
+      "notes": "?target=both -> runs BOTH viva-reconcile AND airtable-reconcile in one call.",
+      "notesInFlow": true,
       "onError": "continueRegularOutput"
     }
   ],
@@ -135,12 +141,12 @@
       "main": [
         [
           {
-            "node": "PROD · reconcile-run",
+            "node": "PROD · Viva + Airtable reconcile",
             "type": "main",
             "index": 0
           },
           {
-            "node": "DEV · reconcile-run",
+            "node": "DEV · Viva + Airtable reconcile",
             "type": "main",
             "index": 0
           }
