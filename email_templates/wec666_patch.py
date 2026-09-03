@@ -43,8 +43,15 @@ INLINE = [
     # Prefer the customer's email from the event (added in the WEC-690 server
     # leg), fall back to person.email. Anchored to the billing suffix so the
     # footer's own {{ person.email }} (the real recipient) is left alone.
+    # NOTE: must use an {% if %}/{% else %} — NOT `|default:person.email`.
+    # Klaviyo's validator raises on a missing variable used as a FILTER ARGUMENT
+    # ("Failed lookup for key person"), whereas a bare {{ person.email }} renders
+    # empty. So person.email must stay bare, inside the else branch.
     ("{{ person.email }}{% if event.billing_mobile %}",
-     "{{ event.customer_email|default:person.email }}{% if event.billing_mobile %}"),
+     "{% if event.customer_email %}{{ event.customer_email }}{% else %}{{ person.email }}{% endif %}{% if event.billing_mobile %}"),
+    # Migrate any file already carrying the broken `default:` form.
+    ("{{ event.customer_email|default:person.email }}",
+     "{% if event.customer_email %}{{ event.customer_email }}{% else %}{{ person.email }}{% endif %}"),
 ]
 
 # --- full <tr> blocks to REMOVE, matched by a stable inner anchor (DOTALL) ---
