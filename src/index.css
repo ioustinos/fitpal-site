@@ -1681,7 +1681,7 @@ header {
 }
 .sub-wizard-card:hover { transform: translateY(-2px); box-shadow: 0 12px 28px rgba(0, 55, 44, 0.18); }
 .sub-wizard-card:focus-visible { outline: 2px solid var(--green-dark); outline-offset: 3px; }
-.swc-photo { flex: none; width: 112px; height: 208px; background-size: cover; background-position: center; }
+.swc-photo { flex: none; width: 112px; align-self: stretch; background-size: cover; background-position: center; }
 .swc-body { flex: 1; min-width: 0; padding: 14px 18px; display: flex; flex-direction: column; justify-content: space-between; }
 .swc-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
 .swc-head-txt { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
@@ -3511,10 +3511,10 @@ a.btn-conf-done { display: inline-block; text-decoration: none; }
   .banner-row { flex-direction: column; }
   .banner-row .page-banner { width: auto; }
   .banner-row .page-banner .banner-pills { flex-direction: row; flex-wrap: wrap; }
-  /* WEC-647: on a narrow stack the tall side photo cramps the card — drop it,
-     let the wizard preview use full width. */
+  /* WEC-647: keep the photo on mobile (banner looks empty without it), just
+     narrower; it stretches to the card height via align-self. */
   .sub-wizard-card { height: auto; }
-  .swc-photo { display: none; }
+  .swc-photo { width: 96px; }
   .swc-headline { font-size: 18px; }
   .swc-body { gap: 10px; }
   .payment-methods { grid-template-columns: 1fr; }
