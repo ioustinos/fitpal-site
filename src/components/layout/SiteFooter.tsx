@@ -16,6 +16,10 @@
        marketing routes. Empty on the landing site (links resolve
        relatively). On the order site, pass the landing domain so
        the footer links cross over (e.g. dev--fitpal-landing.netlify.app).
+     - orderBase: string (optional) — prepended to ordering-site
+       routes (/terms, /privacy). Empty on the order site (links
+       resolve relatively). On the landing, pass the ordering-site
+       origin (WEC-655 cross-links, e.g. https://orders.fitpal.gr).
    =========================================================== */
 import type { FC } from 'react';
 
@@ -25,6 +29,7 @@ interface Props {
   lang: FooterLang;
   logoSrc: string;
   marketingBase?: string;
+  orderBase?: string;
 }
 
 type Tuple = [string, string]; // [en, el]
@@ -40,14 +45,17 @@ const STR = {
   lCorp:  ['Corporate Packages (B2B)', 'Εταιρικά Πακέτα (B2B)'] as Tuple,
   lAbout: ['About Us', 'Η Ομάδα μας'] as Tuple,
   lFaq:   ['FAQ', 'Συχνές Ερωτήσεις'] as Tuple,
-  lTerms: ['Terms & Privacy', 'Όροι Χρήσης & Πολιτική Απορρήτου'] as Tuple,
-  hours:  ['Delivery hours: Mon–Fri · 09:00–15:00', 'Ώρες Delivery: Δευτ–Παρ · 09:00–15:00'] as Tuple,
+  lTerms: ['Terms of Use', 'Όροι Χρήσης'] as Tuple,
+  lPriv:  ['Privacy Policy', 'Πολιτική Απορρήτου'] as Tuple,
+  /* WEC-655: 09:00–15:00 envelope (per-zone windows still apply at checkout), no middle dot */
+  hours:  ['Delivery hours: Mon–Fri 09:00–15:00 (depending on the area)', 'Ώρες Delivery: Δευτ–Παρ 09:00–15:00 (ανάλογα με την περιοχή)'] as Tuple,
   rights: ['© 2025 Fitpal Meals. All rights reserved.', '© 2025 Fitpal Meals. Με επιφύλαξη παντός δικαιώματος.'] as Tuple,
   made:   ['Made in Athens', 'Made in Athens'] as Tuple,
 };
 
-const SiteFooter: FC<Props> = ({ lang, logoSrc, marketingBase = '' }) => {
+const SiteFooter: FC<Props> = ({ lang, logoSrc, marketingBase = '', orderBase = '' }) => {
   const link = (path: string) => `${marketingBase}${path}`;
+  const orderLink = (path: string) => `${orderBase.replace(/\/$/, '')}${path}`;
   return (
     <footer className="sf">
       <style>{`
@@ -94,7 +102,8 @@ const SiteFooter: FC<Props> = ({ lang, logoSrc, marketingBase = '' }) => {
           <ul>
             <li><a href={link('/about')}>{T(STR.lAbout, lang)}</a></li>
             <li><a href={link('/faq')}>{T(STR.lFaq, lang)}</a></li>
-            <li><a href="/terms">{T(STR.lTerms, lang)}</a></li>
+            <li><a href={orderLink('/terms')}>{T(STR.lTerms, lang)}</a></li>
+            <li><a href={orderLink('/privacy')}>{T(STR.lPriv, lang)}</a></li>
           </ul>
         </div>
         <div>
