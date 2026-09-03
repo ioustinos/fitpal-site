@@ -840,6 +840,16 @@ function GoalsTab({ user, lang, updateGoals }: any) {
     <div className="tab-section">
       <h2 className="tab-title">{t('goals')}</h2>
 
+      {/* WEC-684: when the customer has a plan, the goal values were auto-filled
+          from it (±5%). Say so, so they're not mistaken for junk / hand-typed. */}
+      {!!user.wallet?.planId && (
+        <p style={{ margin: '-4px 0 14px', color: 'var(--text-muted)', fontSize: 13, lineHeight: 1.5 }}>
+          {lang === 'el'
+            ? 'Οι στόχοι υπολογίστηκαν αυτόματα από το πλάνο σου (±5%). Μπορείς να τους αλλάξεις όποτε θες.'
+            : 'These goals were auto-calculated from your plan (±5%). You can change them anytime.'}
+        </p>
+      )}
+
       {/* Enable toggle */}
       <div className="goals-enable-row">
         <Toggle
