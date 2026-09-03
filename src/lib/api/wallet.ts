@@ -23,6 +23,7 @@ interface DbWalletPlan {
   meal_breakfast: boolean
   meal_lunch: boolean
   meal_dinner: boolean
+  meal_snack: boolean          // WEC-686
   people: number
   days_per_week: number
   frequency: string
@@ -108,7 +109,7 @@ export async function fetchWallet(userId: string): Promise<{
   let frequency: string | undefined
   let people: number | undefined
   let daysPerWeek: number | undefined
-  let meals: { breakfast: boolean; lunch: boolean; dinner: boolean } | undefined
+  let meals: { breakfast: boolean; lunch: boolean; dinner: boolean; snack: boolean } | undefined
 
   if (w.active_plan_id) {
     const { data: planRow } = await supabase
@@ -154,6 +155,7 @@ export async function fetchWallet(userId: string): Promise<{
         breakfast: !!plan.meal_breakfast,
         lunch: !!plan.meal_lunch,
         dinner: !!plan.meal_dinner,
+        snack: !!plan.meal_snack, // WEC-686: snack was missing → customer didn't see it
       }
     }
   }

@@ -6,6 +6,7 @@ import { useUIStore } from '../store/useUIStore'
 import { useAuthStore, type Address } from '../store/useAuthStore'
 import { makeTr } from '../lib/translations'
 import { formatSlots } from '../lib/helpers'
+import { MEAL_KEYS, mealLabel } from '../lib/planMeals'
 import { useMenuStore } from '../store/useMenuStore'
 import { Toggle } from '../components/ui/Toggle'
 import { MacroIcon, MacroValuesRow } from '../components/ui/MacroDots'
@@ -1684,12 +1685,11 @@ function SubscriptionTab({ user, lang }: any) {
   const TODO_DASH = '—'
   const startDateStr = fmtDate(wallet.startDate)
   const bonusExpiresStr = fmtDate(wallet.bonusExpiresAt)
-  const mealNames: { key: 'breakfast' | 'lunch' | 'dinner'; el: string; en: string }[] = [
-    { key: 'breakfast', el: 'Πρωινό', en: 'Breakfast' },
-    { key: 'lunch',     el: 'Μεσημεριανό', en: 'Lunch' },
-    { key: 'dinner',    el: 'Βραδινό', en: 'Dinner' },
-  ]
-  const selectedMeals = wallet.meals ? mealNames.filter((m) => wallet.meals![m.key]) : []
+  // WEC-686: use the shared helper so Σνακ is never dropped again (three
+  // hand-rolled copies had missed it). Map the wallet.meals shape → helper keys.
+  const selectedMeals = wallet.meals
+    ? MEAL_KEYS.filter((k) => wallet.meals![k]).map((k) => ({ key: k, label: mealLabel(k, lang) }))
+    : []
 
   return (
     <div className="tab-section">
@@ -1750,7 +1750,7 @@ function SubscriptionTab({ user, lang }: any) {
                 <span className="subs-row-key">{t('acMeals')}</span>
                 <span className="subs-row-val">
                   {selectedMeals.length > 0
-                    ? selectedMeals.map((m) => (<span key={m.key} className="subs-pill">{isEl ? m.el : m.en}</span>))
+                    ? selectedMeals.map((m) => (<span key={m.key} className="subs-pill">{m.label}</span>))
                     : <span className="subs-pill subs-pill-dim">{TODO_DASH}</span>}
                 </span>
               </div>

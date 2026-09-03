@@ -6,6 +6,8 @@ import {
 } from '../../lib/api/adminUsers'
 import { useImpersonationStore } from '../../store/useImpersonationStore'
 import { useNavigate, useSearchParams } from 'react-router-dom'
+import { fetchActivePlanDetails, type PlanDetails } from '../../lib/api/planDetails'
+import { PlanDetailsPanel } from '../../components/shared/PlanDetailsPanel'
 
 const PAGE_SIZE = 50
 
@@ -215,11 +217,24 @@ function UserDetail({
   const [savingFlag, setSavingFlag] = useState(false)
   const [err, setErr] = useState<string | null>(null)
   const [showGrantModal, setShowGrantModal] = useState(false)
+  // WEC-684: the dietitian needs the purchased plan (height/weight/goal/kcal/
+  // per-meal targets) inside the customer, not filed under Wallet purchases.
+  // Same renderer as the impersonation strip so the two can't drift.
+  const [plan, setPlan] = useState<PlanDetails | null>(null)
 
   useEffect(() => {
     setDietician(detail.dietician ?? '')
     setDietaryNotes(detail.dietaryNotes ?? '')
   }, [detail.userId, detail.dietician, detail.dietaryNotes])
+
+  useEffect(() => {
+    let cancelled = false
+    setPlan(null)
+    fetchActivePlanDetails(detail.userId).then(({ data }) => {
+      if (!cancelled) setPlan(data)
+    })
+    return () => { cancelled = true }
+  }, [detail.userId])
 
   async function handleSaveNotes() {
     setSavingNotes(true); setErr(null)
@@ -389,6 +404,16 @@ function UserDetail({
           </span>
         </div>
       </div>
+
+      {/* WEC-684: Διατροφικό πλάνο — the active plan the customer bought. */}
+      {plan && (
+        <>
+          <h3 className="admin-page-sub" style={{ marginTop: 24, marginBottom: 8 }}>Διατροφικό πλάνο (active)</h3>
+          <div style={{ padding: 14, background: 'var(--a-bg)', border: '1px solid var(--a-border)', borderRadius: 8 }}>
+            <PlanDetailsPanel plan={plan} />
+          </div>
+        </>
+      )}
 
       {showGrantModal && (
         <GrantCreditModal
