@@ -3690,6 +3690,73 @@ a.btn-conf-done { display: inline-block; text-decoration: none; }
 
 body.is-impersonating { padding-top: 36px; }
 
+/* ── WEC-688: «Στόχοι / Πλάνο» popup on the impersonation strip ──────────
+   The dietitian builds a customer's meals against these numbers. Lives on
+   the customer site (the strip renders there during impersonation), so it
+   can't borrow the admin drawer styles. */
+.impersonation-banner .imp-plan-btn {
+  background: rgba(255, 255, 255, 0.28);
+  border: 1px solid rgba(255, 255, 255, 0.55);
+  font-weight: 700;
+}
+.impersonation-banner .imp-plan-btn:hover { background: rgba(255, 255, 255, 0.42); }
+
+.imp-plan-overlay {
+  position: fixed; inset: 0; z-index: 10000;
+  background: rgba(17, 24, 39, 0.55);
+  display: flex; align-items: flex-start; justify-content: center;
+  padding: 60px 16px 24px; overflow-y: auto;
+}
+.imp-plan-modal {
+  background: var(--white); color: var(--text);
+  width: 100%; max-width: 720px;
+  border-radius: var(--radius-md, 12px);
+  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.28);
+  font-weight: 400; text-align: left; cursor: default;
+}
+.imp-plan-head {
+  display: flex; align-items: flex-start; justify-content: space-between; gap: 12px;
+  padding: 16px 20px; border-bottom: 1.5px solid var(--border);
+}
+.imp-plan-head h3 { margin: 0; font-size: 16px; font-weight: 800; color: var(--green-dark); }
+.imp-plan-head p  { margin: 2px 0 0; font-size: 12px; color: var(--text-muted); font-weight: 600; }
+.imp-plan-close {
+  background: none; border: none; font-size: 24px; line-height: 1;
+  color: var(--text-muted); cursor: pointer; padding: 0 4px;
+}
+.imp-plan-body { padding: 16px 20px 20px; }
+.imp-plan-msg { margin: 0; font-size: 13px; color: var(--text-muted); }
+.imp-plan-msg-err { color: #b91c1c; }
+
+/* PlanDetailsPanel — shared with the admin customer profile (WEC-684). */
+.pdp { display: grid; grid-template-columns: 1fr 1fr; gap: 18px 24px; }
+.pdp-sec-wide { grid-column: 1 / -1; }
+.pdp-h {
+  margin: 0 0 8px; font-size: 11px; font-weight: 800; letter-spacing: 0.06em;
+  text-transform: uppercase; color: var(--text-muted);
+}
+.pdp-note { margin: -4px 0 8px; font-size: 11px; color: var(--text-muted); line-height: 1.45; }
+.pdp-note-top { margin-top: 12px; padding-top: 10px; border-top: 1px dashed var(--border); }
+.pdp-row {
+  display: flex; align-items: baseline; justify-content: space-between; gap: 12px;
+  padding: 4px 0; font-size: 13px; border-bottom: 1px solid rgba(0, 0, 0, 0.04);
+}
+.pdp-row-k { color: var(--text-muted); font-weight: 600; }
+.pdp-row-v { font-weight: 700; text-align: right; }
+.pdp-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.pdp-table th {
+  text-align: right; font-size: 10px; font-weight: 800; letter-spacing: 0.05em;
+  text-transform: uppercase; color: var(--text-muted); padding: 4px 6px;
+  border-bottom: 1.5px solid var(--border);
+}
+.pdp-table th:first-child, .pdp-table td:first-child { text-align: left; }
+.pdp-table td { padding: 6px; border-bottom: 1px solid rgba(0, 0, 0, 0.05); text-align: right; font-weight: 600; }
+
+@media (max-width: 640px) {
+  .pdp { grid-template-columns: 1fr; }
+  .imp-plan-overlay { padding: 48px 8px 16px; }
+}
+
 /* ── DayMacrosBlock — compact horizontal layout (2026-05-01 fix) ──────────
    Earlier version reused the big `.order-macro-card` style from the
    account-orders panel — meant for a wide row, but in the cart sidebar

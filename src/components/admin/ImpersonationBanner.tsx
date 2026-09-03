@@ -2,6 +2,9 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useImpersonationStore } from '../../store/useImpersonationStore'
 import { supabase } from '../../lib/supabase'
+import { fetchActivePlanDetails, type PlanDetails } from '../../lib/api/planDetails'
+import { PlanDetailsPanel } from '../shared/PlanDetailsPanel'
+import { planMealsLabel } from '../../lib/planMeals'
 
 /**
  * Persistent banner shown at the top of every page while an admin is
@@ -60,6 +63,14 @@ export function ImpersonationBanner() {
 
   const [summary, setSummary] = useState<PlanSummary | null>(null)
 
+  // WEC-688: full plan details behind a «Στόχοι / Πλάνο» button. Loaded
+  // lazily on first open — the strip renders on every page and most of the
+  // time nobody opens this, so there's no reason to pay for it up front.
+  const [planOpen, setPlanOpen] = useState(false)
+  const [plan, setPlan] = useState<PlanDetails | null>(null)
+  const [planLoading, setPlanLoading] = useState(false)
+  const [planErr, setPlanErr] = useState<string | null>(null)
+
   // Only flip the body class when we'd actually render the banner. Without
   // the `target` guard we can end up with the page padded down 36px while
   // the banner is invisible — the symptom of stale persisted state.
@@ -92,13 +103,14 @@ export function ImpersonationBanner() {
 
         const { data: planRow } = await supabase
           .from('wallet_plans')
-          .select('wallet_credit_cents, bonus_credits_cents, meal_breakfast, meal_lunch, meal_dinner, plan_length_weeks, created_at')
+          .select('wallet_credit_cents, bonus_credits_cents, meal_breakfast, meal_lunch, meal_dinner, meal_snack, plan_length_weeks, created_at')
           .eq('id', w.active_plan_id)
           .maybeSingle()
         if (cancelled || !planRow) { setSummary(null); return }
         const plan = planRow as {
           wallet_credit_cents: number | null; bonus_credits_cents: number | null
           meal_breakfast: boolean | null; meal_lunch: boolean | null; meal_dinner: boolean | null
+          meal_snack: boolean | null
           plan_length_weeks: number | null; created_at: string
         }
 
@@ -139,11 +151,9 @@ export function ImpersonationBanner() {
         const dailyLimit = remainingWD > 0 ? remaining / remainingWD : remaining
         const overPace = evenPace > 0 && actualPace > evenPace * 1.10
 
-        const meals = [
-          plan.meal_breakfast && 'Breakfast',
-          plan.meal_lunch && 'Lunch',
-          plan.meal_dinner && 'Dinner',
-        ].filter(Boolean).join(', ')
+        // WEC-686: was a hand-rolled three-item list that predated
+        // `meal_snack`, so a customer who paid for a snack never saw it here.
+        const meals = planMealsLabel(plan, 'el')
 
         setSummary({
           baseEur: base,
@@ -163,7 +173,32 @@ export function ImpersonationBanner() {
     return () => { cancelled = true }
   }, [shouldShow, targetUserId])
 
+  // Drop any loaded plan when the impersonation target changes, so the popup
+  // can never show the previous customer's numbers.
+  useEffect(() => {
+    setPlan(null); setPlanErr(null); setPlanOpen(false)
+  }, [targetUserId])
+
+  // Esc closes the popup — it covers the page, so it needs a keyboard exit.
+  useEffect(() => {
+    if (!planOpen) return
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setPlanOpen(false) }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [planOpen])
+
   if (!shouldShow || !target) return null
+
+  async function openPlan() {
+    setPlanOpen(true)
+    if (plan || planLoading || !targetUserId) return
+    setPlanLoading(true); setPlanErr(null)
+    const { data, error } = await fetchActivePlanDetails(targetUserId)
+    setPlanLoading(false)
+    if (error) { setPlanErr(error); return }
+    if (!data) { setPlanErr('Ο πελάτης δεν έχει ενεργό πλάνο.'); return }
+    setPlan(data)
+  }
 
   async function handleExit() {
     // stop() signs the customer out via supabase.auth.signOut(). The admin
@@ -210,9 +245,48 @@ export function ImpersonationBanner() {
         </span>
       )}
 
+      {/* WEC-688: the numbers a dietitian builds meals against. Shown whenever
+          the customer has an active plan — `summary` is only set in that case,
+          so it doubles as the has-a-plan check and we never open an empty
+          popup. */}
+      {summary && (
+        <button
+          className="imp-plan-btn"
+          onClick={openPlan}
+          title="Στοιχεία πλάνου και ημερήσιοι στόχοι"
+        >
+          Στόχοι / Πλάνο
+        </button>
+      )}
+
       <button onClick={handleExit} disabled={loading}>
         {loading ? 'Exiting…' : 'Exit & sign back in'}
       </button>
+
+      {planOpen && (
+        <div className="imp-plan-overlay" onClick={() => setPlanOpen(false)}>
+          <div
+            className="imp-plan-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-label="Στοιχεία πλάνου"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <header className="imp-plan-head">
+              <div>
+                <h3>Στόχοι / Πλάνο</h3>
+                <p>{target.name || target.email}</p>
+              </div>
+              <button className="imp-plan-close" onClick={() => setPlanOpen(false)} aria-label="Κλείσιμο">×</button>
+            </header>
+            <div className="imp-plan-body">
+              {planLoading && <p className="imp-plan-msg">Φόρτωση…</p>}
+              {planErr && <p className="imp-plan-msg imp-plan-msg-err">{planErr}</p>}
+              {plan && <PlanDetailsPanel plan={plan} />}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
