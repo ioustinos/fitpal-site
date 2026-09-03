@@ -75,6 +75,9 @@ export function DishCard({ dish, dayIndex }: DishCardProps) {
   // always reflects the cheapest option, regardless of admin's preselection.
   const cheapestVariant = dish.variants[0]
   const minPrice = cheapestVariant.price
+  // WEC-659: «Από …» only makes sense when there's more than one price. On a
+  // single-variant dish it's misleading — drop the prefix.
+  const multiVariant = dish.variants.length > 1
   const discPrice = effPrice(cheapestVariant.price, dish.discount)
   const finalPrice = discPrice
 
@@ -198,12 +201,12 @@ export function DishCard({ dish, dayIndex }: DishCardProps) {
         {/* Price badge — bottom right */}
         {dish.discount ? (
           <div className="price-badge has-disc">
-            <span className="price-badge-was">{t('mnFromNoSpace')} {minPrice.toFixed(2)} €</span>
+            <span className="price-badge-was">{multiVariant ? `${t('mnFromNoSpace')} ` : ''}{minPrice.toFixed(2)} €</span>
             <span className="price-badge-now">{finalPrice.toFixed(2)} €</span>
           </div>
         ) : (
           <div className="price-badge">
-            <span className="from">{t('from')}</span>
+            {multiVariant && <span className="from">{t('from')}</span>}
             {finalPrice.toFixed(2)} €
           </div>
         )}
