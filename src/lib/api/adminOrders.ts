@@ -951,6 +951,42 @@ export async function updateChildOrderAddress(childId: string, orderId: string, 
   return { error: null }
 }
 
+// WEC-668: edit a dish's per-line comment on a placed order. Audit-logged, and
+// the error is surfaced (no silent write — the WEC-604 family of bugs).
+export async function updateOrderItemComment(
+  itemId: string, oldComment: string | null, newComment: string | null,
+  orderId: string, childOrderId: string, adminUser: string,
+): Promise<{ error: string | null }> {
+  const day = await deliveryDayTag(childOrderId)
+  const { data, error: fErr } = await supabase.from('order_items').select('name_el').eq('id', itemId).single()
+  if (fErr) return { error: fErr.message }
+  const nameEl = (data as { name_el: string }).name_el
+  const clean = (newComment ?? '').trim() || null
+  const { error } = await supabase.from('order_items').update({ comment: clean }).eq('id', itemId)
+  if (error) return { error: error.message }
+  await writeChangeLog({
+    orderId, childOrderId, orderItemId: itemId,
+    tableName: 'order_items', fieldName: 'comment',
+    oldValue: oldComment ?? null, newValue: clean,
+    label: withDay(`Comment: ${nameEl} «${oldComment ?? ''}» → «${clean ?? ''}»`, day), adminUser,
+  })
+  return { error: null }
+}
+
+// WEC-668: receipt ↔ invoice toggle on a placed order, inline + audit-logged.
+export async function updateOrderInvoiceType(
+  id: string, current: string | null, next: string, adminUser: string,
+): Promise<{ error: string | null }> {
+  const { error } = await supabase.from('orders').update({ invoice_type: next }).eq('id', id)
+  if (error) return { error: error.message }
+  await writeChangeLog({
+    orderId: id, tableName: 'orders', fieldName: 'invoice_type',
+    oldValue: current, newValue: next,
+    label: `Invoice type: ${current ?? '—'} → ${next}`, adminUser,
+  })
+  return { error: null }
+}
+
 export async function updateChildOrderTime(childId: string, orderId: string, timeFrom: string | null, timeTo: string | null, adminUser: string): Promise<{ error: string | null }> {
   // WEC-604: capture OLD slot + day for a readable before → after.
   const { data: bRow } = await supabase.from('child_orders').select('time_from, time_to').eq('id', childId).maybeSingle()

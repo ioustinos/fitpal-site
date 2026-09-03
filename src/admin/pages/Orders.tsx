@@ -17,8 +17,13 @@ import {
   type RefundKind,
   updateOrderPaymentMethod,
   updateOrderCutlery,
+  updateOrderItemComment,
+  updateOrderInvoiceType,
 } from '../../lib/api/adminOrders'
 import { fetchAdminDishes, type AdminDish } from '../../lib/api/adminDishes'
+// WEC-668: address autosuggest + zone-aware delivery-window dropdown in the drawer.
+import { PlacesAutocomplete } from '../../components/ui/PlacesAutocomplete'
+import { fetchZones, findZoneByPostcode, slotsForZone, type ZonesData } from '../../lib/api/zones'
 import { NumberField } from '../components/NumberField'
 import { foldGreek } from '../../lib/text'
 // WEC-528: shared Order Type classifier (same module the Airtable push uses)
@@ -902,6 +907,15 @@ function OverviewTab({ order, adminUser, onChanged }: { order: AdminOrder; admin
     if (error) { setEditErr(`Couldn't change cutlery: ${error}`); return }
     onChanged()
   }
+  // WEC-668: receipt ↔ invoice toggle inline (audit-logged, error surfaced).
+  async function toggleInvoice() {
+    const next = order.invoiceType === 'invoice' ? 'receipt' : 'invoice'
+    setSavingField('invoice'); setEditErr(null)
+    const { error } = await updateOrderInvoiceType(order.id, order.invoiceType, next, adminUser)
+    setSavingField(null)
+    if (error) { setEditErr(`Couldn't change invoice type: ${error}`); return }
+    onChanged()
+  }
   return (
     <div className="admin-od">
       <div className="admin-od-grid">
@@ -1022,12 +1036,19 @@ function OverviewTab({ order, adminUser, onChanged }: { order: AdminOrder; admin
             {/* WEC-403: distinguish invoice (Τιμολόγιο, B2B with company+ΑΦΜ)
                 from receipt (Απόδειξη). Invoice chip highlights so the admin
                 can see at a glance that this is a business-invoice order. */}
-            <span className={`admin-od-chip${order.invoiceType === 'invoice' ? ' on' : ''}`}>
+            <button
+              type="button"
+              className={`admin-od-chip${order.invoiceType === 'invoice' ? ' on' : ''}`}
+              disabled={savingField === 'invoice'}
+              onClick={toggleInvoice}
+              style={{ cursor: 'pointer', border: 'none', font: 'inherit' }}
+              title="Click to switch receipt ↔ invoice"
+            >
               <Ico name="doc" />{' '}
               {order.invoiceType === 'invoice'
                 ? `Τιμολόγιο · ${order.invoiceName || '—'}${order.invoiceVat ? ' · ΑΦΜ ' + order.invoiceVat : ''}`
                 : 'Απόδειξη'}
-            </span>
+            </button>
           </div>
         </div>
 
@@ -1349,6 +1370,14 @@ function DayItemRow({ item, dish, orderId, childOrderId, editable, adminUser, on
   const [qty, setQty] = useState(item.quantity)
   const [working, setWorking] = useState(false)
   const dirty = qty !== item.quantity
+  // WEC-668: per-line comment is now editable (was read-only).
+  const [comment, setComment] = useState(item.comment ?? '')
+  const commentDirty = (comment.trim() || '') !== (item.comment ?? '')
+  async function saveComment() {
+    setWorking(true)
+    await updateOrderItemComment(item.id, item.comment ?? null, comment, orderId, childOrderId, adminUser)
+    setWorking(false); onChanged()
+  }
 
   async function saveQty() {
     setWorking(true)
@@ -1401,7 +1430,21 @@ function DayItemRow({ item, dish, orderId, childOrderId, editable, adminUser, on
           <span className="admin-sub">{item.variantLabelEl || '—'}</span>
         )}
       </td>
-      <td className="admin-sub">{item.comment ? `💬 ${item.comment}` : '—'}</td>
+      <td className="admin-sub">
+        {editable ? (
+          <span style={{ display: 'inline-flex', gap: 4, alignItems: 'center' }}>
+            <input
+              className="admin-input admin-input-tight"
+              style={{ minWidth: 130 }}
+              value={comment}
+              disabled={working}
+              placeholder="Σχόλιο…"
+              onChange={(e) => setComment(e.target.value)}
+            />
+            {commentDirty && <button className="admin-row-btn" disabled={working} onClick={saveComment}>Save</button>}
+          </span>
+        ) : (item.comment ? `💬 ${item.comment}` : '—')}
+      </td>
       <td style={{ textAlign: 'center' }}>
         {editable
           ? <NumberField className="admin-input admin-input-tight" integer min={0} value={qty} onChange={(v) => setQty(Math.max(0, v ?? 0))} style={{ width: 54 }} />
@@ -1584,14 +1627,35 @@ function AddressTimeEditor({ child, orderId, adminUser, onDone, onCancel }: {
   const [area, setArea] = useState(child.addressArea ?? '')
   const [zip, setZip] = useState(child.addressZip ?? '')
   const [floor, setFloor] = useState(child.addressFloor ?? '')
-  const [timeFrom, setTimeFrom] = useState(child.timeFrom?.slice(0, 5) ?? '')
-  const [timeTo, setTimeTo] = useState(child.timeTo?.slice(0, 5) ?? '')
+  // WEC-668: one clickable 2-hour window instead of two raw time fields.
+  // Value shape "HH:MM–HH:MM" (en dash), matching slotsForZone().
+  const initialSlot = child.timeFrom && child.timeTo
+    ? `${child.timeFrom.slice(0, 5)}–${child.timeTo.slice(0, 5)}`
+    : ''
+  const [slot, setSlot] = useState(initialSlot)
+  const [zones, setZones] = useState<ZonesData | null>(null)
   const [working, setWorking] = useState(false)
+
+  useEffect(() => { fetchZones().then(({ data }) => setZones(data)) }, [])
+
+  // Zone-aware windows: resolve the zone by postcode and offer only ITS active
+  // slots (only 10/41 zones go to 15:00). Fall back to all distinct slots if the
+  // zip doesn't match a zone yet, and always keep the current value selectable.
+  const zoneForZip = zones && zip ? findZoneByPostcode(zones.zones, zip) : undefined
+  const slotOptions = useMemo(() => {
+    if (!zones) return initialSlot ? [initialSlot] : []
+    let opts = zoneForZip ? slotsForZone(zones.slots, zoneForZip.id) : []
+    if (opts.length === 0) opts = Array.from(new Set(zones.slots.map((s) => `${s.timeFrom}–${s.timeTo}`)))
+    if (slot && !opts.includes(slot)) opts = [slot, ...opts]
+    return opts
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [zones, zip, slot])
 
   async function saveAll() {
     setWorking(true)
     await updateChildOrderAddress(child.id, orderId, { street, area, zip, floor }, adminUser)
-    await updateChildOrderTime(child.id, orderId, timeFrom ? `${timeFrom}:00` : null, timeTo ? `${timeTo}:00` : null, adminUser)
+    const [f, tt] = slot ? slot.split('–') : [null, null]
+    await updateChildOrderTime(child.id, orderId, f ? `${f}:00` : null, tt ? `${tt}:00` : null, adminUser)
     setWorking(false)
     onDone()
   }
@@ -1599,12 +1663,35 @@ function AddressTimeEditor({ child, orderId, adminUser, onDone, onCancel }: {
   return (
     <div className="admin-od-addr-edit-panel">
       <div className="admin-od-addr-grid">
-        <div><label className="admin-form-label">Address</label><input className="admin-input" value={street} onChange={(e) => setStreet(e.target.value)} /></div>
+        <div>
+          <label className="admin-form-label">Address</label>
+          <PlacesAutocomplete
+            className="admin-input"
+            value={street}
+            onChange={setStreet}
+            onSelect={(p) => {
+              if (p.street) setStreet(p.street)
+              if (p.area) setArea(p.area)
+              if (p.zip) setZip(p.zip)
+            }}
+            placeholder="Οδός και αριθμός…"
+          />
+        </div>
         <div><label className="admin-form-label">Post Code</label><input className="admin-input" value={zip} onChange={(e) => setZip(e.target.value)} /></div>
         <div><label className="admin-form-label">City</label><input className="admin-input" value={area} onChange={(e) => setArea(e.target.value)} /></div>
         <div><label className="admin-form-label">Floor</label><input className="admin-input" value={floor} onChange={(e) => setFloor(e.target.value)} /></div>
-        <div><label className="admin-form-label">Time from</label><input className="admin-input" type="time" value={timeFrom} onChange={(e) => setTimeFrom(e.target.value)} /></div>
-        <div><label className="admin-form-label">Time to</label><input className="admin-input" type="time" value={timeTo} onChange={(e) => setTimeTo(e.target.value)} /></div>
+        <div style={{ gridColumn: '1 / -1' }}>
+          <label className="admin-form-label">Delivery window</label>
+          <select className="admin-input" value={slot} onChange={(e) => setSlot(e.target.value)}>
+            <option value="">— No window —</option>
+            {slotOptions.map((s) => <option key={s} value={s}>{s}</option>)}
+          </select>
+          {zones && zip && !zoneForZip && (
+            <div className="admin-sub" style={{ fontSize: 11, marginTop: 4 }}>
+              Ο Τ.Κ. δεν αντιστοιχεί σε ζώνη — εμφανίζονται όλα τα διαθέσιμα εύρη.
+            </div>
+          )}
+        </div>
       </div>
       <div className="admin-od-addr-edit-actions">
         <button className="admin-btn-ghost" disabled={working} onClick={onCancel}>Cancel</button>
