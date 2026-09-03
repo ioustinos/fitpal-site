@@ -35,8 +35,6 @@ export interface AdminDish {
   nameEn: string
   descEl: string
   descEn: string
-  ingredientsEl: string
-  ingredientsEn: string
   imageUrl: string | null
   emoji: string | null
   discountPct: number
@@ -158,8 +156,6 @@ export async function fetchAdminDishes(): Promise<{ data: AdminDish[] | null; er
       nameEn: r.name_en ?? '',
       descEl: r.desc_el ?? '',
       descEn: r.desc_en ?? '',
-      ingredientsEl: r.ingredients_el ?? '',
-      ingredientsEn: r.ingredients_en ?? '',
       imageUrl: r.image_url,
       emoji: r.emoji,
       discountPct: r.discount_pct ?? 0,
@@ -231,8 +227,6 @@ interface SaveDishInput {
   nameEn: string
   descEl: string
   descEn: string
-  ingredientsEl: string
-  ingredientsEn: string
   imageUrl: string | null
   emoji: string | null
   discountPct: number
@@ -268,8 +262,6 @@ export async function saveDish(input: SaveDishInput): Promise<{ data: { id: stri
     name_en: input.nameEn,
     desc_el: input.descEl || null,
     desc_en: input.descEn || null,
-    ingredients_el: input.ingredientsEl || null,
-    ingredients_en: input.ingredientsEn || null,
     image_url: input.imageUrl,
     emoji: input.emoji || null,
     discount_pct: input.discountPct,

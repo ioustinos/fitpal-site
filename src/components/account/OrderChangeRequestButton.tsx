@@ -10,6 +10,7 @@ import {
   fetchMyChangeRequests,
   type OrderChangeReason,
 } from '../../lib/api/orderChangeRequests'
+import { useMenuStore } from '../../store/useMenuStore'
 
 const ACTIONABLE = new Set(['pending', 'confirmed'])
 
@@ -29,6 +30,9 @@ interface Props {
 
 export function OrderChangeRequestButton({ orderId, orderStatusRaw, userId, lang }: Props) {
   const isEl = lang === 'el'
+  // WEC-683: cutoff hour is read from settings (never hardcoded) so changing
+  // cutoff_hour in /admin/settings updates this caveat with no deploy.
+  const cutoffHour = useMenuStore((s) => s.settings.cutoffHour)
 
   const [open, setOpen] = useState(false)
   const [reason, setReason] = useState<OrderChangeReason>('cancel')
@@ -93,6 +97,12 @@ export function OrderChangeRequestButton({ orderId, orderStatusRaw, userId, lang
             {isEl
               ? 'Πες μας τι θέλεις να αλλάξεις και θα επικοινωνήσουμε μαζί σου. Οι αλλαγές δεν είναι αυτόματες.'
               : "Tell us what you'd like to change and we'll get back to you. Changes aren't automatic."}
+          </p>
+          {/* WEC-683: soft timing caveat — hour from settings, not hardcoded. */}
+          <p className="order-change-modal-sub" style={{ color: 'var(--text-muted)', fontStyle: 'italic', marginTop: -4 }}>
+            {isEl
+              ? `Οι αλλαγές για την παραγγελία της επόμενης ημέρας μετά τις ${cutoffHour}:00 ενδέχεται να μην είναι εφικτές.`
+              : `Changes to the next day's order after ${cutoffHour}:00 may not be possible.`}
           </p>
 
           <label className="form-label">{isEl ? 'Λόγος' : 'Reason'}</label>

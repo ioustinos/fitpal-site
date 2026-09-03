@@ -84,7 +84,7 @@ export function Dishes() {
     setEditing({
       id: '',
       categoryId: categories[0].id,
-      nameEl: '', nameEn: '', descEl: '', descEn: '', ingredientsEl: '', ingredientsEn: '',
+      nameEl: '', nameEn: '', descEl: '', descEn: '',
       imageUrl: null, emoji: null, discountPct: 0, active: true,
       previewCal: 3, previewPro: 3, previewCarb: 3, previewFat: 3,
       createdAt: '', updatedAt: '',
@@ -452,8 +452,6 @@ function DishDrawer({
         nameEn: form.nameEn.trim() || form.nameEl.trim(),
         descEl: form.descEl,
         descEn: form.descEn,
-        ingredientsEl: form.ingredientsEl,
-        ingredientsEn: form.ingredientsEn,
         imageUrl: form.imageUrl,
         emoji: form.emoji,
         discountPct: form.discountPct,
@@ -637,20 +635,14 @@ function DishDrawer({
               onChange={(e) => patch(lang === 'el' ? 'nameEl' : 'nameEn', e.target.value)}
               placeholder={lang === 'el' ? 'π.χ. Κοτόπουλο λεμονάτο' : 'e.g. Lemon chicken'}
             />
-            <label className="admin-form-label" style={{ marginTop: 12 }}>Description ({lang.toUpperCase()})</label>
+            {/* WEC-660: the description IS the Υλικά (ingredient) list — that's
+                what renders on the menu card/modal. The separate Ingredients
+                field was removed as redundant; edit ingredients here. */}
+            <label className="admin-form-label" style={{ marginTop: 12 }}>Περιγραφή / Υλικά — Description ({lang.toUpperCase()})</label>
             <textarea
               className="admin-input admin-textarea"
               value={lang === 'el' ? form.descEl : form.descEn}
               onChange={(e) => patch(lang === 'el' ? 'descEl' : 'descEn', e.target.value)}
-              rows={3}
-            />
-            {/* WEC-660: recipe ingredients — shown on the menu card/modal in place
-                of the description when set. Edited independently of desc. */}
-            <label className="admin-form-label" style={{ marginTop: 12 }}>Ingredients / Υλικά ({lang.toUpperCase()})</label>
-            <textarea
-              className="admin-input admin-textarea"
-              value={lang === 'el' ? form.ingredientsEl : form.ingredientsEn}
-              onChange={(e) => patch(lang === 'el' ? 'ingredientsEl' : 'ingredientsEn', e.target.value)}
               rows={3}
               placeholder={lang === 'el' ? 'π.χ. Ψωμί, Μοσχάρι, Ρόκα (χωρίζονται με κόμμα)' : 'e.g. Bread, Beef, Arugula (comma-separated)'}
             />

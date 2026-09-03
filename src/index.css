@@ -2038,6 +2038,9 @@ header {
 .form-label { font-size: 11px; font-weight: 800; color: var(--text-muted); /* uppercase removed — WEC-187 */ letter-spacing: 0.5px; }
 .form-input { width: 100%; padding: 9px 12px; border: 1.5px solid var(--border); border-radius: var(--radius-sm); font-size: 13px; background: var(--white); color: var(--text); transition: border-color 0.18s; }
 .form-input:focus { outline: none; border-color: var(--green); }
+/* WEC-689: faded, italic placeholders so an empty field reads as empty (was
+   inheriting the text colour and looking pre-filled). Matches .dm-comment. */
+.form-input::placeholder { color: var(--text-muted); font-style: italic; opacity: 0.6; }
 /* WEC-134: title-sized input for the address label */
 .form-input-title { font-size: 18px; font-weight: 800; padding: 12px 14px; color: var(--green-dark); }
 .form-input-title::placeholder { font-weight: 600; color: var(--text-muted); opacity: 0.55; }

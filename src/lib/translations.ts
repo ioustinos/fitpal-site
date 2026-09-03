@@ -29,7 +29,7 @@ const T = {
     updateCart: 'Ενημέρωση',
     selectSize: 'Επίλεξε Μέγεθος',
     dishComment: 'Σχόλιο για το πιάτο',
-    dishCommentPh: 'π.χ. χωρίς κρεμμύδι, extra σάλτσα...',
+    dishCommentPh: 'π.χ. χωρίς κρεμμύδι...',
     // Checkout
     checkout: 'Ολοκλήρωση Παραγγελίας',
     total: 'Σύνολο',
@@ -442,7 +442,7 @@ const T = {
     updateCart: 'Update',
     selectSize: 'Select Size',
     dishComment: 'Dish comment',
-    dishCommentPh: 'e.g. no onion, extra sauce...',
+    dishCommentPh: 'e.g. no onion...',
     checkout: 'Checkout',
     total: 'Total',
     delivery: 'Delivery',
@@ -563,7 +563,7 @@ const T = {
     subPromoGoalsSub: 'Track your plan, your progress, and the meals that fit you.',
     subPromoGoalsCta: 'View my goals',
     subPromoSubEyebrow: 'FITPAL SUBSCRIPTION',
-    subPromoSubSub: 'A meal plan made for you. Save up to 18%.',
+    subPromoSubSub: 'A meal plan made for you. Save up to 20%.',
     subPromoSubCta: 'Build my plan',
     // DishModal (WEC-499)
     dietBasedOn: 'Based on your diet:',
