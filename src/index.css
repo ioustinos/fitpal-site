@@ -1671,6 +1671,37 @@ header {
   font-variant-numeric: tabular-nums;
 }
 
+/* WEC-647 Option 2 — subscription banner previews the plan wizard. */
+.sub-promo-wizard { gap: 10px; justify-content: flex-start; z-index: 1; }
+.sub-promo-wizard-top {
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+}
+.sub-promo-disc-pill {
+  background: #F26A21; color: #fff; font-weight: 800; font-size: 11px;
+  letter-spacing: 0.04em; padding: 3px 9px; border-radius: 999px; white-space: nowrap;
+}
+.sub-promo-headline-sm { font-size: 22px; line-height: 1.15; margin: 0; }
+.sub-promo-fields { display: flex; flex-direction: column; gap: 6px; max-width: 320px; }
+.sub-promo-field {
+  height: 12px; border-radius: 6px;
+  background: rgba(0, 71, 57, 0.10);
+  border: 1px solid rgba(0, 71, 57, 0.06);
+}
+.sub-promo-field:nth-child(2) { width: 88%; }
+.sub-promo-field:nth-child(3) { width: 76%; }
+.sub-promo-field:nth-child(4) { width: 64%; }
+.sub-promo-progress { display: flex; align-items: center; gap: 8px; max-width: 320px; }
+.sub-promo-progress-bar {
+  flex: 1; height: 5px; border-radius: 999px; overflow: hidden;
+  background: rgba(0, 71, 57, 0.12);
+}
+.sub-promo-progress-bar span {
+  display: block; height: 100%; border-radius: 999px; background: var(--green, #00b96b);
+}
+.sub-promo-progress-label {
+  font-size: 11px; font-weight: 700; color: var(--green-dark, #004739); white-space: nowrap;
+}
+
 @media (max-width: 720px) {
   .sub-promo { padding: 18px 18px; min-height: 0; }
   .sub-promo-headline { font-size: 26px; }

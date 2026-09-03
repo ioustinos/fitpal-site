@@ -163,6 +163,12 @@ const T = {
     subPromoSubEyebrow: 'ΣΥΝΔΡΟΜΗ FITPAL',
     subPromoSubSub: 'Εξατομικευμένο πλάνο διατροφής. Έκπτωση έως 20%.',
     subPromoSubCta: 'Φτιάξε το πλάνο μου',
+    // WEC-647 Option 2 — subscription banner (wizard preview)
+    subBannerEyebrow: 'ΣΥΝΔΡΟΜΗ FITPAL',
+    subBannerDiscount: 'ΕΩΣ −20%',
+    subBannerHeadline: 'Βρες το πλάνο που σου ταιριάζει',
+    subBannerStep: 'Βήμα 1 από 4',
+    subBannerCta: 'Φτιάξε το Πλάνο σου',
     // DishModal (WEC-499)
     dietBasedOn: 'Με βάση τη διατροφή σου:',
     dietAllergens: 'Αλλεργιογόνα: ',
@@ -565,6 +571,12 @@ const T = {
     subPromoSubEyebrow: 'FITPAL SUBSCRIPTION',
     subPromoSubSub: 'A meal plan made for you. Save up to 20%.',
     subPromoSubCta: 'Build my plan',
+    // WEC-647 Option 2 — subscription banner (wizard preview)
+    subBannerEyebrow: 'FITPAL SUBSCRIPTION',
+    subBannerDiscount: 'UP TO −20%',
+    subBannerHeadline: 'Find the plan that fits you',
+    subBannerStep: 'Step 1 of 4',
+    subBannerCta: 'Build your plan',
     // DishModal (WEC-499)
     dietBasedOn: 'Based on your diet:',
     dietAllergens: 'Allergens: ',

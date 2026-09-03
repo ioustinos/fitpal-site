@@ -254,27 +254,37 @@ export function MenuPage() {
                       </button>
                     </div>
                   ) : (
-                    <div className="sub-promo-inner">
-                      <div className="sub-promo-eyebrow">
-                        <span className="sub-promo-dot" aria-hidden="true" />
-                        {t('subPromoSubEyebrow')}
+                    // WEC-647 Option 2 — the card previews the plan wizard (empty
+                    // step fields + «Βήμα 1 από 4» bar). Still just a banner + a
+                    // button that opens the wizard.
+                    <div className="sub-promo-inner sub-promo-wizard">
+                      <div className="sub-promo-wizard-top">
+                        <div className="sub-promo-eyebrow">
+                          <span className="sub-promo-dot" aria-hidden="true" />
+                          {t('subBannerEyebrow')}
+                        </div>
+                        <span className="sub-promo-disc-pill">{t('subBannerDiscount')}</span>
                       </div>
-                      <h3 className="sub-promo-headline">
-                        {lang === 'el' ? (
-                          <>Φάε για τον<br /><em>στόχο σου</em>.</>
-                        ) : (
-                          <>Eat for your<br /><em>goal</em>.</>
-                        )}
+                      <h3 className="sub-promo-headline sub-promo-headline-sm">
+                        {t('subBannerHeadline')}
                       </h3>
-                      <div className="sub-promo-sub">
-                        {t('subPromoSubSub')}
+                      {/* four empty step fields (decorative preview of the wizard) */}
+                      <div className="sub-promo-fields" aria-hidden="true">
+                        <span className="sub-promo-field" />
+                        <span className="sub-promo-field" />
+                        <span className="sub-promo-field" />
+                        <span className="sub-promo-field" />
+                      </div>
+                      <div className="sub-promo-progress" aria-hidden="true">
+                        <div className="sub-promo-progress-bar"><span style={{ width: '25%' }} /></div>
+                        <span className="sub-promo-progress-label">{t('subBannerStep')}</span>
                       </div>
                       <button
                         type="button"
                         className="sub-promo-cta"
                         onClick={(e) => { e.stopPropagation(); goToWalletPage() }}
                       >
-                        {t('subPromoSubCta')}
+                        {t('subBannerCta')}
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" width="12" height="12" aria-hidden="true">
                           <line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/>
                         </svg>
