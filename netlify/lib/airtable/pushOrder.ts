@@ -298,8 +298,8 @@ async function reconcileDeletes(
   }
 
   const prefix = `${orderId}#`
-  let staleChildKeys: string[] = []
-  let staleItemUuids: string[] = []
+  const staleChildKeys: string[] = []
+  const staleItemUuids: string[] = []
   const staleChildRecIds: string[] = []
   const staleItemRecIds: string[] = []
   try {
@@ -309,21 +309,32 @@ async function reconcileDeletes(
       TABLES.childOrders,
       `FIND('${esc(prefix)}', {Child/Day Order Id}) = 1`,
     )
+
+    // Items: scope WITHOUT guessing a primary/link display. The Airtable REST
+    // API returns link cells as arrays of RECORD IDs, so every item record
+    // linked under this order's children is reachable directly from the child
+    // records' link fields. We gather all linked rec-ids from those children
+    // (order/customer links are harmless — they simply won't exist in the Order
+    // Items table), then look them up by RECORD_ID(). (The earlier ARRAYJOIN
+    // formula matched nothing against the live base — WEC-697 dry-run finding.)
+    const linkedRecIds = new Set<string>()
     for (const rec of atChildren) {
-      const key = String((rec.fields as any)['Child/Day Order Id'] ?? '')
+      const key = String((rec.fields as Record<string, unknown>)['Child/Day Order Id'] ?? '')
       if (key && !currentChildKeys.has(key)) { staleChildKeys.push(key); staleChildRecIds.push(rec.id) }
+      for (const v of Object.values(rec.fields)) {
+        if (Array.isArray(v)) for (const x of v) if (typeof x === 'string' && x.startsWith('rec')) linkedRecIds.add(x)
+      }
     }
 
-    // Items: scope to this order via the child link's displayed key. If the
-    // base renders the link differently this finds nothing (fail-safe: logs 0),
-    // which the dry-run surfaces before deletes are ever enabled.
-    const atItems = await listRecords(
-      TABLES.orderItems,
-      `FIND('${esc(prefix)}', ARRAYJOIN({Child/Day Order ID})) = 1`,
-    )
-    for (const rec of atItems) {
-      const uuid = String((rec.fields as any)['uuid'] ?? '')
-      if (uuid && !currentItemUuids.has(uuid)) { staleItemUuids.push(uuid); staleItemRecIds.push(rec.id) }
+    const idList = [...linkedRecIds]
+    for (let i = 0; i < idList.length; i += 50) {
+      const chunk = idList.slice(i, i + 50)
+      const formula = `OR(${chunk.map((id) => `RECORD_ID()='${id}'`).join(',')})`
+      const atItems = await listRecords(TABLES.orderItems, formula)
+      for (const rec of atItems) {
+        const uuid = String((rec.fields as Record<string, unknown>)['uuid'] ?? '')
+        if (uuid && !currentItemUuids.has(uuid)) { staleItemUuids.push(uuid); staleItemRecIds.push(rec.id) }
+      }
     }
   } catch (e) {
     console.warn('[pushOrder] delete-reconcile read failed for %s — no deletions:', orderId, (e as Error).message)
@@ -331,10 +342,10 @@ async function reconcileDeletes(
   }
 
   if (dryRun) {
-    if (staleChildKeys.length || staleItemUuids.length) {
-      console.log('[pushOrder] delete-reconcile DRY-RUN %s — would delete %d day(s) %j and %d item(s) %j',
-        orderId, staleChildKeys.length, staleChildKeys, staleItemUuids.length, staleItemUuids)
-    }
+    // Always log (incl. the 0/0 case) so Netlify logs prove the path ran and a
+    // "detected nothing" result isn't silent (WEC-697 dry-run observability gap).
+    console.log('[pushOrder] delete-reconcile DRY-RUN %s — would delete %d day(s) %j and %d item(s) %j',
+      orderId, staleChildKeys.length, staleChildKeys, staleItemUuids.length, staleItemUuids)
     return { dryRun: true, childKeys: staleChildKeys, itemUuids: staleItemUuids }
   }
 
