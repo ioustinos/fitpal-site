@@ -14,8 +14,9 @@
 // WEC-172: part of the Viva Payments integration epic (WEC-125).
 
 import { useEffect, useRef, useState } from 'react'
-import { useSearchParams } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
+import { planReference } from '../lib/api/wallet'
 import { useUIStore } from '../store/useUIStore'
 import { useCartStore } from '../store/useCartStore'
 import { fetchOrderForConfirmation, type ConfirmationOrder } from '../lib/api/orders'
@@ -377,10 +378,15 @@ function WalletPaidView({
 }: { amountCents: number; transactionId: string; lang: 'el' | 'en' }) {
   const t = makeTr(lang)
   const el = lang === 'el'
+  const navigate = useNavigate()
   const [plan, setPlan] = useState<WalletPlanSummary | null>(null)
 
   // WEC-522: fetch the purchased plan for the reference + selections summary.
   // The active session is the customer's, so RLS lets them read their own row.
+  // WEC-701 §A: a paid card/link subscription converges on the canonical
+  // success PAGE (/subscription/success/:reference) so ALL payment paths share
+  // one success surface + one conversion event. This inline card stays as a
+  // fallback while the plan loads, or if the lookup can't resolve a reference.
   useEffect(() => {
     if (!transactionId) return
     let cancelled = false
@@ -390,10 +396,16 @@ function WalletPaidView({
         .select('id, goal, plan_length, plan_length_weeks, days_per_week, meal_breakfast, meal_lunch, meal_dinner, meal_snack, amount_to_pay_cents, wallet_credit_cents, bonus_credits_cents, daily_kcal')
         .eq('viva_transaction_id', transactionId)
         .maybeSingle()
-      if (!cancelled && data) setPlan(data as WalletPlanSummary)
+      if (cancelled || !data) return
+      const id = (data as WalletPlanSummary).id
+      if (id) {
+        navigate(`/subscription/success/${planReference(id)}`, { replace: true })
+        return
+      }
+      setPlan(data as WalletPlanSummary)
     })()
     return () => { cancelled = true }
-  }, [transactionId])
+  }, [transactionId, navigate])
 
   const goalLabel = plan?.goal
     ? ({ lose: el ? 'Απώλεια βάρους' : 'Weight loss', maintain: el ? 'Διατήρηση' : 'Maintain', gain: el ? 'Αύξηση μυϊκής μάζας' : 'Muscle gain' } as Record<string, string>)[plan.goal] ?? plan.goal

@@ -14,7 +14,7 @@ import { WALLET_PLANS } from '../data/menu'
 import { PAYMENT_METHODS as PAYMENT_COPY } from '../lib/paymentMethods'
 import { visiblePaymentMethods, paymentCatalogEntry } from '../lib/paymentVisibility'
 import { useImpersonationStore } from '../store/useImpersonationStore'
-import { fetchPastWalletPlans, type PastWalletPlan } from '../lib/api/wallet'
+import { fetchPastWalletPlans, planReference, type PastWalletPlan } from '../lib/api/wallet'
 import { COUNTRIES, DEFAULT_COUNTRY, isValidPhone, phoneLabels } from '../lib/phone'
 import { showGoalProgress, goalStatus, goalPct } from '../lib/goals'
 import { matchesRange, type RangePreset } from '../lib/dateRange'
@@ -1764,6 +1764,13 @@ function SubscriptionTab({ user, lang }: any) {
             <div className="subs-row"><span className="subs-row-key">{isEl ? 'Τύπος πλάνου' : 'Plan type'}</span><span className="subs-row-val">{goalLabel}</span></div>
             <div className="subs-row"><span className="subs-row-key">{isEl ? 'Λιπομέτρηση' : 'Body-fat measurement'}</span><span className="subs-row-val">{wallet.bodyFatMeasurement ? (isEl ? 'Ναι' : 'Yes') : (isEl ? 'Όχι' : 'No')}</span></div>
           </div>
+          {/* WEC-701 §A: revisit the subscription success page (reference, and
+              IBAN/payment info if still pending). */}
+          {wallet.planId && (
+            <a className="subs-view-link" href={`/subscription/success/${planReference(wallet.planId)}`}>
+              {isEl ? 'Δες στοιχεία & πληρωμή →' : 'View details & payment →'}
+            </a>
+          )}
         </div>
       )}
 
@@ -1822,6 +1829,14 @@ function SubscriptionTab({ user, lang }: any) {
                           <span className="subs-past-status">{pp.paymentStatus}</span>
                         )}
                       </div>
+                      {/* WEC-701 §A: a pending transfer plan lands here once it's
+                          no longer the active plan — the link lets the customer
+                          return to the IBAN + reference they may have lost. */}
+                      <a className="subs-view-link" href={`/subscription/success/${planReference(pp.id)}`}>
+                        {pp.paymentStatus === 'pending'
+                          ? (isEl ? 'Στοιχεία πληρωμής →' : 'Payment details →')
+                          : (isEl ? 'Δες λεπτομέρειες →' : 'View details →')}
+                      </a>
                     </div>
                   ))}
                 </div>

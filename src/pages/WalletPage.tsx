@@ -17,7 +17,6 @@ import { saveProfileAllergies, saveProfileAvoidedIngredients } from '../lib/api/
 import { useMenuStore } from '../store/useMenuStore'
 import { supabase } from '../lib/supabase'
 import { MacroIcon } from '../components/ui/MacroDots'
-import { CopyButton } from '../components/ui/CopyButton'
 import { isValidGreekVat, vatDigits } from '../lib/vat'
 
 /* ─────────────────────────────────────────────────────────────────
@@ -261,12 +260,6 @@ export function WalletPage() {
   const cashMaxAmount = useMenuStore((s) => s.settings.cashMaxAmount)
   // WEC-691: support address for the "didn't get a code" fallback.
   const supportEmail = useMenuStore((s) => s.settings.contact.supportEmail) || 'info@fitpal.gr'
-  // WEC-665: after a subscription purchase completes, send the customer back to
-  // the landing site. Dev hosts go to the dev landing so testers stay on dev.
-  const LANDING_URL = (typeof window !== 'undefined' &&
-    (window.location.host.startsWith('dev--') || window.location.host.includes('localhost')))
-    ? 'https://dev--fitpal-landing.netlify.app'
-    : 'https://fitpal.gr'
   const cashOverCap = result.amountToPay > cashMaxAmount
   const invoiceIncomplete =
     wantInvoice && (!invoiceName.trim() || invoiceVat.length !== 9 || !isValidGreekVat(invoiceVat))
@@ -382,9 +375,6 @@ export function WalletPage() {
   /* ── Async/error state ─────────────────────────────────────── */
   const [busy, setBusy] = useState(false)
   const [errMsg, setErrMsg] = useState<string | null>(null)
-  const [bankInfo, setBankInfo] = useState<{ iban: string; beneficiary: string; reference: string } | null>(null)
-  // WEC-554: cash (Αντικαταβολή) success overlay — "pay on first delivery".
-  const [cashInfo, setCashInfo] = useState<{ reference: string } | null>(null)
 
   // WEC-508: the coupon input that lived here was a dead stub — value never
   // read, Apply had no onClick, the server accepted no voucher field. Removed
@@ -495,18 +485,15 @@ export function WalletPage() {
       })
       if (error || !data) { setErrMsg(error ?? 'Purchase failed'); return }
 
-      if (data.paymentMethod === 'transfer') {
-        setBankInfo(data.bankInstructions)
-        // Refresh user so UI sees the pending wallet plan in account history
-        if (user) refreshUser(user.id)
-        return
-      }
-      // WEC-554: cash (Αντικαταβολή) — no redirect, no bank details; show the
-      // "pay on first delivery" confirmation. Plan stays pending until admin
-      // marks it paid when the courier collects.
-      if (data.paymentMethod === 'cash') {
-        setCashInfo({ reference: data.reference })
-        if (user) refreshUser(user.id)
+      // WEC-701 §A: transfer + cash now land on a real, revisitable success
+      // PAGE (/subscription/success/:reference) instead of an ephemeral modal —
+      // a modal has no URL, so clicking outside it destroyed the IBAN +
+      // reference with no way back (Μαρία Πλαγάκη's €405.17 transfer). The page
+      // re-fetches the durable plan record, so it survives refresh + revisit.
+      if (data.paymentMethod === 'transfer' || data.paymentMethod === 'cash') {
+        const reference =
+          data.paymentMethod === 'transfer' ? data.bankInstructions.reference : data.reference
+        window.location.href = `/subscription/success/${encodeURIComponent(reference)}`
         return
       }
       // card / link → redirect to Viva hosted checkout.
@@ -1472,66 +1459,9 @@ export function WalletPage() {
         </aside>
       </div>
 
-      {/* ── Bank-transfer success overlay ─────────────── */}
-      {bankInfo && (
-        <div className="wpv2-bank-overlay" onClick={() => setBankInfo(null)}>
-          <div className="wpv2-bank-card" onClick={(e) => e.stopPropagation()}>
-            {/* WEC-665: order — (1) plan created (2) dietitian calls (3) payment. */}
-            <h3>{isEl ? 'Το πλάνο δημιουργήθηκε ✓' : 'Your plan is created ✓'}</h3>
-            <p className="wpv2-bank-promise">
-              {isEl
-                ? 'Η διατροφολογική μας ομάδα θα σε καλέσει εντός 1 εργάσιμης ημέρας για να χτίσουμε μαζί τα γεύματά σου — χωρίς κόπο.'
-                : 'Our dietitian team will call you within 1 business day to build your meals together — zero effort.'}
-            </p>
-            <p>
-              {isEl ? (
-                <>Για την έναρξη της συνδρομής σου, κάνε την κατάθεση στα παρακάτω στοιχεία και στείλε μας το αποδεικτικό κατάθεσης στο <a href="mailto:orders@fitpal.gr">orders@fitpal.gr</a>.</>
-              ) : (
-                <>To start your subscription, transfer to the details below and send us the deposit receipt at <a href="mailto:orders@fitpal.gr">orders@fitpal.gr</a>.</>
-              )}
-            </p>
-            <dl className="wpv2-bank-details">
-              {/* WEC-556 O17 — copy buttons on the two values people paste into
-                  their banking app: the IBAN and the payment reference. */}
-              <dt>IBAN</dt>          <dd className="bank-info-copyrow"><span>{bankInfo.iban}</span><CopyButton value={bankInfo.iban} lang={lang} ariaLabel={isEl ? 'Αντιγραφή IBAN' : 'Copy IBAN'} /></dd>
-              <dt>{isEl ? 'Δικαιούχος' : 'Beneficiary'}</dt> <dd>{bankInfo.beneficiary}</dd>
-              <dt>{isEl ? 'Αιτιολογία' : 'Reference'}</dt>   <dd className="bank-info-copyrow"><span>{bankInfo.reference}</span><CopyButton value={bankInfo.reference} lang={lang} ariaLabel={isEl ? 'Αντιγραφή αιτιολογίας' : 'Copy reference'} /></dd>
-              <dt>{isEl ? 'Ποσό'       : 'Amount'}</dt>      <dd>{fmtEur(total)}</dd>
-            </dl>
-            <button className="wpv2-bank-close" onClick={() => { window.location.href = LANDING_URL }}>
-              {isEl ? 'Ολοκλήρωση' : 'Done'}
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* WEC-554: cash (Αντικαταβολή) success overlay — no bank details. */}
-      {cashInfo && (
-        <div className="wpv2-bank-overlay" onClick={() => setCashInfo(null)}>
-          <div className="wpv2-bank-card" onClick={(e) => e.stopPropagation()}>
-            <h3>{isEl ? 'Πλάνο δημιουργήθηκε ✓' : 'Plan created ✓'}</h3>
-            <p>
-              {isEl
-                ? 'Θα πληρώσεις με μετρητά (αντικαταβολή) στον διανομέα κατά την πρώτη σου παράδοση. Το πλάνο σου είναι σε αναμονή και ενεργοποιείται μόλις εισπραχθεί το ποσό.'
-                : 'You’ll pay in cash (on delivery) to the courier on your first delivery. Your plan is pending and activates once the amount is collected.'}
-            </p>
-            <dl className="wpv2-bank-details">
-              <dt>{isEl ? 'Κωδικός' : 'Reference'}</dt>
-              <dd className="bank-info-copyrow"><span>{cashInfo.reference}</span><CopyButton value={cashInfo.reference} lang={lang} ariaLabel={isEl ? 'Αντιγραφή κωδικού' : 'Copy reference'} /></dd>
-              <dt>{isEl ? 'Ποσό' : 'Amount'}</dt> <dd>{fmtEur(total)}</dd>
-            </dl>
-            {/* WEC-551 O7 — post-purchase reassurance: the dietitian team calls. */}
-            <p className="wpv2-bank-promise">
-              {isEl
-                ? 'Θα σε καλέσουμε εντός 1 εργάσιμης ημέρας για να χτίσουμε μαζί τα γεύματά σου — χωρίς κόπο.'
-                : "We'll call you within 1 business day to build your meals together — zero effort."}
-            </p>
-            <button className="wpv2-bank-close" onClick={() => setCashInfo(null)}>
-              {isEl ? 'Κλείσιμο' : 'Close'}
-            </button>
-          </div>
-        </div>
-      )}
+      {/* WEC-701 §A: the bank-transfer + cash success overlays were removed —
+          both now redirect to /subscription/success/:reference (a real page
+          that survives refresh and can be revisited). See startPurchase(). */}
 
       {/* WEC-433: server quote-confirm modal — appears only if the server
           authoritative price differs from what the calculator showed (e.g.

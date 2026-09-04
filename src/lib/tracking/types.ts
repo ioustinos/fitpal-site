@@ -8,6 +8,7 @@ export type StandardEvent =
   | 'initiate_checkout'
   | 'add_payment_info'
   | 'purchase'
+  | 'subscribe'
   | 'lead'
   | 'complete_registration'
   | 'schedule'

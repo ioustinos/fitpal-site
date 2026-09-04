@@ -2218,6 +2218,15 @@ header {
 /* Anchor variant of btn-conf-done — used by OrderReturn (top-level route, not in checkout context) */
 a.btn-conf-done { display: inline-block; text-decoration: none; }
 
+/* Secondary action (WEC-701 subscription success page) — outline of btn-conf-done */
+.btn-conf-secondary { display: inline-block; text-decoration: none; padding: 13px 28px; background: transparent; color: var(--green-dark, #0a8f52); border: 1.5px solid var(--green, #00b96b); border-radius: var(--radius); font-size: 14px; font-weight: 900; cursor: pointer; transition: all 0.22s; letter-spacing: 0.3px; }
+.btn-conf-secondary:hover { background: rgba(0,185,107,0.08); }
+
+/* WEC-701 §A — bank/cash block on the subscription success page */
+.sub-bank-block { width: 100%; max-width: 460px; margin: 6px auto 4px; text-align: left; }
+.sub-bank-lead { font-size: 14px; font-weight: 600; color: var(--text-mid, #4a5a4a); margin: 0 0 10px; }
+.sub-bank-note { font-size: 13px; line-height: 1.6; color: var(--text-muted, #7A957A); margin: 12px 0 0; }
+
 /* ── OrderReturn (Viva card-payment landing page) ─────────────────
    Full-page wrapper for /order/pending/{success,failure} routes.
    Paid state delegates to the same .conf-* classes as ConfirmationScreen.
@@ -4265,5 +4274,9 @@ body.is-impersonating { padding-top: 36px; }
 .subs-past-nums { display: flex; align-items: center; gap: 10px; font-size: 13px; white-space: nowrap; }
 .subs-past-credits { color: var(--fp-ink-400, #888); font-size: 12px; }
 .subs-past-status { font-size: 11px; font-weight: 700; text-transform: uppercase; color: #b45309; background: rgba(180,83,9,.1); padding: 1px 6px; border-radius: 6px; }
+/* WEC-701 §A — link from Account → Συνδρομές back to the success page */
+.subs-view-link { display: inline-block; margin-top: 4px; font-size: 13px; font-weight: 700; color: var(--green-dark, #0a8f52); text-decoration: none; }
+.subs-view-link:hover { text-decoration: underline; }
+.subs-card > .subs-view-link { margin-top: 14px; }
 .subs-past-msg { margin-top: 10px; font-size: 13px; color: var(--fp-ink-400, #888); }
 @media (max-width: 560px) { .subs-past-row { flex-direction: column; align-items: flex-start; gap: 6px; } }

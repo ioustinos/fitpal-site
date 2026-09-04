@@ -21,6 +21,10 @@ export const EVENT_MAP: Record<StandardEvent, EventRoute> = {
   initiate_checkout: { meta: 'InitiateCheckout', ga4: 'begin_checkout', klaviyo: 'Started Checkout', server: true },
   add_payment_info: { meta: 'AddPaymentInfo', ga4: 'add_payment_info' },
   purchase: { meta: 'Purchase', ga4: 'purchase', klaviyo: 'Placed Order', server: true, always: true },
+  // WEC-701 §C: subscription (wallet-plan) purchases fire a DISTINCT event so
+  // Michalis can optimise/report subscription conversions separately from
+  // food-order Purchases in Ads Manager. Meta standard 'Subscribe' event.
+  subscribe: { meta: 'Subscribe', ga4: 'subscribe', klaviyo: 'Subscribed Plan', server: true, always: true },
   lead: { meta: 'Lead', ga4: 'generate_lead', klaviyo: 'Signed Up', server: true },
   complete_registration: { meta: 'CompleteRegistration', ga4: 'sign_up', klaviyo: 'Created Account' },
   schedule: { meta: 'Schedule', ga4: 'schedule', klaviyo: 'Selected Delivery Day' },

@@ -10,6 +10,7 @@ import { CheckoutPage } from './pages/CheckoutPage'
 import { AccountPage } from './pages/AccountPage'
 import { WalletPage } from './pages/WalletPage'
 import { OrderReturn } from './pages/OrderReturn'
+import { SubscriptionSuccess } from './pages/SubscriptionSuccess'
 import { AuthCallback } from './pages/AuthCallback'
 import { PrivacyPage } from './pages/PrivacyPage'
 import { TermsPage } from './pages/TermsPage'
@@ -244,6 +245,9 @@ export default function App() {
             customer shell because they need URL + query-param access. */}
         <Route path="/order/pending/success" element={<OrderReturn mode="success" />} />
         <Route path="/order/pending/failure" element={<OrderReturn mode="failure" />} />
+        {/* WEC-701 §A — real subscription success page (replaces the old
+            WalletPage bank/cash modal). Survives refresh, re-visitable. */}
+        <Route path="/subscription/success/:reference" element={<SubscriptionSuccess />} />
         {/* WEC-322 / WEC-323 — Google + Facebook OAuth post-redirect handler.
             Outside CustomerApp because it has its own minimal loading shell
             and never renders the modal/cart/header chrome. */}
