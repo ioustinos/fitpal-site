@@ -15,6 +15,10 @@ import { PAYMENT_METHODS as PAYMENT_COPY } from '../lib/paymentMethods'
 import { visiblePaymentMethods, paymentCatalogEntry } from '../lib/paymentVisibility'
 import { useImpersonationStore } from '../store/useImpersonationStore'
 import { fetchPastWalletPlans, planReference, type PastWalletPlan } from '../lib/api/wallet'
+// WEC-702: reuse the shared plan-characteristics panel (same one the staff
+// impersonation strip uses) on the customer's own Συνδρομές tab.
+import { fetchActivePlanDetails, type PlanDetails } from '../lib/api/planDetails'
+import { PlanDetailsPanel } from '../components/shared/PlanDetailsPanel'
 import { COUNTRIES, DEFAULT_COUNTRY, isValidPhone, phoneLabels } from '../lib/phone'
 import { showGoalProgress, goalStatus, goalPct } from '../lib/goals'
 import { matchesRange, type RangePreset } from '../lib/dateRange'
@@ -1655,6 +1659,19 @@ function SubscriptionTab({ user, lang }: any) {
   const isEl = lang === 'el'
   const t = makeTr(lang)
 
+  // WEC-702: the customer's plan characteristics (same shared panel as the
+  // staff strip). Fetched once when the tab mounts with an active plan.
+  const [planDetails, setPlanDetails] = useState<PlanDetails | null>(null)
+  useEffect(() => {
+    if (!user?.id || !wallet?.active) return
+    let cancelled = false
+    ;(async () => {
+      const { data } = await fetchActivePlanDetails(user.id)
+      if (!cancelled) setPlanDetails(data)
+    })()
+    return () => { cancelled = true }
+  }, [user?.id, wallet?.active])
+
   // Past (non-active) plans — lazy-loaded when the section is expanded.
   const [pastOpen, setPastOpen] = useState(false)
   const [pastPlans, setPastPlans] = useState<PastWalletPlan[] | null>(null)
@@ -1781,6 +1798,16 @@ function SubscriptionTab({ user, lang }: any) {
               {isEl ? 'Δες στοιχεία & πληρωμή →' : 'View details & payment →'}
             </a>
           )}
+        </div>
+      )}
+
+      {/* WEC-702: full plan characteristics — the same shared PlanDetailsPanel
+          the staff impersonation strip uses (metrics + macro targets, no
+          pricing), now bilingual for the customer's own tab. */}
+      {planDetails && (
+        <div className="subs-card subs-plandetails">
+          <div className="subs-card-title">{isEl ? 'Χαρακτηριστικά πλάνου' : 'Plan characteristics'}</div>
+          <PlanDetailsPanel plan={planDetails} lang={lang} />
         </div>
       )}
 

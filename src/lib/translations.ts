@@ -427,7 +427,7 @@ const T = {
     acYes: 'Ναι',
     acNo: 'Όχι',
     acWalletBalance: 'Υπόλοιπο πορτοφολιού',
-    acSubsHelpContact: 'Για ακυρώσεις ή αλλαγές κύκλου, επικοινώνησε στο ',
+    acSubsHelpContact: 'Για ακυρώσεις ή αλλαγές, επικοινώνησε με το ',
   },
   en: {
     heading: 'Weekly Menu',
@@ -840,7 +840,7 @@ const T = {
     acYes: 'Yes',
     acNo: 'No',
     acWalletBalance: 'Wallet balance',
-    acSubsHelpContact: 'For cancellations or cycle changes, contact ',
+    acSubsHelpContact: 'For cancellations or changes, contact ',
   },
 } as const
 
