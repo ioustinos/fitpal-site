@@ -3231,6 +3231,13 @@ a.btn-conf-done { display: inline-block; text-decoration: none; }
 /* ── Inline error in sidebar ─────────────────────────────────── */
 .wpv2-aside-err { background: #fdecea; border: 1px solid #f5c6c2; border-radius: var(--fp-radius-sm); padding: 10px 12px; font-size: 12px; color: #8a1a14; font-weight: 600; line-height: 1.45; }
 .wpv2-aside-hint { font-size: 11px; color: var(--fp-ink-500); font-weight: 600; line-height: 1.45; text-align: center; padding: 2px 4px; }
+/* WEC-699: the postcode hint is now a tappable action (scrolls + focuses Τ.Κ.). */
+.wpv2-aside-hint-btn { display: block; width: 100%; border: none; background: none; cursor: pointer; color: #8a1a14; text-decoration: underline; text-underline-offset: 2px; }
+.wpv2-aside-hint-btn:hover { color: #b91c1c; }
+/* WEC-699: weekend hand-over clarification under the 6/7-day cards + in the aside. */
+.wpv2-freq-note { display: flex; align-items: flex-start; gap: 8px; margin-top: 14px; padding: 10px 12px; border-radius: var(--fp-radius-sm); background: var(--fp-green-50, #eef7f0); color: var(--fp-green-900, #1b5e3a); font-size: 12.5px; font-weight: 600; line-height: 1.45; }
+.wpv2-freq-note svg { flex-shrink: 0; margin-top: 1px; }
+.wpv2-aside-note { margin-top: 10px; padding: 8px 10px; border-radius: var(--fp-radius-sm); background: var(--fp-green-50, #eef7f0); color: var(--fp-green-900, #1b5e3a); font-size: 11px; font-weight: 600; line-height: 1.4; text-align: center; }
 
 /* ── WEC-338 · Diet picker (allergies + ingredients autocomplete) ── */
 .wpv2-diet { display: flex; flex-direction: column; gap: 12px; position: relative; }

@@ -33,6 +33,12 @@ interface IndicativeAddressGateProps {
    * Called whenever the validity changes.
    */
   onValidityChange: (inZone: boolean) => void
+  /**
+   * WEC-699: the parent sets this when the customer tried to continue but the
+   * Τ.Κ. is missing/invalid — forces the field's error state + message even
+   * when the field is still empty (a phone user can't see a `title` tooltip).
+   */
+  highlight?: boolean
 }
 
 export function IndicativeAddressGate({
@@ -40,6 +46,7 @@ export function IndicativeAddressGate({
   value,
   onChange,
   onValidityChange,
+  highlight = false,
 }: IndicativeAddressGateProps) {
   const isEl = lang === 'el'
   const zones = useMenuStore((s) => s.zones)
@@ -50,6 +57,8 @@ export function IndicativeAddressGate({
   )
   const zipTouched = value.zip.trim().length > 0
   const inZone = !!resolved
+  // Show the error state once the user has typed OR once the parent forces it.
+  const showError = !inZone && (zipTouched || highlight)
 
   /* Notify the parent whenever validity flips. */
   useEffect(() => {
@@ -123,20 +132,31 @@ export function IndicativeAddressGate({
             <small className="req">*</small>
           </span>
           <input
+            id="wpv2-ind-zip"
             type="text"
             inputMode="numeric"
             maxLength={6}
             className={`wpv2-addrgate-input zip${
-              zipTouched ? (inZone ? ' ok' : ' bad') : ''
+              showError ? ' bad' : zipTouched && inZone ? ' ok' : ''
             }`}
             value={value.zip}
             onChange={(e) => set({ zip: e.target.value.replace(/\D/g, '').slice(0, 6) })}
             placeholder="11744"
             autoComplete="postal-code"
-            aria-invalid={zipTouched && !inZone}
+            aria-invalid={showError}
           />
         </label>
       </div>
+
+      {/* WEC-699: empty + parent forced the highlight → explicit "required" line. */}
+      {highlight && !zipTouched && (
+        <div className="wpv2-addrgate-feedback bad">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <circle cx="12" cy="12" r="9" /><line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" />
+          </svg>
+          {isEl ? 'Συμπλήρωσε τον Τ.Κ. παράδοσης για να συνεχίσεις.' : 'Enter your delivery postcode to continue.'}
+        </div>
+      )}
 
       {zipTouched && (
         <div className={`wpv2-addrgate-feedback ${inZone ? 'ok' : 'bad'}`}>

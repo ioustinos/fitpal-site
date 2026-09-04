@@ -152,8 +152,11 @@ function ActivityIcon({ level }: { level: ActivityLevel }) {
 const FREQ_CARDS: Array<{ id: DaysPerWeek; nameEl: string; nameEn: string; subEl: string; subEn: string }> = [
   { id: 4, nameEl: '4 ημέρες', nameEn: '4 days', subEl: 'Δευ–Πεμ',         subEn: 'Mon–Thu' },
   { id: 5, nameEl: '5 ημέρες', nameEn: '5 days', subEl: 'Δευ–Παρ',         subEn: 'Mon–Fri' },
-  { id: 6, nameEl: '6 ημέρες', nameEn: '6 days', subEl: 'Δευ–Σαβ',         subEn: 'Mon–Sat' },
-  { id: 7, nameEl: '7 ημέρες', nameEn: '7 days', subEl: 'Όλη την εβδομάδα', subEn: 'Whole week' },
+  // WEC-699: we deliver Mon–Fri only, so 6/7-day subtitles must NOT imply
+  // weekend delivery. The customer still gets 6/7 days of MEALS — the weekend's
+  // are handed over on Friday (see the note rendered when 6/7 is selected).
+  { id: 6, nameEl: '6 ημέρες', nameEn: '6 days', subEl: 'Παραδόσεις Δευ–Παρ', subEn: 'Deliveries Mon–Fri' },
+  { id: 7, nameEl: '7 ημέρες', nameEn: '7 days', subEl: 'Παραδόσεις Δευ–Παρ', subEn: 'Deliveries Mon–Fri' },
 ]
 
 /* ─────────────────────────────────────────────────────────────────
@@ -289,6 +292,17 @@ export function WalletPage() {
   const [startDate, setStartDate] = useState<string | null>(null)
   const [indAddr, setIndAddr] = useState<IndicativeAddress>({ street: '', area: '', zip: '' })
   const [indAddrInZone, setIndAddrInZone] = useState(false)
+  // WEC-699: when the customer tries to continue without a valid Τ.Κ., force the
+  // postcode field's error state (a phone can't show the button's `title`).
+  const [highlightZip, setHighlightZip] = useState(false)
+  function focusPostcode() {
+    setHighlightZip(true)
+    const el = document.getElementById('wpv2-ind-zip')
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+      window.setTimeout(() => (el as HTMLInputElement).focus({ preventScroll: true }), 350)
+    }
+  }
 
   // WEC-691: the OTP confirmation link reloads the page (fresh load), which
   // would wipe the in-memory plan. Persist the plan inputs so the customer
@@ -925,6 +939,20 @@ export function WalletPage() {
                 )
               })}
             </div>
+            {/* WEC-699: we deliver Mon–Fri only. 6/7-day plans still get all their
+                meals — the weekend's are handed over on Friday. Say so explicitly. */}
+            {daysPerWeek >= 6 && (
+              <div className="wpv2-freq-note">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <circle cx="12" cy="12" r="9" /><line x1="12" y1="8" x2="12" y2="13" /><line x1="12" y1="16" x2="12.01" y2="16" />
+                </svg>
+                <span>
+                  {isEl
+                    ? 'Δεν παραδίδουμε Σάββατο και Κυριακή — τα γεύματα του Σαββατοκύριακου παραδίδονται μαζί με της Παρασκευής.'
+                    : "We don't deliver on Saturday or Sunday — your weekend meals are handed over together with Friday's."}
+                </span>
+              </div>
+            )}
           </section>
 
           {/* SECTION 6 · Plan length */}
@@ -1037,6 +1065,7 @@ export function WalletPage() {
               value={indAddr}
               onChange={setIndAddr}
               onValidityChange={handleAddrValidity}
+              highlight={highlightZip}
             />
           </section>
 
@@ -1164,6 +1193,15 @@ export function WalletPage() {
                 <small>{result.dailyKcal} kcal / {isEl ? 'ημέρα' : 'day'}</small>
               </div>
             </div>
+
+            {/* WEC-699: keep the Fri hand-over clear in the persistent summary too. */}
+            {daysPerWeek >= 6 && (
+              <div className="wpv2-aside-note">
+                {isEl
+                  ? 'Χωρίς παράδοση Σκ — τα γεύματα του Σαββατοκύριακου έρχονται με της Παρασκευής.'
+                  : "No weekend delivery — your weekend meals arrive with Friday's."}
+              </div>
+            )}
 
             <div className="wpv2-aside-rows">
               <div className="wpv2-aside-row">
@@ -1343,12 +1381,17 @@ export function WalletPage() {
                 <line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/>
               </svg>
             </button>
-            {!indAddrInZone && (
+            {/* WEC-699: one distinct, actionable message per blocking reason —
+                no hover-only `title`, no "section 9" counting. */}
+            {result.selectedMealCount < 2 && (
               <div className="wpv2-aside-hint">
-                {isEl
-                  ? 'Συμπλήρωσε έγκυρο Τ.Κ. στην ενότητα 9 για να συνεχίσεις.'
-                  : 'Add a valid postcode in section 9 to continue.'}
+                {isEl ? 'Διάλεξε τουλάχιστον 2 γεύματα για να συνεχίσεις.' : 'Pick at least 2 meals to continue.'}
               </div>
+            )}
+            {result.selectedMealCount >= 2 && !indAddrInZone && (
+              <button type="button" className="wpv2-aside-hint wpv2-aside-hint-btn" onClick={focusPostcode}>
+                {isEl ? 'Συμπλήρωσε τον Τ.Κ. παράδοσης →' : 'Enter your delivery postcode →'}
+              </button>
             )}
 
             {signupOpen && !user && (
