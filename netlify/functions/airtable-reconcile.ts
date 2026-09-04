@@ -46,6 +46,10 @@ export default async (): Promise<Response> => {
   let skipped = 0
   let errors = 0
   const errorNotes: string[] = []
+  // WEC-697: audit trail of what the delete-reconcile removed (or, in dry-run,
+  // would remove). Lands in reconcile_runs.notes so the dry-run can be reviewed
+  // before AIRTABLE_DELETE_ENABLED is flipped on.
+  const deleteNotes: string[] = []
 
   for (const r of rows ?? []) {
     checked++
@@ -53,6 +57,11 @@ export default async (): Promise<Response> => {
       const res = await pushOrderToAirtable(supabase, r.id)
       if (res.ok && !res.skipped) synced++
       else skipped++
+      const d = res.deletions
+      if (d && (d.childKeys.length || d.itemUuids.length || d.skippedReason)) {
+        const tag = d.skippedReason ? `SKIP(${d.skippedReason})` : d.dryRun ? 'DRYRUN' : 'DELETED'
+        deleteNotes.push(`${tag} ${r.id}: ${d.childKeys.length}d/${d.itemUuids.length}i`)
+      }
     } catch (err) {
       errors++
       errorNotes.push(`${r.id}: ${(err as Error).message}`)
@@ -72,7 +81,7 @@ export default async (): Promise<Response> => {
       cancelled_timeout: 0,
       errors,
       duration_ms: durationMs,
-      notes: errorNotes.length ? errorNotes.slice(0, 10).join(' | ') : null,
+      notes: [...errorNotes, ...deleteNotes].slice(0, 15).join(' | ') || null,
     })
   } catch (err) {
     console.error('[airtable-reconcile] failed to log run:', err)

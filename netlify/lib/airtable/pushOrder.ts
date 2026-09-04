@@ -4,8 +4,8 @@
 // Parent/Child) are set by resolved record id — never typecast.
 
 import type { SupabaseClient } from '@supabase/supabase-js'
-import { TABLES, RETAIL_STORE_ID } from './env'
-import { findRecordId, upsertRecords, createRecord } from './client'
+import { TABLES, RETAIL_STORE_ID, airtableDeleteEnabled, airtableInvoiceNameField } from './env'
+import { findRecordId, upsertRecords, createRecord, listRecords, deleteRecords } from './client'
 import { mapPaid, mapPaymentMethod, mapInvoice, mapOrderType, mapOrderStatus, toEuros, athensIso, esc } from './maps'
 
 export interface PushResult {
@@ -13,6 +13,14 @@ export interface PushResult {
   orderId: string
   skipped?: 'not_eligible' | 'not_found'
   error?: string
+  // WEC-697: what the delete-reconcile did (or would do, in dry-run). Surfaced
+  // so airtable-reconcile can write the trail to reconcile_runs.notes.
+  deletions?: {
+    dryRun: boolean
+    childKeys: string[]   // stale Child/Day Order keys removed (or would be)
+    itemUuids: string[]   // stale Order Item uuids removed (or would be)
+    skippedReason?: string
+  }
 }
 
 interface OrderRow {
@@ -28,6 +36,7 @@ interface OrderRow {
   status: string
   cutlery: boolean | null
   invoice_type: string | null
+  invoice_name: string | null   // WEC-697
   invoice_vat: string | null
   notes: string | null
   admin_order_id: string | null
@@ -70,7 +79,7 @@ export async function pushOrderToAirtable(
   const { data: order, error: oErr } = await supabase
     .from('orders')
     .select(
-      'id, order_number, customer_name, customer_email, customer_phone, subtotal, total, payment_method, payment_status, status, cutlery, invoice_type, invoice_vat, notes, admin_order_id, cancel_reason, created_at, submitted_at, updated_at',
+      'id, order_number, customer_name, customer_email, customer_phone, subtotal, total, payment_method, payment_status, status, cutlery, invoice_type, invoice_name, invoice_vat, notes, admin_order_id, cancel_reason, created_at, submitted_at, updated_at',
     )
     .eq('id', orderId)
     .single<OrderRow>()
@@ -78,20 +87,28 @@ export async function pushOrderToAirtable(
 
   if (!isMirrorEligible(order)) return { ok: true, orderId, skipped: 'not_eligible' }
 
-  // 2. Load children + items
-  const { data: children } = await supabase
+  // 2. Load children + items.
+  // WEC-697: capture the read error explicitly — a FAILED read must never be
+  // treated as "no rows" (that would make the delete-reconcile wipe everything).
+  // Also fetch cancelled_at: a soft-cancelled day must NOT be mirrored as a live
+  // day (it was being re-pushed with its items), so it's excluded from the upsert
+  // set and becomes stale → removed by the reconcile.
+  const { data: children, error: cErr } = await supabase
     .from('child_orders')
-    .select('id, delivery_date, time_from, time_to, address_street, address_area, address_zip, address_floor, address_doorbell, address_notes')
+    .select('id, delivery_date, time_from, time_to, address_street, address_area, address_zip, address_floor, address_doorbell, address_notes, cancelled_at')
     .eq('order_id', orderId)
-  const childList = children ?? []
-  const childIds = childList.map((c: any) => c.id)
-  const { data: items } = childIds.length
+  const allChildren = children ?? []
+  const childList = allChildren.filter((c: any) => c.cancelled_at == null) // active days only
+  const activeChildIds = childList.map((c: any) => c.id)
+  const { data: items, error: iErr } = activeChildIds.length
     ? await supabase
         .from('order_items')
         .select('id, child_order_id, dish_id, variant_id, name_el, variant_label_el, quantity, unit_price, total_price, comment')
-        .in('child_order_id', childIds)
-    : { data: [] as any[] }
+        .in('child_order_id', activeChildIds)
+    : { data: [] as any[], error: null }
   const itemList = items ?? []
+  // Reads must both have SUCCEEDED before we're allowed to delete anything.
+  const readsOk = !cErr && !iErr
 
   // 3. Resolve variant external_id + category per dish (one query each)
   const variantIds = [...new Set(itemList.map((i: any) => i.variant_id).filter(Boolean))]
@@ -172,10 +189,29 @@ export async function pushOrderToAirtable(
   const [orderRec] = await upsertRecords(TABLES.orders, ['Order Id'], [{ fields: orderFields }])
   const orderRecId = orderRec.id
 
+  // WEC-697: invoice company name («Επωνυμία»). Sent as an ISOLATED, best-effort
+  // upsert so a wrong/missing field name can never 422 the main order mirror
+  // above (acceptance: "No regression on the upsert path"). Merges on Order Id.
+  if (order.invoice_name && order.invoice_type && mapInvoice(order.invoice_type) === 'Τιμολόγιο') {
+    try {
+      await upsertRecords(TABLES.orders, ['Order Id'], [{
+        fields: { 'Order Id': order.id, [airtableInvoiceNameField()]: order.invoice_name },
+      }])
+    } catch (e) {
+      console.warn('[pushOrder] invoice-name patch skipped (field name?):', (e as Error).message)
+    }
+  }
+
+  // WEC-697: the CURRENT (active) child keys + item uuids — the delete-reconcile
+  // removes any Airtable row for this order NOT in these sets.
+  const currentChildKeys = new Set<string>()
+  const currentItemUuids = new Set<string>()
+
   // 7. Upsert Child/Day Orders + their items
   for (const c of childList as any[]) {
     const wishIso = athensIso(c.delivery_date, c.time_from)
     const childKey = `${order.id}#${wishIso}`
+    currentChildKeys.add(childKey)
     const childFields: Record<string, unknown> = {
       'Child/Day Order Id': childKey,
       'Order Wish Time': wishIso,
@@ -198,6 +234,7 @@ export async function pushOrderToAirtable(
     const childItems = itemList.filter((i: any) => i.child_order_id === c.id)
     const itemRecords = []
     for (const it of childItems as any[]) {
+      currentItemUuids.add(String(it.id))
       const code = extByVariant.get(it.variant_id) ?? it.variant_id
       const refId = code ? await menuRefId(code) : null
       const fields: Record<string, unknown> = {
@@ -220,11 +257,93 @@ export async function pushOrderToAirtable(
     if (itemRecords.length) await upsertRecords(TABLES.orderItems, ['uuid'], itemRecords)
   }
 
-  // 8. Stamp synced (clears dirty without re-flagging via the trigger guard)
+  // 8. WEC-697: reconcile the Airtable side against ours — remove day/item rows
+  // the customer/admin deleted or cancelled, so the kitchen never preps food
+  // nobody ordered. Destructive + runs every 5 min, so it is heavily guarded and
+  // ships in DRY-RUN (log-only) until AIRTABLE_DELETE_ENABLED=true.
+  const deletions = await reconcileDeletes(order.id, currentChildKeys, currentItemUuids, readsOk)
+
+  // 9. Stamp synced (clears dirty without re-flagging via the trigger guard)
   await supabase
     .from('orders')
     .update({ airtable_dirty: false, airtable_synced_at: new Date().toISOString() })
     .eq('id', orderId)
 
-  return { ok: true, orderId }
+  return { ok: true, orderId, deletions }
+}
+
+/**
+ * WEC-697: delete (or, in dry-run, log) Airtable Child/Day + Item rows for this
+ * order that are no longer in the current DB set.
+ *
+ * Scope safety — how B2B/GonnaOrder rows are provably never touched:
+ *   • Every record this platform creates keys on `${order.id}#…` (children) /
+ *     the item's link to such a child. We ONLY ever list + delete records whose
+ *     key carries THIS order's uuid prefix, and this order is a retail order we
+ *     created (Store Id = RETAIL_STORE_ID). A B2B row cannot match the prefix.
+ *   • A FAILED read (`readsOk === false`, or a list throw) aborts with zero
+ *     deletions — an error is never mistaken for "empty set", so it can't
+ *     delete-everything. An empty set from a SUCCESSFUL read is legitimate.
+ */
+async function reconcileDeletes(
+  orderId: string,
+  currentChildKeys: Set<string>,
+  currentItemUuids: Set<string>,
+  readsOk: boolean,
+): Promise<PushResult['deletions']> {
+  const dryRun = !airtableDeleteEnabled()
+  if (!readsOk) {
+    console.warn('[pushOrder] delete-reconcile SKIPPED for %s: DB read failed (never delete on a failed read)', orderId)
+    return { dryRun, childKeys: [], itemUuids: [], skippedReason: 'db_read_failed' }
+  }
+
+  const prefix = `${orderId}#`
+  let staleChildKeys: string[] = []
+  let staleItemUuids: string[] = []
+  const staleChildRecIds: string[] = []
+  const staleItemRecIds: string[] = []
+  try {
+    // Children: keyed on the text field {Child/Day Order Id} = `${orderId}#…` —
+    // a plain text field, so the filter is reliable (not a link-formula guess).
+    const atChildren = await listRecords(
+      TABLES.childOrders,
+      `FIND('${esc(prefix)}', {Child/Day Order Id}) = 1`,
+    )
+    for (const rec of atChildren) {
+      const key = String((rec.fields as any)['Child/Day Order Id'] ?? '')
+      if (key && !currentChildKeys.has(key)) { staleChildKeys.push(key); staleChildRecIds.push(rec.id) }
+    }
+
+    // Items: scope to this order via the child link's displayed key. If the
+    // base renders the link differently this finds nothing (fail-safe: logs 0),
+    // which the dry-run surfaces before deletes are ever enabled.
+    const atItems = await listRecords(
+      TABLES.orderItems,
+      `FIND('${esc(prefix)}', ARRAYJOIN({Child/Day Order ID})) = 1`,
+    )
+    for (const rec of atItems) {
+      const uuid = String((rec.fields as any)['uuid'] ?? '')
+      if (uuid && !currentItemUuids.has(uuid)) { staleItemUuids.push(uuid); staleItemRecIds.push(rec.id) }
+    }
+  } catch (e) {
+    console.warn('[pushOrder] delete-reconcile read failed for %s — no deletions:', orderId, (e as Error).message)
+    return { dryRun, childKeys: [], itemUuids: [], skippedReason: 'airtable_read_failed' }
+  }
+
+  if (dryRun) {
+    if (staleChildKeys.length || staleItemUuids.length) {
+      console.log('[pushOrder] delete-reconcile DRY-RUN %s — would delete %d day(s) %j and %d item(s) %j',
+        orderId, staleChildKeys.length, staleChildKeys, staleItemUuids.length, staleItemUuids)
+    }
+    return { dryRun: true, childKeys: staleChildKeys, itemUuids: staleItemUuids }
+  }
+
+  // Live delete. Items first (children hold the links), then children.
+  if (staleItemRecIds.length) await deleteRecords(TABLES.orderItems, staleItemRecIds)
+  if (staleChildRecIds.length) await deleteRecords(TABLES.childOrders, staleChildRecIds)
+  if (staleChildKeys.length || staleItemUuids.length) {
+    console.log('[pushOrder] delete-reconcile %s — deleted %d day(s) %j and %d item(s) %j',
+      orderId, staleChildKeys.length, staleChildKeys, staleItemUuids.length, staleItemUuids)
+  }
+  return { dryRun: false, childKeys: staleChildKeys, itemUuids: staleItemUuids }
 }

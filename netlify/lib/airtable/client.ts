@@ -68,3 +68,38 @@ export async function createRecord(tableId: string, fields: Json): Promise<strin
   })
   return data.records[0].id as string
 }
+
+/**
+ * WEC-697: ALL records matching a filterByFormula (paginated, 100/page).
+ * Throws on any HTTP error (via atFetch) — callers MUST treat a throw as
+ * "read failed", never as "no records", so a transient error can't be
+ * mistaken for an empty set and trigger a delete-everything.
+ */
+export async function listRecords(
+  tableId: string,
+  formula: string,
+): Promise<Array<{ id: string; fields: Json }>> {
+  const out: Array<{ id: string; fields: Json }> = []
+  let offset: string | undefined
+  do {
+    const params = new URLSearchParams({ filterByFormula: formula, pageSize: '100' })
+    if (offset) params.set('offset', offset)
+    const data = await atFetch(`${tableId}?${params.toString()}`, { method: 'GET' })
+    out.push(...(data.records ?? []))
+    offset = data.offset
+  } while (offset)
+  return out
+}
+
+/** WEC-697: delete records by id (chunks of 10). Returns the count deleted. */
+export async function deleteRecords(tableId: string, ids: string[]): Promise<number> {
+  let deleted = 0
+  for (let i = 0; i < ids.length; i += 10) {
+    const chunk = ids.slice(i, i + 10)
+    const params = new URLSearchParams()
+    for (const id of chunk) params.append('records[]', id)
+    const data = await atFetch(`${tableId}?${params.toString()}`, { method: 'DELETE' })
+    deleted += (data.records ?? []).filter((r: { deleted?: boolean }) => r.deleted).length
+  }
+  return deleted
+}
