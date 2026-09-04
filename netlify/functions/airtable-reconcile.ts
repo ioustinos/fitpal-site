@@ -62,6 +62,7 @@ export default async (): Promise<Response> => {
         const tag = d.skippedReason ? `SKIP(${d.skippedReason})` : d.dryRun ? 'DRYRUN' : 'DELETED'
         deleteNotes.push(`${tag} ${r.id}: ${d.childKeys.length}d/${d.itemUuids.length}i`)
       }
+      if (d?.debug) deleteNotes.push(d.debug) // WEC-697 one-shot schema probe
     } catch (err) {
       errors++
       errorNotes.push(`${r.id}: ${(err as Error).message}`)

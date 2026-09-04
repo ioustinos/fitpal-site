@@ -20,6 +20,7 @@ export interface PushResult {
     childKeys: string[]   // stale Child/Day Order keys removed (or would be)
     itemUuids: string[]   // stale Order Item uuids removed (or would be)
     skippedReason?: string
+    debug?: string        // WEC-697: one-shot schema probe (temporary)
   }
 }
 
@@ -302,6 +303,7 @@ async function reconcileDeletes(
   const staleItemUuids: string[] = []
   const staleChildRecIds: string[] = []
   const staleItemRecIds: string[] = []
+  let debug: string | undefined
   try {
     // Children: keyed on the text field {Child/Day Order Id} = `${orderId}#…` —
     // a plain text field, so the filter is reliable (not a link-formula guess).
@@ -314,31 +316,42 @@ async function reconcileDeletes(
     // API returns link cells as arrays of RECORD IDs, so every item record
     // linked under this order's children is reachable directly from the child
     // records' link fields. We gather all linked rec-ids from those children
-    // (order/customer links are harmless — they simply won't exist in the Order
-    // Items table), then look them up by RECORD_ID(). (The earlier ARRAYJOIN
-    // formula matched nothing against the live base — WEC-697 dry-run finding.)
+    // then look them up by RECORD_ID().
     const linkedRecIds = new Set<string>()
+    const recArrayFields: string[] = []
     for (const rec of atChildren) {
       const key = String((rec.fields as Record<string, unknown>)['Child/Day Order Id'] ?? '')
       if (key && !currentChildKeys.has(key)) { staleChildKeys.push(key); staleChildRecIds.push(rec.id) }
-      for (const v of Object.values(rec.fields)) {
-        if (Array.isArray(v)) for (const x of v) if (typeof x === 'string' && x.startsWith('rec')) linkedRecIds.add(x)
+      for (const [fname, v] of Object.entries(rec.fields)) {
+        if (Array.isArray(v) && v.some((x) => typeof x === 'string' && (x as string).startsWith('rec'))) {
+          recArrayFields.push(fname)
+          for (const x of v) if (typeof x === 'string' && x.startsWith('rec')) linkedRecIds.add(x)
+        }
       }
     }
 
+    let itemsFetched = 0
     const idList = [...linkedRecIds]
     for (let i = 0; i < idList.length; i += 50) {
       const chunk = idList.slice(i, i + 50)
       const formula = `OR(${chunk.map((id) => `RECORD_ID()='${id}'`).join(',')})`
       const atItems = await listRecords(TABLES.orderItems, formula)
+      itemsFetched += atItems.length
       for (const rec of atItems) {
         const uuid = String((rec.fields as Record<string, unknown>)['uuid'] ?? '')
         if (uuid && !currentItemUuids.has(uuid)) { staleItemUuids.push(uuid); staleItemRecIds.push(rec.id) }
       }
     }
+
+    // WEC-697 one-shot schema probe: only emit when the child was found but NO
+    // items resolved (the mismatch we're chasing). Removed once verified.
+    if (atChildren.length && itemsFetched === 0) {
+      const sampleFields = Object.keys((atChildren[0]?.fields as object) ?? {})
+      debug = `PROBE ${orderId.slice(0, 8)}: children=${atChildren.length} recArrayFields=[${[...new Set(recArrayFields)].join(';')}] linkedRecIds=${linkedRecIds.size} itemsFetched=0 childFields=[${sampleFields.join(';')}]`
+    }
   } catch (e) {
     console.warn('[pushOrder] delete-reconcile read failed for %s — no deletions:', orderId, (e as Error).message)
-    return { dryRun, childKeys: [], itemUuids: [], skippedReason: 'airtable_read_failed' }
+    return { dryRun, childKeys: [], itemUuids: [], skippedReason: 'airtable_read_failed', debug: `ERR ${(e as Error).message.slice(0, 120)}` }
   }
 
   if (dryRun) {
@@ -346,7 +359,7 @@ async function reconcileDeletes(
     // "detected nothing" result isn't silent (WEC-697 dry-run observability gap).
     console.log('[pushOrder] delete-reconcile DRY-RUN %s — would delete %d day(s) %j and %d item(s) %j',
       orderId, staleChildKeys.length, staleChildKeys, staleItemUuids.length, staleItemUuids)
-    return { dryRun: true, childKeys: staleChildKeys, itemUuids: staleItemUuids }
+    return { dryRun: true, childKeys: staleChildKeys, itemUuids: staleItemUuids, debug }
   }
 
   // Live delete. Items first (children hold the links), then children.
@@ -356,5 +369,5 @@ async function reconcileDeletes(
     console.log('[pushOrder] delete-reconcile %s — deleted %d day(s) %j and %d item(s) %j',
       orderId, staleChildKeys.length, staleChildKeys, staleItemUuids.length, staleItemUuids)
   }
-  return { dryRun: false, childKeys: staleChildKeys, itemUuids: staleItemUuids }
+  return { dryRun: false, childKeys: staleChildKeys, itemUuids: staleItemUuids, debug }
 }
