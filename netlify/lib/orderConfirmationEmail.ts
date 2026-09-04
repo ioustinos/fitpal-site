@@ -56,6 +56,9 @@ interface OrderRow {
   payment_method: string | null
   payment_status: string | null
   admin_order_id: string | null
+  invoice_type: string | null   // WEC-698
+  invoice_name: string | null
+  invoice_vat: string | null
 }
 interface ChildRow {
   id: string
@@ -117,7 +120,7 @@ export async function fireOrderConfirmationFromDb(
   try {
     const { data: orderRaw, error: oErr } = await supabase
       .from('orders')
-      .select('id, order_number, customer_name, customer_email, customer_phone, user_id, subtotal, discount_amount, total, payment_method, payment_status, admin_order_id')
+      .select('id, order_number, customer_name, customer_email, customer_phone, user_id, subtotal, discount_amount, total, payment_method, payment_status, admin_order_id, invoice_type, invoice_name, invoice_vat')
       .eq('id', orderId)
       .maybeSingle()
     if (oErr || !orderRaw) {
@@ -307,6 +310,10 @@ export async function fireOrderConfirmationFromDb(
       discount_amount: (order.discount_amount ?? 0) / 100,
       payment_method: order.payment_method,
       payment_status: paymentStatus,
+      // WEC-698: invoice details so the email confirms the recorded Τιμολόγιο.
+      invoice_type: order.invoice_type ?? null,
+      invoice_name: order.invoice_name ?? null,
+      invoice_vat: order.invoice_vat ?? null,
       placed_by_admin: placedByAdmin,
       admin_user_id: order.admin_order_id ?? null,
       day_count: klaviyoDays.length,

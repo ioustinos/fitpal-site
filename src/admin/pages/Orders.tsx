@@ -18,8 +18,9 @@ import {
   updateOrderPaymentMethod,
   updateOrderCutlery,
   updateOrderItemComment,
-  updateOrderInvoiceType,
+  updateOrderInvoice,
 } from '../../lib/api/adminOrders'
+import { isValidGreekVat, vatDigits } from '../../lib/vat'  // WEC-698
 import { fetchAdminDishes, type AdminDish } from '../../lib/api/adminDishes'
 // WEC-668: address autosuggest + zone-aware delivery-window dropdown in the drawer.
 import { PlacesAutocomplete } from '../../components/ui/PlacesAutocomplete'
@@ -907,15 +908,6 @@ function OverviewTab({ order, adminUser, onChanged }: { order: AdminOrder; admin
     if (error) { setEditErr(`Couldn't change cutlery: ${error}`); return }
     onChanged()
   }
-  // WEC-668: receipt ↔ invoice toggle inline (audit-logged, error surfaced).
-  async function toggleInvoice() {
-    const next = order.invoiceType === 'invoice' ? 'receipt' : 'invoice'
-    setSavingField('invoice'); setEditErr(null)
-    const { error } = await updateOrderInvoiceType(order.id, order.invoiceType, next, adminUser)
-    setSavingField(null)
-    if (error) { setEditErr(`Couldn't change invoice type: ${error}`); return }
-    onChanged()
-  }
   return (
     <div className="admin-od">
       <div className="admin-od-grid">
@@ -1033,23 +1025,11 @@ function OverviewTab({ order, adminUser, onChanged }: { order: AdminOrder; admin
               style={{ cursor: 'pointer', border: 'none', font: 'inherit' }}
               title="Click to toggle cutlery"
             ><Ico name="utensils" /> Cutlery {order.cutlery ? '✓' : '—'}</button>
-            {/* WEC-403: distinguish invoice (Τιμολόγιο, B2B with company+ΑΦΜ)
-                from receipt (Απόδειξη). Invoice chip highlights so the admin
-                can see at a glance that this is a business-invoice order. */}
-            <button
-              type="button"
-              className={`admin-od-chip${order.invoiceType === 'invoice' ? ' on' : ''}`}
-              disabled={savingField === 'invoice'}
-              onClick={toggleInvoice}
-              style={{ cursor: 'pointer', border: 'none', font: 'inherit' }}
-              title="Click to switch receipt ↔ invoice"
-            >
-              <Ico name="doc" />{' '}
-              {order.invoiceType === 'invoice'
-                ? `Τιμολόγιο · ${order.invoiceName || '—'}${order.invoiceVat ? ' · ΑΦΜ ' + order.invoiceVat : ''}`
-                : 'Απόδειξη'}
-            </button>
           </div>
+          {/* WEC-698: editable invoice block — flipping to «Τιμολόγιο» must also
+              capture Επωνυμία + ΑΦΜ (checkout-parity validation), else the record
+              is legally unusable. Replaces the old blind receipt↔invoice toggle. */}
+          <InvoiceEditor order={order} adminUser={adminUser} onChanged={onChanged} />
         </div>
 
         {/* Discount detail (rare) — full width, drops to its own row */}
@@ -1082,6 +1062,94 @@ function OverviewTab({ order, adminUser, onChanged }: { order: AdminOrder; admin
 
 /** WEC-390: editable customer note + a single internal admin note (kitchen /
     packaging / management). Both saved independently, audit-logged, any status. */
+
+/** WEC-698: editable receipt ↔ invoice with Επωνυμία + ΑΦΜ. The old toggle
+    flipped `invoice_type` blind, producing invoice orders with no company /
+    VAT — legally unusable. Now flipping to «Τιμολόγιο» requires a name + valid
+    ΑΦΜ (same isValidGreekVat/vatDigits the checkout uses) before it can save. */
+function InvoiceEditor({ order, adminUser, onChanged }: { order: AdminOrder; adminUser: string; onChanged: () => void }) {
+  const isInvoice = order.invoiceType === 'invoice'
+  const [editing, setEditing] = useState(false)
+  const [type, setType] = useState<'invoice' | 'receipt'>(isInvoice ? 'invoice' : 'receipt')
+  const [name, setName] = useState(order.invoiceName ?? '')
+  const [vat, setVat] = useState(order.invoiceVat ?? '')
+  const [saving, setSaving] = useState(false)
+  const [err, setErr] = useState<string | null>(null)
+
+  function reset() {
+    setType(isInvoice ? 'invoice' : 'receipt')
+    setName(order.invoiceName ?? '')
+    setVat(order.invoiceVat ?? '')
+    setErr(null)
+  }
+
+  const vatClean = vatDigits(vat)
+  const canSave = type === 'receipt' || (name.trim().length > 0 && isValidGreekVat(vatClean))
+
+  async function save() {
+    setSaving(true); setErr(null)
+    const { error } = await updateOrderInvoice(
+      order.id,
+      { type: order.invoiceType, name: order.invoiceName, vat: order.invoiceVat },
+      { type, name, vat },
+      adminUser,
+    )
+    setSaving(false)
+    if (error) { setErr(error); return }
+    setEditing(false)
+    onChanged()
+  }
+
+  if (!editing) {
+    return (
+      <div className="admin-od-chips" style={{ marginTop: 8 }}>
+        <button
+          type="button"
+          className={`admin-od-chip${isInvoice ? ' on' : ''}`}
+          onClick={() => { reset(); setEditing(true) }}
+          style={{ cursor: 'pointer', border: 'none', font: 'inherit' }}
+          title="Click to edit receipt / invoice"
+        >
+          <Ico name="doc" />{' '}
+          {isInvoice
+            ? `Τιμολόγιο · ${order.invoiceName || '—'}${order.invoiceVat ? ' · ΑΦΜ ' + order.invoiceVat : ''}`
+            : 'Απόδειξη'}
+          {'  ✎'}
+        </button>
+      </div>
+    )
+  }
+
+  return (
+    <div className="admin-od-addr-edit-panel" style={{ marginTop: 8 }}>
+      <div className="admin-od-addr-edit-actions" style={{ justifyContent: 'flex-start', marginBottom: 8 }}>
+        <button type="button" className={type === 'receipt' ? 'admin-btn-primary' : 'admin-btn-ghost'} disabled={saving} onClick={() => setType('receipt')}>Απόδειξη</button>
+        <button type="button" className={type === 'invoice' ? 'admin-btn-primary' : 'admin-btn-ghost'} disabled={saving} onClick={() => setType('invoice')}>Τιμολόγιο</button>
+      </div>
+      {type === 'invoice' && (
+        <div className="admin-od-addr-grid">
+          <div>
+            <label className="admin-form-label">Επωνυμία / Ονοματεπώνυμο</label>
+            <input className="admin-input" value={name} onChange={(e) => setName(e.target.value)} placeholder="Επωνυμία επιχείρησης…" />
+          </div>
+          <div>
+            <label className="admin-form-label">ΑΦΜ</label>
+            <input className="admin-input" value={vat} inputMode="numeric" maxLength={12} onChange={(e) => setVat(vatDigits(e.target.value))} placeholder="9 ψηφία" />
+            {vat.trim() && !isValidGreekVat(vatClean) && (
+              <div className="admin-sub" style={{ fontSize: 11, marginTop: 4, color: '#B45309' }}>Μη έγκυρο ΑΦΜ — έλεγξε τα 9 ψηφία.</div>
+            )}
+          </div>
+        </div>
+      )}
+      {err && <div className="admin-error-banner" style={{ marginTop: 8, background: '#FEF2F2', borderColor: '#FECACA', color: '#B91C1C' }}>{err}</div>}
+      <div className="admin-od-addr-edit-actions">
+        <button type="button" className="admin-btn-ghost" disabled={saving} onClick={() => { reset(); setEditing(false) }}>Cancel</button>
+        <button type="button" className="admin-btn-primary" disabled={saving || !canSave} onClick={save}>{saving ? 'Saving…' : 'Save'}</button>
+      </div>
+    </div>
+  )
+}
+
 function NotesBlock({ order, adminUser, onChanged }: { order: AdminOrder; adminUser: string; onChanged: () => void }) {
   const [customer, setCustomer] = useState(order.notes ?? '')
   const [admin, setAdmin] = useState(order.adminNotes ?? '')

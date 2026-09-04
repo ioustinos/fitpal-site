@@ -2208,6 +2208,10 @@ header {
 .conf-day-amt { font-size: 12px; font-weight: 800; color: var(--text); text-align: right; margin-top: 6px; padding-top: 6px; border-top: 1px dashed var(--border); }
 .conf-comment { font-size: 12px; font-style: italic; color: var(--text-muted); padding: 10px 0 0; border-top: 1px solid var(--border); margin-top: 4px; }
 .conf-total { display: flex; justify-content: space-between; font-size: 15px; font-weight: 900; color: var(--text); padding-top: 12px; border-top: 2px solid var(--green-light); margin-top: 8px; }
+/* WEC-698 — invoice (Τιμολόγιο) confirmation row on the success screens */
+.conf-invoice { display: flex; justify-content: space-between; gap: 12px; font-size: 12px; padding: 10px 0 0; border-top: 1px solid var(--border); margin-top: 4px; }
+.conf-invoice-title { font-weight: 800; color: var(--text-mid, #4a5a4a); }
+.conf-invoice-val { font-weight: 600; color: var(--text); text-align: right; }
 /* Confirmation action buttons */
 .conf-actions { display: flex; align-items: center; justify-content: center; gap: 10px; flex-wrap: wrap; }
 .btn-conf-done { padding: 13px 28px; background: var(--green); color: var(--white); border: none; border-radius: var(--radius); font-size: 14px; font-weight: 900; cursor: pointer; transition: all 0.22s; letter-spacing: 0.3px; }
@@ -2746,6 +2750,10 @@ a.btn-conf-done { display: inline-block; text-decoration: none; }
 .order-item-desc { font-size: 11px; font-weight: 500; color: var(--text-muted); margin-top: 1px; line-height: 1.4; }
 .order-item-variant-detail { font-size: 11px; font-weight: 600; color: var(--text-muted); margin-top: 1px; }
 .order-item-comment { font-size: 11px; font-weight: 500; font-style: italic; color: var(--text-muted); margin-top: 2px; }
+/* WEC-698 — invoice (Τιμολόγιο) row in the account order detail */
+.order-invoice-row { display: flex; justify-content: space-between; gap: 12px; font-size: 12px; padding: 8px 0; margin-top: 6px; border-top: 1px solid var(--border); }
+.order-invoice-label { font-weight: 800; color: var(--text-muted); }
+.order-invoice-val { font-weight: 600; color: var(--text); text-align: right; }
 .order-item-right { display: flex; align-items: center; gap: 14px; flex-shrink: 0; }
 .order-item-macros-pills { display: flex; gap: 6px; }
 .macro-pill { display: inline-flex; align-items: center; gap: 3px; padding: 3px 7px; border-radius: 4px; font-size: 10px; font-weight: 800; white-space: nowrap; }

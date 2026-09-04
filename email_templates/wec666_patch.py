@@ -112,7 +112,30 @@ def _bank_block(is_el):
         '\n    {% endif %}\n'
     )
 
-def patch(text, is_subscription, is_el):
+# --- WEC-698: invoice (Τιμολόγιο) row on the order confirmation (01) email ---
+# Shown only for a Τιμολόγιο order; carries Επωνυμία + ΑΦΜ so the customer sees
+# their invoice details were recorded. Inserted after the payment-method row —
+# anchored on the 01-only 8-space-indented transfer block.
+INV_ROW_ANCHOR = '\n        {% if event.payment_method == "transfer" %}'
+def _invoice_row(is_el):
+    title = "Τιμολόγιο" if is_el else "Invoice"
+    vatlabel = "ΑΦΜ" if is_el else "VAT"
+    return (
+        '\n    {% if event.invoice_type == "invoice" %}'
+        '\n    <tr>'
+        '\n      <td class="pad-side" style="padding:14px 48px 0 48px;">'
+        '\n        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="font-family:\'Geologica\',-apple-system,BlinkMacSystemFont,\'Segoe UI\',Roboto,Arial,sans-serif;">'
+        '\n          <tr>'
+        f'\n            <td align="left"  style="font-size:14px; font-weight:700; color:#004636;">{title}</td>'
+        f'\n            <td align="right" style="font-size:14px; font-weight:400; color:#004636;">{{{{ event.invoice_name }}}}{{% if event.invoice_vat %}} &middot; {vatlabel} {{{{ event.invoice_vat }}}}{{% endif %}}</td>'
+        '\n          </tr>'
+        '\n        </table>'
+        '\n      </td>'
+        '\n    </tr>'
+        '\n    {% endif %}\n'
+    )
+
+def patch(text, is_subscription, is_el, is_order_conf=False):
     changed = []
     for a, b in INLINE:
         if a in text:
@@ -130,6 +153,10 @@ def patch(text, is_subscription, is_el):
         if "event.bank_reference" not in text and BANK_CTA_ANCHOR in text:
             text = text.replace(BANK_CTA_ANCHOR, _bank_block(is_el) + BANK_CTA_ANCHOR, 1)
             changed.append("bank-block")
+    # WEC-698 invoice row — order-confirmation (01) only, insert once.
+    if is_order_conf and "event.invoice_type" not in text and INV_ROW_ANCHOR in text:
+        text = text.replace(INV_ROW_ANCHOR, _invoice_row(is_el) + INV_ROW_ANCHOR, 1)
+        changed.append("invoice-row")
     return text, changed
 
 def balanced(text):
@@ -148,7 +175,7 @@ def main():
             if not fn.endswith(".html") or fn.endswith("_preview.html"): continue
             fp = os.path.join(p, fn)
             src = open(fp, encoding="utf-8").read()
-            new, changed = patch(src, "05_subscription" in fn, "_en" not in fn)
+            new, changed = patch(src, "05_subscription" in fn, "_en" not in fn, "01_order_confirmation" in fn)
             if new != src:
                 bal = balanced(new)
                 bad = [t for t,(o,cl) in bal.items() if o != cl]

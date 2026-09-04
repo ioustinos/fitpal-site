@@ -333,6 +333,17 @@ function PaidView({
             <div className="conf-comment">"{details.notes}"</div>
           )}
 
+          {/* WEC-698: show the recorded invoice details on the card-payment confirmation too. */}
+          {details.invoiceType === 'invoice' && (
+            <div className="conf-invoice">
+              <span className="conf-invoice-title">{lang === 'el' ? 'Τιμολόγιο' : 'Invoice'}</span>
+              <span className="conf-invoice-val">
+                {details.invoiceName || '—'}
+                {details.invoiceVat ? ` · ${lang === 'el' ? 'ΑΦΜ' : 'VAT'} ${details.invoiceVat}` : ''}
+              </span>
+            </div>
+          )}
+
           <div className="conf-total">
             <span>{t('total')}</span>
             <span>{fmt(details.total)}</span>

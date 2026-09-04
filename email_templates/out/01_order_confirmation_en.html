@@ -251,6 +251,19 @@
       </td>
     </tr>
 
+    {% if event.invoice_type == "invoice" %}
+    <tr>
+      <td class="pad-side" style="padding:14px 48px 0 48px;">
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="font-family:'Geologica',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif;">
+          <tr>
+            <td align="left"  style="font-size:14px; font-weight:700; color:#004636;">Invoice</td>
+            <td align="right" style="font-size:14px; font-weight:400; color:#004636;">{{ event.invoice_name }}{% if event.invoice_vat %} &middot; VAT {{ event.invoice_vat }}{% endif %}</td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+    {% endif %}
+
         {% if event.payment_method == "transfer" %}
     <tr>
       <td class="pad-side" style="padding:22px 48px 0 48px;">

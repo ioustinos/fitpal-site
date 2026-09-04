@@ -1,4 +1,5 @@
 import { supabase } from '../supabase'
+import { isValidGreekVat, vatDigits } from '../vat'  // WEC-698: checkout-parity ΑΦΜ validation
 
 // ─── Enum values (mirror DB) ──────────────────────────────────────────────
 
@@ -974,16 +975,55 @@ export async function updateOrderItemComment(
 }
 
 // WEC-668: receipt ↔ invoice toggle on a placed order, inline + audit-logged.
-export async function updateOrderInvoiceType(
-  id: string, current: string | null, next: string, adminUser: string,
+// WEC-698: extended so the admin can also set Επωνυμία + ΑΦΜ — flipping to
+// «Τιμολόγιο» with no company name / VAT produced a legally unusable record.
+// Validation is CHECKOUT PARITY: reuses isValidGreekVat/vatDigits (the same
+// helpers CheckoutPage + submit-order use) so admin and checkout can't drift.
+export interface OrderInvoice {
+  type: string | null     // 'invoice' | 'receipt' | null
+  name: string | null
+  vat: string | null
+}
+export async function updateOrderInvoice(
+  id: string, current: OrderInvoice, next: OrderInvoice, adminUser: string,
 ): Promise<{ error: string | null }> {
-  const { error } = await supabase.from('orders').update({ invoice_type: next }).eq('id', id)
+  const nextType = next.type ?? 'receipt'
+  const cleanName = (next.name ?? '').trim() || null
+  const cleanVat = vatDigits(next.vat ?? '') || null
+
+  // Invoice requires a company/name AND a valid Greek ΑΦΜ (checkout rule).
+  if (nextType === 'invoice') {
+    if (!cleanName) return { error: 'Invoice: company or name is required' }
+    if (!cleanVat) return { error: 'Invoice: ΑΦΜ is required' }
+    if (!isValidGreekVat(cleanVat)) return { error: 'Invoice: invalid ΑΦΜ — check the 9 digits' }
+  }
+
+  const { error } = await supabase.from('orders').update({
+    invoice_type: nextType, invoice_name: cleanName, invoice_vat: cleanVat,
+  }).eq('id', id)
   if (error) return { error: error.message }
-  await writeChangeLog({
+
+  // Audit each field that actually changed (WEC-604 family — readable timeline).
+  const curType = current.type ?? 'receipt'
+  const curName = (current.name ?? '').trim() || null
+  const curVat = vatDigits(current.vat ?? '') || null
+  const logs: Promise<unknown>[] = []
+  if (curType !== nextType) logs.push(writeChangeLog({
     orderId: id, tableName: 'orders', fieldName: 'invoice_type',
-    oldValue: current, newValue: next,
-    label: `Invoice type: ${current ?? '—'} → ${next}`, adminUser,
-  })
+    oldValue: curType, newValue: nextType,
+    label: `Invoice type: ${curType} → ${nextType}`, adminUser,
+  }))
+  if (curName !== cleanName) logs.push(writeChangeLog({
+    orderId: id, tableName: 'orders', fieldName: 'invoice_name',
+    oldValue: curName, newValue: cleanName,
+    label: `Invoice name: ${curName ?? '—'} → ${cleanName ?? '—'}`, adminUser,
+  }))
+  if (curVat !== cleanVat) logs.push(writeChangeLog({
+    orderId: id, tableName: 'orders', fieldName: 'invoice_vat',
+    oldValue: curVat, newValue: cleanVat,
+    label: `Invoice ΑΦΜ: ${curVat ?? '—'} → ${cleanVat ?? '—'}`, adminUser,
+  }))
+  await Promise.all(logs)
   return { error: null }
 }
 

@@ -69,6 +69,11 @@ export interface OrderHistoryItem {
   total: number              // euros
   paymentEl: string
   paymentEn: string
+  // WEC-698: invoice details so the account order detail can show the customer
+  // their recorded Τιμολόγιο (Επωνυμία + ΑΦΜ).
+  invoiceType: string | null
+  invoiceName: string | null
+  invoiceVat: string | null
   childOrders: ChildOrderView[]
 }
 
@@ -273,6 +278,9 @@ export async function fetchUserOrders(userId: string, limit = 50, offset = 0): P
       total: centsToEuros(o.total),
       paymentEl: pLabel.el,
       paymentEn: pLabel.en,
+      invoiceType: o.invoice_type,   // WEC-698
+      invoiceName: o.invoice_name,
+      invoiceVat: o.invoice_vat,
       childOrders: childViews,
     }
   })
@@ -315,6 +323,11 @@ export interface ConfirmationOrder {
   total: number          // euros
   notes: string | null
   paymentMethod: string  // raw enum
+  // WEC-698: surface the invoice details so the customer sees confirmation that
+  // their Τιμολόγιο (Επωνυμία + ΑΦΜ) was recorded.
+  invoiceType: string | null
+  invoiceName: string | null
+  invoiceVat: string | null
   days: ConfirmationOrderDay[]
 }
 
@@ -392,6 +405,9 @@ export async function fetchOrderForConfirmation(
       total: centsToEuros(o.total),
       notes: o.notes,
       paymentMethod: o.payment_method,
+      invoiceType: o.invoice_type,
+      invoiceName: o.invoice_name,
+      invoiceVat: o.invoice_vat,
       days,
     },
     error: null,

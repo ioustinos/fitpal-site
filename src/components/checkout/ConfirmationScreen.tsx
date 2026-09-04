@@ -156,6 +156,17 @@ export function ConfirmationScreen({ orderNumber }: { orderNumber?: string }) {
           </div>
         )}
 
+        {/* WEC-698: confirm to the customer that their Τιμολόγιο details were recorded. */}
+        {snapshot.payment.invoice && (
+          <div className="conf-invoice">
+            <span className="conf-invoice-title">{lang === 'el' ? 'Τιμολόγιο' : 'Invoice'}</span>
+            <span className="conf-invoice-val">
+              {snapshot.payment.invoiceName || '—'}
+              {snapshot.payment.invoiceVat ? ` · ${lang === 'el' ? 'ΑΦΜ' : 'VAT'} ${snapshot.payment.invoiceVat}` : ''}
+            </span>
+          </div>
+        )}
+
         <div className="conf-total">
           <span>{t('total')}</span>
           <span>{fmt(snapshot.total)}</span>

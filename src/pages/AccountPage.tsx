@@ -1387,6 +1387,16 @@ function OrdersTab({ user, lang }: any) {
                         </div>
                       )
                     })}
+                  {/* WEC-698: show the recorded Τιμολόγιο details on the customer's order. */}
+                  {order.invoiceType === 'invoice' && (
+                    <div className="order-invoice-row">
+                      <span className="order-invoice-label">{lang === 'el' ? 'Τιμολόγιο' : 'Invoice'}</span>
+                      <span className="order-invoice-val">
+                        {order.invoiceName || '—'}
+                        {order.invoiceVat ? ` · ${lang === 'el' ? 'ΑΦΜ' : 'VAT'} ${order.invoiceVat}` : ''}
+                      </span>
+                    </div>
+                  )}
                   {/* WEC-557 — «Αίτημα αλλαγής» for still-actionable orders. */}
                   <OrderChangeRequestButton
                     orderId={order.orderId}
