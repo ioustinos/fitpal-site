@@ -72,7 +72,7 @@ export async function markPaid(
     // FIRST transition of a given link (guarded), so this logs once per link.
     await audit(
       orderId, 'partial', 'partial',
-      `Viva partial payment · tx=${transactionId} · €${(amountCents / 100).toFixed(2)} · collected ${(paid / 100).toFixed(2)}/${(total / 100).toFixed(2)} €`,
+      `Viva partial payment · tx=${transactionId} · ${(amountCents / 100).toFixed(2)} € · collected ${(paid / 100).toFixed(2)}/${(total / 100).toFixed(2)} €`,
     )
     return false
   }
@@ -99,7 +99,7 @@ export async function markPaid(
 
   if (!data) return false
 
-  await audit(orderId, 'pending', 'paid', `Viva paid · tx=${transactionId} · €${(amountCents / 100).toFixed(2)} · covers total`)
+  await audit(orderId, 'pending', 'paid', `Viva paid · tx=${transactionId} · ${(amountCents / 100).toFixed(2)} € · covers total`)
 
   // WEC-397: server-side Purchase to Meta CAPI. Card orders redirect to Viva
   // before the confirmation screen, so the browser never fires Purchase — this

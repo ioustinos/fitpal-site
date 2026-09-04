@@ -64,7 +64,7 @@ export default async (request: Request) => {
     }
     if (body.amountCents > GRANT_AMOUNT_CAP_CENTS) {
       return Response.json({
-        error: `Amount exceeds the cap of €${(GRANT_AMOUNT_CAP_CENTS / 100).toFixed(2)}`,
+        error: `Amount exceeds the cap of ${(GRANT_AMOUNT_CAP_CENTS / 100).toFixed(2)} €`,
       }, { status: 400 })
     }
     if (!VALID_TYPES.includes(body.type)) {
@@ -139,7 +139,7 @@ export default async (request: Request) => {
       field_name: 'balance',
       old_value: null,
       new_value: `+${body.amountCents}`,
-      label: `Granted ${body.type} of €${(body.amountCents / 100).toFixed(2)} — ${body.descriptionEn}`,
+      label: `Granted ${body.type} of ${(body.amountCents / 100).toFixed(2)} € — ${body.descriptionEn}`,
       admin_user: caller.id,
     })
 

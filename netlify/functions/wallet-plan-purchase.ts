@@ -125,7 +125,7 @@ export default async (request: Request) => {
     // 4. Validations — plan minimum applies to the plan price, not the add-on.
     if (planAmountCents < config.minAmountCents) {
       return Response.json({
-        error: `Plan total below minimum (€${(config.minAmountCents / 100).toFixed(2)})`,
+        error: `Plan total below minimum (${(config.minAmountCents / 100).toFixed(2)} €)`,
       }, { status: 400, headers: cors })
     }
     if (!config.paymentMethods.includes(body.paymentMethod)) {
@@ -137,7 +137,7 @@ export default async (request: Request) => {
     // Enforced here so a crafted request can't bypass the disabled UI button.
     if (body.paymentMethod === 'cash' && chargeCents > config.cashMaxCents) {
       return Response.json({
-        error: `Cash on delivery is not available for amounts over €${(config.cashMaxCents / 100).toFixed(0)}`,
+        error: `Cash on delivery is not available for amounts over ${(config.cashMaxCents / 100).toFixed(0)} €`,
       }, { status: 400, headers: cors })
     }
 

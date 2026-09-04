@@ -443,8 +443,8 @@ export function WalletPage() {
     // WEC-658: last-line client guards (server enforces these too).
     if (paymentMethod === 'cash' && cashOverCap) {
       setErrMsg(isEl
-        ? `Η αντικαταβολή δεν είναι διαθέσιμη για ποσά άνω των ${cashMaxAmount}€.`
-        : `Cash on delivery isn't available for amounts over €${cashMaxAmount}.`)
+        ? `Η αντικαταβολή δεν είναι διαθέσιμη για ποσά άνω των ${cashMaxAmount} €.`
+        : `Cash on delivery isn't available for amounts over ${cashMaxAmount} €.`)
       return
     }
     if (invoiceIncomplete) {
@@ -1276,7 +1276,7 @@ export function WalletPage() {
                     onClick={() => setPaymentMethod(pm)}
                     disabled={pm === 'cash' && cashOverCap}
                     title={pm === 'cash' && cashOverCap
-                      ? (isEl ? `Μη διαθέσιμη άνω των ${cashMaxAmount}€` : `Unavailable over €${cashMaxAmount}`)
+                      ? (isEl ? `Μη διαθέσιμη άνω των ${cashMaxAmount} €` : `Unavailable over ${cashMaxAmount} €`)
                       : undefined}
                   >
                     {pm === 'card'     && (isEl ? 'Χρεωστική/πιστωτική κάρτα' : 'Debit/credit card')}
@@ -1288,8 +1288,8 @@ export function WalletPage() {
               {cashOverCap && (
                 <div className="wpv2-paymethods-hint">
                   {isEl
-                    ? `Η αντικαταβολή δεν είναι διαθέσιμη για ποσά άνω των ${cashMaxAmount}€.`
-                    : `Cash on delivery isn't available for amounts over €${cashMaxAmount}.`}
+                    ? `Η αντικαταβολή δεν είναι διαθέσιμη για ποσά άνω των ${cashMaxAmount} €.`
+                    : `Cash on delivery isn't available for amounts over ${cashMaxAmount} €.`}
                 </div>
               )}
               {paymentMethod === 'cash' && (

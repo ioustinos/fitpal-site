@@ -709,7 +709,7 @@ export default async (request: Request) => {
 
       // 3b. Minimum order per day
       if (dayTotal > 0 && dayTotal < cutoffCfg.minOrderCents) {
-        addError(errors, k, `Minimum order is €${(cutoffCfg.minOrderCents / 100).toFixed(2)} (current: €${(dayTotal / 100).toFixed(2)})`)
+        addError(errors, k, `Minimum order is ${(cutoffCfg.minOrderCents / 100).toFixed(2)} € (current: ${(dayTotal / 100).toFixed(2)} €)`)
       }
 
       // 3c. Delivery zone — postcode only. Zone names are admin-organisational

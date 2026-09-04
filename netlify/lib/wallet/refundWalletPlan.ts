@@ -65,7 +65,7 @@ export async function refundWalletPlan(args: RefundWalletPlanArgs): Promise<Refu
     throw new Error('Refund amount must be a positive integer (cents)')
   }
   if (refundCents > remaining) {
-    throw new Error(`Refund €${(refundCents / 100).toFixed(2)} exceeds remaining €${(remaining / 100).toFixed(2)}`)
+    throw new Error(`Refund ${(refundCents / 100).toFixed(2)} € exceeds remaining ${(remaining / 100).toFixed(2)} €`)
   }
 
   // Call Viva refund (legacy DELETE endpoint, Basic auth)

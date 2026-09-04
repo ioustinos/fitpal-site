@@ -81,7 +81,7 @@ export async function refundVivaTransaction(args: RefundArgs): Promise<RefundRes
   const refundCents = args.amountCents ?? refundableCents
   if (!Number.isInteger(refundCents) || refundCents <= 0) throw new Error('Refund amount must be a positive integer (cents)')
   if (refundCents > refundableCents) {
-    throw new Error(`Refund €${(refundCents / 100).toFixed(2)} exceeds refundable €${(refundableCents / 100).toFixed(2)}`)
+    throw new Error(`Refund ${(refundCents / 100).toFixed(2)} € exceeds refundable ${(refundableCents / 100).toFixed(2)} €`)
   }
 
   // Call Viva refund via DELETE /api/transactions/{id}/ on the CHECKOUT host
@@ -132,7 +132,7 @@ export async function refundVivaTransaction(args: RefundArgs): Promise<RefundRes
     field_name: 'refund_amount',
     old_value: String(currentRefund),
     new_value: String(newTotalRefunded),
-    label: `Viva refund €${(refundCents / 100).toFixed(2)} — ${args.reason}`,
+    label: `Viva refund ${(refundCents / 100).toFixed(2)} € — ${args.reason}`,
     admin_user: args.adminUserId,
   })
 

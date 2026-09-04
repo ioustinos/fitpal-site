@@ -71,7 +71,7 @@ export async function createWalletPlanVivaOrder(
 
   const body = {
     amount: args.amountCents,
-    customerTrns: `Fitpal Wallet · €${(args.amountCents / 100).toFixed(2)}`,
+    customerTrns: `Fitpal Wallet · ${(args.amountCents / 100).toFixed(2)} €`,
     merchantTrns: `wp:${args.walletPlanId}`,    // ← prefix lets webhook/reconcile route
     sourceCode: creds.sourceCode,
     customer: {
