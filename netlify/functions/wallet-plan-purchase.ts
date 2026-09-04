@@ -271,6 +271,27 @@ export default async (request: Request) => {
         : { lose: 'Weight loss', maintain: 'Maintain', gain: 'Muscle gain' }
       const subGoalLabel = body.goal ? (subGoalMap[body.goal] ?? body.goal) : null
       const subDieticianManaged = !!body.services?.dieticianManaged
+      const reference = `WP-${walletPlanId.slice(0, 8).toUpperCase()}`
+
+      // WEC-701 §B: the confirmation email must carry the bank details for a
+      // transfer purchase (it was firing without IBAN/beneficiary/reference, so
+      // a customer who dismissed the popup had no way to pay). Read from
+      // settings.bank_transfer_info — same source + array shape the order flow
+      // uses (orderConfirmationEmail.ts) — never hardcode.
+      let bankTransferInfos: Array<{ iban: string; beneficiary: string; bank_name: string | null; bankName: string | null }> = []
+      {
+        const { data: bankRow } = await supabase.from('settings').select('value').eq('key', 'bank_transfer_info').maybeSingle()
+        const raw = (bankRow as { value?: unknown } | null)?.value
+        const list = Array.isArray(raw) ? raw : (raw && typeof raw === 'object' ? [raw] : [])
+        bankTransferInfos = (list as unknown[])
+          .filter((e): e is Record<string, unknown> => !!e && typeof e === 'object')
+          .map((o) => {
+            const name = typeof o.bankName === 'string' ? o.bankName : null
+            return { iban: typeof o.iban === 'string' ? o.iban : '', beneficiary: typeof o.beneficiary === 'string' ? o.beneficiary : '', bank_name: name, bankName: name }
+          })
+          .filter((e) => e.iban.length > 0)
+      }
+
       const subFire = await track('Subscription Purchased', {
         email: userEmail,
         firstName: subFirstName,
@@ -291,6 +312,12 @@ export default async (request: Request) => {
         bonus_credits: bonusCents / 100,
         new_balance: walletCreditCents / 100,
         payment_status: 'pending',
+        // WEC-701 §B: payment method gates the bank block; transfer shows IBAN,
+        // cash never does. Reference + bank list drive the «Στοιχεία τραπεζικής
+        // μεταφοράς» block (same shape as the order confirmation email).
+        payment_method: body.paymentMethod,
+        bank_transfer_infos: bankTransferInfos,
+        bank_reference: reference,
         // WEC-693: tell the customer their receipt vs invoice choice was registered.
         invoice_type: body.invoice ? 'invoice' : 'receipt',
         invoice_name: body.invoice?.name?.trim() || null,
@@ -315,8 +342,6 @@ export default async (request: Request) => {
         goalLabel: subGoalLabel, mealsLabel: subMealsLabel,
         amountPaid: chargeCents / 100, walletPlanId,
       })
-
-      const reference = `WP-${walletPlanId.slice(0, 8).toUpperCase()}`
 
       // WEC-554: cash (Αντικαταβολή) — no bank details; pay courier on delivery.
       if (body.paymentMethod === 'cash') {

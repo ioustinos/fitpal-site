@@ -76,7 +76,43 @@ CALL_EL = ("Μην ξεχάσεις να μας ενημερώσεις για τ
 CALL_EN = ("Don't forget to tell us about any allergies.",
            "Don't forget to tell us about any allergies.<br /><br />Our team will call you within 1 business day to build your meal plan.")
 
-def patch(text, is_subscription):
+# --- WEC-701 §B: bank-transfer details block on the subscription email ---
+# For a `transfer` purchase the plan stays pending until the customer pays, so
+# the confirmation email must carry IBAN / beneficiary / reference (the WP- code
+# from event.bank_reference — NOT an order number). Mirrors the order
+# confirmation block (01_order_confirmation). Inserted right before the CTA
+# comment; conditional on payment_method == "transfer" (cash never shows it).
+BANK_CTA_ANCHOR = "\n    <!-- ── CTA "
+def _bank_block(is_el):
+    if is_el:
+        title, benef, ref, note = (
+            "Στοιχεία τραπεζικής μεταφοράς", "Δικαιούχος", "Αιτιολογία",
+            "Για την ενεργοποίηση της συνδρομής σου, στείλε μας στο orders@fitpal.gr το αποδεικτικό κατάθεσής σου.")
+    else:
+        title, benef, ref, note = (
+            "Bank transfer details", "Beneficiary", "Reference",
+            "To activate your subscription, email your deposit receipt to orders@fitpal.gr.")
+    return (
+        '\n    {% if event.payment_method == "transfer" %}'
+        '\n    <tr>'
+        '\n      <td class="pad-side" style="padding:22px 48px 0 48px;">'
+        '\n        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#FFF7ED; border:1px solid #FED7AA; border-radius:10px;">'
+        '\n          <tr>'
+        '\n            <td style="padding:16px 18px; font-family:\'Geologica\',-apple-system,BlinkMacSystemFont,\'Segoe UI\',Roboto,Arial,sans-serif; font-size:13px; line-height:1.7; color:#004636;">'
+        f'\n              <strong>{title}</strong><br />'
+        '\n              {% for b in event.bank_transfer_infos %}IBAN: <strong>{{ b.iban }}</strong><br />'
+        f'\n              {benef}: {{{{ b.beneficiary }}}}{{% if b.bank_name %}} &middot; {{{{ b.bank_name }}}}{{% endif %}}<br />'
+        f'\n              {{% endfor %}}{ref}: <strong>{{{{ event.bank_reference }}}}</strong><br />'
+        f'\n              <span style="color:#7A957A;">{note}</span>'
+        '\n            </td>'
+        '\n          </tr>'
+        '\n        </table>'
+        '\n      </td>'
+        '\n    </tr>'
+        '\n    {% endif %}\n'
+    )
+
+def patch(text, is_subscription, is_el):
     changed = []
     for a, b in INLINE:
         if a in text:
@@ -90,6 +126,10 @@ def patch(text, is_subscription):
         for a, b in (CALL_EL, CALL_EN):
             if a in text and "θα σε καλέσει" not in text and "will call you" not in text:
                 text = text.replace(a, b); changed.append("call-line")
+        # WEC-701 §B bank block — insert once, before the CTA comment.
+        if "event.bank_reference" not in text and BANK_CTA_ANCHOR in text:
+            text = text.replace(BANK_CTA_ANCHOR, _bank_block(is_el) + BANK_CTA_ANCHOR, 1)
+            changed.append("bank-block")
     return text, changed
 
 def balanced(text):
@@ -108,7 +148,7 @@ def main():
             if not fn.endswith(".html") or fn.endswith("_preview.html"): continue
             fp = os.path.join(p, fn)
             src = open(fp, encoding="utf-8").read()
-            new, changed = patch(src, "05_subscription" in fn)
+            new, changed = patch(src, "05_subscription" in fn, "_en" not in fn)
             if new != src:
                 bal = balanced(new)
                 bad = [t for t,(o,cl) in bal.items() if o != cl]

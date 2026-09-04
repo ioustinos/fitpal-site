@@ -277,6 +277,24 @@
       </td>
     </tr>
 
+    {% if event.payment_method == "transfer" %}
+    <tr>
+      <td class="pad-side" style="padding:22px 48px 0 48px;">
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#FFF7ED; border:1px solid #FED7AA; border-radius:10px;">
+          <tr>
+            <td style="padding:16px 18px; font-family:'Geologica',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif; font-size:13px; line-height:1.7; color:#004636;">
+              <strong>Στοιχεία τραπεζικής μεταφοράς</strong><br />
+              {% for b in event.bank_transfer_infos %}IBAN: <strong>{{ b.iban }}</strong><br />
+              Δικαιούχος: {{ b.beneficiary }}{% if b.bank_name %} &middot; {{ b.bank_name }}{% endif %}<br />
+              {% endfor %}Αιτιολογία: <strong>{{ event.bank_reference }}</strong><br />
+              <span style="color:#7A957A;">Για την ενεργοποίηση της συνδρομής σου, στείλε μας στο orders@fitpal.gr το αποδεικτικό κατάθεσής σου.</span>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+    {% endif %}
+
     <!-- ── CTA ────────────────────────────────────────────────────────── -->
     <!-- Bright green #2DB56A, sampled from the design — NOT the #004636 used
          for the button in template 03. VML fallback for Outlook, which
