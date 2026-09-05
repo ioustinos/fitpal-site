@@ -46,6 +46,48 @@ export interface AdminOrderItem {
   carbs: number
   fat: number
   comment: string | null
+  /** WEC-706: catalogue code shown in the drawer, e.g. «142-5». Resolved from
+   *  dish_variants.external_id, falling back to dishes.external_id when the
+   *  item has no variant. Null when the row was deleted from the catalogue
+   *  since the order was placed — historical orders must still render. */
+  externalId: string | null
+}
+
+/**
+ * WEC-706 — resolve the catalogue code («142-5») for a set of order items.
+ *
+ * order_items stores dish_id / variant_id but NOT the external code, so it has
+ * to be joined at read time. Two lookups rather than one join because the
+ * fallback only applies to items with no variant.
+ *
+ * Never throws and never blocks the drawer: a missing code renders as nothing.
+ * Historical orders can reference dishes/variants that were since deleted.
+ */
+async function fetchExternalIds(
+  variantIds: string[],
+  dishIds: string[],
+): Promise<{ byVariant: Map<string, string>; byDish: Map<string, string> }> {
+  const byVariant = new Map<string, string>()
+  const byDish = new Map<string, string>()
+  try {
+    if (variantIds.length > 0) {
+      const { data } = await supabase
+        .from('dish_variants').select('id, external_id').in('id', variantIds)
+      for (const r of (data ?? []) as Array<{ id: string; external_id: string | null }>) {
+        if (r.external_id) byVariant.set(r.id, r.external_id)
+      }
+    }
+    if (dishIds.length > 0) {
+      const { data } = await supabase
+        .from('dishes').select('id, external_id').in('id', dishIds)
+      for (const r of (data ?? []) as Array<{ id: string; external_id: string | null }>) {
+        if (r.external_id) byDish.set(r.id, r.external_id)
+      }
+    }
+  } catch (err) {
+    console.error('[adminOrders] external id lookup failed:', err)
+  }
+  return { byVariant, byDish }
 }
 
 export interface AdminChildOrder {
@@ -210,6 +252,13 @@ export async function listAdminOrders(f: OrderFilters): Promise<{ data: AdminOrd
     : { data: [] as unknown[], error: null }
   if (itemsFinal.error) return { data: null, error: (itemsFinal.error as { message: string }).message }
 
+  // WEC-706: resolve catalogue codes for the drawer, one round-trip each.
+  const extRows = (itemsFinal.data ?? []) as Array<{ dish_id: string | null; variant_id: string | null }>
+  const { byVariant: extByVariant, byDish: extByDish } = await fetchExternalIds(
+    [...new Set(extRows.map((r) => r.variant_id).filter((v): v is string => !!v))],
+    [...new Set(extRows.map((r) => r.dish_id).filter((v): v is string => !!v))],
+  )
+
   const itemsByChild = new Map<string, AdminOrderItem[]>()
   for (const it of (itemsFinal.data ?? [])) {
     const row = it as {
@@ -228,6 +277,9 @@ export async function listAdminOrders(f: OrderFilters): Promise<{ data: AdminOrd
       quantity: row.quantity, unitPrice: row.unit_price, totalPrice: row.total_price,
       calories: row.calories ?? 0, protein: row.protein ?? 0, carbs: row.carbs ?? 0, fat: row.fat ?? 0,
       comment: row.comment,
+      externalId: (row.variant_id ? extByVariant.get(row.variant_id) : null)
+        ?? (row.dish_id ? extByDish.get(row.dish_id) : null)
+        ?? null,
     })
     itemsByChild.set(row.child_order_id, arr)
   }
@@ -277,6 +329,13 @@ export async function getAdminOrder(id: string): Promise<{ data: AdminOrder | nu
     : { data: [] as unknown[], error: null }
   if (itemsRes.error) return { data: null, error: (itemsRes.error as { message: string }).message }
 
+  // WEC-706: resolve catalogue codes for the drawer, one round-trip each.
+  const extRows = (itemsRes.data ?? []) as Array<{ dish_id: string | null; variant_id: string | null }>
+  const { byVariant: extByVariant, byDish: extByDish } = await fetchExternalIds(
+    [...new Set(extRows.map((r) => r.variant_id).filter((v): v is string => !!v))],
+    [...new Set(extRows.map((r) => r.dish_id).filter((v): v is string => !!v))],
+  )
+
   const itemsByChild = new Map<string, AdminOrderItem[]>()
   for (const it of itemsRes.data ?? []) {
     const row = it as {
@@ -294,6 +353,9 @@ export async function getAdminOrder(id: string): Promise<{ data: AdminOrder | nu
       quantity: row.quantity, unitPrice: row.unit_price, totalPrice: row.total_price,
       calories: row.calories ?? 0, protein: row.protein ?? 0, carbs: row.carbs ?? 0, fat: row.fat ?? 0,
       comment: row.comment,
+      externalId: (row.variant_id ? extByVariant.get(row.variant_id) : null)
+        ?? (row.dish_id ? extByDish.get(row.dish_id) : null)
+        ?? null,
     })
     itemsByChild.set(row.child_order_id, arr)
   }

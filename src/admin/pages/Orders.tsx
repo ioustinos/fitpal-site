@@ -1478,7 +1478,14 @@ function DayItemRow({ item, dish, orderId, childOrderId, editable, adminUser, on
 
   return (
     <tr>
-      <td>{item.nameEl}</td>
+      <td>
+        {item.nameEl}
+        {/* WEC-706: catalogue code («142-5»). The kitchen and the sheet both
+            key on this, so having it in the drawer removes a lookup step. */}
+        {item.externalId && (
+          <span className="admin-item-code" title="Κωδικός καταλόγου">{item.externalId}</span>
+        )}
+      </td>
       <td>
         {canEditVariant ? (
           <select

@@ -2727,6 +2727,23 @@ a.btn-conf-done { display: inline-block; text-decoration: none; }
    `color` (which the SVG picks up via fill="currentColor") — a `stroke:` rule
    here colours nothing. Every other macro-icon rule in this file already uses
    `color`, which is why this was the only block that needed changing. */
+/* WEC-706: catalogue code beside the dish name in the admin order drawer.
+   Monospace so «142-5» and «29-1» line up when scanning a column of items. */
+.admin-item-code {
+  display: inline-block;
+  margin-left: 7px;
+  padding: 1px 5px;
+  border-radius: 3px;
+  background: #EEF2EE;
+  color: #5A6B5A;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.2px;
+  vertical-align: middle;
+  white-space: nowrap;
+}
+
 .order-macro-icon.cal { color: #D97706; }
 .order-macro-icon.carbs { color: #B8860B; }
 .order-macro-icon.protein { color: #059669; }
