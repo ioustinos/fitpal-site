@@ -171,14 +171,24 @@ const DEFAULTS: AppSettings = {
 
 // ─── Query ──────────────────────────────────────────────────────────────────
 
-export async function fetchSettings(): Promise<{ data: AppSettings; error: string | null }> {
+export async function fetchSettings(
+  storeId?: string | null,
+): Promise<{ data: AppSettings; error: string | null }> {
   // WEC-350: fetch from edge-cached endpoint instead of direct Supabase.
   // Same `{ key, value }[]` shape as before; if the endpoint fails we
   // return DEFAULTS — same defensive behaviour as the previous Supabase
   // error path. Edge cache: 5 min TTL + 24h stale-while-revalidate.
+  //
+  // WEC-711: `storeId` asks the endpoint to overlay that store's own
+  // `store_settings` rows on top of the platform defaults (its cutoff, its
+  // minimum, its payment methods). Omitted — which is every retail call —
+  // the URL is unchanged, so the response and its edge-cache entry are too.
   let rows: { key: string; value: unknown }[] = []
+  const url = storeId
+    ? `/api/settings-public?storeId=${encodeURIComponent(storeId)}`
+    : '/api/settings-public'
   try {
-    const res = await fetch('/api/settings-public', { headers: { Accept: 'application/json' } })
+    const res = await fetch(url, { headers: { Accept: 'application/json' } })
     if (!res.ok) {
       return { data: DEFAULTS, error: `settings-public: HTTP ${res.status}` }
     }

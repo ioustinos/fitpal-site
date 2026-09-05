@@ -2,6 +2,7 @@ import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import type { Macros } from '../data/menu'
 import { track } from '../lib/tracking'
+import { CART_STORAGE_KEY } from '../lib/storefront/cartKey'
 
 // ─── Domain types ─────────────────────────────────────────────────────────────
 
@@ -436,7 +437,10 @@ export const useCartStore = create<CartStore>()(
   removeVoucher: () => set({ voucher: defaultVoucher }),
     }),
     {
-      name: 'fitpal-cart',
+      // WEC-711: per-store cart. MAIN resolves to the unchanged 'fitpal-cart'
+      // key, so every cart that exists in a customer's browser survives this
+      // deploy untouched; a company storefront gets 'fitpal-cart-<slug>'.
+      name: CART_STORAGE_KEY,
       // WEC-336: bumped from 2 → 3 to re-key cart entries by deliveryDate
       // (YYYY-MM-DD) instead of dayIndex (number). Old v2 carts are wiped
       // on hydrate via migrate() — easier than mapping indices to dates
@@ -513,7 +517,9 @@ function todayIso(): string {
 // don't trigger this — the event spec explicitly excludes the writing tab.
 if (typeof window !== 'undefined') {
   window.addEventListener('storage', (e) => {
-    if (e.key === 'fitpal-cart') void useCartStore.persist.rehydrate()
+    // WEC-711: watch THIS storefront's key — a cart change on another store
+    // must not rehydrate this one.
+    if (e.key === CART_STORAGE_KEY) void useCartStore.persist.rehydrate()
   })
 }
 

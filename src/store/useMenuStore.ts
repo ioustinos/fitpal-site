@@ -47,6 +47,19 @@ interface MenuStore {
    */
   dietCatalog: DietCatalog | null
 
+  /**
+   * WEC-711: the storefront this data belongs to.
+   *
+   * `null` means the MAIN store, and null is what gets passed to the fetchers,
+   * so retail keeps calling the exact URLs it always has. A company/reseller
+   * store holds its uuid here and its weeks + settings are fetched per store.
+   */
+  storeId: string | null
+  storeSlug: string
+
+  /** Called by StoreProvider once the URL's storefront is resolved. */
+  setStorefront: (s: { id: string | null; slug: string; isMain: boolean }) => void
+
   /** Initial-load flag — true while meta + first eager weeks are loading. */
   isLoading: boolean
   error: string | null
@@ -120,9 +133,24 @@ export const useMenuStore = create<MenuStore>((set, get) => ({
     cashMaxAmount: 500,
   },
   dietCatalog: null,
+  storeId: null,
+  storeSlug: 'main',
   isLoading: false,
   error: null,
   hasFetched: false,
+
+  setStorefront: ({ id, slug, isMain }) => {
+    // Main is represented as null so the fetchers omit the query param
+    // entirely — same URLs, same edge-cache entries, same responses as
+    // before this epic.
+    const nextId = isMain ? null : id
+    const cur = get()
+    if (cur.storeId === nextId && cur.storeSlug === slug) return
+    set({ storeId: nextId, storeSlug: slug })
+    // Only re-fetch if we already loaded someone else's data. On first mount
+    // this is a no-op and `load()` does the single fetch it always did.
+    if (cur.hasFetched) void get().reload()
+  },
 
   load: async () => {
     if (get().hasFetched || get().isLoading) return
@@ -141,12 +169,19 @@ export const useMenuStore = create<MenuStore>((set, get) => ({
     // Phase 1: parallel fetch for meta + categories + tags + zones + settings + diet catalog.
     // Since WEC-350, the first five share one underlying `/api/menu/bootstrap`
     // round-trip; `fetchZones` and `fetchSettings` go to their own endpoints.
+    // WEC-711: weeks and settings are per-store; categories, tags, the diet
+    // catalog and delivery zones stay global. The dish CATALOGUE is global by
+    // design — a store's "own menu" is only which dishes appear on which days
+    // (Ioustinos, 2026-09-06: "their own menu = same dishes just other
+    // availability"). Zones have no store dimension in the schema either, so
+    // passing a store id to fetchZones would be inventing one.
+    const sid = get().storeId
     const [metaRes, catsRes, tagsRes, zonesRes, settingsRes, dietRes] = await Promise.all([
-      fetchActiveWeeksMeta(),
+      fetchActiveWeeksMeta(sid),
       fetchCategories(),
       fetchTags(),
       fetchZones(),
-      fetchSettings(),
+      fetchSettings(sid),
       fetchDietCatalog(),
     ])
 

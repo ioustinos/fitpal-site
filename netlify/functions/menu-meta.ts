@@ -16,6 +16,7 @@
 
 import type { Handler } from '@netlify/functions'
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
+import { resolveEffectiveStoreId } from '../lib/stores/resolveStoreId'
 
 const SUPABASE_URL = process.env.VITE_SUPABASE_URL ?? ''
 const SUPABASE_ANON_KEY = process.env.VITE_SUPABASE_ANON_KEY ?? ''
@@ -62,7 +63,7 @@ interface DbWeeklyMenu {
 
 // ─── Handler ────────────────────────────────────────────────────────────────
 
-export const handler: Handler = async () => {
+export const handler: Handler = async (event) => {
   if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
     return {
       statusCode: 500,
@@ -84,12 +85,27 @@ export const handler: Handler = async () => {
     const lookback = new Date()
     lookback.setUTCDate(lookback.getUTCDate() - 14)
     const cutoffIso = lookback.toISOString().slice(0, 10)
-    const { data: menuRows, error: menuErr } = await supabase
+
+    // WEC-711: each store owns its weekly menus outright — no inheritance,
+    // ever. `?storeId=` selects a company/reseller storefront; without it we
+    // resolve the main store, so retail stops seeing company weeks the moment
+    // any exist. If the lookup fails, `storeId` is null and the filter is
+    // skipped — the pre-epic behaviour, because an empty menu is worse than
+    // an unsplit one. The retail URL is unchanged, so its edge-cache entry is
+    // the same one it has always been.
+    const storeId = await resolveEffectiveStoreId(
+      supabase,
+      event.queryStringParameters?.storeId,
+    )
+
+    let menuQuery = supabase
       .from('weekly_menus')
       .select('id, name, from_date, to_date, active, inactive_dates, category_order')
       .eq('active', true)
       .gte('to_date', cutoffIso)
-      .order('from_date')
+    if (storeId) menuQuery = menuQuery.eq('store_id', storeId)
+
+    const { data: menuRows, error: menuErr } = await menuQuery.order('from_date')
 
     if (menuErr) throw new Error(`weekly_menus: ${menuErr.message}`)
     const menus = (menuRows ?? []) as DbWeeklyMenu[]

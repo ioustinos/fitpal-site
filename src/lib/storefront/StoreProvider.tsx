@@ -22,6 +22,7 @@ import {
 } from 'react'
 import { useLocation } from 'react-router-dom'
 import { useUIStore } from '../../store/useUIStore'
+import { useMenuStore } from '../../store/useMenuStore'
 import { resolveSlugFromLocation } from './reserved'
 import { fetchStorefront, type StoreRow, type StoreSettingRow } from './api'
 
@@ -147,7 +148,11 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     void fetchStorefront(slug).then((r) => {
       if (cancelled) return
       if (r.status === 'ok') {
-        setState({ storefront: toStorefront(r.store, r.settings), status: 'ready' })
+        const sf = toStorefront(r.store, r.settings)
+        // WEC-711: tell the menu store which storefront to load. Done before
+        // the children mount, so MenuPage's load() makes exactly one fetch.
+        useMenuStore.getState().setStorefront({ id: sf.id, slug: sf.slug, isMain: sf.isMain })
+        setState({ storefront: sf, status: 'ready' })
       } else if (r.status === 'inactive') {
         setState({ storefront: MAIN, status: 'inactive' })
       } else if (r.status === 'not_found') {

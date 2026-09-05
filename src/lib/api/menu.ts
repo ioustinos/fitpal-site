@@ -86,11 +86,13 @@ export async function fetchCategories(): Promise<{ data: CategoryDef[] | null; e
  * week-toggle nav and landing-day resolution before any dish content
  * is needed.
  */
-export async function fetchActiveWeeksMeta(): Promise<{
+export async function fetchActiveWeeksMeta(storeId?: string | null): Promise<{
   data: WeekMeta[] | null
   error: string | null
 }> {
-  const meta = await getMeta()
+  // WEC-711: `storeId` selects a company/reseller storefront's own weeks.
+  // Omitted (retail) → unchanged URL and unchanged behaviour.
+  const meta = await getMeta(false, storeId)
   if (!meta) return { data: null, error: 'Failed to load menu meta' }
   if (meta.weeks.length === 0) return { data: null, error: 'No active menu found' }
 

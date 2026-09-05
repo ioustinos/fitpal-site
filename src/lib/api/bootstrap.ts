@@ -138,8 +138,13 @@ export interface WeekResponse {
 // share one in-flight promise; resolved data is held in the matching
 // cached slot for the lifetime of the tab.
 
-let metaCached: MetaResponse | null = null
-let metaInFlight: Promise<MetaResponse | null> | null = null
+// WEC-711: meta is now per-store (each store owns its weekly menus), so the
+// cache is keyed by store id. Retail uses the key 'main' and sends no query
+// param, keeping its URL — and therefore its edge-cache entry — unchanged.
+const metaCache = new Map<string, MetaResponse>()
+const metaInFlight = new Map<string, Promise<MetaResponse | null>>()
+
+const metaKey = (storeId?: string | null) => storeId || 'main'
 
 let catalogCached: CatalogResponse | null = null
 let catalogInFlight: Promise<CatalogResponse | null> | null = null
@@ -169,23 +174,41 @@ async function getJson<T>(url: string, label: string): Promise<T | null> {
 
 // ─── /api/menu/meta ─────────────────────────────────────────────────────────
 
-export async function getMeta(force = false): Promise<MetaResponse | null> {
-  if (force) resetMeta()
-  if (metaCached) return metaCached
-  if (metaInFlight) return metaInFlight
+export async function getMeta(
+  force = false,
+  storeId?: string | null,
+): Promise<MetaResponse | null> {
+  const key = metaKey(storeId)
+  if (force) resetMeta(storeId)
 
-  metaInFlight = (async () => {
-    const data = await getJson<MetaResponse>('/api/menu-meta', 'menu-meta')
-    if (data) metaCached = data
-    metaInFlight = null
+  const cached = metaCache.get(key)
+  if (cached) return cached
+  const flying = metaInFlight.get(key)
+  if (flying) return flying
+
+  // No param for main — same URL as before this epic, same edge-cache entry.
+  const url = storeId ? `/api/menu-meta?storeId=${encodeURIComponent(storeId)}` : '/api/menu-meta'
+
+  const p = (async () => {
+    const data = await getJson<MetaResponse>(url, 'menu-meta')
+    if (data) metaCache.set(key, data)
+    metaInFlight.delete(key)
     return data
   })()
-  return metaInFlight
+  metaInFlight.set(key, p)
+  return p
 }
 
-export function resetMeta() {
-  metaCached = null
-  metaInFlight = null
+/** Reset one store's meta, or every store's when called with no argument. */
+export function resetMeta(storeId?: string | null) {
+  if (storeId === undefined) {
+    metaCache.clear()
+    metaInFlight.clear()
+    return
+  }
+  const key = metaKey(storeId)
+  metaCache.delete(key)
+  metaInFlight.delete(key)
 }
 
 // ─── /api/menu/catalog ──────────────────────────────────────────────────────

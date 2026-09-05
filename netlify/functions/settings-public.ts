@@ -43,6 +43,8 @@ const PUBLIC_KEYS = [
   'variant_pill_threshold',
 ] as const
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
 const CACHE_HEADERS = {
   'Cache-Control': 'public, max-age=0, must-revalidate',
   'Netlify-CDN-Cache-Control': 'public, s-maxage=300, stale-while-revalidate=86400',
@@ -61,7 +63,7 @@ interface SettingsResponse {
   generatedAt: string
 }
 
-export const handler: Handler = async () => {
+export const handler: Handler = async (event) => {
   if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
     return {
       statusCode: 500,
@@ -81,7 +83,31 @@ export const handler: Handler = async () => {
 
     if (error) throw new Error(error.message)
 
-    const rows: SettingRow[] = (data ?? []) as SettingRow[]
+    let rows: SettingRow[] = (data ?? []) as SettingRow[]
+
+    // WEC-711: a company/reseller storefront overlays its own values on top
+    // of the platform defaults — a store that has not overridden its cutoff
+    // inherits the global one rather than getting a null. Only the whitelist
+    // above can be overridden, so a store cannot surface a non-public key.
+    //
+    // Retail sends no `storeId`, so its URL, its cache entry and its response
+    // are byte-identical to before this ticket.
+    const storeIdParam = (event.queryStringParameters?.storeId ?? '').trim()
+    if (UUID_RE.test(storeIdParam)) {
+      const { data: storeRows, error: storeErr } = await supabase
+        .from('store_settings')
+        .select('key, value')
+        .eq('store_id', storeIdParam)
+        .in('key', PUBLIC_KEYS as unknown as string[])
+
+      // A failed overlay is not fatal: fall through with the global defaults
+      // rather than showing the storefront an error page.
+      if (!storeErr && storeRows?.length) {
+        const merged = new Map<string, unknown>(rows.map((r) => [r.key, r.value]))
+        for (const r of storeRows as SettingRow[]) merged.set(r.key, r.value)
+        rows = [...merged].map(([key, value]) => ({ key, value }))
+      }
+    }
 
     const body: SettingsResponse = {
       rows,
