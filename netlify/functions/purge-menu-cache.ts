@@ -33,7 +33,10 @@ export default async (request: Request): Promise<Response> => {
   try {
     const reqBody = await request.json()
     if (Array.isArray(reqBody?.tags) && reqBody.tags.length) {
-      const allowed = new Set(['menu', 'settings'])
+      // WEC-710: 'stores' tags /api/resolve-store, so an admin store edit
+      // (WEC-715) can drop the resolved storefront instantly instead of
+      // waiting out the 5-minute s-maxage window.
+      const allowed = new Set(['menu', 'settings', 'stores'])
       const filtered = (reqBody.tags as unknown[]).filter(
         (t): t is string => typeof t === 'string' && allowed.has(t),
       )

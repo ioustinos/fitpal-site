@@ -20,6 +20,7 @@ import { WalletModal } from './components/wallet/WalletModal'
 import SiteFooter from './components/layout/SiteFooter'
 import { ImpersonationBanner } from './components/admin/ImpersonationBanner'
 import { ConsentBanner } from './components/consent/ConsentBanner'
+import { StoreProvider } from './lib/storefront/StoreProvider'
 import { initTracking } from './lib/tracking'
 
 // Admin is lazy-loaded so the customer bundle stays lean — /admin/* code
@@ -232,6 +233,12 @@ export default function App() {
           `is-impersonating` body class. */}
       <ImpersonationBanner />
       <ConsentBanner />
+      {/* WEC-710 — resolves which storefront the URL points at (path-based:
+          orders.fitpal.gr/acme) and exposes it via useStorefront(). On every
+          existing URL the slug resolves to main synchronously, so the retail
+          site renders exactly as before. Nothing consumes the resolved store
+          yet — that lands in WEC-711 (per-store data loading). */}
+      <StoreProvider>
       <Routes>
         <Route
           path="/admin/*"
@@ -258,6 +265,7 @@ export default function App() {
         <Route path="/terms" element={<TermsPage />} />
         <Route path="*" element={<CustomerApp />} />
       </Routes>
+      </StoreProvider>
     </>
   )
 }
