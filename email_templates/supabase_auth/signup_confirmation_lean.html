@@ -1,0 +1,121 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" lang="el">
+<head>
+<meta charset="utf-8" />
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+<meta http-equiv="X-UA-Compatible" content="IE=edge" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta name="color-scheme" content="light only" />
+<meta name="supported-color-schemes" content="light only" />
+<title>Fitpal Meals</title>
+<!--[if mso]>
+<noscript><xml><o:OfficeDocumentSettings xmlns:o="urn:schemas-microsoft-com:office:office"><o:PixelsPerInch>96</o:PixelsPerInch></o:OfficeDocumentSettings></xml></noscript>
+<![endif]-->
+<style type="text/css">
+  body { margin:0 !important; padding:0 !important; width:100% !important; }
+  table { border-collapse:collapse; }
+  a { text-decoration:none; }
+  @media screen and (max-width:600px) {
+    .container { width:100% !important; }
+    .pad-side  { padding-left:24px !important; padding-right:24px !important; }
+    .code      { font-size:30px !important; letter-spacing:8px !important; }
+  }
+</style>
+</head>
+
+<body style="margin:0; padding:0; background-color:#FFFFFF;">
+
+<!-- Hidden inbox preview line -->
+<div style="display:none; font-size:1px; color:#FFFFFF; line-height:1px; max-height:0; max-width:0; opacity:0; overflow:hidden;">
+  {{ if eq .Data.lang "en" }}Your Fitpal Meals confirmation code is inside.{{ else }}Ο κωδικός επιβεβαίωσης για τα Fitpal Meals είναι μέσα.{{ end }}
+</div>
+
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#FFFFFF;">
+<tr><td align="center" style="padding:0;">
+
+  <table role="presentation" class="container" width="600" cellpadding="0" cellspacing="0" border="0" style="width:600px; max-width:600px; background-color:#FFFFFF;">
+
+    <!-- Wordmark (text, not an image) -->
+    <tr>
+      <td class="pad-side" align="left" style="padding:34px 40px 0 40px; font-family:'Geologica',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif; font-size:20px; font-weight:800; color:#004636; letter-spacing:-0.2px;">
+        Fitpal Meals
+      </td>
+    </tr>
+    <tr><td style="padding:14px 40px 0 40px;"><div style="height:1px; background-color:#E4E7E4; font-size:0; line-height:0;">&nbsp;</div></td></tr>
+
+    <!-- Heading -->
+    <tr>
+      <td class="pad-side" align="left" style="padding:28px 40px 0 40px; font-family:'Geologica',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif; font-size:23px; font-weight:800; line-height:1.3; color:#004636;">
+        {{ if .Data.first_name }}{{ if eq .Data.lang "en" }}Confirm your email, {{ .Data.first_name }}{{ else }}Επιβεβαίωσε το email σου, {{ .Data.first_name }}{{ end }}{{ else }}{{ if eq .Data.lang "en" }}Confirm your email{{ else }}Επιβεβαίωσε το email σου{{ end }}{{ end }}
+      </td>
+    </tr>
+
+    <!-- Intro -->
+    <tr>
+      <td class="pad-side" align="left" style="padding:14px 40px 0 40px; font-family:'Geologica',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif; font-size:15px; line-height:1.6; color:#1C2B1C;">
+        {{ if eq .Data.lang "en" }}Welcome to Fitpal Meals. Enter the code below to confirm your email and finish signing in. The code expires shortly.{{ else }}Καλώς ήρθες στα Fitpal Meals. Καταχώρησε τον παρακάτω κωδικό για να επιβεβαιώσεις το email σου και να ολοκληρώσεις τη σύνδεση. Ο κωδικός λήγει σύντομα.{{ end }}
+      </td>
+    </tr>
+
+    <!-- The code — plain selectable digits (mobile autofill finds them) -->
+    <tr>
+      <td class="pad-side" align="left" style="padding:22px 40px 0 40px;">
+        <table role="presentation" cellpadding="0" cellspacing="0" border="0">
+          <tr>
+            <td class="code" align="center" style="padding:16px 30px; background-color:#F4F7F4; border:1px solid #CBD8CB; border-radius:10px; font-family:'Courier New',Consolas,monospace; font-size:34px; font-weight:700; letter-spacing:10px; color:#004636;">
+              {{ .Token }}
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+
+    <!-- One-click alternative -->
+    <tr>
+      <td class="pad-side" align="left" style="padding:26px 40px 0 40px; font-family:'Geologica',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif; font-size:15px; line-height:1.6; color:#1C2B1C;">
+        {{ if eq .Data.lang "en" }}Or confirm with one click:{{ else }}Ή επιβεβαίωσε με ένα κλικ:{{ end }}
+      </td>
+    </tr>
+    <tr>
+      <td class="pad-side" align="left" style="padding:12px 40px 0 40px;">
+        <!--[if mso]>
+        <v:roundrect xmlns:v="urn:schemas-microsoft-com:vml" xmlns:w="urn:schemas-microsoft-com:office:word"
+          href="{{ .ConfirmationURL }}" style="height:48px;v-text-anchor:middle;width:220px;" arcsize="50%" stroke="f" fillcolor="#2DB56A">
+          <w:anchorlock/>
+          <center style="color:#FFFFFF;font-family:Arial,sans-serif;font-size:16px;font-weight:bold;">{{ if eq .Data.lang "en" }}Confirm email{{ else }}Επιβεβαίωση email{{ end }}</center>
+        </v:roundrect>
+        <![endif]-->
+        <!--[if !mso]><!-- -->
+        <a href="{{ .ConfirmationURL }}"
+           style="display:inline-block; background-color:#2DB56A; color:#FFFFFF; font-family:'Geologica',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif; font-size:16px; font-weight:800; line-height:48px; height:48px; text-align:center; text-decoration:none; padding:0 30px; border-radius:24px;">
+          {{ if eq .Data.lang "en" }}Confirm email{{ else }}Επιβεβαίωση email{{ end }}
+        </a>
+        <!--<![endif]-->
+      </td>
+    </tr>
+
+    <!-- Security line (this is an auth email — keep it) -->
+    <tr>
+      <td class="pad-side" align="left" style="padding:30px 40px 0 40px; font-family:'Geologica',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif; font-size:13px; line-height:1.6; color:#5B6B5B;">
+        {{ if eq .Data.lang "en" }}You're receiving this because a Fitpal Meals account was created with this email address. If it wasn't you, ignore this message and the account won't be activated.{{ else }}Λαμβάνεις αυτό το email επειδή δημιουργήθηκε λογαριασμός Fitpal Meals με αυτή τη διεύθυνση. Αν δεν ήσουν εσύ, αγνόησε το μήνυμα και ο λογαριασμός δεν θα ενεργοποιηθεί.{{ end }}
+      </td>
+    </tr>
+
+    <tr><td style="padding:24px 40px 0 40px;"><div style="height:1px; background-color:#E4E7E4; font-size:0; line-height:0;">&nbsp;</div></td></tr>
+
+    <!-- Contact footer (plain text — helps the text-to-image ratio) -->
+    <tr>
+      <td class="pad-side" align="left" style="padding:18px 40px 36px 40px; font-family:'Geologica',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif; font-size:13px; line-height:1.85; color:#5B6B5B;">
+        {{ if eq .Data.lang "en" }}Need help? We're here for you.{{ else }}Χρειάζεσαι βοήθεια; Είμαστε εδώ για σένα.{{ end }}<br />
+        {{ if eq .Data.lang "en" }}Phone{{ else }}Τηλέφωνο{{ end }}: <a href="tel:+302104253929" style="color:#004636; text-decoration:none;">+30 210 4253929</a>&nbsp; &middot; &nbsp;Email: <a href="mailto:support@fitpal.gr" style="color:#004636; text-decoration:none;">support@fitpal.gr</a><br />
+        {{ if eq .Data.lang "en" }}Every day 09:30 &ndash; 18:00{{ else }}Καθημερινά 09:30 &ndash; 18:00{{ end }}
+      </td>
+    </tr>
+
+  </table>
+
+</td></tr>
+</table>
+
+</body>
+</html>

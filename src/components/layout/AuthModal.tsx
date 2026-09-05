@@ -334,6 +334,12 @@ export function AuthModal() {
           <div className="auth-note">
             {isEl ? `Στείλαμε κωδικό στο ${loginEmail}` : `We sent a code to ${loginEmail}`}
           </div>
+          {/* WEC-708: Outlook/Hotmail often junks the code (deliverability, WEC-680). */}
+          <div className="auth-note auth-note-hint">
+            {isEl
+              ? 'Δεν το βρίσκεις; Έλεγξε και τον φάκελο ανεπιθύμητης αλληλογραφίας (spam).'
+              : "Can't find it? Check your spam / junk folder too."}
+          </div>
           <div className="form-row">
             <label className="form-label">{isEl ? `Κωδικός ${OTP_LENGTH} ψηφίων` : `${OTP_LENGTH}-digit code`}</label>
             <input
@@ -409,6 +415,12 @@ export function AuthModal() {
         <form className="auth-form" onSubmit={handleRegOtpVerify}>
           <div className="auth-note">
             {isEl ? `Στείλαμε κωδικό στο ${regEmail}` : `We sent a code to ${regEmail}`}
+          </div>
+          {/* WEC-708: Outlook/Hotmail often junks the code (deliverability, WEC-680). */}
+          <div className="auth-note auth-note-hint">
+            {isEl
+              ? 'Δεν το βρίσκεις; Έλεγξε και τον φάκελο ανεπιθύμητης αλληλογραφίας (spam).'
+              : "Can't find it? Check your spam / junk folder too."}
           </div>
           <div className="form-row">
             <label className="form-label">{isEl ? `Κωδικός ${OTP_LENGTH} ψηφίων` : `${OTP_LENGTH}-digit code`}</label>

@@ -1616,6 +1616,12 @@ export function WalletPage() {
                     <div className="wpv2-signup-note">
                       {isEl ? `Στείλαμε 6-ψήφιο κωδικό στο ${suEmail}` : `We sent a 6-digit code to ${suEmail}`}
                     </div>
+                    {/* WEC-708: Outlook/Hotmail often junks the code (deliverability, WEC-680). */}
+                    <div className="wpv2-signup-note wpv2-signup-hint">
+                      {isEl
+                        ? 'Δεν το βρίσκεις; Έλεγξε και τον φάκελο ανεπιθύμητης αλληλογραφίας (spam).'
+                        : "Can't find it? Check your spam / junk folder too."}
+                    </div>
                     <div className="wpv2-signup-field">
                       <label>{isEl ? 'Κωδικός' : 'Code'}</label>
                       <input
