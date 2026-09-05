@@ -102,14 +102,44 @@ const makeTagId = (labelEn: string): string =>
 
 // ─── Fetchers ─────────────────────────────────────────────────────────────
 
+/**
+ * WEC-705: Supabase caps a single select at 1000 rows (the PostgREST
+ * `max-rows` default). `dish_variants` alone is ~1364 rows, so a plain
+ * `.select('*')` silently dropped ~364 variants — a dish whose variants landed
+ * past row 1000 rendered with FEWER variants than it has (dish 135 «Ψαρονέφρι…»
+ * showed 7 of 12). Page through in 1000-row batches until a short page returns.
+ */
+async function fetchAllRows<T>(
+  build: () => {
+    range: (from: number, to: number) => PromiseLike<{ data: unknown; error: { message: string } | null }>
+  },
+): Promise<{ data: T[]; error: string | null }> {
+  const PAGE = 1000
+  const out: T[] = []
+  for (let from = 0; ; from += PAGE) {
+    const { data, error } = await build().range(from, from + PAGE - 1)
+    if (error) return { data: out, error: error.message }
+    const rows = (data ?? []) as T[]
+    out.push(...rows)
+    if (rows.length < PAGE) break
+  }
+  return { data: out, error: null }
+}
+
 export async function fetchAdminDishes(): Promise<{ data: AdminDish[] | null; error: string | null }> {
   const [dishesRes, variantsRes, tagsRes, catsRes] = await Promise.all([
     supabase.from('dishes').select('*').order('updated_at', { ascending: false }),
-    supabase.from('dish_variants').select('*').order('sort_order'),
-    supabase.from('dish_tags').select('dish_id, tag_id'),
+    // WEC-705: paginated — a plain select capped at 1000 and dropped variants.
+    // Order by a UNIQUE tiebreaker (id) after sort_order — sort_order has ties
+    // (0..N per dish, repeated across dishes), and range-paging on a non-unique
+    // order can skip/duplicate rows at page boundaries.
+    fetchAllRows<Record<string, unknown>>(() => supabase.from('dish_variants').select('*').order('sort_order').order('id')),
+    fetchAllRows<{ dish_id: string; tag_id: string }>(() => supabase.from('dish_tags').select('dish_id, tag_id').order('dish_id').order('tag_id')),
     supabase.from('categories').select('id, name_el, name_en'),
   ])
   if (dishesRes.error) return { data: null, error: dishesRes.error.message }
+  if (variantsRes.error) return { data: null, error: variantsRes.error }
+  if (tagsRes.error) return { data: null, error: tagsRes.error }
 
   const catMap = new Map<string, { nameEl: string; nameEn: string }>()
   for (const c of catsRes.data ?? []) catMap.set(c.id as string, { nameEl: c.name_el as string, nameEn: c.name_en as string })
