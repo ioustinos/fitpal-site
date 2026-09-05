@@ -458,6 +458,11 @@ export default async (request?: Request) => {
       errorNotes.push(`cancel wp/${plan.id}: ${upErr.message}`)
       continue
     }
+    // WEC-703: release the voucher (redeemed at plan-creation, before the Viva
+    // redirect) now that this abandoned plan is `failed`. No-op without a
+    // voucher; fail-soft so a hiccup can't abort the reconcile sweep.
+    const { error: unredeemErr } = await supabase.rpc('unredeem_voucher_for_plan', { p_wallet_plan_id: plan.id })
+    if (unredeemErr) errorNotes.push(`unredeem wp/${plan.id}: ${unredeemErr.message}`)
     cancelledWalletTimeout++
   }
 

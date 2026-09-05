@@ -11,8 +11,16 @@ const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY ?? ''
 
 interface ValidateRequest {
   code: string
-  cartTotal: number    // euros — full subtotal, used for min_order check
+  cartTotal: number    // euros — full subtotal (order) or plan cost (subscription)
   userId?: string
+  /**
+   * WEC-703: which product this validation is for. Default 'orders' (à-la-carte
+   * checkout). The subscription wizard passes 'subscriptions'. A voucher whose
+   * `applies_to` doesn't match is rejected — an orders voucher can't be used on
+   * a package and vice versa (never both). For subscriptions the category
+   * scoping is skipped (a plan has no dish categories) and cartTotal = plan cost.
+   */
+  scope?: 'orders' | 'subscriptions'
   /** WEC-546: best-effort contact for per-user matching before submit. The
    *  cart-apply may run before contact is typed, so these can be absent — the
    *  redeem RPC at submit is the authoritative check. */
@@ -133,6 +141,9 @@ export default async (request: Request) => {
       credit_exhausted:  "This voucher's credit balance is depleted",
       no_eligible_items: "No items in your cart qualify for this voucher",
       min_order_not_met: "Minimum order amount not met for this voucher",
+      // WEC-703: right code, wrong product.
+      wrong_scope_orders:        "This code can only be used on food orders",
+      wrong_scope_subscriptions: "This code can only be used on subscriptions",
     }
 
     function reject(errorCode: keyof typeof REJECT_MESSAGES, extra: Record<string, unknown> = {}) {
@@ -157,6 +168,14 @@ export default async (request: Request) => {
 
     if (vErr || !voucher) return reject('not_found')
     if (!voucher.active) return reject('inactive')
+
+    // WEC-703: scope gate — an orders voucher can't apply to a subscription and
+    // vice versa. `applies_to` defaults to 'orders' for every pre-WEC-703 code.
+    const requestedScope: 'orders' | 'subscriptions' = body.scope === 'subscriptions' ? 'subscriptions' : 'orders'
+    const voucherScope = (voucher.applies_to as string | null) ?? 'orders'
+    if (voucherScope !== requestedScope) {
+      return reject(voucherScope === 'orders' ? 'wrong_scope_orders' : 'wrong_scope_subscriptions')
+    }
     if (voucher.expires_at && new Date(voucher.expires_at) < new Date()) {
       return reject('expired', { expiresAt: voucher.expires_at })
     }
@@ -209,7 +228,11 @@ export default async (request: Request) => {
     // so we fall through to the legacy "discount on full cart" behaviour
     // (submit-order will tighten this for the actual order); but if items
     // are provided AND none qualify, this voucher is rejected outright.
-    const scopedCats = Array.isArray(voucher.applicable_category_ids) ? (voucher.applicable_category_ids as string[]) : []
+    // WEC-703: category scoping is meaningless for subscriptions (a plan has no
+    // dish categories) — force the eligible total to the whole plan cost.
+    const scopedCats = requestedScope === 'subscriptions'
+      ? []
+      : (Array.isArray(voucher.applicable_category_ids) ? (voucher.applicable_category_ids as string[]) : [])
     let eligibleCents = cartTotalCents
     if (scopedCats.length > 0 && Array.isArray(body.items) && body.items.length > 0) {
       const dishIds = Array.from(new Set(body.items.map((i) => i.dishId)))

@@ -106,9 +106,27 @@ export async function refundWalletPlan(args: RefundWalletPlanArgs): Promise<Refu
     throw new Error(`Viva refund succeeded but local update failed: ${rpcErr.message}`)
   }
 
+  const planFullyRefunded = (currentRefund + refundCents) >= totalCents
+
+  // WEC-703: on a FULL refund, release the voucher so its use no longer counts
+  // (uses_count decrements; a credit voucher's `remaining` is restored). No-op
+  // when the plan had no voucher. Fail-soft — the money refund already landed,
+  // so a voucher-release hiccup must not throw back to the admin/caller.
+  if (planFullyRefunded) {
+    const { error: unredeemErr } = await supabase.rpc('unredeem_voucher_for_plan', {
+      p_wallet_plan_id: args.walletPlanId,
+    })
+    if (unredeemErr) {
+      console.warn(
+        '[refundWalletPlan] voucher un-redeem failed (refund still succeeded) planId=%s:',
+        args.walletPlanId, unredeemErr,
+      )
+    }
+  }
+
   return {
     refundedCents: refundCents,
     newRefundTotal: currentRefund + refundCents,
-    planFullyRefunded: (currentRefund + refundCents) >= totalCents,
+    planFullyRefunded,
   }
 }

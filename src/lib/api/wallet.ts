@@ -309,6 +309,10 @@ export interface SubscriptionDetails {
   purchaseDate: string | null    // YYYY-MM-DD (confirmed_at, falls back to created_at)
   /** Only populated for a transfer purchase — the accounts to pay into. */
   bankInfos: SubscriptionBankInfo[]
+  /** WEC-703: voucher applied at purchase — code + € off the amount paid.
+   *  null / 0 when no voucher was used. */
+  voucherCode: string | null
+  voucherDiscount: number
 }
 
 /** Derive the WP- reference for a plan uuid. Keep in sync with
@@ -346,7 +350,7 @@ export async function fetchSubscriptionByReference(
 
   const { data: planRows, error: pErr } = await supabase
     .from('wallet_plans')
-    .select('id, payment_method, payment_status, goal, plan_length, plan_length_weeks, days_per_week, meal_breakfast, meal_lunch, meal_dinner, meal_snack, amount_to_pay_cents, wallet_credit_cents, bonus_credits_cents, daily_kcal, invoice_type, invoice_name, invoice_vat, confirmed_at, created_at')
+    .select('id, payment_method, payment_status, goal, plan_length, plan_length_weeks, days_per_week, meal_breakfast, meal_lunch, meal_dinner, meal_snack, amount_to_pay_cents, wallet_credit_cents, bonus_credits_cents, daily_kcal, invoice_type, invoice_name, invoice_vat, voucher_id, voucher_amount_cents, confirmed_at, created_at')
     .eq('wallet_id', (walletRow as { id: string }).id)
     .order('created_at', { ascending: false })
   if (pErr) return { data: null, error: pErr.message }
@@ -376,6 +380,18 @@ export async function fetchSubscriptionByReference(
       .filter((e) => e.iban.length > 0)
   }
 
+  // WEC-703: resolve the voucher code (if any) for display on the success page.
+  let voucherCode: string | null = null
+  const voucherDiscount = centsToEuros(Number(row.voucher_amount_cents ?? 0))
+  if (row.voucher_id) {
+    const { data: vRow } = await supabase
+      .from('vouchers')
+      .select('code')
+      .eq('id', String(row.voucher_id))
+      .maybeSingle()
+    voucherCode = (vRow as { code?: string } | null)?.code ?? null
+  }
+
   const confirmedAt = row.confirmed_at as string | null
   const createdAt = row.created_at as string | null
   return {
@@ -403,6 +419,8 @@ export async function fetchSubscriptionByReference(
       invoiceVat: (row.invoice_vat as string | null) ?? null,
       purchaseDate: confirmedAt ? confirmedAt.split('T')[0] : createdAt ? createdAt.split('T')[0] : null,
       bankInfos,
+      voucherCode,
+      voucherDiscount,
     },
     error: null,
   }

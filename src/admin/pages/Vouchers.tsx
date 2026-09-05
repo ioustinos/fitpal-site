@@ -91,6 +91,7 @@ export function Vouchers() {
                 <div className="admin-zone-item-name">{v.code}</div>
                 <div className="admin-zone-item-meta">
                   {labelForType(v.type, v.value)} · {v.usesCount}{v.maxUses != null ? `/${v.maxUses}` : ''} uses
+                  {v.appliesTo === 'subscriptions' && <> · <em>subscriptions</em></>}
                   {!v.active && <> · <em>inactive</em></>}
                 </div>
               </button>
@@ -143,6 +144,8 @@ interface FormState {
   userEmail: string  // optional — links voucher to a specific customer
   /** WEC-262: empty array = applies to all categories. */
   applicableCategoryIds: string[]
+  /** WEC-703: 'orders' (food) or 'subscriptions' (packages). */
+  appliesTo: 'orders' | 'subscriptions'
 }
 
 function VoucherEditor({
@@ -234,6 +237,28 @@ function VoucherEditor({
           </select>
           <small className="admin-text-muted">
             {VOUCHER_TYPES.find((t) => t.id === form.type)?.help}
+          </small>
+        </div>
+
+        {/* WEC-703: scope — a code redeems against food orders OR subscription
+            purchases, never both. Locked after creation (redemptions reference
+            the scope). Switching to subscriptions hides + clears categories. */}
+        <div className="admin-form-row">
+          <label>Applies to (WEC-703)</label>
+          <select
+            className="admin-input"
+            value={form.appliesTo}
+            onChange={(e) => patch('appliesTo', e.target.value as 'orders' | 'subscriptions')}
+            disabled={!!voucher}
+          >
+            <option value="orders">Food orders</option>
+            <option value="subscriptions">Subscription purchases</option>
+          </select>
+          <small className="admin-text-muted">
+            {form.appliesTo === 'subscriptions'
+              ? 'This code only applies when a customer buys a subscription package. Category scoping is disabled.'
+              : 'This code only applies to à-la-carte food orders.'}
+            {!voucher ? '' : ' Scope is fixed after creation.'}
           </small>
         </div>
 
@@ -339,16 +364,18 @@ function VoucherEditor({
           </small>
         </div>
 
-        <div className="admin-form-row">
-          <label>Applicable categories (WEC-262)</label>
-          <CategoryPicker
-            selected={form.applicableCategoryIds}
-            onChange={(ids) => patch('applicableCategoryIds', ids)}
-          />
-          <small className="admin-text-muted">
-            Leave all unchecked to apply the discount to the whole order. Pick one or more categories to scope it — the discount only applies to the cart items in those categories.
-          </small>
-        </div>
+        {form.appliesTo === 'orders' && (
+          <div className="admin-form-row">
+            <label>Applicable categories (WEC-262)</label>
+            <CategoryPicker
+              selected={form.applicableCategoryIds}
+              onChange={(ids) => patch('applicableCategoryIds', ids)}
+            />
+            <small className="admin-text-muted">
+              Leave all unchecked to apply the discount to the whole order. Pick one or more categories to scope it — the discount only applies to the cart items in those categories.
+            </small>
+          </div>
+        )}
 
         <div className="admin-form-row">
           <label>Active</label>
@@ -391,7 +418,7 @@ function VoucherEditor({
                 <tr>
                   <th>When</th>
                   <th>Customer</th>
-                  <th>Order</th>
+                  <th>Order / Plan</th>
                   <th style={{ textAlign: 'right' }}>Amount</th>
                 </tr>
               </thead>
@@ -400,7 +427,7 @@ function VoucherEditor({
                   <tr key={u.id}>
                     <td>{new Date(u.usedAt).toLocaleString()}</td>
                     <td>{u.userEmail ?? <em>—</em>}</td>
-                    <td>{u.orderNumber ?? <em>—</em>}</td>
+                    <td>{u.orderNumber ?? (u.planRef ? <span title="Subscription purchase">{u.planRef}</span> : <em>—</em>)}</td>
                     <td style={{ textAlign: 'right' }}>{(u.amount / 100).toFixed(2)} €</td>
                   </tr>
                 ))}
@@ -419,7 +446,7 @@ function fromVoucher(v: AdminVoucher | null): FormState {
       code: '', type: 'pct', valueDisplay: '10', remainingDisplay: '',
       minOrderDisplay: '0', maxUses: '', perUserLimit: '',
       expiresAt: '', active: true, registeredOnly: false, userEmail: '',
-      applicableCategoryIds: [],
+      applicableCategoryIds: [], appliesTo: 'orders',
     }
   }
   return {
@@ -435,6 +462,7 @@ function fromVoucher(v: AdminVoucher | null): FormState {
     registeredOnly: v.registeredOnly,
     userEmail: '',
     applicableCategoryIds: v.applicableCategoryIds ?? [],
+    appliesTo: v.appliesTo ?? 'orders',
   }
 }
 
@@ -492,7 +520,9 @@ function serialise(form: FormState):
       expiresAt: form.expiresAt ? new Date(form.expiresAt).toISOString() : null,
       active: form.active,
       registeredOnly: form.registeredOnly,
-      applicableCategoryIds: form.applicableCategoryIds,
+      // WEC-703: subscription vouchers are never category-scoped.
+      applicableCategoryIds: form.appliesTo === 'subscriptions' ? [] : form.applicableCategoryIds,
+      appliesTo: form.appliesTo,
     },
   }
 }
@@ -513,6 +543,7 @@ function mergeDraftForDisplay(
     expiresAt: draft.expiresAt ?? v.expiresAt,
     active: draft.active ?? v.active,
     applicableCategoryIds: draft.applicableCategoryIds ?? v.applicableCategoryIds,
+    appliesTo: draft.appliesTo ?? v.appliesTo,
   }
 }
 

@@ -26,6 +26,7 @@ import { notifySubscriptionAdmins } from '../lib/notifySubscriptionAdmins'
 import { corsHeaders } from '../lib/cors'
 import type { WalletCalcInput, PaymentMethod } from '../../src/lib/wallet/types'
 import { isValidGreekVat } from '../../src/lib/vat'
+import { normVoucherEmail, normVoucherPhone } from '../../src/lib/voucherIdentity' // WEC-703
 
 const SUPABASE_URL = process.env.VITE_SUPABASE_URL ?? ''
 const SUPABASE_ANON_KEY = process.env.VITE_SUPABASE_ANON_KEY ?? ''
@@ -120,7 +121,11 @@ export default async (request: Request) => {
     // so the Viva verify amount-match holds.
     const bodyFatSelected = !!body.services?.bodyFatMeasurement
     const lipoCents = bodyFatSelected ? lipometrisiFeeCents(body.planLength, true) : 0
-    const chargeCents = planAmountCents + lipoCents
+    // WEC-703: `chargeCents` (what the customer PAYS) may be reduced by a
+    // subscription voucher below. `walletCreditCents` + `bonusCents` are frozen
+    // above and MUST NOT be touched — the voucher is a discount on the invoice,
+    // never on the credits (Ioustinos decision 2a).
+    let chargeCents = planAmountCents + lipoCents
 
     // 4. Validations — plan minimum applies to the plan price, not the add-on.
     if (planAmountCents < config.minAmountCents) {
@@ -133,8 +138,46 @@ export default async (request: Request) => {
         error: `Payment method ${body.paymentMethod} not allowed for wallet purchases`,
       }, { status: 400, headers: cors })
     }
+
+    // 4b. WEC-703: subscription voucher — validate + reduce the PAYMENT only.
+    // Mirrors submit-order's eligibility checks; the authoritative atomic
+    // re-check + voucher_uses insert happens via redeem_voucher_for_plan after
+    // the plan row exists. The category scoping doesn't apply to plans.
+    let voucherId: string | null = null
+    let voucherCode: string | null = null
+    let voucherDiscountCents = 0
+    if (body.voucherCode?.trim()) {
+      if (!config.voucherEnabled) {
+        return Response.json({ error: 'Voucher codes are not available for subscriptions right now' }, { status: 400, headers: cors })
+      }
+      const vCode = body.voucherCode.trim().toUpperCase()
+      const { data: voucher, error: vErr } = await supabase.from('vouchers').select('*').eq('code', vCode).single()
+      if (vErr || !voucher) return Response.json({ error: `Invalid voucher code: ${vCode}` }, { status: 400, headers: cors })
+      if (!voucher.active) return Response.json({ error: 'Voucher is no longer active' }, { status: 400, headers: cors })
+      if (((voucher.applies_to as string | null) ?? 'orders') !== 'subscriptions') {
+        return Response.json({ error: 'This code can only be used on food orders, not subscriptions' }, { status: 400, headers: cors })
+      }
+      if (voucher.expires_at && new Date(voucher.expires_at) < new Date()) return Response.json({ error: 'Voucher has expired' }, { status: 400, headers: cors })
+      if (voucher.max_uses != null && voucher.uses_count >= voucher.max_uses) return Response.json({ error: 'Voucher usage limit reached' }, { status: 400, headers: cors })
+      if (voucher.registered_only && !userId) return Response.json({ error: 'Log in to use this code' }, { status: 400, headers: cors })
+      if (voucher.min_order != null && chargeCents < voucher.min_order) return Response.json({ error: 'Plan does not meet the minimum for this voucher' }, { status: 400, headers: cors })
+      if (voucher.type === 'credit' && (voucher.remaining ?? 0) <= 0) return Response.json({ error: "Voucher's credit balance is depleted" }, { status: 400, headers: cors })
+      if (voucher.per_user_limit != null) {
+        const { count } = await supabase.from('voucher_uses').select('id', { count: 'exact', head: true }).eq('voucher_id', voucher.id).eq('user_id', userId)
+        if ((count ?? 0) >= voucher.per_user_limit) return Response.json({ error: 'This code has already been used' }, { status: 400, headers: cors })
+      }
+      // Discount on the PAYMENT (chargeCents), capped so it can't go negative.
+      if (voucher.type === 'pct') voucherDiscountCents = Math.round(chargeCents * voucher.value / 100)
+      else if (voucher.type === 'fixed') voucherDiscountCents = Math.min(voucher.value, chargeCents)
+      else if (voucher.type === 'credit') voucherDiscountCents = Math.min(voucher.remaining ?? 0, chargeCents)
+      voucherId = voucher.id
+      voucherCode = vCode
+      chargeCents = Math.max(0, chargeCents - voucherDiscountCents)
+    }
+
     // WEC-658: cash-on-delivery capped — the courier can't carry unlimited cash.
     // Enforced here so a crafted request can't bypass the disabled UI button.
+    // (Checked AFTER the voucher so the cap reflects the real amount paid.)
     if (body.paymentMethod === 'cash' && chargeCents > config.cashMaxCents) {
       return Response.json({
         error: `Cash on delivery is not available for amounts over ${(config.cashMaxCents / 100).toFixed(0)} €`,
@@ -215,9 +258,12 @@ export default async (request: Request) => {
         subtotal_cents:      subtotalCents,
         discount_cents:      discountCents,
         discount_pct:        result.discountPct,
-        amount_to_pay_cents: chargeCents, // WEC-553: plan + λιπομέτρηση fee
+        amount_to_pay_cents: chargeCents, // WEC-553 plan + fee, WEC-703 minus voucher
         bonus_credits_cents: bonusCents,
         wallet_credit_cents: walletCreditCents,
+        // WEC-703: voucher discount on the PAYMENT only (credits above unchanged).
+        voucher_id: voucherId,
+        voucher_amount_cents: voucherDiscountCents || null,
         // Services — WEC-553: snapshot the λιπομέτρηση add-on + its fee.
         services: {
           dieticianManaged: body.services.dieticianManaged,
@@ -247,6 +293,37 @@ export default async (request: Request) => {
       throw new Error(`wallet_plans insert failed: ${planErr?.message}`)
     }
     const walletPlanId = plan.id as string
+
+    // 8b. WEC-703: atomically redeem the voucher against THIS plan. Same
+    // SECURITY DEFINER guarantee as orders (redeem_voucher_for_plan re-checks
+    // scope/expiry/max_uses/per_user/credit under a row lock and inserts
+    // voucher_uses in one txn). On failure, roll the plan row back so we never
+    // leave a plan whose amount was discounted but whose voucher wasn't recorded.
+    if (voucherId) {
+      const { error: redeemErr } = await supabase.rpc('redeem_voucher_for_plan', {
+        p_voucher_id: voucherId,
+        p_user_id: userId,
+        p_wallet_plan_id: walletPlanId,
+        p_amount_cents: voucherDiscountCents,
+        p_email: normVoucherEmail(userEmail),
+        p_phone: normVoucherPhone((userData.user.user_metadata?.phone as string | undefined) ?? undefined),
+      })
+      if (redeemErr) {
+        console.error('[wallet-plan-purchase] redeem_voucher_for_plan failed for plan=%s:', walletPlanId, redeemErr)
+        await supabase.from('wallet_plans').delete().eq('id', walletPlanId)
+        const m = redeemErr.message ?? ''
+        let userMsg = 'Voucher redemption failed'
+        if (m.includes('voucher_wrong_scope'))                userMsg = 'This code can only be used on food orders, not subscriptions'
+        else if (m.includes('voucher_not_found'))             userMsg = 'Voucher not found'
+        else if (m.includes('voucher_inactive'))              userMsg = 'Voucher is no longer active'
+        else if (m.includes('voucher_expired'))               userMsg = 'Voucher has expired'
+        else if (m.includes('voucher_max_uses_reached'))      userMsg = 'Voucher usage limit reached'
+        else if (m.includes('voucher_per_user_limit_reached')) userMsg = 'This code has already been used'
+        else if (m.includes('voucher_registered_only'))       userMsg = 'Log in to use this code'
+        else if (m.includes('voucher_insufficient_credit'))   userMsg = 'Voucher does not have enough credit'
+        return Response.json({ error: userMsg }, { status: 400, headers: cors })
+      }
+    }
 
     // 9. Branch by payment method
     // WEC-554: transfer AND cash both stay 'pending' until an admin marks paid
@@ -311,6 +388,9 @@ export default async (request: Request) => {
         amount_paid: chargeCents / 100,
         bonus_credits: bonusCents / 100,
         new_balance: walletCreditCents / 100,
+        // WEC-703: voucher code + amount off, so the email can show the discount.
+        voucher_code: voucherCode,
+        voucher_discount: voucherDiscountCents / 100,
         payment_status: 'pending',
         // WEC-701 §B: payment method gates the bank block; transfer shows IBAN,
         // cash never does. Reference + bank list drive the «Στοιχεία τραπεζικής
@@ -341,6 +421,7 @@ export default async (request: Request) => {
         planLengthLabel: body.planLength, mealsPerWeek: body.daysPerWeek,
         goalLabel: subGoalLabel, mealsLabel: subMealsLabel,
         amountPaid: chargeCents / 100, walletPlanId,
+        voucherCode, voucherDiscount: voucherDiscountCents / 100, // WEC-703
       })
 
       // WEC-554: cash (Αντικαταβολή) — no bank details; pay courier on delivery.

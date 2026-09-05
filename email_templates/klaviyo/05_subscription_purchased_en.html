@@ -201,6 +201,17 @@
         </table>
       </td>
     </tr>
+{% endif %}{% if event.voucher_code %}
+    <tr>
+      <td class="pad-side" style="padding:20px 48px 0 48px;">
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="font-family:'Geologica',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif;">
+          <tr>
+            <td align="left" valign="top" width="150" style="width:150px; font-size:14px; font-weight:700; line-height:1.4; color:#00B96B;">Voucher {{ event.voucher_code }}</td>
+            <td align="right" valign="top" style="font-size:14px; font-weight:400; color:#00B96B;">&minus;{{ event.voucher_discount|floatformat:2 }} &euro;</td>
+          </tr>
+        </table>
+      </td>
+    </tr>
 {% endif %}{% if event.bonus_credits %}
     <tr>
       <td class="pad-side" style="padding:20px 48px 0 48px;">

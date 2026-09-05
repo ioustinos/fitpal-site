@@ -175,6 +175,43 @@ function fmtEur(n: number): string {
   return Number.isInteger(n) ? `${n} €` : `${n.toFixed(2)} €`
 }
 
+/** WEC-703: bilingual message for a validate-voucher rejection. Falls back to
+ *  the server's English `error` string, then a generic message. */
+function voucherRejectMsg(errorCode: string | undefined, serverErr: string | undefined, isEl: boolean): string {
+  const el: Record<string, string> = {
+    not_found: 'Ο κωδικός δεν υπάρχει.',
+    inactive: 'Ο κωδικός είναι ανενεργός.',
+    expired: 'Ο κωδικός έχει λήξει.',
+    max_uses_reached: 'Ο κωδικός εξαντλήθηκε.',
+    per_user_limit: 'Έχεις ήδη χρησιμοποιήσει αυτόν τον κωδικό.',
+    registered_only: 'Συνδέσου για να χρησιμοποιήσεις αυτόν τον κωδικό.',
+    user_mismatch: 'Ο κωδικός δεν είναι διαθέσιμος για τον λογαριασμό σου.',
+    credit_exhausted: 'Το υπόλοιπο του κωδικού εξαντλήθηκε.',
+    min_order_not_met: 'Το πλάνο δεν καλύπτει το ελάχιστο ποσό του κωδικού.',
+    wrong_scope_orders: 'Αυτός ο κωδικός ισχύει μόνο για παραγγελίες φαγητού, όχι για συνδρομές.',
+    wrong_scope_subscriptions: 'Αυτός ο κωδικός ισχύει μόνο για συνδρομές.',
+    rate_limit: 'Πολλές προσπάθειες — δοκίμασε ξανά σε λίγο.',
+  }
+  const en: Record<string, string> = {
+    not_found: "This code doesn't exist.",
+    inactive: 'This code is disabled.',
+    expired: 'This code has expired.',
+    max_uses_reached: 'This code has reached its usage limit.',
+    per_user_limit: "You've already used this code.",
+    registered_only: 'Log in to use this code.',
+    user_mismatch: 'This code is not available for your account.',
+    credit_exhausted: "This code's credit balance is depleted.",
+    min_order_not_met: "The plan doesn't meet this code's minimum.",
+    wrong_scope_orders: 'This code can only be used on food orders, not subscriptions.',
+    wrong_scope_subscriptions: 'This code can only be used on subscriptions.',
+    rate_limit: 'Too many attempts — please try again shortly.',
+  }
+  const map = isEl ? el : en
+  if (errorCode && map[errorCode]) return map[errorCode]
+  if (serverErr) return serverErr
+  return isEl ? 'Ο κωδικός δεν είναι έγκυρος.' : 'This code is not valid.'
+}
+
 /* ─────────────────────────────────────────────────────────────────
    Defaults
    ───────────────────────────────────────────────────────────────── */
@@ -390,12 +427,21 @@ export function WalletPage() {
   const [busy, setBusy] = useState(false)
   const [errMsg, setErrMsg] = useState<string | null>(null)
 
-  // WEC-508: the coupon input that lived here was a dead stub — value never
-  // read, Apply had no onClick, the server accepted no voucher field. Removed
-  // rather than left misleading customers into typing codes that do nothing.
-  // Re-add TOGETHER with the full money path (client apply + server validation
-  // against vouchers/voucher_uses + reduced Viva charge + stacking policy vs
-  // the plan-length discount) — design questions tracked on WEC-508.
+  // WEC-703: voucher for subscription purchases. The full money path now
+  // exists — the customer applies a code (validated against `applies_to =
+  // 'subscriptions'` vouchers only), the preview discount comes off the total,
+  // and the server re-computes + atomically redeems the authoritative discount
+  // on the real charge (never trusts this client figure). Decision 2a: the
+  // discount reduces what the customer PAYS; wallet credit received is
+  // unchanged (a €400-credit plan discounted to €320 still credits €400).
+  const [voucherInput, setVoucherInput] = useState('')
+  // Stored fields mirror validate-voucher's response (credit is normalised to
+  // 'fixed', value in euros; pct keeps its percentage). We recompute the
+  // preview discount locally when the plan total changes rather than
+  // re-hitting the endpoint on every edit.
+  const [voucher, setVoucher] = useState<{ code: string; type: 'pct' | 'fixed'; value: number; minOrder: number | null } | null>(null)
+  const [voucherBusy, setVoucherBusy] = useState(false)
+  const [voucherErr, setVoucherErr] = useState<string | null>(null)
 
   /* ── Handlers ──────────────────────────────────────────────── */
   function toggleMeal(key: MealKey) {
@@ -496,6 +542,9 @@ export function WalletPage() {
         ...buildInput(), paymentMethod, lang,
         // WEC-658: send invoice details so the server enforces name + valid VAT.
         invoice: wantInvoice ? { name: invoiceName.trim(), vat: invoiceVat } : null,
+        // WEC-703: voucher code — server re-validates scope + recomputes the
+        // discount on the authoritative charge and atomically redeems it.
+        voucherCode: voucher && !voucherBelowMin ? voucher.code : undefined,
       })
       if (error || !data) { setErrMsg(error ?? 'Purchase failed'); return }
 
@@ -521,6 +570,60 @@ export function WalletPage() {
     } finally {
       setBusy(false)
     }
+  }
+
+  /** WEC-703: validate a voucher code for the SUBSCRIPTION scope. The endpoint
+   *  rejects an orders-only code (wrong_scope) and computes the discount on the
+   *  plan cost. We keep the type/value so the preview tracks later edits, and
+   *  pass the raw code to the purchase call where the server re-validates +
+   *  atomically redeems. */
+  async function applyVoucher() {
+    const code = voucherInput.trim().toUpperCase()
+    if (!code || voucherBusy) return
+    setVoucherBusy(true)
+    setVoucherErr(null)
+    try {
+      const { data: sess } = await supabase.auth.getSession()
+      const token = sess?.session?.access_token
+      const res = await fetch('/api/validate-voucher', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+        body: JSON.stringify({
+          code,
+          cartTotal: total,          // plan + λιπομέτρηση, euros
+          scope: 'subscriptions',    // WEC-703 scope gate
+          userId: user?.id,
+          email: user?.email,
+        }),
+      })
+      const j = await res.json() as {
+        valid: boolean; code?: string; type?: 'pct' | 'fixed'; value?: number
+        minOrder?: number | null; errorCode?: string; error?: string
+      }
+      if (!j.valid) {
+        setVoucher(null)
+        setVoucherErr(voucherRejectMsg(j.errorCode, j.error, isEl))
+        return
+      }
+      setVoucher({
+        code: j.code ?? code,
+        type: j.type === 'pct' ? 'pct' : 'fixed',
+        value: j.value ?? 0,
+        minOrder: j.minOrder ?? null,
+      })
+      setVoucherErr(null)
+    } catch {
+      setVoucher(null)
+      setVoucherErr(isEl ? 'Σφάλμα δικτύου — δοκίμασε ξανά.' : 'Network error — please try again.')
+    } finally {
+      setVoucherBusy(false)
+    }
+  }
+
+  function removeVoucher() {
+    setVoucher(null)
+    setVoucherInput('')
+    setVoucherErr(null)
   }
 
   function handleStartPlan() {
@@ -591,6 +694,19 @@ export function WalletPage() {
   // WEC-553: λιπομέτρηση add-on fee (€ euros) — charged on top of the plan.
   const lipoFee = lipometrisiFeeCents(planLength, bodyFat) / 100
   const total = result.amountToPay + lipoFee
+  // WEC-703: voucher preview discount, recomputed against the live total so an
+  // edit after applying a code keeps the figure honest. Mirrors the server's
+  // capping (never exceeds the total; pct on the total, fixed/credit capped).
+  // The authoritative discount + redemption still happen server-side.
+  const voucherDiscount = useMemo(() => {
+    if (!voucher) return 0
+    if (voucher.minOrder != null && total < voucher.minOrder) return 0
+    const raw = voucher.type === 'pct' ? (total * voucher.value) / 100 : Math.min(voucher.value, total)
+    return Math.round(Math.min(raw, total) * 100) / 100
+  }, [voucher, total])
+  const grandTotal = Math.max(0, Math.round((total - voucherDiscount) * 100) / 100)
+  // If a later edit pushes the total under the voucher's minimum, surface it.
+  const voucherBelowMin = !!voucher && voucher.minOrder != null && total < voucher.minOrder
   const goalCard = GOAL_CARDS.find((g) => g.id === goal)!
 
   // WEC-583: discount split (display-only, config-driven — see calculator.ts).
@@ -1244,17 +1360,70 @@ export function WalletPage() {
                   <span className="wpv2-aside-row-val">+{fmtEur(lipoFee)}</span>
                 </div>
               )}
+              {/* WEC-703: voucher discount off the amount paid (credit received
+                  is unchanged — decision 2a). */}
+              {voucher && !voucherBelowMin && voucherDiscount > 0 && (
+                <div className="wpv2-aside-row discount">
+                  <span className="wpv2-aside-row-lbl">{isEl ? 'Κουπόνι' : 'Voucher'} · {voucher.code}</span>
+                  <span className="wpv2-aside-row-val">−{fmtEur(voucherDiscount)}</span>
+                </div>
+              )}
             </div>
 
-            {/* WEC-508: coupon field removed — it was a non-functional stub
-                (no handler, no server support). Restore only with the full
-                voucher money-path; see the ticket for the open design points. */}
+            {/* WEC-703: subscription voucher entry. Validates against the
+                'subscriptions' scope only; the server re-checks + redeems. */}
+            <div className="wpv2-aside-voucher">
+              {voucher && !voucherBelowMin ? (
+                <div className="wpv2-voucher-applied">
+                  <span className="wpv2-voucher-chip">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>
+                    </svg>
+                    {voucher.code}
+                  </span>
+                  <button type="button" className="wpv2-voucher-remove" onClick={removeVoucher}>
+                    {isEl ? 'Αφαίρεση' : 'Remove'}
+                  </button>
+                </div>
+              ) : (
+                <div className="wpv2-voucher-entry">
+                  <input
+                    type="text"
+                    className="wpv2-voucher-input"
+                    placeholder={isEl ? 'Κωδικός κουπονιού' : 'Voucher code'}
+                    value={voucherInput}
+                    onChange={(e) => setVoucherInput(e.target.value.toUpperCase())}
+                    onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); void applyVoucher() } }}
+                    disabled={voucherBusy}
+                    autoCapitalize="characters"
+                    autoCorrect="off"
+                    spellCheck={false}
+                  />
+                  <button
+                    type="button"
+                    className="wpv2-voucher-apply"
+                    onClick={() => void applyVoucher()}
+                    disabled={voucherBusy || !voucherInput.trim()}
+                  >
+                    {voucherBusy ? (isEl ? '…' : '…') : (isEl ? 'Εφαρμογή' : 'Apply')}
+                  </button>
+                </div>
+              )}
+              {voucherBelowMin && voucher && (
+                <div className="wpv2-voucher-err">
+                  {isEl
+                    ? `Το κουπόνι ${voucher.code} χρειάζεται ελάχιστο ${fmtEur(voucher.minOrder ?? 0)}.`
+                    : `Voucher ${voucher.code} needs a minimum of ${fmtEur(voucher.minOrder ?? 0)}.`}
+                </div>
+              )}
+              {voucherErr && <div className="wpv2-voucher-err">{voucherErr}</div>}
+            </div>
 
             <div className="wpv2-aside-divider" />
 
             <div className="wpv2-aside-total">
               <span className="wpv2-aside-total-lbl">{isEl ? 'Σύνολο' : 'Total'}</span>
-              <span className="wpv2-aside-total-val">{fmtEur(total)}</span>
+              <span className="wpv2-aside-total-val">{fmtEur(grandTotal)}</span>
             </div>
 
             {/* WEC-551 O9 — removed the "Πληρώνεις €X … δηλαδή €Z δώρο"

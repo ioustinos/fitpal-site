@@ -19,6 +19,9 @@ export interface SubAdminNotifyProps {
   walletPlanId: string
   /** 'pending' (cash/transfer at purchase) or 'paid' (card/link on verify). */
   paymentStatus?: string
+  /** WEC-703: voucher applied to the subscription purchase (null when none). */
+  voucherCode?: string | null
+  voucherDiscount?: number
 }
 
 export async function notifySubscriptionAdmins(
@@ -67,6 +70,8 @@ export async function notifySubscriptionAdmins(
           goal_label: p.goalLabel,
           meals_label: p.mealsLabel,
           amount_paid: p.amountPaid,
+          voucher_code: p.voucherCode ?? null,
+          voucher_discount: p.voucherDiscount ?? 0,
           payment_status: p.paymentStatus ?? 'pending',
           walletPlanId: p.walletPlanId,
         },

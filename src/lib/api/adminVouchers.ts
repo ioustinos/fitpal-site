@@ -26,6 +26,10 @@ export interface AdminVoucher {
   createdAt: string
   /** WEC-262: empty array = applies to all categories. Non-empty = scoped. */
   applicableCategoryIds: string[]
+  /** WEC-703: which product this code redeems against — food orders OR
+   *  subscription purchases, never both. Defaults 'orders' for every pre-703
+   *  code. Category scoping is meaningless (and forced empty) for subscriptions. */
+  appliesTo: 'orders' | 'subscriptions'
 }
 
 export interface AdminVoucherUseRow {
@@ -35,6 +39,10 @@ export interface AdminVoucherUseRow {
   userEmail: string | null
   orderId: string | null
   orderNumber: string | null
+  /** WEC-703: set when the code was redeemed against a subscription purchase
+   *  instead of a food order. `planRef` is a short human label (WP-XXXXXXXX). */
+  walletPlanId: string | null
+  planRef: string | null
   amount: number             // cents
   usedAt: string
 }
@@ -58,13 +66,14 @@ function rowToVoucher(r: Record<string, unknown>): AdminVoucher {
     applicableCategoryIds: Array.isArray(r.applicable_category_ids)
       ? (r.applicable_category_ids as string[])
       : [],
+    appliesTo: (r.applies_to as 'orders' | 'subscriptions' | null) === 'subscriptions' ? 'subscriptions' : 'orders',
   }
 }
 
 export async function fetchAdminVouchers(): Promise<{ data: AdminVoucher[]; error: string | null }> {
   const { data, error } = await supabase
     .from('vouchers')
-    .select('id, code, user_id, type, value, remaining, min_order, max_uses, uses_count, per_user_limit, registered_only, expires_at, active, created_at, applicable_category_ids')
+    .select('id, code, user_id, type, value, remaining, min_order, max_uses, uses_count, per_user_limit, registered_only, expires_at, active, created_at, applicable_category_ids, applies_to')
     .order('created_at', { ascending: false })
 
   if (error) return { data: [], error: error.message }
@@ -85,6 +94,8 @@ export interface VoucherDraft {
   active?: boolean
   /** WEC-262: empty array = applies to all categories. */
   applicableCategoryIds?: string[]
+  /** WEC-703: 'orders' (default) or 'subscriptions'. */
+  appliesTo?: 'orders' | 'subscriptions'
 }
 
 export async function createVoucher(d: VoucherDraft): Promise<{ data: AdminVoucher | null; error: string | null }> {
@@ -104,13 +115,14 @@ export async function createVoucher(d: VoucherDraft): Promise<{ data: AdminVouch
     registered_only: d.registeredOnly ?? false,
     expires_at: d.expiresAt ?? null,
     active: d.active ?? true,
-    applicable_category_ids: d.applicableCategoryIds ?? [],
+    applicable_category_ids: d.appliesTo === 'subscriptions' ? [] : (d.applicableCategoryIds ?? []),
+    applies_to: d.appliesTo ?? 'orders',
   }
 
   const { data, error } = await supabase
     .from('vouchers')
     .insert(payload)
-    .select('id, code, user_id, type, value, remaining, min_order, max_uses, uses_count, per_user_limit, registered_only, expires_at, active, created_at, applicable_category_ids')
+    .select('id, code, user_id, type, value, remaining, min_order, max_uses, uses_count, per_user_limit, registered_only, expires_at, active, created_at, applicable_category_ids, applies_to')
     .single()
 
   if (error) return { data: null, error: error.message }
@@ -130,7 +142,11 @@ export async function saveVoucher(id: string, patch: Partial<VoucherDraft>): Pro
   if (patch.registeredOnly !== undefined) payload.registered_only = patch.registeredOnly
   if (patch.expiresAt !== undefined) payload.expires_at = patch.expiresAt
   if (patch.active !== undefined) payload.active = patch.active
-  if (patch.applicableCategoryIds !== undefined) payload.applicable_category_ids = patch.applicableCategoryIds
+  if (patch.appliesTo !== undefined) payload.applies_to = patch.appliesTo
+  // WEC-703: subscription vouchers can't be category-scoped — force empty.
+  if (patch.applicableCategoryIds !== undefined) {
+    payload.applicable_category_ids = patch.appliesTo === 'subscriptions' ? [] : patch.applicableCategoryIds
+  }
 
   const { error } = await supabase.from('vouchers').update(payload).eq('id', id)
   return { error: error?.message ?? null }
@@ -148,7 +164,7 @@ export async function fetchVoucherUses(voucherId: string): Promise<{ data: Admin
   // the full RLS-protected user table client-side.
   const { data, error } = await supabase
     .from('voucher_uses')
-    .select('id, voucher_id, user_id, order_id, amount, used_at')
+    .select('id, voucher_id, user_id, order_id, wallet_plan_id, amount, used_at')
     .eq('voucher_id', voucherId)
     .order('used_at', { ascending: false })
 
@@ -156,7 +172,7 @@ export async function fetchVoucherUses(voucherId: string): Promise<{ data: Admin
 
   const rows = (data ?? []) as Array<{
     id: string; voucher_id: string; user_id: string | null;
-    order_id: string | null; amount: number; used_at: string;
+    order_id: string | null; wallet_plan_id: string | null; amount: number; used_at: string;
   }>
 
   // Resolve order numbers in one query.
@@ -189,6 +205,9 @@ export async function fetchVoucherUses(voucherId: string): Promise<{ data: Admin
       userEmail: r.user_id ? (emails.get(r.user_id) ?? null) : null,
       orderId: r.order_id,
       orderNumber: r.order_id ? (orderNumbers.get(r.order_id) ?? null) : null,
+      // WEC-703: subscription redemptions carry wallet_plan_id, not order_id.
+      walletPlanId: r.wallet_plan_id,
+      planRef: r.wallet_plan_id ? `WP-${r.wallet_plan_id.slice(0, 8).toUpperCase()}` : null,
       amount: r.amount,
       usedAt: r.used_at,
     })),

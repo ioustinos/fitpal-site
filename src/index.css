@@ -3193,11 +3193,20 @@ a.btn-conf-done { display: inline-block; text-decoration: none; }
 .wpv2-aside-row-val { color: var(--fp-ink-900); font-weight: 700; white-space: nowrap; }
 .wpv2-aside-row.discount .wpv2-aside-row-val { color: var(--fp-green-700); }
 .wpv2-aside-divider { height: 1px; background: var(--fp-ink-100); margin: 4px 0; }
-.wpv2-aside-voucher { display: flex; gap: 8px; }
-.wpv2-aside-voucher input { flex: 1; padding: 9px 12px; border: 1.5px solid var(--fp-ink-200); border-radius: var(--fp-radius-sm); font-size: 13px; font-weight: 600; color: var(--fp-ink-900); background: var(--fp-paper); font-family: inherit; }
-.wpv2-aside-voucher input:focus { outline: none; border-color: var(--fp-green-600); }
-.wpv2-aside-voucher button { padding: 9px 14px; background: var(--fp-cream-300); color: var(--fp-ink-900); border: 1.5px solid var(--fp-ink-200); border-radius: var(--fp-radius-sm); font-size: 13px; font-weight: 700; cursor: pointer; font-family: inherit; transition: all 0.15s; }
-.wpv2-aside-voucher button:hover { background: var(--fp-cream-500); }
+/* WEC-703: subscription voucher entry (column: input row / applied chip + errors). */
+.wpv2-aside-voucher { display: flex; flex-direction: column; gap: 6px; }
+.wpv2-voucher-entry { display: flex; gap: 8px; }
+.wpv2-voucher-input { flex: 1; min-width: 0; padding: 9px 12px; border: 1.5px solid var(--fp-ink-200); border-radius: var(--fp-radius-sm); font-size: 13px; font-weight: 600; color: var(--fp-ink-900); background: var(--fp-paper); font-family: inherit; letter-spacing: 0.5px; text-transform: uppercase; }
+.wpv2-voucher-input:focus { outline: none; border-color: var(--fp-green-600); }
+.wpv2-voucher-apply { padding: 9px 14px; background: var(--fp-cream-300); color: var(--fp-ink-900); border: 1.5px solid var(--fp-ink-200); border-radius: var(--fp-radius-sm); font-size: 13px; font-weight: 700; cursor: pointer; font-family: inherit; transition: all 0.15s; white-space: nowrap; }
+.wpv2-voucher-apply:hover:not(:disabled) { background: var(--fp-cream-500); }
+.wpv2-voucher-apply:disabled { opacity: 0.5; cursor: not-allowed; }
+.wpv2-voucher-applied { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 8px 12px; background: var(--fp-green-50); border: 1.5px solid var(--fp-green-100); border-radius: var(--fp-radius-sm); }
+.wpv2-voucher-chip { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 800; color: var(--fp-green-900); letter-spacing: 0.5px; }
+.wpv2-voucher-chip svg { color: var(--fp-green-700); }
+.wpv2-voucher-remove { background: none; border: none; color: var(--fp-ink-500); font-size: 12px; font-weight: 700; cursor: pointer; font-family: inherit; text-decoration: underline; padding: 2px 4px; }
+.wpv2-voucher-remove:hover { color: var(--fp-ink-900); }
+.wpv2-voucher-err { font-size: 11px; color: var(--fp-red-600, #c0392b); font-weight: 600; line-height: 1.4; }
 .wpv2-aside-total { display: flex; justify-content: space-between; align-items: baseline; padding-top: 4px; }
 .wpv2-aside-total-lbl { font-size: 16px; font-weight: 800; color: var(--fp-ink-900); }
 .wpv2-aside-total-val { font-size: 26px; font-weight: 800; color: var(--fp-ink-900); letter-spacing: -0.5px; }

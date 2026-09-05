@@ -333,6 +333,8 @@ def build_05():
         + '{% if event.meals_per_week %}' + row("Ημέρες ανά εβδομάδα", "{{ event.meals_per_week }}") + '{% endif %}'
         + '{% if event.goal_label %}' + row("Στόχος", "{{ event.goal_label }}") + '{% endif %}'
         + '{% if event.daily_kcal %}' + row("Θερμίδες ανά ημέρα", "{{ event.daily_kcal }} kcal") + '{% endif %}'
+        # WEC-703: voucher applied to the subscription — code + € off the charge.
+        + '{% if event.voucher_code %}' + row("Κουπόνι {{ event.voucher_code }}", "&minus;{{ event.voucher_discount|floatformat:2 }} &euro;", colour=ACCENT) + '{% endif %}'
         + '{% if event.bonus_credits %}' + row("Bonus", "+{{ event.bonus_credits|floatformat:2 }} &euro;", colour=ACCENT) + '{% endif %}'
         + '{% if event.new_balance %}' + row("Υπόλοιπο Wallet", "{{ event.new_balance|floatformat:2 }} &euro;", bold=True) + '{% endif %}'
         + '{% if event.dietician_managed %}' + row("Υπηρεσίες", "Διαχείριση από διατροφολόγο") + '{% endif %}'
@@ -440,6 +442,8 @@ TR = [
     ("Ημέρες ανά εβδομάδα", "Days per week"),
     ("Στόχος", "Goal"),
     ("Θερμίδες ανά ημέρα", "Calories per day"),
+    # WEC-703: voucher label (the {{ event.voucher_code }} token is preserved).
+    ("Κουπόνι {{ event.voucher_code }}", "Voucher {{ event.voucher_code }}"),
     ("Υπόλοιπο Wallet", "Wallet balance"),
     ("Υπηρεσίες", "Services"),
     ("Διαχείριση από διατροφολόγο", "Dietitian-managed plan"),

@@ -288,6 +288,13 @@ export function SubscriptionSuccess() {
           <SubKV k={el ? 'Ημέρες / εβδομάδα' : 'Days per week'} v={d.daysPerWeek != null ? String(d.daysPerWeek) : '—'} />
           <SubKV k={el ? 'Γεύματα' : 'Meals'} v={mealsLabel(d, el)} />
           {d.dailyKcal != null && <SubKV k={el ? 'Ημερήσιες θερμίδες' : 'Daily calories'} v={`${d.dailyKcal} kcal`} />}
+          {/* WEC-703: show the applied voucher + € off, when one was used. */}
+          {d.voucherCode && d.voucherDiscount > 0 && (
+            <SubKV
+              k={el ? 'Κουπόνι' : 'Voucher'}
+              v={`${d.voucherCode} · −${d.voucherDiscount.toFixed(2)} €`}
+            />
+          )}
           <SubKV k={el ? 'Ποσό πληρωμής' : 'Amount to pay'} v={`${d.amountPaid.toFixed(2)} €`} />
           <SubKV k={el ? 'Πίστωση Wallet' : 'Wallet credit'} v={`${d.walletCredit.toFixed(2)} €`} />
           {d.bonusCredits > 0 && <SubKV k={el ? 'Δώρο (bonus)' : 'Bonus credit'} v={`${d.bonusCredits.toFixed(2)} €`} />}

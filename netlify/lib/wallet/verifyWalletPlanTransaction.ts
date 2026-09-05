@@ -100,7 +100,7 @@ export async function verifyWalletPlanTransaction(
 
   const { data: plan } = await supabase
     .from('wallet_plans')
-    .select('id, wallet_id, amount_to_pay_cents, bonus_credits_cents, wallet_credit_cents, plan_length, days_per_week, goal, daily_kcal, meal_breakfast, meal_lunch, meal_dinner, meal_snack, services, payment_status, viva_order_code, invoice_type, invoice_name, invoice_vat')
+    .select('id, wallet_id, amount_to_pay_cents, bonus_credits_cents, wallet_credit_cents, plan_length, days_per_week, goal, daily_kcal, meal_breakfast, meal_lunch, meal_dinner, meal_snack, services, payment_status, viva_order_code, invoice_type, invoice_name, invoice_vat, voucher_id, voucher_amount_cents')
     .eq('id', walletPlanId)
     .maybeSingle()
 
@@ -255,6 +255,8 @@ async function fireSubscriptionPurchasedKlaviyo(
     invoice_type?: string | null
     invoice_name?: string | null
     invoice_vat?: string | null
+    voucher_id?: string | null
+    voucher_amount_cents?: number | null
   },
   amountCents: number,
 ): Promise<void> {
@@ -300,6 +302,20 @@ async function fireSubscriptionPurchasedKlaviyo(
     const goalLabel = plan.goal ? (goalMap[plan.goal] ?? plan.goal) : null
     const dieticianManaged = !!plan.services?.dieticianManaged
 
+    // WEC-703: resolve the applied voucher (code + € off) so the paid
+    // confirmation email + admin copy show the discount, matching the
+    // transfer/cash path. null / 0 when no voucher was used.
+    const voucherDiscount = (plan.voucher_amount_cents ?? 0) / 100
+    let voucherCode: string | null = null
+    if (plan.voucher_id) {
+      const { data: vRow } = await supabase
+        .from('vouchers')
+        .select('code')
+        .eq('id', plan.voucher_id)
+        .maybeSingle()
+      voucherCode = (vRow as { code?: string } | null)?.code ?? null
+    }
+
     // 2026-06-26: templates XxNNci (EL) / XbgLEd (EN) use snake_case
     // (event.first_name, event.plan_length_label, event.meals_per_week,
     // event.amount_paid, event.bonus_credits, event.new_balance,
@@ -320,6 +336,9 @@ async function fireSubscriptionPurchasedKlaviyo(
       amount_paid: amountCents / 100,
       bonus_credits: (plan.bonus_credits_cents ?? 0) / 100,
       new_balance: newBalanceCents != null ? newBalanceCents / 100 : null,
+      // WEC-703: voucher code + € off, so the paid email can show the discount.
+      voucher_code: voucherCode,
+      voucher_discount: voucherDiscount,
       payment_status: 'paid',
       // WEC-693: echo the receipt vs invoice choice + ΑΦΜ in the confirmation.
       invoice_type: plan.invoice_type ?? 'receipt',
@@ -361,6 +380,7 @@ async function fireSubscriptionPurchasedKlaviyo(
       amountPaid: amountCents / 100,
       walletPlanId: plan.id,
       paymentStatus: 'paid',
+      voucherCode, voucherDiscount, // WEC-703
     })
   } catch (e) {
     console.warn('[verifyWalletPlanTransaction] Subscription Purchased Klaviyo failed (non-fatal):', e)

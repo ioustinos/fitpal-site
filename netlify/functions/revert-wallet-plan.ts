@@ -81,5 +81,15 @@ export default async (request: Request): Promise<Response> => {
   if (upErr) return Response.json({ error: upErr.message }, { status: 500, headers: cors })
   const failed = (upd?.length ?? 0) > 0
 
+  // WEC-703: the voucher (if any) was redeemed at plan-creation, BEFORE the Viva
+  // redirect — so an abandoned card/link attempt would leak the redemption
+  // (uses_count stuck up, a per-user-limit code un-retryable, credit not
+  // restored). Release it now that the plan is `failed`. No-op when there was no
+  // voucher. Fail-soft — the revert itself already succeeded.
+  if (failed) {
+    const { error: unredeemErr } = await svc.rpc('unredeem_voucher_for_plan', { p_wallet_plan_id: planId })
+    if (unredeemErr) console.warn('[revert-wallet-plan] voucher un-redeem failed planId=%s:', planId, unredeemErr)
+  }
+
   return Response.json({ failed }, { status: 200, headers: cors })
 }
