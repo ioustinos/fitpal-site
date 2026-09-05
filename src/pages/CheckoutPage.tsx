@@ -3,6 +3,8 @@ import { useUIStore } from '../store/useUIStore'
 import { useCartStore } from '../store/useCartStore'
 import { useAuthStore } from '../store/useAuthStore'
 import { AddressSection } from '../components/checkout/AddressSection'
+import { LockedAddressCard } from '../components/checkout/LockedAddressCard'
+import { useStorefront } from '../lib/storefront/StoreProvider'
 import { TimeSlotPicker } from '../components/checkout/TimeSlotPicker'
 import { PaymentSection } from '../components/checkout/PaymentSection'
 import { ExtrasSection } from '../components/checkout/ExtrasSection'
@@ -110,6 +112,9 @@ function localizeDayIssue(label: string, issue: DayIssue, lang: 'el' | 'en'): st
 
 export function CheckoutPage() {
   const lang = useUIStore((s) => s.lang)
+  // WEC-712: the storefront this checkout belongs to. On retail this is the
+  // main store with no locked address, so everything below behaves as before.
+  const storefront = useStorefront()
   const t = makeTr(lang)
   const closeCheckout = useUIStore((s) => s.closeCheckout)
   const cart = useCartStore((s) => s.cart)
@@ -1059,7 +1064,13 @@ export function CheckoutPage() {
                         </span>
                         {t('coAddressUpper')}
                       </div>
-                      <AddressSection dayDate={dDate} />
+                      {/* WEC-712: a company/reseller store delivers to ONE
+                          fixed address — render it read-only instead of the
+                          full picker. The server discards any client-supplied
+                          address on such a store regardless. */}
+                      {storefront.address
+                        ? <LockedAddressCard dayDate={dDate} />
+                        : <AddressSection dayDate={dDate} />}
                     </div>
                   )}
                 </div>

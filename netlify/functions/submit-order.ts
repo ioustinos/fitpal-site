@@ -72,6 +72,16 @@ interface OrderPayload {
   // instead of inserting a fresh row. Side effects (voucher_uses, payment_links,
   // Viva, Klaviyo) run on the promote path, NOT on draft creation.
   draftId?: string
+  /**
+   * WEC-712: which storefront this order was placed on (`stores.slug`).
+   * Absent → the main retail store, i.e. every order that exists today.
+   *
+   * The client sends a SLUG, never a store id, and the server resolves it.
+   * Sending someone else's slug is not an escalation: you get that store's
+   * rules — its locked address, its minimum, its payment methods — which is
+   * strictly more constrained, never less.
+   */
+  storeSlug?: string
 }
 
 interface DayPayload {
@@ -512,7 +522,25 @@ export default async (request: Request) => {
     const allDishIds = [...new Set(body.days.flatMap((d) => d.items.map((it) => it.dishId)))]
     const allDates = [...new Set(body.days.map((d) => d.deliveryDate))]
 
-    const [variantsRes, dishesRes, menuDaysRes, zonesRes, settingsRes] = await Promise.all([
+    // WEC-712: resolve the storefront this order belongs to. A slug that is
+    // absent or malformed resolves to the default (main) store, so every
+    // existing client keeps behaving exactly as it does today.
+    const STORE_COLS =
+      'id, slug, type, active, is_default, address_street, address_area, address_zip, address_floor, address_doorbell, address_notes'
+    const rawStoreSlug = (body.storeSlug ?? '').trim().toLowerCase()
+    const storeSlug = /^[a-z0-9][a-z0-9-]{1,40}$/.test(rawStoreSlug) ? rawStoreSlug : ''
+
+    const storeQuery = storeSlug
+      ? supabase.from('stores').select(STORE_COLS).eq('slug', storeSlug).maybeSingle()
+      : supabase.from('stores').select(STORE_COLS).eq('is_default', true).maybeSingle()
+
+    // Per-store settings overlay, fetched by slug through the FK so there is
+    // no waterfall on the write path.
+    const storeSettingsQuery = storeSlug
+      ? supabase.from('store_settings').select('key, value, stores!inner(slug)').eq('stores.slug', storeSlug)
+      : supabase.from('store_settings').select('key, value, stores!inner(is_default)').eq('stores.is_default', true)
+
+    const [variantsRes, dishesRes, menuDaysRes, zonesRes, settingsRes, storeRes, storeSettingsRes] = await Promise.all([
       // Variant prices + macros
       supabase
         .from('dish_variants')
@@ -546,7 +574,10 @@ export default async (request: Request) => {
       supabase
         .from('settings')
         .select('key, value')
-        .in('key', ['cutoff_hour', 'cutoff_weekday_overrides', 'cutoff_date_overrides', 'min_order', 'payment_methods_enabled', 'bank_transfer_info', 'pickup_locations']),
+        .in('key', ['cutoff_hour', 'cutoff_weekday_overrides', 'cutoff_date_overrides', 'min_order', 'payment_methods_enabled', 'bank_transfer_info', 'pickup_locations', 'time_slots']),
+
+      storeQuery,
+      storeSettingsQuery,
     ])
 
     if (variantsRes.error) return Response.json({ error: 'Failed to look up item prices' }, { status: 500 })
@@ -555,9 +586,67 @@ export default async (request: Request) => {
     if (zonesRes.error) return Response.json({ error: 'Failed to look up delivery zones' }, { status: 500 })
     // settings lookup failure is non-fatal — fall back to defaults
 
-    const cutoffCfg = parseCutoffSettings(
-      settingsRes.error ? null : (settingsRes.data as { key: string; value: unknown }[] | null),
-    )
+    // ── WEC-712: resolve the store, then overlay its settings ────────────
+    //
+    // An unknown or inactive slug is REFUSED rather than quietly falling back
+    // to retail: a customer on a company URL must never be silently served
+    // retail rules (retail prices, retail minimum, their own address).
+    const storeRow = (storeRes.error ? null : storeRes.data) as {
+      id: string; slug: string; type: string; active: boolean; is_default: boolean
+      address_street: string | null; address_area: string | null; address_zip: string | null
+      address_floor: string | null; address_doorbell: string | null; address_notes: string | null
+    } | null
+
+    if (storeSlug && !storeRow) {
+      return Response.json(
+        { error: `Unknown store "${storeSlug}"`, validationErrors: { general: [`Unknown store "${storeSlug}"`] } },
+        { status: 400 },
+      )
+    }
+    if (storeRow && storeRow.active === false) {
+      return Response.json(
+        { error: 'This store is not currently accepting orders', validationErrors: { general: ['This store is not currently accepting orders'] } },
+        { status: 400 },
+      )
+    }
+
+    const storeId: string | null = storeRow?.id ?? null
+    const isMainStore = !storeRow || storeRow.is_default === true || storeRow.type === 'main'
+
+    /**
+     * The ONE locked delivery address (WEC-709 keeps it as columns on
+     * `stores`). Present only on a non-main store that has one configured.
+     * When set, the customer's posted address is IGNORED — a hostile client
+     * cannot redirect a corporate order to its own doorstep.
+     */
+    const lockedAddress = !isMainStore && storeRow && (storeRow.address_street || storeRow.address_zip)
+      ? {
+          address_street: storeRow.address_street ?? '',
+          address_area: storeRow.address_area ?? '',
+          address_zip: storeRow.address_zip ?? null,
+          address_floor: storeRow.address_floor ?? null,
+          address_doorbell: storeRow.address_doorbell ?? null,
+          address_notes: storeRow.address_notes ?? null,
+        }
+      : null
+
+    // Store settings win per key; the global `settings` row is the fallback,
+    // so a company that has not overridden its cutoff inherits the platform
+    // default rather than getting a null. Same precedence as the client
+    // (WEC-711), deliberately — the two must not be able to disagree.
+    const globalSettingRows = (settingsRes.error ? [] : (settingsRes.data ?? [])) as { key: string; value: unknown }[]
+    const storeSettingRows = (storeSettingsRes?.error ? [] : (storeSettingsRes?.data ?? [])) as { key: string; value: unknown }[]
+    const settingsByKey = new Map<string, unknown>(globalSettingRows.map((r) => [r.key, r.value]))
+    /** Keys this store overrides itself — used to know when to enforce a fixed window. */
+    const storeOwnKeys = new Set<string>()
+    for (const r of storeSettingRows) {
+      if (isMainStore) break // main's store_settings are a copy of the globals; skip the churn
+      settingsByKey.set(r.key, r.value)
+      storeOwnKeys.add(r.key)
+    }
+    const effectiveSettingRows = [...settingsByKey].map(([key, value]) => ({ key, value }))
+
+    const cutoffCfg = parseCutoffSettings(effectiveSettingRows)
 
     // ── WEC-177 + WEC-255: server-side enabled-methods guard ────────────
     // Client UI already filters by this, but never trust it. Accepts both
@@ -565,7 +654,9 @@ export default async (request: Request) => {
     // For the server check we accept any method where public OR admin is
     // true — admin-impersonation context is a UI distinction; server can't
     // reliably tell since session-swap impersonation uses the customer JWT.
-    const methodsRow = (settingsRes.data ?? [] as { key: string; value: unknown }[])
+    // WEC-712: reads the STORE-EFFECTIVE value, so a method disabled for this
+    // company is refused server-side even if the request forces it.
+    const methodsRow = effectiveSettingRows
       .find((r: { key: string }) => r.key === 'payment_methods_enabled')
     if (methodsRow) {
       let allowed: Set<string> | null = null
@@ -617,7 +708,7 @@ export default async (request: Request) => {
     // emails, Airtable, kitchen) see a non-empty address instead of NULLs.
     // The fulfillment_type column still distinguishes pickup from delivery
     // — this just makes the row legible to anything that only reads address.
-    const rawPickupLocs = (settingsRes.data ?? []).find((r: { key: string }) => r.key === 'pickup_locations')?.value
+    const rawPickupLocs = effectiveSettingRows.find((r: { key: string }) => r.key === 'pickup_locations')?.value
     const pickupLocsList: Array<{ id?: string; name_el?: string; name_en?: string; address?: string }> =
       Array.isArray(rawPickupLocs) ? rawPickupLocs : []
     const pickupLocById = new Map(pickupLocsList.filter((l) => typeof l.id === 'string').map((l) => [l.id!, l]))
@@ -630,6 +721,12 @@ export default async (request: Request) => {
      */
     function resolveAddressFields(day: OrderPayload['days'][number]) {
       const isPickup = day.fulfillmentType === 'pickup'
+      // WEC-712: on a store with ONE locked delivery address, the customer's
+      // posted address is discarded outright. This is the security-relevant
+      // line of the ticket: a forged address in the payload must not be
+      // honoured, so the override happens here, at the only place that
+      // decides what actually gets written to child_orders.
+      if (lockedAddress && !isPickup) return { ...lockedAddress }
       if (isPickup) {
         const loc = day.pickupLocationId ? pickupLocById.get(day.pickupLocationId) : null
         return {
@@ -723,6 +820,11 @@ export default async (request: Request) => {
       let matchedZone: any = null
       if (isPickup) {
         // No-op for pickup; no address fields validated.
+      } else if (lockedAddress) {
+        // WEC-712: a store's locked address is in-zone BY DEFINITION. Corporate
+        // premises legitimately sit outside the retail delivery zones — that is
+        // the deal, not an error. Running the retail postcode rules against it
+        // would reject every order the company ever places.
       } else if (!zip) {
         addError(errors, k, 'Postcode is required to determine delivery zone')
       } else {
@@ -756,6 +858,39 @@ export default async (request: Request) => {
         }
       }
 
+      // 3e. WEC-712: a company store has ONE fixed delivery window. When the
+      // store defines its own `time_slots`, the requested window must be one
+      // of them — enforced here rather than only in the UI, and enforced by
+      // rejection rather than by silently rewriting what the customer chose.
+      // A customer's saved day-preferences therefore cannot win over the
+      // store's window: the server simply will not accept anything else.
+      if (!isMainStore && storeOwnKeys.has('time_slots') && day.timeFrom && day.timeTo) {
+        const raw = settingsByKey.get('time_slots')
+        const list = Array.isArray(raw) ? (raw as unknown[]) : []
+        const norm = (t: string) => {
+          const p = String(t).split(':')
+          return `${(p[0] ?? '').padStart(2, '0')}:${(p[1] ?? '00').padStart(2, '0')}`
+        }
+        const want = `${norm(day.timeFrom)}-${norm(day.timeTo)}`
+        const allowed = list.map((s) => {
+          if (typeof s === 'string') {
+            // "09:00-11:00" or "09:00–11:00" (en dash)
+            const [a, b] = s.split(/[-–]/)
+            return a && b ? `${norm(a.trim())}-${norm(b.trim())}` : ''
+          }
+          if (s && typeof s === 'object') {
+            const o = s as { from?: string; to?: string; time_from?: string; time_to?: string }
+            const a = o.from ?? o.time_from
+            const b = o.to ?? o.time_to
+            return a && b ? `${norm(a)}-${norm(b)}` : ''
+          }
+          return ''
+        }).filter(Boolean)
+        if (allowed.length > 0 && !allowed.includes(want)) {
+          addError(errors, k, `Delivery window ${day.timeFrom}–${day.timeTo} is not offered by this store`)
+        }
+      }
+
       dayTotals.push(dayTotal)
       orderSubtotal += dayTotal
     }
@@ -781,6 +916,20 @@ export default async (request: Request) => {
 
       if (vcErr || !voucher) {
         return Response.json({ error: `Invalid voucher code: ${vCode}`, validationErrors: { voucher: ['Invalid voucher code'] } }, { status: 400 })
+      }
+
+      // WEC-712: vouchers are scoped to one storefront. Every existing voucher
+      // was backfilled to the main store (WEC-709), so a single equality check
+      // covers both directions the epic asks for: a retail code is refused on
+      // a company store, and a company's code is refused on retail.
+      // A voucher with no store (should not exist post-backfill) stays global
+      // rather than becoming unusable.
+      const voucherStoreId = (voucher as { store_id?: string | null }).store_id ?? null
+      if (voucherStoreId && storeId && voucherStoreId !== storeId) {
+        return Response.json(
+          { error: 'This code is not valid on this store', validationErrors: { voucher: ['This code is not valid on this store'] } },
+          { status: 400 },
+        )
       }
 
       // Validate voucher
@@ -911,6 +1060,11 @@ export default async (request: Request) => {
       notes: body.notes ?? null,
       admin_order_id: adminUserId,
       admin_notes: null,
+      // WEC-712: which storefront this order was placed on. Resolved
+      // server-side from the slug — never taken as an id from the client.
+      // On the promote-from-draft path this flows through the RPC's
+      // p_order_patch (migration wec712_promote_draft_atomic_store_columns).
+      store_id: storeId,
       updated_at: new Date().toISOString(),
     }
 

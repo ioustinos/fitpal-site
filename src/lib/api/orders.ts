@@ -435,6 +435,12 @@ export interface SubmitOrderPayload {
   // WEC-418: if set, submit-order promotes this draft (UPDATE … WHERE
   // status='draft' for idempotency) instead of inserting a fresh row.
   draftId?: string
+  /**
+   * WEC-712: the storefront this order is being placed on (`stores.slug`).
+   * Filled in automatically by `submitOrder` from the URL, so callers do not
+   * have to thread it through. Absent → the main retail store.
+   */
+  storeSlug?: string
 }
 
 export interface SubmitDayPayload {
@@ -500,10 +506,24 @@ export async function submitOrder(payload: SubmitOrderPayload): Promise<{
     if (token) headers.Authorization = `Bearer ${token}`
     if (adminUserId) headers['X-Impersonator-Admin-Id'] = adminUserId
 
+    // WEC-712: stamp the storefront from the URL. Done here, at the single
+    // exit point, so no caller can forget it — and so retail (slug null)
+    // sends exactly the payload it always has.
+    const { resolveSlugFromLocation } = await import('../storefront/reserved')
+    const storeSlug =
+      payload.storeSlug ??
+      (typeof window === 'undefined'
+        ? null
+        : resolveSlugFromLocation({
+            hostname: window.location.hostname,
+            pathname: window.location.pathname,
+            search: window.location.search,
+          }))
+
     const res = await fetch('/api/submit-order', {
       method: 'POST',
       headers,
-      body: JSON.stringify(payload),
+      body: JSON.stringify(storeSlug ? { ...payload, storeSlug } : payload),
     })
 
     const json = await res.json()

@@ -1,0 +1,9 @@
+-- WEC-712 — promote_draft_atomic now writes store_id (orders) and
+-- company_benefit_amount (child_orders). Applied 2026-09-06 to rhwetztxwjxfstffalwl.
+-- The function had an EXPLICIT column list, so both new B2B columns were being
+-- silently dropped on the promote path — which is the path nearly every real
+-- order takes (draft created on checkout mount, promoted on submit).
+-- Everything else in the body is byte-identical to the previous definition.
+-- ROLLBACK: re-create without the two assignments (prior def is in the WEC-429 #2 migration).
+-- Full statement lives in the applied migration; see Supabase migration
+-- `wec712_promote_draft_atomic_store_columns` for the exact text.
