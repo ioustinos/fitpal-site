@@ -36,15 +36,15 @@ Read them properly in doc 15; this is orientation only.
 
 ⚠️ **WEC-463 «Epic: B2B Native Sub-Stores ("Y")» is CLOSED as a duplicate.** It was the earlier, more complicated approach — it assumed an inherit-and-override menu model with a resolver and a propagation job, which decision **D1** designs away. Ioustinos: *"the 463 was a more complicated approach."* Its children have all been moved under WEC-649. **Do not work from WEC-463 or from the docs it was built on.**
 
-### 🔴 Phase 0 is a blocker, and it is not B2B work
+### ✅ The old «Phase 0» money-code blocker is CLEARED — nothing gates this epic
 
-WEC-649 states it plainly: **fix the money code before building the Company Benefit.**
+Until 2026-09-05 this epic carried a blocking Phase 0: three money bugs that the Company Benefit (a second always-on discount) would have been stacked on top of. **They are all fixed and on `main`.** Verified 2026-09-05 in code and against the live DB, not from ticket state:
 
-- **WEC-605** — percentage voucher discount frozen at order-time value when an admin edits the order
-- **WEC-608** — refund tab computes "total paid" from `orders.total` rather than what was actually paid
-- **WEC-606** — no reliable "paid so far" on the order timeline
+- **WEC-605** «percentage voucher discount frozen at order-time value when an admin edits the order» → `recomputeOrderTotals` now goes through the `recompute_order_money` RPC (`adminOrders.ts:945`).
+- **WEC-606** «no reliable "paid so far" on the order timeline» → `order_payment_summary` RPC + `payment_links.amount` + `orders.manual_paid_amount` (migration `wec606_payments_ledger_foundation.sql`).
+- **WEC-608** «refund tab computes "total paid" from `orders.total`» → `refund.ts:72-78` takes its ceiling from the ledger. Maria's evidence order FP-260807-00003 now reads `paid 19.40 · refunded 5.50 · refundable 13.90`.
 
-The Company Benefit stacks a **second always-on discount** on top of this machinery. Building it first means debugging two problems at once, with real money. **Check the current state of those three before starting anything in Phase 2+.**
+**Do not re-raise these as blockers.** They sit In Review awaiting a tester pass, which is a QA formality, not a dependency. The one thing worth carrying forward: **the Company Benefit reversal on refund must read from `order_payment_summary`**, not from `orders.total` — that is the mistake WEC-608 existed to fix, and it would be easy to repeat in new code.
 
 ### Children (all currently Backlog)
 
@@ -121,7 +121,7 @@ Before **any** action in Linear, Supabase, GitHub or Netlify: write out what you
 From doc 15, still true:
 
 1. **Cross-tenant leak — highest severity.** Every store-scoped query must go through **one helper that always applies `store_id`**. Never grant client-side admin access until strict RLS is done. A B2B customer seeing another company's orders is the failure that ends the product.
-2. **The Company Benefit lands on money code that is currently broken.** **WEC-605** (percentage voucher discounts frozen on admin edit), **WEC-608** (refunds computed from `orders.total` rather than what was actually paid) and **WEC-606** (no reliable "paid so far") must be fixed **before** a second always-on discount is stacked on top. Check their state before starting Y5.
+2. **The Company Benefit must read money from the ledger, not from `orders.total`.** `orders.total` is a *moving* number — an admin edit changes it after payment. Use `order_payment_summary(order_id)` for anything that asks "how much was actually collected", and reverse a day's benefit accrual against that, never against the current total. This is not a blocker (the underlying bugs are fixed — see §3), it is the *lesson* those bugs taught, and new code repeats it easily.
 3. **Per-store hostnames break two integrations that hardcode URLs** — the Supabase Auth redirect allowlist, and Viva's success/failure return URLs (configured **per payment source in Viva's dashboard**, not in code). Silent failures if missed, and the cost multiplies per store.
 4. **Sequencing.** `store_id` retrofits touch live ordering tables while the retail site is running.
 
@@ -137,15 +137,14 @@ From doc 15, still true:
 
 ## 8. First actions — in this order
 
-1. **Read** the five documents in §1, and **WEC-649** in full (its description carries Phases 0–4, the ranked dangers and the sizing).
-2. **Reconcile the Y tickets** against WEC-649's Phase 0–4 — see §3. Propose the edits, get them approved, apply them. This is the first deliverable, before any code.
+1. **Read** the five documents in §1, and **WEC-649** in full (its description carries Phases 1–4, the ranked dangers and the sizing).
+2. **Reconcile the Y tickets** against WEC-649's Phases 1–4 — see §3. Propose the edits, get them approved, apply them. This is the first deliverable, before any code.
 3. **Report back**: your understanding of the build, anything in the docs that contradicts what you find in the code, and anything you think is wrong. **Do not start coding.**
 4. **Ask about the four items** doc 15 lists as *"still open (not blocking Phase 1)"*:
    - order numbering — keep the global `FP-YYMMDD-NNNNN` series with a Store column, or per-store prefixes (`ACM-…`)?
    - is the wallet **plan purchase** UI visible on company/reseller stores? (wallet *spending* works either way)
    - Airtable — add a Store field so B2B orders don't mix with retail in ops?
    - are Fitpal-branded transactional emails to corporate employees acceptable for V1?
-5. **Check the Phase 0 money tickets** (WEC-605 / WEC-606 / WEC-608) and report their real state — from code and the DB, not from their Linear status.
-6. Then propose the Y0 plan and wait for approval.
+5. Then propose the Y0 plan and wait for approval.
 
 ⚠️ **Do not touch the main retail store's behaviour** without flagging it. The site is live and in its launch window. Every change you make to a shared code path affects real customers ordering real food today.
