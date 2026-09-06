@@ -1084,7 +1084,7 @@ function GoalsHistory({ user, goals, lang, t }: { user: any; goals: any; lang: '
               const s = showGoalBars ? goalStatus(k, val, goals) : undefined
               const pct = showGoalBars ? goalPct(k, val, goals) : 0
               const label = lang === 'el'
-                ? { cal: 'Θερμίδες', protein: 'Πρωτεΐνη', carbs: 'Υδατάνθρακες', fat: 'Λιπαρά' }[k]
+                ? { cal: 'Θερμίδες', protein: 'Πρωτεΐνη', carbs: 'Υδατάνθρακας', fat: 'Λιπαρά' }[k]
                 : { cal: 'Calories', protein: 'Protein',  carbs: 'Carbs',       fat: 'Fat'    }[k]
               const unit = k === 'cal' ? '' : 'g'
               const cls = k === 'cal' ? 'cal' : k === 'protein' ? 'protein' : k === 'carbs' ? 'carbs' : 'fat'

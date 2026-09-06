@@ -89,7 +89,7 @@ const T = {
     goalEnabled: 'Ενεργοποίηση παρακολούθησης στόχων',
     goalCalories: 'Θερμίδες',
     goalProtein: 'Πρωτεΐνη',
-    goalCarbs: 'Υδατάνθρακες',
+    goalCarbs: 'Υδατάνθρακας',
     goalFat: 'Λίπη',
     goalSaved: 'Στόχοι αποθηκεύτηκαν!',
     goalIntakeHistory: 'Ιστορικό',
