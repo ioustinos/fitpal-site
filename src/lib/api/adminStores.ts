@@ -388,3 +388,200 @@ export function storeReadiness(store: AdminStore): ReadinessItem[] {
     },
   ]
 }
+
+// ─── WEC-716: multi-target menu cloning ─────────────────────────────────────
+//
+// Store menus never inherit — Ioustinos: *"a tree of inherits and overides
+// (like gonnaOrder does) is dangerous."* The accepted cost is that weekly
+// effort scales with store count, and THIS is the agreed mitigation: one
+// deliberate action applied to several targets, writing independent copies.
+// Nothing propagates afterwards. There is no sync, no scheduled re-clone.
+
+export interface CloneSourceWeek {
+  id: string
+  name: string | null
+  fromDate: string
+  toDate: string
+  storeId: string | null
+  storeName: string
+  dayCount: number
+  dishCount: number
+}
+
+export interface ClonePlanTarget {
+  storeId: string
+  storeName: string
+  slug: string
+  /** An existing menu covering the same week — cloning would collide with it. */
+  existingMenuId: string | null
+  existingMenuName: string | null
+}
+
+export interface CloneResult {
+  storeId: string
+  storeName: string
+  status: 'created' | 'replaced' | 'skipped' | 'failed'
+  detail: string
+}
+
+/** Weeks that can be used as a clone source, newest first, with their size. */
+export async function fetchCloneSources(): Promise<{ data: CloneSourceWeek[] | null; error: string | null }> {
+  const { data: menus, error } = await supabase
+    .from('weekly_menus')
+    .select('id, name, from_date, to_date, store_id, active')
+    .eq('active', true)
+    .order('from_date', { ascending: false })
+    .limit(20)
+  if (error) return { data: null, error: error.message }
+
+  const rows = (menus ?? []) as Array<{ id: string; name: string | null; from_date: string; to_date: string; store_id: string | null }>
+  if (rows.length === 0) return { data: [], error: null }
+
+  const { data: stores } = await supabase.from('stores').select('id, name_el, is_default')
+  const storeById = new Map(((stores ?? []) as Array<{ id: string; name_el: string; is_default: boolean }>).map((s) => [s.id, s]))
+
+  const { data: assignments } = await supabase
+    .from('menu_day_dishes')
+    .select('menu_id, date, dish_id')
+    .in('menu_id', rows.map((r) => r.id))
+
+  const stats = new Map<string, { days: Set<string>; dishes: number }>()
+  for (const a of (assignments ?? []) as Array<{ menu_id: string; date: string }>) {
+    const st = stats.get(a.menu_id) ?? { days: new Set<string>(), dishes: 0 }
+    st.days.add(a.date); st.dishes += 1
+    stats.set(a.menu_id, st)
+  }
+
+  return {
+    data: rows.map((r) => {
+      const st = stats.get(r.id)
+      const store = r.store_id ? storeById.get(r.store_id) : null
+      return {
+        id: r.id, name: r.name, fromDate: r.from_date, toDate: r.to_date,
+        storeId: r.store_id,
+        storeName: store ? (store.is_default ? 'Fitpal (retail)' : store.name_el) : 'unassigned',
+        dayCount: st?.days.size ?? 0,
+        dishCount: st?.dishes ?? 0,
+      }
+    }),
+    error: null,
+  }
+}
+
+/**
+ * What a clone WOULD do, before it does it — including which targets already
+ * hold a menu for that week. Never overwrite anything without showing this
+ * first: replacing a hand-edited corporate menu is unrecoverable.
+ */
+export async function planClone(
+  source: CloneSourceWeek,
+  targetStoreIds: string[],
+): Promise<{ data: ClonePlanTarget[] | null; error: string | null }> {
+  if (targetStoreIds.length === 0) return { data: [], error: null }
+
+  const { data: stores, error } = await supabase
+    .from('stores').select('id, slug, name_el').in('id', targetStoreIds)
+  if (error) return { data: null, error: error.message }
+
+  const { data: existing } = await supabase
+    .from('weekly_menus')
+    .select('id, name, store_id, from_date, to_date')
+    .in('store_id', targetStoreIds)
+    .lte('from_date', source.toDate)
+    .gte('to_date', source.fromDate)
+
+  const existingByStore = new Map(
+    ((existing ?? []) as Array<{ id: string; name: string | null; store_id: string }>).map((m) => [m.store_id, m]),
+  )
+
+  return {
+    data: ((stores ?? []) as Array<{ id: string; slug: string; name_el: string }>).map((s) => {
+      const hit = existingByStore.get(s.id)
+      return {
+        storeId: s.id, storeName: s.name_el, slug: s.slug,
+        existingMenuId: hit?.id ?? null,
+        existingMenuName: hit?.name ?? null,
+      }
+    }),
+    error: null,
+  }
+}
+
+/**
+ * Clone one week into several stores. Each target is handled independently, so
+ * two succeeding and one failing reports as exactly that rather than one
+ * opaque error.
+ *
+ * `onCollision` is required rather than defaulted — the caller must have made
+ * a deliberate choice about overwriting.
+ */
+export async function cloneWeekToStores(
+  source: CloneSourceWeek,
+  targets: ClonePlanTarget[],
+  onCollision: 'skip' | 'replace',
+): Promise<CloneResult[]> {
+  const results: CloneResult[] = []
+
+  for (const t of targets) {
+    try {
+      if (t.existingMenuId && onCollision === 'skip') {
+        results.push({
+          storeId: t.storeId, storeName: t.storeName, status: 'skipped',
+          detail: `already has «${t.existingMenuName ?? 'a menu'}» for this week`,
+        })
+        continue
+      }
+
+      if (t.existingMenuId && onCollision === 'replace') {
+        // Clear the destination week's assignments, keeping the menu row so
+        // its id (and anything referencing it) survives.
+        const { error: delErr } = await supabase
+          .from('menu_day_dishes').delete().eq('menu_id', t.existingMenuId)
+        if (delErr) {
+          results.push({ storeId: t.storeId, storeName: t.storeName, status: 'failed', detail: delErr.message })
+          continue
+        }
+        const { error: dupErr } = await duplicateMenuContent(source.id, t.existingMenuId, 0)
+        results.push(dupErr
+          ? { storeId: t.storeId, storeName: t.storeName, status: 'failed', detail: dupErr }
+          : { storeId: t.storeId, storeName: t.storeName, status: 'replaced', detail: `${source.dishCount} assignments over ${source.dayCount} days` })
+        continue
+      }
+
+      const { data: srcRow } = await supabase
+        .from('weekly_menus').select('category_order, inactive_dates').eq('id', source.id).maybeSingle()
+
+      const { data: created, error: insErr } = await supabase
+        .from('weekly_menus')
+        .insert({
+          name: `${source.name ?? source.fromDate} — ${t.storeName}`,
+          from_date: source.fromDate,
+          to_date: source.toDate,
+          active: true,
+          category_order: (srcRow as { category_order: string[] | null } | null)?.category_order ?? null,
+          inactive_dates: (srcRow as { inactive_dates: string[] | null } | null)?.inactive_dates ?? [],
+          store_id: t.storeId,
+        })
+        .select('id')
+        .single()
+
+      if (insErr || !created) {
+        results.push({ storeId: t.storeId, storeName: t.storeName, status: 'failed', detail: insErr?.message ?? 'insert failed' })
+        continue
+      }
+
+      const { error: dupErr } = await duplicateMenuContent(source.id, (created as { id: string }).id, 0)
+      results.push(dupErr
+        ? { storeId: t.storeId, storeName: t.storeName, status: 'failed', detail: dupErr }
+        : { storeId: t.storeId, storeName: t.storeName, status: 'created', detail: `${source.dishCount} assignments over ${source.dayCount} days` })
+    } catch (e) {
+      results.push({
+        storeId: t.storeId, storeName: t.storeName, status: 'failed',
+        detail: e instanceof Error ? e.message : 'unknown error',
+      })
+    }
+  }
+
+  void purgeMenuCache(['menu', 'stores'])
+  return results
+}

@@ -16,7 +16,9 @@ import {
   fetchAdminStores, createStore, saveStore, setStoreSetting, validateSlug,
   fetchStoreMembers, addStoreMemberByEmail, removeStoreMember,
   cloneLatestRetailWeek, storeReadiness,
+  fetchCloneSources, planClone, cloneWeekToStores,
   type AdminStore, type StoreMember,
+  type CloneSourceWeek, type ClonePlanTarget, type CloneResult,
 } from '../../lib/api/adminStores'
 
 const PAYMENT_METHODS = ['cash', 'card', 'link', 'transfer', 'wallet'] as const
@@ -82,6 +84,10 @@ export function Stores() {
       {err && <div className="admin-error-banner">{err}</div>}
       {note && <div className="admin-info-banner" style={{ background: '#ecfdf5', border: '1px solid #a7f3d0', color: '#065f46', padding: '10px 14px', borderRadius: 8, marginBottom: 12, fontSize: 13 }}>{note}</div>}
       {loading && <div className="admin-loading">Loading…</div>}
+
+      {!loading && stores.filter((s) => !s.isDefault).length > 0 && (
+        <CloneWeekPanel stores={stores} onDone={() => refresh(selectedId)} />
+      )}
 
       {!loading && (
         <div className="admin-zones-layout">
@@ -394,5 +400,148 @@ function MembersSection({ storeId, onChanged }: { storeId: string; onChanged: ()
       </div>
       {msg && <div style={{ fontSize: 12, color: '#dc2626' }}>{msg}</div>}
     </Section>
+  )
+}
+
+
+/**
+ * WEC-716: clone one week into several stores in a single action.
+ *
+ * This is the agreed mitigation for having NO menu inheritance — one
+ * deliberate click that writes independent copies. Nothing propagates
+ * afterwards: editing Acme's Tuesday later changes nothing anywhere else.
+ *
+ * Two rules the ticket is emphatic about, both honoured here:
+ *   - show what will happen BEFORE it happens
+ *   - never silently overwrite; a collision demands an explicit skip/replace
+ */
+function CloneWeekPanel({ stores, onDone }: { stores: AdminStore[]; onDone: () => void }) {
+  const [open, setOpen] = useState(false)
+  const [sources, setSources] = useState<CloneSourceWeek[]>([])
+  const [sourceId, setSourceId] = useState('')
+  const [targetIds, setTargetIds] = useState<string[]>([])
+  const [plan, setPlan] = useState<ClonePlanTarget[]>([])
+  const [collision, setCollision] = useState<'skip' | 'replace'>('skip')
+  const [results, setResults] = useState<CloneResult[] | null>(null)
+  const [busy, setBusy] = useState(false)
+
+  const candidates = stores.filter((s) => !s.isDefault && s.active)
+  const source = sources.find((s) => s.id === sourceId) ?? null
+
+  useEffect(() => {
+    if (!open || sources.length) return
+    void fetchCloneSources().then(({ data }) => {
+      setSources(data ?? [])
+      if (data?.length) setSourceId(data[0].id)
+    })
+  }, [open, sources.length])
+
+  useEffect(() => {
+    if (!source || targetIds.length === 0) { setPlan([]); return }
+    void planClone(source, targetIds).then(({ data }) => setPlan(data ?? []))
+  }, [sourceId, targetIds.join(','), source])
+
+  const collisions = plan.filter((p) => p.existingMenuId)
+
+  if (!open) {
+    return (
+      <button className="admin-btn" style={{ marginBottom: 14 }} onClick={() => setOpen(true)}>
+        Clone a week into several stores →
+      </button>
+    )
+  }
+
+  return (
+    <div style={{ border: '1px solid #e5e7eb', borderRadius: 10, padding: 16, marginBottom: 16, background: '#fafafa' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 10 }}>
+        <strong style={{ fontSize: 14 }}>Clone a week into several stores</strong>
+        <button className="admin-btn-link" onClick={() => { setOpen(false); setResults(null) }}>close</button>
+      </div>
+
+      <div style={{ display: 'grid', gap: 10 }}>
+        <label style={{ display: 'grid', gap: 3 }}>
+          <span style={{ fontSize: 12, fontWeight: 600 }}>Source week</span>
+          <select className="admin-input" value={sourceId} onChange={(e) => { setSourceId(e.target.value); setResults(null) }}>
+            {sources.length === 0 && <option value="">No active weeks found</option>}
+            {sources.map((s) => (
+              <option key={s.id} value={s.id}>
+                {s.fromDate} → {s.toDate} · {s.storeName} · {s.dishCount} assignments
+              </option>
+            ))}
+          </select>
+        </label>
+
+        <div>
+          <span style={{ fontSize: 12, fontWeight: 600 }}>Target stores</span>
+          <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginTop: 4 }}>
+            {candidates.map((s) => (
+              <label key={s.id} style={{ fontSize: 13, display: 'flex', gap: 4, alignItems: 'center' }}>
+                <input
+                  type="checkbox"
+                  checked={targetIds.includes(s.id)}
+                  onChange={(e) => { setResults(null); setTargetIds(e.target.checked ? [...targetIds, s.id] : targetIds.filter((x) => x !== s.id)) }}
+                />
+                {s.nameEl} <code style={{ color: '#6b7280' }}>/{s.slug}</code>
+              </label>
+            ))}
+          </div>
+        </div>
+
+        {source && plan.length > 0 && (
+          <div style={{ fontSize: 13, background: '#fff', border: '1px solid #e5e7eb', borderRadius: 8, padding: 10 }}>
+            <div style={{ marginBottom: 4 }}>
+              <strong>{plan.length}</strong> store{plan.length === 1 ? '' : 's'} · <strong>{source.dayCount}</strong> days ·{' '}
+              <strong>{source.dishCount}</strong> dish assignments each.
+            </div>
+            {collisions.length > 0 ? (
+              <div style={{ color: '#b45309' }}>
+                {collisions.length} target{collisions.length === 1 ? '' : 's'} already {collisions.length === 1 ? 'has' : 'have'} a menu
+                for this week: {collisions.map((c) => c.storeName).join(', ')}.
+                <div style={{ marginTop: 6, display: 'flex', gap: 14 }}>
+                  <label style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
+                    <input type="radio" checked={collision === 'skip'} onChange={() => setCollision('skip')} />
+                    Leave them alone
+                  </label>
+                  <label style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
+                    <input type="radio" checked={collision === 'replace'} onChange={() => setCollision('replace')} />
+                    Replace their week — <em>their edits are lost</em>
+                  </label>
+                </div>
+              </div>
+            ) : (
+              <div style={{ color: '#059669' }}>No conflicts — nothing will be overwritten.</div>
+            )}
+          </div>
+        )}
+
+        <div>
+          <button
+            className="admin-btn-primary"
+            disabled={!source || plan.length === 0 || busy}
+            onClick={async () => {
+              if (!source) return
+              setBusy(true); setResults(null)
+              const res = await cloneWeekToStores(source, plan, collision)
+              setBusy(false); setResults(res); onDone()
+            }}
+          >
+            {busy ? 'Cloning…' : `Clone into ${plan.length || 0} store${plan.length === 1 ? '' : 's'}`}
+          </button>
+        </div>
+
+        {results && (
+          <div style={{ fontSize: 13, display: 'grid', gap: 3 }}>
+            {results.map((r) => (
+              <div key={r.storeId}>
+                <span style={{ fontWeight: 800, color: r.status === 'failed' ? '#dc2626' : r.status === 'skipped' ? '#b45309' : '#059669' }}>
+                  {r.status}
+                </span>{' '}
+                {r.storeName} — <span style={{ color: '#6b7280' }}>{r.detail}</span>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
   )
 }
