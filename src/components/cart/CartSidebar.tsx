@@ -6,6 +6,7 @@ import { CartDietWarning } from './CartDietWarning'
 import { makeTr } from '../../lib/translations'
 import { subTotal, activeDays, dayAmt, fmt } from '../../lib/helpers'
 import { useMenuStore } from '../../store/useMenuStore'
+import { useCompanyBenefit } from '../../lib/storefront/useCompanyBenefit'
 
 export function CartSidebar() {
   const lang = useUIStore((s) => s.lang)
@@ -27,6 +28,9 @@ export function CartSidebar() {
   // the subtotal row and the absolute discount amount when a voucher is
   // applied. Matches OrderSummary.tsx so both surfaces show the same numbers.
   const rawTotal = dates.reduce((sum, d) => sum + dayAmt(cart, d), 0)
+  // WEC-713: the employer's per-day contribution. Zero on retail.
+  const benefit = useCompanyBenefit()
+  const grandTotal = Math.max(0, total - benefit.total)
   const hasItems = dates.length > 0
   const canCheckout = dates.every((d) => {
     const amt = (cart[d] ?? []).reduce((s, i) => s + i.price * i.qty, 0)
@@ -112,9 +116,26 @@ export function CartSidebar() {
                 </>
               )}
 
+              {/* WEC-713: Company Benefit — per delivery day, funded by the
+                  employer, shown as its own line so the customer can see who
+                  is paying for what. Never merged into the voucher discount. */}
+              {benefit.active && benefit.total > 0 && (
+                <div className="cart-total-row cart-benefit-row" style={{ marginBottom: 6 }}>
+                  <span className="cart-total-lbl cart-benefit-lbl">
+                    {lang === 'el' ? 'Παροχή εταιρείας' : 'Company benefit'}
+                    <span className="cart-benefit-sub">
+                      {lang === 'el'
+                        ? `${fmt(benefit.perDay)} × ${benefit.days} ${benefit.days === 1 ? 'ημέρα' : 'ημέρες'}`
+                        : `${fmt(benefit.perDay)} × ${benefit.days} ${benefit.days === 1 ? 'day' : 'days'}`}
+                    </span>
+                  </span>
+                  <span className="cart-benefit-amt">−{fmt(benefit.total)}</span>
+                </div>
+              )}
+
               <div className="cart-total-row">
                 <span className="cart-total-lbl">{t('total')}</span>
-                <span className="cart-total-amt">{total.toFixed(2)} €</span>
+                <span className="cart-total-amt">{grandTotal.toFixed(2)} €</span>
               </div>
 
               <button

@@ -4357,3 +4357,12 @@ body.is-impersonating { padding-top: 36px; }
   font-size: 12px;
   color: var(--muted, #6b7280);
 }
+
+/* ── WEC-713: Company Benefit row in the cart + checkout summary ─────────────
+   Its own line, deliberately NOT styled like the voucher discount: the
+   employer funds this and gets invoiced for it, so it is a different kind of
+   money and should not read as a promo. */
+.cart-benefit-row { align-items: flex-start; }
+.cart-benefit-lbl { display: flex; flex-direction: column; gap: 1px; font-size: 13px; }
+.cart-benefit-sub { font-size: 10px; font-weight: 600; color: var(--text-muted, #6b7280); letter-spacing: .01em; }
+.cart-benefit-amt { font-weight: 900; font-size: 14px; color: var(--text, #111827); white-space: nowrap; }

@@ -1010,7 +1010,36 @@ export default async (request: Request) => {
       voucherId = voucher.id
     }
 
-    const orderTotal = orderSubtotal - discountAmount
+    // ─── WEC-713: Company Benefit, per DELIVERY DAY ─────────────────────
+    //
+    // A company-funded deduction the COMPANY REIMBURSES Fitpal for. That is
+    // the whole reason it is tracked separately and never folded into
+    // `orders.discount_amount` — fold them together and the company cannot be
+    // invoiced. It lives per-day on `child_orders.company_benefit_amount`
+    // because the basis is per-day: cancelling one day must drop one day's
+    // accrual, which the existing cancel flow then does for free.
+    //
+    // Order of operations (per the ticket): day subtotal → minimum-order check
+    // (already run above, on the PRE-benefit subtotal, so €2/day can't turn a
+    // €15 floor into €13) → voucher → benefit → floor at zero.
+    const rawBenefit = settingsByKey.get('company_benefit')
+    const benefitPerDay = !isMainStore && typeof rawBenefit === 'number' && rawBenefit > 0
+      ? Math.floor(rawBenefit)
+      : 0
+    // A day never accrues more than it is worth, and never goes negative.
+    const dayBenefits = dayTotals.map((dt) => Math.max(0, Math.min(benefitPerDay, dt)))
+    const benefitTotal = dayBenefits.reduce((a, b) => a + b, 0)
+
+    // If voucher + benefit would exceed the subtotal, the VOUCHER gives way,
+    // not the company's contribution: the benefit rows are what the company
+    // gets invoiced for, so they must stay equal to what was actually applied.
+    // (Only reachable with a voucher big enough to nearly zero the order.)
+    const effectiveDiscount = discountAmount + benefitTotal > orderSubtotal
+      ? Math.max(0, orderSubtotal - benefitTotal)
+      : discountAmount
+    discountAmount = effectiveDiscount
+
+    const orderTotal = Math.max(0, orderSubtotal - discountAmount - benefitTotal)
 
     // ─── Phase 5: Insert order ──────────────────────────────────────────
 
@@ -1116,10 +1145,13 @@ export default async (request: Request) => {
       // UPDATE orders.status='pending' in one transaction. Closes the
       // ~50ms window where the old JS-level UPDATE→DELETE→INSERT loop
       // let an admin see a 'pending' order with zero days/items.
-      const childrenPayload = body.days.map((day) => ({
+      const childrenPayload = body.days.map((day, dayIdx) => ({
         delivery_date: day.deliveryDate,
         time_from: fmtTime(day.timeFrom),
         time_to: fmtTime(day.timeTo),
+        // WEC-713: this day's company benefit, in cents. The RPC reads it
+        // (migration wec712_promote_draft_atomic_store_columns).
+        company_benefit_amount: dayBenefits[dayIdx] ?? 0,
         // WEC-492: address fields come from resolveAddressFields() so pickup
         // days get the store's address instead of NULLs.
         ...resolveAddressFields(day),
@@ -1207,6 +1239,9 @@ export default async (request: Request) => {
           // WEC-259: per-day fulfillment.
           fulfillment_type: day.fulfillmentType ?? 'delivery',
           pickup_location_id: day.fulfillmentType === 'pickup' ? (day.pickupLocationId ?? null) : null,
+          // WEC-713: this day's company benefit, in cents. Same value the
+          // promote path sends through the RPC — the two must not diverge.
+          company_benefit_amount: dayBenefits[i] ?? 0,
         })
         .select('id')
         .single()

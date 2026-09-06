@@ -7,6 +7,7 @@ import { useMenuStore } from '../../store/useMenuStore'
 import { DayOrderGroup } from '../shared/DayOrderGroup'
 import { CartDietWarning } from '../cart/CartDietWarning'
 import { useVoucherWidget } from '../cart/useVoucherWidget'
+import { useCompanyBenefit } from '../../lib/storefront/useCompanyBenefit'
 
 interface OrderSummaryProps {
   /** WEC-562: checkout contact identity used to re-validate the voucher. */
@@ -48,6 +49,8 @@ export function OrderSummary({ contactEmail = '', contactPhone = '', contactRead
   // WEC-336: activeDays returns date strings (YYYY-MM-DD), iterated below.
   const dates = activeDays(cart)
   const total = subTotal(cart, voucher, catLookup)
+  // WEC-713: the employer's per-day contribution. Zero on retail.
+  const benefit = useCompanyBenefit()
 
   if (!dates.length) {
     return (
@@ -151,10 +154,26 @@ export function OrderSummary({ contactEmail = '', contactPhone = '', contactRead
           <div className="fnote bad" style={{ marginTop: -6, marginBottom: 6 }}>{error}</div>
         )}
 
+        {/* WEC-713: Company Benefit — the employer's per-day contribution,
+            its own line, never merged into the voucher discount. */}
+        {benefit.active && benefit.total > 0 && (
+          <div className="cart-total-row cart-benefit-row" style={{ marginBottom: 6 }}>
+            <span className="cart-total-lbl cart-benefit-lbl">
+              {lang === 'el' ? 'Παροχή εταιρείας' : 'Company benefit'}
+              <span className="cart-benefit-sub">
+                {lang === 'el'
+                  ? `${fmt(benefit.perDay)} × ${benefit.days} ${benefit.days === 1 ? 'ημέρα' : 'ημέρες'}`
+                  : `${fmt(benefit.perDay)} × ${benefit.days} ${benefit.days === 1 ? 'day' : 'days'}`}
+              </span>
+            </span>
+            <span className="cart-benefit-amt">−{fmt(benefit.total)}</span>
+          </div>
+        )}
+
         {/* Total */}
         <div className="cart-total-row">
           <span className="cart-total-lbl">{t('total')}</span>
-          <span className="cart-total-amt">{fmt(total)}</span>
+          <span className="cart-total-amt">{fmt(Math.max(0, total - benefit.total))}</span>
         </div>
 
         {/* Back to menu */}
