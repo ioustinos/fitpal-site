@@ -249,9 +249,12 @@ export function MenuPage() {
                         </div>
                         <span className="swc-disc">{t('subBannerDiscount')}</span>
                       </div>
-                      <div className="swc-progress" aria-hidden="true">
-                        <span className="swc-progress-fill" />
-                        <span className="swc-progress-track" />
+                      <div className="swc-steprow" aria-hidden="true">
+                        <span className="swc-steplabel">{t('subBannerStepLabel')}</span>
+                        <div className="swc-progress">
+                          <span className="swc-progress-fill" />
+                          <span className="swc-progress-track" />
+                        </div>
                       </div>
                       <div className="swc-fields" aria-hidden="true">
                         <div className="swc-field"><span>{t('subBannerStep1')}</span><span className="swc-chev">⌄</span></div>
