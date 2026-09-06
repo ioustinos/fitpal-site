@@ -1330,7 +1330,7 @@ function OrdersTab({ user, lang }: any) {
                                   unit?: string
                                 }> = [
                                   { cls: 'cal',     key: 'cal',     icon: 'cal',  label: t('goalCalories'),     val: child.macros.cal },
-                                  { cls: 'carbs',   key: 'carbs',   icon: 'carb', label: t('goalCarbs'),   val: child.macros.carbs,   unit: 'g' },
+                                  { cls: 'carbs',   key: 'carbs',   icon: 'carb', label: t('acCarbsLong'),   val: child.macros.carbs,   unit: 'g' },
                                   { cls: 'protein', key: 'protein', icon: 'pro',  label: t('goalProtein'),     val: child.macros.protein, unit: 'g' },
                                   { cls: 'fat',     key: 'fat',     icon: 'fat',  label: t('acFatLong'),           val: child.macros.fat,     unit: 'g' },
                                 ]
