@@ -3241,7 +3241,8 @@ a.btn-conf-done { display: inline-block; text-decoration: none; }
 .wpv2-paymethods-label { font-size: 11px; font-weight: 700; color: var(--fp-ink-500); letter-spacing: 0.5px; text-transform: uppercase; }
 .wpv2-paymethods-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
 .wpv2-paymethod { padding: 9px 6px; background: var(--fp-paper); border: 1.5px solid var(--fp-ink-200); border-radius: var(--fp-radius-sm); font-size: 12px; font-weight: 700; color: var(--fp-ink-700); cursor: pointer; transition: all 0.15s; font-family: inherit; }
-.wpv2-paymethod:hover { border-color: var(--fp-green-300); }
+.wpv2-paymethod:not(:disabled):hover { border-color: var(--fp-green-300); }
+.wpv2-paymethod:disabled { opacity: 0.4; cursor: not-allowed; }  /* WEC-658: Αντικαταβολή greyed when unavailable (over cash cap) */
 .wpv2-paymethod.sel { border-color: var(--fp-green-600); background: var(--fp-green-50); color: var(--fp-green-900); }
 .wpv2-paymethods-hint { font-size: 11px; color: var(--fp-ink-500); font-weight: 500; line-height: 1.4; padding-top: 2px; }
 
