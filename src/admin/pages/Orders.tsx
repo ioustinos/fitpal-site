@@ -227,7 +227,7 @@ export function Orders() {
 
   // WEC-528: client-side Order Type filter (derived classification).
   const visibleOrders = filterType.length
-    ? orders.filter((o) => filterType.includes(orderTypeCode(o.paymentMethod, o.adminOrderId)))
+    ? orders.filter((o) => filterType.includes(orderTypeCode(o.paymentMethod, o.adminOrderId, o.storeSlug)))
     : orders
 
   const totalLoaded = visibleOrders.length
@@ -452,7 +452,7 @@ export function Orders() {
                       ? <span className="admin-discount">−{(o.discountAmount / 100).toFixed(2)} €</span>
                       : <span className="admin-sub">—</span>}
                   </td>
-                  <td style={{ width: 84 }}><OrderTypeBadge method={o.paymentMethod} adminOrderId={o.adminOrderId} wrap /></td>
+                  <td style={{ width: 84 }}><OrderTypeBadge method={o.paymentMethod} adminOrderId={o.adminOrderId} storeSlug={o.storeSlug} wrap /></td>
                   <td><StatusBadge status={o.status} /></td>
                   <td><PaymentBadge status={o.paymentStatus} /></td>
                   <td><PaymentMethodBadge method={o.paymentMethod} /></td>
@@ -514,9 +514,15 @@ const ORDER_TYPE_COLOURS: Record<OrderTypeCode, string> = {
   alacarte_managed: '#d97706',
   subscription_own: '#0284c7',
   subscription_managed: '#7c3aed',
+  // WEC-727: indigo, matching the Store pill in the list so the two read as
+  // one idea — this order came from a company storefront.
+  b2b_own: '#4338ca',
+  b2b_managed: '#be185d',
 }
-function OrderTypeBadge({ method, adminOrderId, wrap = false }: { method: PaymentMethod; adminOrderId: string | null; wrap?: boolean }) {
-  const code = orderTypeCode(method, adminOrderId)
+function OrderTypeBadge({ method, adminOrderId, storeSlug, wrap = false }: { method: PaymentMethod; adminOrderId: string | null; storeSlug?: string | null; wrap?: boolean }) {
+  // WEC-727: an order placed on a company/reseller storefront reads as B2B,
+  // whatever it was paid with.
+  const code = orderTypeCode(method, adminOrderId, storeSlug)
   return (
     <span
       className="admin-badge"
@@ -727,7 +733,7 @@ function OrderDrawer({
               <div className="admin-od-statusbar-badges">
                 <span className="admin-od-badgewrap"><span className="admin-od-badgecap">Order</span><StatusBadge status={order.status} /></span>
                 {/* WEC-528: derived order type, same classification as the Airtable mirror */}
-                <span className="admin-od-badgewrap"><span className="admin-od-badgecap">Type</span><OrderTypeBadge method={order.paymentMethod} adminOrderId={order.adminOrderId} /></span>
+                <span className="admin-od-badgewrap"><span className="admin-od-badgecap">Type</span><OrderTypeBadge method={order.paymentMethod} adminOrderId={order.adminOrderId} storeSlug={order.storeSlug} /></span>
                 {/* Payment status is meaningless on a draft — hide. */}
                 {order.status !== 'draft' && (
                   <span className="admin-od-badgewrap"><span className="admin-od-badgecap">Payment</span><PaymentBadge status={order.paymentStatus} /></span>

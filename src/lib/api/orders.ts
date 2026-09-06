@@ -334,39 +334,35 @@ export interface ConfirmationOrder {
 export async function fetchOrderForConfirmation(
   orderIdOrNumber: string,
 ): Promise<{ data: ConfirmationOrder | null; error: string | null }> {
-  // 1. Order by id OR order_number
-  const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(orderIdOrNumber)
-  const { data: rawOrder, error: oErr } = await supabase
-    .from('orders')
-    .select('*')
-    .eq(isUuid ? 'id' : 'order_number', orderIdOrNumber)
-    .maybeSingle()
+  // WEC-726: read through the server, not straight from the browser.
+  //
+  // The direct query worked only for a LOGGED-IN customer. A guest has no
+  // `auth.uid()` and the order has no `user_id`, so the "Users read own orders"
+  // policy evaluated `null = null` → NULL → zero rows AND NO ERROR. The Viva
+  // return page then sat on "loading order details…" forever with nothing in
+  // the console. Guests paying by card are the only people who hit that page,
+  // which is why it went unnoticed.
+  //
+  // `/api/order-confirmation` is keyed on the order's uuid (unguessable, and
+  // already in the Viva return URL as `merchantTrns`) and returns only the
+  // fields this screen renders.
+  const res = await fetch(`/api/order-confirmation?orderId=${encodeURIComponent(orderIdOrNumber)}`, {
+    headers: { Accept: 'application/json' },
+  }).catch(() => null)
 
-  if (oErr) return { data: null, error: oErr.message }
-  if (!rawOrder) return { data: null, error: 'Order not found' }
-  const o = rawOrder as DbOrder
-
-  // 2. Children
-  const { data: rawChildren, error: cErr } = await supabase
-    .from('child_orders')
-    .select('*')
-    .eq('order_id', o.id)
-    .is('cancelled_at', null) // WEC-389: hide soft-cancelled days from customers
-    .order('delivery_date')
-  if (cErr) return { data: null, error: cErr.message }
-  const children = (rawChildren ?? []) as DbChildOrder[]
-
-  // 3. Items
-  const childIds = children.map((c) => c.id)
-  let items: DbOrderItem[] = []
-  if (childIds.length > 0) {
-    const { data: rawItems, error: iErr } = await supabase
-      .from('order_items')
-      .select('*')
-      .in('child_order_id', childIds)
-    if (iErr) return { data: null, error: iErr.message }
-    items = (rawItems ?? []) as DbOrderItem[]
+  if (!res || !res.ok) {
+    return { data: null, error: res ? `order-confirmation: HTTP ${res.status}` : 'network error' }
   }
+
+  const payload = await res.json() as {
+    order: DbOrder
+    children: DbChildOrder[]
+    items: DbOrderItem[]
+  }
+  const o = payload.order
+  if (!o) return { data: null, error: 'Order not found' }
+  const children = payload.children ?? []
+  const items = payload.items ?? []
 
   const itemsByChild = new Map<string, DbOrderItem[]>()
   for (const it of items) {

@@ -41,6 +41,10 @@ interface OrderRow {
   notes: string | null
   admin_order_id: string | null
   cancel_reason: string | null
+  // WEC-727: which storefront the order came from. `stores` is embedded so the
+  // Order Type can say "From Company" and the Store Id can be the company's.
+  store_id?: string | null
+  stores?: { slug: string; airtable_store_id: number | null } | Array<{ slug: string; airtable_store_id: number | null }> | null
   created_at?: string | null
   submitted_at?: string | null
   updated_at?: string | null
@@ -79,7 +83,7 @@ export async function pushOrderToAirtable(
   const { data: order, error: oErr } = await supabase
     .from('orders')
     .select(
-      'id, order_number, customer_name, customer_email, customer_phone, subtotal, total, payment_method, payment_status, status, cutlery, invoice_type, invoice_name, invoice_vat, notes, admin_order_id, cancel_reason, created_at, submitted_at, updated_at',
+      'id, order_number, customer_name, customer_email, customer_phone, subtotal, total, payment_method, payment_status, status, cutlery, invoice_type, invoice_name, invoice_vat, notes, admin_order_id, cancel_reason, created_at, submitted_at, updated_at, store_id, stores(slug, airtable_store_id)',
     )
     .eq('id', orderId)
     .single<OrderRow>()
@@ -153,6 +157,15 @@ export async function pushOrderToAirtable(
   // under typecast:false — normalize to millisecond ISO so they actually land.
   const isoMs = (v?: string | null): string | undefined => (v ? new Date(v).toISOString() : undefined)
   const pm = mapPaymentMethod(order.payment_method)
+
+  // WEC-727: resolve the storefront. PostgREST types an embedded FK as an array
+  // even when it resolves to one row, so normalise both shapes. A missing store
+  // (every pre-B2B row) falls through to retail, exactly as before.
+  const storeEmbed = Array.isArray(order.stores) ? order.stores[0] : order.stores
+  const storeSlug = storeEmbed?.slug ?? null
+  const storeAirtableId = storeSlug && storeSlug !== 'main'
+    ? (storeEmbed?.airtable_store_id ?? null)
+    : null
   const orderFields: Record<string, unknown> = {
     'Order Id': order.id,
     'Admin Order ID': String(order.order_number),
@@ -169,10 +182,12 @@ export async function pushOrderToAirtable(
     'Order Comments': order.notes ?? '',
     Paid: mapPaid(order.payment_status),
     'Payment Method': pm.method,
-    // WEC-528: payment source × who placed it. Exact single-select strings —
-    // see mapOrderType. "From Company" is never emitted from this platform.
-    'Order Type': mapOrderType(order.payment_method, order.admin_order_id),
-    'Store Id': RETAIL_STORE_ID,
+    // WEC-528 / WEC-727: payment source × who placed it, with the storefront
+    // overriding both — a company order mirrors as "From Company".
+    'Order Type': mapOrderType(order.payment_method, order.admin_order_id, storeSlug),
+    // WEC-727: the company's own ops id when it has one, retail's 9999
+    // otherwise. Ioustinos allocates these and adds the matching Airtable row.
+    'Store Id': storeAirtableId ?? RETAIL_STORE_ID,
     'Μαχαιροπίρουνα': !!order.cutlery,
   }
   if (pm.extra) orderFields['Payment Extra'] = pm.extra

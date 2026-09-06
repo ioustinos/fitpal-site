@@ -43,17 +43,25 @@ export function mapPaymentMethod(method: string): { method: string; extra?: stri
 // WEC-528: Orders."Order Type" single-select. Exact option strings verified
 // from Ioustinos's Airtable screenshot 2026-07-09: A la carte (own) |
 // A la carte (managed) | Subscription (own) | Subscription (managed) |
-// From Company. "From Company" is reserved for the future B2B feature and
-// must never be emitted from this platform.
+// From Company. WEC-727: "From Company" is now emitted for orders placed on a
+// company or reseller storefront — the B2B feature finally gives it a signal.
 const ORDER_TYPE_AIRTABLE: Record<OrderTypeCode, string> = {
   alacarte_own: 'A la carte (own)',
   alacarte_managed: 'A la carte (managed)',
   subscription_own: 'Subscription (own)',
   subscription_managed: 'Subscription (managed)',
+  // Airtable has ONE company option, so both B2B codes land on it — ops there
+  // separates managed from own via the Store Id field, not the type.
+  b2b_own: 'From Company',
+  b2b_managed: 'From Company',
 }
 
-export function mapOrderType(paymentMethod: string, adminOrderId: string | null | undefined): string {
-  return ORDER_TYPE_AIRTABLE[orderTypeCode(paymentMethod, adminOrderId)]
+export function mapOrderType(
+  paymentMethod: string,
+  adminOrderId: string | null | undefined,
+  storeSlug?: string | null,
+): string {
+  return ORDER_TYPE_AIRTABLE[orderTypeCode(paymentMethod, adminOrderId, storeSlug)]
 }
 
 // WEC-537: Orders."Order Status" single-select. Exact option strings created
