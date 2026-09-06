@@ -158,6 +158,10 @@ export interface AdminOrder {
   paymentLink: AdminPaymentLink | null
   /** WEC-606: derived payment ledger — actually-collected / remaining / refundable. */
   payment: OrderPaymentSummary
+  /** WEC-715: which storefront the order was placed on. Null only on legacy rows. */
+  storeId: string | null
+  storeSlug: string | null
+  storeName: string | null
 }
 
 /** WEC-606 — the one shared "how much was actually paid" answer
@@ -197,6 +201,9 @@ export interface OrderFilters {
   createdFrom?: string       // YYYY-MM-DD
   createdTo?: string
   addressZip?: string        // match child_orders.address_zip
+  /** WEC-715: restrict to one storefront. Omitted → every store, which is
+   *  what the retail-only world always showed. */
+  storeId?: string
 }
 
 // ─── Queries ──────────────────────────────────────────────────────────────
@@ -232,6 +239,9 @@ export async function listAdminOrders(f: OrderFilters): Promise<{ data: AdminOrd
   if (f.createdFrom) q = q.gte('submitted_at', `${f.createdFrom}T00:00:00Z`)
   if (f.createdTo) q = q.lte('submitted_at', `${f.createdTo}T23:59:59Z`)
   if (orderIdsFromChild) q = q.in('id', Array.from(orderIdsFromChild))
+  // WEC-715: Ioustinos asked for company orders to land in the normal orders
+  // page with the store visible and filterable — not a separate B2B inbox.
+  if (f.storeId) q = q.eq('store_id', f.storeId)
   if (f.search) {
     const s = f.search.trim()
     q = q.or(`order_number.ilike.%${s}%,customer_name.ilike.%${s}%,customer_email.ilike.%${s}%,customer_phone.ilike.%${s}%`)
@@ -305,6 +315,7 @@ export async function listAdminOrders(f: OrderFilters): Promise<{ data: AdminOrd
   }
 
   const result: AdminOrder[] = (data ?? []).map((r) => mapOrderRow(r, childrenByOrder.get(r.id as string) ?? [], [], []))
+  await attachStores(result)
   return { data: result, error: null }
 }
 
@@ -438,7 +449,34 @@ export async function getAdminOrder(id: string): Promise<{ data: AdminOrder | nu
     refundable: sumRow?.refundable ?? 0,
   }
 
-  return { data: mapOrderRow(orderRes.data, childOrders, voucherUses, changeLog, paymentLink, payment), error: null }
+  const mapped = mapOrderRow(orderRes.data, childOrders, voucherUses, changeLog, paymentLink, payment)
+  // WEC-715: the drawer names the storefront too, not just the list.
+  await attachStores([mapped])
+  return { data: mapped, error: null }
+}
+
+
+/**
+ * WEC-715: fill in each order's storefront name. One small lookup for the
+ * whole page rather than a join per row — `stores` is a handful of rows and
+ * this keeps the existing orders query untouched.
+ */
+async function attachStores(orders: AdminOrder[]): Promise<void> {
+  const ids = [...new Set(orders.map((o) => o.storeId).filter((v): v is string => !!v))]
+  if (ids.length === 0) return
+  const { data } = await supabase.from('stores').select('id, slug, name_el, is_default').in('id', ids)
+  const byId = new Map(
+    ((data ?? []) as Array<{ id: string; slug: string; name_el: string; is_default: boolean }>)
+      .map((r) => [r.id, r]),
+  )
+  for (const o of orders) {
+    const st = o.storeId ? byId.get(o.storeId) : null
+    if (!st) continue
+    o.storeSlug = st.slug
+    // Retail reads as "Fitpal" rather than the row's name, so a B2B store
+    // stands out in the list instead of blending in.
+    o.storeName = st.is_default ? 'Fitpal' : st.name_el
+  }
 }
 
 function mapOrderRow(r: unknown, childOrders: AdminChildOrder[], voucherUses: AdminVoucherUse[], changeLog: AdminChangeLogEntry[], paymentLink: AdminPaymentLink | null = null, payment: OrderPaymentSummary | null = null): AdminOrder {
@@ -451,6 +489,7 @@ function mapOrderRow(r: unknown, childOrders: AdminChildOrder[], voucherUses: Ad
     notes: string | null; admin_order_id: string | null; admin_notes: string | null;
     cancel_reason: string | null;
     created_at: string; submitted_at: string | null; updated_at: string;
+    store_id: string | null;
   }
   return {
     id: row.id, orderNumber: row.order_number, userId: row.user_id,
@@ -469,6 +508,10 @@ function mapOrderRow(r: unknown, childOrders: AdminChildOrder[], voucherUses: Ad
     // List view doesn't fetch the summary — fall back to a total-only default
     // (the drawer, which is what renders payment UI, always passes the real one).
     payment: payment ?? { total: row.total, paid: 0, refunded: row.refund_amount ?? 0, remaining: row.total, refundable: 0 },
+    // WEC-715: slug/name are filled in by the caller from the stores lookup.
+    storeId: row.store_id ?? null,
+    storeSlug: null,
+    storeName: null,
   }
 }
 

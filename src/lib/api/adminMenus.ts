@@ -6,14 +6,18 @@ import { supabase } from '../supabase'
  * action. If the purge no-ops, stale-while-revalidate still refreshes the
  * customer view within ~5 min, so this only ever speeds things up.
  */
-export async function purgeMenuCache(): Promise<void> {
+export async function purgeMenuCache(tags?: string[]): Promise<void> {
   try {
     const { data } = await supabase.auth.getSession()
     const token = data.session?.access_token
     if (!token) return
+    // WEC-715: callers may name which tags to drop ('menu' | 'settings' |
+    // 'stores'). Omitted → the server defaults to ['menu'], exactly as before,
+    // so every existing call site is unaffected.
     await fetch('/api/purge-menu-cache', {
       method: 'POST',
-      headers: { Authorization: `Bearer ${token}` },
+      headers: { Authorization: `Bearer ${token}`, ...(tags ? { 'Content-Type': 'application/json' } : {}) },
+      ...(tags ? { body: JSON.stringify({ tags }) } : {}),
     })
   } catch {
     /* non-fatal — SWR backstops */

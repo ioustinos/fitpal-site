@@ -120,6 +120,8 @@ const NAV: NavEntry[] = [
       { path: '/admin/payments',         label: 'Payments',                 icon: 'wallet' },
       { path: '/admin/menu-options',     label: 'Menu Options',             icon: 'dishes' },
       { path: '/admin/zones',            label: 'Delivery Zones',           icon: 'zones' },
+      // WEC-715: company + reseller storefronts.
+      { path: '/admin/stores',           label: 'Stores (B2B)',             icon: 'zones' },
       { path: '/admin/advanced',         label: 'Advanced',                 icon: 'settings' },
     ],
   },

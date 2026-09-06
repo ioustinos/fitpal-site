@@ -20,6 +20,8 @@ import { Payments as SettingsPayments } from './pages/Payments'
 import { MenuOptions } from './pages/MenuOptions'
 import { Advanced } from './pages/Advanced'
 import { Zones } from './pages/Zones'
+// WEC-715: company + reseller storefronts (epic WEC-649).
+import { Stores } from './pages/Stores'
 import { Vouchers } from './pages/Vouchers'
 import { Users } from './pages/Users'
 import { WalletPurchases } from './pages/WalletPurchases'
@@ -66,6 +68,7 @@ export default function AdminApp() {
           <Route path="settings" element={<Navigate to="/admin/site-details" replace />} />
 
           <Route path="zones" element={<Zones />} />
+          <Route path="stores" element={<Stores />} />
         </Route>
       </Routes>
     </AdminGuard>

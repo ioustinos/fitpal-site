@@ -22,6 +22,7 @@ import {
 } from '../../lib/api/adminOrders'
 import { isValidGreekVat, vatDigits } from '../../lib/vat'  // WEC-698
 import { fetchAdminDishes, type AdminDish } from '../../lib/api/adminDishes'
+import { fetchAdminStores } from '../../lib/api/adminStores'  // WEC-715
 // WEC-668: address autosuggest + zone-aware delivery-window dropdown in the drawer.
 import { PlacesAutocomplete } from '../../components/ui/PlacesAutocomplete'
 import { fetchZones, findZoneByPostcode, slotsForZone, type ZonesData } from '../../lib/api/zones'
@@ -146,6 +147,22 @@ export function Orders() {
   // per-row pending indicator + a count pill so ops notices without opening drawers.
   const [pendingReqIds, setPendingReqIds] = useState<Set<string>>(new Set())
 
+  // WEC-715: Ioustinos: "the order from this company must fall regularly on the
+  // orders page and the orders page must have the indication of the store id
+  // and/or company name". So: a Store column and a Store filter here, not a
+  // separate B2B inbox. Default is every store, which looks exactly like the
+  // retail-only view did.
+  const [storeFilter, setStoreFilter] = useState<string>('')
+  const [storeOptions, setStoreOptions] = useState<Array<{ id: string; label: string }>>([])
+  useEffect(() => {
+    void fetchAdminStores().then(({ data }) => {
+      setStoreOptions((data ?? []).map((st) => ({
+        id: st.id,
+        label: st.isDefault ? 'Fitpal (retail)' : `${st.nameEl} /${st.slug}`,
+      })))
+    })
+  }, [])
+
   async function refresh() {
     setLoading(true); setErr(null)
     // WEC-557: refresh the pending-change-request set alongside the order list
@@ -172,13 +189,14 @@ export function Orders() {
     }
     // WEC-599: "pending" folds in pending_link_sent — same unpaid bucket.
     if (preset === 'pending-payment') { filters.paymentStatus = ['pending', 'pending_link_sent'] }
+    if (storeFilter) filters.storeId = storeFilter
     const { data, error } = await listAdminOrders(filters)
     if (error) setErr(error)
     setOrders(data ?? [])
     setLoading(false)
   }
 
-  useEffect(() => { refresh() /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [preset, filterStatus.join(','), filterPayment.join(','), filterMethod.join(',')])
+  useEffect(() => { refresh() /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [preset, filterStatus.join(','), filterPayment.join(','), filterMethod.join(','), storeFilter])
 
   async function refreshDetail(id: string) {
     setDetailLoading(true)
@@ -324,9 +342,24 @@ export function Orders() {
           </div>
         </details>
 
+        {/* WEC-715: Store filter. Only worth showing once a second storefront
+            exists — on a retail-only install this is invisible. */}
+        {storeOptions.length > 1 && (
+          <select
+            className="admin-btn-ghost"
+            value={storeFilter}
+            onChange={(e) => setStoreFilter(e.target.value)}
+            title="Filter by storefront"
+            style={{ padding: '6px 10px' }}
+          >
+            <option value="">All stores</option>
+            {storeOptions.map((s) => <option key={s.id} value={s.id}>{s.label}</option>)}
+          </select>
+        )}
+
         {/* WEC-687: explicit clear — wipes URL + this admin's saved set. */}
-        {(preset !== 'all' || search || filterStatus.length || filterPayment.length || filterMethod.length || filterType.length) && (
-          <button className="admin-btn-ghost" onClick={clearAllFilters} title="Καθαρισμός φίλτρων">
+        {(preset !== 'all' || search || filterStatus.length || filterPayment.length || filterMethod.length || filterType.length || storeFilter) && (
+          <button className="admin-btn-ghost" onClick={() => { setStoreFilter(''); clearAllFilters() }} title="Καθαρισμός φίλτρων">
             ✕ Clear filters
           </button>
         )}
@@ -341,6 +374,7 @@ export function Orders() {
             <thead>
               <tr>
                 <th>Order</th>
+                <th>Store</th>
                 <th>Customer</th>
                 <th style={{ width: 56, textAlign: 'center' }}>Days</th>
                 <th>Delivery dates</th>
@@ -354,7 +388,7 @@ export function Orders() {
               </tr>
             </thead>
             <tbody>
-              {visibleOrders.length === 0 && <tr><td colSpan={11} className="admin-table-empty">No orders match.</td></tr>}
+              {visibleOrders.length === 0 && <tr><td colSpan={12} className="admin-table-empty">No orders match.</td></tr>}
               {visibleOrders.map((o) => (
                 <tr key={o.id} onClick={() => openDetail(o.id)} style={{ cursor: 'pointer' }}>
                   <td>
@@ -380,6 +414,24 @@ export function Orders() {
                           <path d="M12 2l8 4v6c0 5-3.5 9-8 10-4.5-1-8-5-8-10V6l8-4z" />
                         </svg>
                       </span>
+                    )}
+                  </td>
+                  {/* WEC-715: which storefront this order came from. Retail is
+                      deliberately muted so a B2B order stands out at a glance. */}
+                  <td style={{ whiteSpace: 'nowrap' }}>
+                    {o.storeSlug && o.storeSlug !== 'main' ? (
+                      <span
+                        className="admin-store-pill"
+                        title={`Placed on orders.fitpal.gr/${o.storeSlug}`}
+                        style={{
+                          fontSize: 11, fontWeight: 800, padding: '2px 7px', borderRadius: 999,
+                          background: '#eef2ff', color: '#3730a3', border: '1px solid #c7d2fe',
+                        }}
+                      >
+                        {o.storeName ?? o.storeSlug}
+                      </span>
+                    ) : (
+                      <span className="admin-sub">Fitpal</span>
                     )}
                   </td>
                   <td>
