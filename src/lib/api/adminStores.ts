@@ -450,13 +450,31 @@ export async function fetchCloneSources(): Promise<{ data: CloneSourceWeek[] | n
   const { data: stores } = await supabase.from('stores').select('id, name_el, is_default')
   const storeById = new Map(((stores ?? []) as Array<{ id: string; name_el: string; is_default: boolean }>).map((s) => [s.id, s]))
 
-  const { data: assignments } = await supabase
-    .from('menu_day_dishes')
-    .select('menu_id, date, dish_id')
-    .in('menu_id', rows.map((r) => r.id))
+  // ⚠️ PostgREST caps a single response at 1000 rows and truncates SILENTLY.
+  // Nine weeks of assignments is ~1,300 rows, so an unpaginated select
+  // undercounted — and arbitrarily, since no order is specified: the panel
+  // showed "0 assignments" for a menu that has 103. The whole point of the
+  // preview is to say what WILL happen, so a wrong number here is worse than
+  // no number. Same pagination the menu endpoints already use.
+  const assignments: Array<{ menu_id: string; date: string }> = []
+  {
+    const PAGE = 1000
+    const ids = rows.map((r) => r.id)
+    for (let from = 0; ; from += PAGE) {
+      const { data, error } = await supabase
+        .from('menu_day_dishes')
+        .select('menu_id, date')
+        .in('menu_id', ids)
+        .range(from, from + PAGE - 1)
+      if (error) break
+      const batch = (data ?? []) as Array<{ menu_id: string; date: string }>
+      assignments.push(...batch)
+      if (batch.length < PAGE) break
+    }
+  }
 
   const stats = new Map<string, { days: Set<string>; dishes: number }>()
-  for (const a of (assignments ?? []) as Array<{ menu_id: string; date: string }>) {
+  for (const a of assignments) {
     const st = stats.get(a.menu_id) ?? { days: new Set<string>(), dishes: 0 }
     st.days.add(a.date); st.dishes += 1
     stats.set(a.menu_id, st)
