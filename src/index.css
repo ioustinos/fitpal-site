@@ -1697,7 +1697,7 @@ header {
 .swc-field { border: 1px solid #DFE7E1; border-radius: 12px; padding: 11px 12px; display: flex; align-items: center; justify-content: space-between; gap: 5px; white-space: nowrap; overflow: hidden; }
 .swc-field > span:first-child { font-size: 11px; font-weight: 600; color: #8c9990; overflow: hidden; text-overflow: ellipsis; }
 .swc-chev { font-size: 11px; font-weight: 600; color: #B9C4BD; flex: none; }
-.swc-cta-row { display: flex; align-items: center; justify-content: flex-end; }
+.swc-cta-row { display: flex; align-items: center; justify-content: flex-end; margin-top: 12px; }
 .swc-cta { background: #004739; color: #fff; font-size: 14px; font-weight: 800; padding: 13px 20px; border: none; border-radius: 999px; cursor: pointer; white-space: nowrap; transition: background 0.18s ease; }
 .swc-cta:hover { background: #00382C; }
 

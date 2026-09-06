@@ -257,7 +257,7 @@ export function MenuPage() {
                         <div className="swc-field"><span>{t('subBannerStep1')}</span><span className="swc-chev">⌄</span></div>
                         <div className="swc-field"><span>{t('subBannerStep2')}</span><span className="swc-chev">⌄</span></div>
                         <div className="swc-field"><span>{t('subBannerStep3')}</span><span className="swc-chev">⌄</span></div>
-                        <div className="swc-field"><span>{t('subBannerStep4')}</span><span className="swc-chev">—</span></div>
+                        <div className="swc-field"><span>{t('subBannerStep4')}</span><span className="swc-chev">⌄</span></div>
                       </div>
                       <div className="swc-cta-row">
                         <button type="button" className="swc-cta" onClick={(e) => { e.stopPropagation(); goToWalletPage() }}>
