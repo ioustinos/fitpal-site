@@ -100,13 +100,15 @@ export const useUIStore = create<UIStore>((set) => ({
   openAuthModal: () => set({ openModal: 'auth' }),
   openWalletModal: () => set({ openModal: 'wallet' }),
   closeModal: () => set({ openModal: null, selectedDish: null, selectedDayIndex: null, editingCartItem: null }),
-  goToCheckout: () => set({ isCheckout: true, isAccountPage: false, isWalletPage: false, isSubscriptionPage: false }),
+  // WEC-738: clear any open modal (e.g. dish modal) so it can't survive the
+  // transition onto a full-page overlay and re-mount over it.
+  goToCheckout: () => set({ isCheckout: true, isAccountPage: false, isWalletPage: false, isSubscriptionPage: false, openModal: null, selectedDish: null, selectedDayIndex: null, editingCartItem: null }),
   closeCheckout: () => set({ isCheckout: false }),
-  goToAccount: (tab?: string) => set({ isAccountPage: true, accountTab: tab || 'orders', isCheckout: false, isWalletPage: false, isSubscriptionPage: false }),
+  goToAccount: (tab?: string) => set({ isAccountPage: true, accountTab: tab || 'orders', isCheckout: false, isWalletPage: false, isSubscriptionPage: false, openModal: null, selectedDish: null, selectedDayIndex: null, editingCartItem: null }),
   closeAccount: () => set({ isAccountPage: false }),
-  goToSubscription: () => set({ isSubscriptionPage: true, isCheckout: false, isAccountPage: false, isWalletPage: false }),
+  goToSubscription: () => set({ isSubscriptionPage: true, isCheckout: false, isAccountPage: false, isWalletPage: false, openModal: null, selectedDish: null, selectedDayIndex: null, editingCartItem: null }),
   closeSubscription: () => set({ isSubscriptionPage: false }),
-  goToWalletPage: () => set({ isWalletPage: true, isCheckout: false, isAccountPage: false, isSubscriptionPage: false }),
+  goToWalletPage: () => set({ isWalletPage: true, isCheckout: false, isAccountPage: false, isSubscriptionPage: false, openModal: null, selectedDish: null, selectedDayIndex: null, editingCartItem: null }),
   closeWalletPage: () => set({ isWalletPage: false }),
   // Used by sign-out (WEC-141) — collapses every overlay page at once so the
   // user always lands on the menu, regardless of where they were when they

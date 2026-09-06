@@ -34,6 +34,7 @@ export function ConfirmationScreen({ orderNumber }: { orderNumber?: string }) {
   const lang = useUIStore((s) => s.lang)
   const t = makeTr(lang)
   const closeCheckout = useUIStore((s) => s.closeCheckout)
+  const closeModal = useUIStore((s) => s.closeModal)
   const clearAll = useCartStore((s) => s.clearAll)
 
   // Snapshot everything we need for the summary ONCE, on mount. After
@@ -61,6 +62,9 @@ export function ConfirmationScreen({ orderNumber }: { orderNumber?: string }) {
 
   useEffect(() => {
     clearAll()
+    // WEC-738: a dish modal opened during checkout (cart-item edit) is a global
+    // App-level overlay; close it so it can't re-mount over the order number.
+    closeModal()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
