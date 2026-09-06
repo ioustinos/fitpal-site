@@ -141,10 +141,37 @@ export interface CreateStoreInput {
  * week's menu"*. It is a one-time copy, not inheritance — the new store owns
  * those rows outright and later edits to the retail menu never reach it.
  */
+/**
+ * WEC-743: next free Airtable store id.
+ *
+ * Retail is pinned at 9999, so portals count up from 9001. Assigned at CREATE
+ * time rather than left blank, because blank is not a neutral state: the
+ * Airtable push falls back to `RETAIL_STORE_ID` (9999), so a store without a
+ * number files its orders into Airtable **as retail orders** — the kitchen sees
+ * them, nobody sees they came from a company, and nothing errors.
+ *
+ * Ioustinos allocates from here and adds the matching Airtable row by hand
+ * (his stated workflow: "you give an id and i add it on airtable for matching").
+ */
+export async function nextAirtableStoreId(): Promise<number> {
+  const { data } = await supabase
+    .from('stores')
+    .select('airtable_store_id')
+    .not('airtable_store_id', 'is', null)
+    .lt('airtable_store_id', 9999)
+    .order('airtable_store_id', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+
+  const highest = (data as { airtable_store_id: number } | null)?.airtable_store_id ?? 9000
+  return highest + 1
+}
+
 export async function createStore(
   input: CreateStoreInput,
 ): Promise<{ data: AdminStore | null; error: string | null; menuCloned: boolean }> {
   const slug = input.slug.trim().toLowerCase()
+  const airtableStoreId = await nextAirtableStoreId()
 
   const { data: row, error } = await supabase
     .from('stores')
@@ -153,6 +180,7 @@ export async function createStore(
       type: input.type,
       name_el: input.nameEl.trim() || slug,
       name_en: input.nameEn.trim() || input.nameEl.trim() || slug,
+      airtable_store_id: airtableStoreId,
       active: true,
       is_default: false,
     })
@@ -395,6 +423,15 @@ export function storeReadiness(store: AdminStore): ReadinessItem[] {
       label: 'Weekly menu for an upcoming week',
       ok: hasUpcomingMenu,
       hint: 'A store with no menu of its own shows an empty week — nothing can be ordered.',
+    },
+    {
+      // WEC-743: blank is not neutral. pushOrder falls back to RETAIL_STORE_ID
+      // (9999), so this store's orders land in Airtable labelled as retail —
+      // silently, and only visible once someone audits the ops board.
+      key: 'airtable',
+      label: 'Airtable store id',
+      ok: store.airtableStoreId != null,
+      hint: 'Without one, this store\'s orders push to Airtable as RETAIL (9999). Assign a number here, then add the matching row in Airtable.',
     },
   ]
 }

@@ -63,10 +63,16 @@ export function Stores() {
     setCreating(false)
     if (error) { setErr(error); return }
     setNewSlug(''); setNewName('')
+    // WEC-743: the Airtable id is auto-assigned now, but it still needs a human
+    // to create the matching row over in Airtable — so say the number out loud
+    // at the one moment he is looking.
+    const atLine = data?.airtableStoreId != null
+      ? ` Airtable store id is ${data.airtableStoreId} — add the matching row in Airtable.`
+      : ''
     setNote(
-      menuCloned
+      (menuCloned
         ? `Store created. The newest active retail week was cloned into it — edit it under Menu builder.`
-        : `Store created. No menu was cloned (no active retail week found) — the store has an empty menu until you clone one.`,
+        : `Store created. No menu was cloned (no active retail week found) — the store has an empty menu until you clone one.`) + atLine,
     )
     await refresh(data?.id ?? null)
   }
@@ -105,6 +111,13 @@ export function Stores() {
                 <div className="admin-zone-item-meta">
                   /{s.slug} · {s.type} · {s.menus.length} menu{s.menus.length === 1 ? '' : 's'}
                   {s.type === 'reseller' && <> · {s.memberCount} member{s.memberCount === 1 ? '' : 's'}</>}
+                  {/* WEC-743: readable at a glance — this is the number that has
+                      to exist in Airtable too, so it belongs on the list row. */}
+                  {!s.isDefault && (
+                    s.airtableStoreId != null
+                      ? <> · AT {s.airtableStoreId}</>
+                      : <> · <span style={{ color: '#dc2626', fontWeight: 700 }}>no AT id</span></>
+                  )}
                   {!s.active && <> · <em>inactive</em></>}
                 </div>
                 {!s.isDefault && storeReadiness(s).some((r) => !r.ok) && (
@@ -247,7 +260,7 @@ function StoreEditor({ store, onSaved }: { store: AdminStore; onSaved: () => voi
       </div>
 
       {!isRetail && (
-        <Section title="Setup checklist" sub="These four fail silently if skipped — the symptom is a customer who cannot order.">
+        <Section title="Setup checklist" sub="Every one of these fails SILENTLY if skipped — no error, just wrong behaviour nobody notices until a customer or the kitchen does.">
           {readiness.map((r) => (
             <div key={r.key} style={{ display: 'flex', gap: 8, alignItems: 'flex-start', fontSize: 13 }}>
               <span style={{ color: r.ok ? '#059669' : '#dc2626', fontWeight: 900 }}>{r.ok ? '✓' : '✗'}</span>
@@ -309,10 +322,55 @@ function StoreEditor({ store, onSaved }: { store: AdminStore; onSaved: () => voi
               <div style={{ fontSize: 12, color: '#6b7280', marginTop: 4 }}>None selected — inherits the retail methods.</div>
             )}
           </div>
-          <Field label="Airtable Store Id" value={form.airtableStoreId} onChange={(v) => setForm({ ...form, airtableStoreId: v })} placeholder="9001" />
-          <div style={{ fontSize: 12, color: '#6b7280', marginTop: -4 }}>
-            Retail is 9999. Give each store its own number and add the matching row in Airtable.
+        </Section>
+      )}
+
+      {/* WEC-743: pulled out of "Store settings" into its own block. It is not a
+          setting — it is the number Ioustinos has to carry into Airtable by
+          hand, and leaving it buried is how Savills shipped without one. */}
+      {!isRetail && (
+        <Section
+          title="Airtable"
+          sub="This number is how the kitchen's Airtable board recognises the store. Copy it, then create the matching store row in Airtable."
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+            <div style={{
+              fontSize: 30, fontWeight: 800, letterSpacing: '.02em', lineHeight: 1,
+              color: form.airtableStoreId ? '#111827' : '#dc2626',
+              fontVariantNumeric: 'tabular-nums',
+            }}>
+              {form.airtableStoreId || '—'}
+            </div>
+            {form.airtableStoreId && (
+              <button
+                className="admin-btn"
+                onClick={() => { void navigator.clipboard?.writeText(form.airtableStoreId).then(
+                  () => setMsg(`Copied ${form.airtableStoreId} — now add the matching row in Airtable.`),
+                  () => setMsg(null),
+                ) }}
+              >
+                Copy
+              </button>
+            )}
           </div>
+
+          <Field
+            label="Airtable Store Id"
+            value={form.airtableStoreId}
+            onChange={(v) => setForm({ ...form, airtableStoreId: v.replace(/[^0-9]/g, '') })}
+            placeholder="9001"
+          />
+          {form.airtableStoreId
+            ? (
+              <div style={{ fontSize: 12, color: '#6b7280', marginTop: -4 }}>
+                Retail is 9999. New stores are numbered automatically from 9001 — change it only to match a row that already exists in Airtable.
+              </div>
+            )
+            : (
+              <div style={{ fontSize: 12, color: '#b91c1c', marginTop: -4, fontWeight: 600 }}>
+                No number: every order on this store is pushed to Airtable as a <strong>retail</strong> order (9999). Nothing errors — it is simply filed in the wrong place.
+              </div>
+            )}
         </Section>
       )}
 
