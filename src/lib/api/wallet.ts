@@ -172,6 +172,33 @@ export async function fetchWallet(userId: string): Promise<{
     }
   }
 
+  // WEC-737: no active plan does NOT mean no plan. A bank-transfer or cash
+  // purchase sits at payment_status='pending' with wallets.active=false until
+  // the money lands, and the account then claimed the customer had no
+  // subscription at all — stranding them with no way back to the IBAN and the
+  // WP- reference they need in order to pay. Surface it as a pending marker.
+  let pendingReference: string | undefined
+  let pendingMethod: string | undefined
+  let pendingAmount: number | undefined
+  if (!w.active_plan_id) {
+    const { data: pendRow } = await supabase
+      .from('wallet_plans')
+      .select('id, payment_method, amount_to_pay_cents, cost, created_at')
+      .eq('wallet_id', w.id)
+      .eq('payment_status', 'pending')
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+    if (pendRow) {
+      const pp = pendRow as Record<string, unknown>
+      pendingReference = `WP-${String(pp.id).slice(0, 8).toUpperCase()}`
+      pendingMethod = (pp.payment_method as string | null) ?? undefined
+      pendingAmount = centsToEuros(
+        ((pp.amount_to_pay_cents as number | null) ?? (pp.cost as number | null) ?? 0),
+      )
+    }
+  }
+
   // 3. Transactions (most recent 20)
   const { data: txRows } = await supabase
     .from('wallet_transactions')
@@ -208,6 +235,9 @@ export async function fetchWallet(userId: string): Promise<{
       goal,
       bodyFatMeasurement,
       purchaseDate,
+      pendingReference,
+      pendingMethod,
+      pendingAmount,
       transactions,
       adminManaged: w.admin_managed ?? false,
     },

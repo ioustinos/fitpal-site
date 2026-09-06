@@ -75,6 +75,18 @@ export interface UserWallet {
   goal?: string             // wallet_plans.goal: lose | maintain | gain
   bodyFatMeasurement?: boolean  // services.bodyFatMeasurement (λιπομέτρηση)
   purchaseDate?: string     // ISO date — confirmed_at (fallback created_at)
+  /**
+   * WEC-737: a plan that is bought but NOT yet paid (bank transfer / cash)
+   * never flips `wallets.active`, so the Συνδρομή tab fell through to
+   * «Δεν έχεις συνδρομή ακόμα» and the customer lost every route back to
+   * their IBAN and payment reference. These surface that plan so the tab can
+   * link to /subscription/success/{reference} — the one place that renders
+   * payment details. Deliberately NOT setting active/planId: the wallet must
+   * stay uncredited until the money actually arrives.
+   */
+  pendingReference?: string   // «WP-XXXXXXXX»
+  pendingMethod?: string      // 'transfer' | 'cash'
+  pendingAmount?: number      // € still to pay
   transactions?: WalletTransaction[]
   /**
    * When true, only an admin (via impersonation) can spend this wallet —

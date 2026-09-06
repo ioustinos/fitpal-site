@@ -1691,6 +1691,42 @@ function SubscriptionTab({ user, lang }: any) {
   const pageTitle = isEl ? 'Συνδρομές' : 'Subscriptions'
 
   // No wallet at all → subscription empty state (build your plan).
+  // WEC-737: a bought-but-unpaid plan (bank transfer / cash) leaves
+  // wallets.active false, so this used to fall straight through to «Δεν έχεις
+  // συνδρομή ακόμα» — telling a customer who had just paid €450 that they had
+  // no subscription, with no route back to the IBAN and the WP- reference.
+  // Show it as awaiting payment and send them to the success page, which is
+  // the single place that renders payment details (and survives refresh).
+  if (!wallet?.active && wallet?.pendingReference) {
+    const isTransfer = wallet.pendingMethod === 'transfer'
+    return (
+      <div className="tab-section">
+        <h2 className="tab-title">{pageTitle}</h2>
+        <div className="aw-empty">
+          <div className="aw-empty-icon">
+            <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+          </div>
+          <div className="aw-empty-title">{t('acPendingPlanTitle')}</div>
+          <div className="aw-empty-desc">
+            {isTransfer ? t('acPendingPlanDescTransfer') : t('acPendingPlanDescCash')}
+          </div>
+          <div className="aw-empty-desc" style={{ marginTop: 8 }}>
+            {t('acPendingPlanRef')}: <strong>{wallet.pendingReference}</strong>
+            {typeof wallet.pendingAmount === 'number' && wallet.pendingAmount > 0
+              ? ` · ${wallet.pendingAmount.toFixed(2)} €`
+              : ''}
+          </div>
+          <button
+            className="aw-btn aw-btn-topup"
+            onClick={() => { closeAccount(); setTimeout(() => { window.location.href = `/subscription/success/${wallet.pendingReference}` }, 300) }}
+          >
+            {t('acPendingPlanCta')}
+          </button>
+        </div>
+      </div>
+    )
+  }
+
   if (!wallet?.active) {
     return (
       <div className="tab-section">
