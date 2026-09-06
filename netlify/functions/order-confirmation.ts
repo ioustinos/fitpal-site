@@ -1,5 +1,5 @@
 /**
- * WEC-726: confirmation-screen order lookup for the Viva return page.
+ * WEC-740: confirmation-screen order lookup for the Viva return page.
  *
  * ⚠️ WHY THIS EXISTS — the bug it fixes
  *
@@ -27,6 +27,16 @@
  * `viva-verify` uses. Drafts are refused outright, and the response carries
  * only what the confirmation screen renders — no `user_id`, no admin notes, no
  * internal ids.
+ *
+ * ⚠️ WEC-742 — `&minimal=1`
+ *
+ * The return page has a second read of the same order: when Viva's verify says
+ * "still pending", it polls every 1.5s for up to 10s hoping the webhook lands.
+ * That poll was ALSO a direct browser query, so it hit the identical guest
+ * null-match and the page fell through to a "payment pending" screen with no
+ * order number on it. `minimal=1` serves that poll — order row only, no
+ * children, no items — so a 7-iteration poll doesn't do 21 queries to answer
+ * one question.
  */
 
 import type { Handler } from '@netlify/functions'
@@ -44,6 +54,8 @@ const NO_STORE = {
 
 export const handler: Handler = async (event) => {
   const orderId = (event.queryStringParameters?.orderId ?? '').trim()
+  // WEC-742: the payment poll only needs the order row.
+  const minimal = (event.queryStringParameters?.minimal ?? '') === '1'
 
   if (!UUID_RE.test(orderId)) {
     return { statusCode: 400, headers: NO_STORE, body: JSON.stringify({ error: 'invalid_order_id' }) }
@@ -59,7 +71,7 @@ export const handler: Handler = async (event) => {
   try {
     const { data: order, error: oErr } = await supabase
       .from('orders')
-      .select('id, order_number, total, notes, payment_method, invoice_type, invoice_name, invoice_vat, status')
+      .select('id, order_number, total, notes, payment_method, payment_status, invoice_type, invoice_name, invoice_vat, status')
       .eq('id', orderId)
       .maybeSingle()
 
@@ -71,6 +83,16 @@ export const handler: Handler = async (event) => {
     // readable by anyone holding a stale id.
     if ((order as { status?: string }).status === 'draft') {
       return { statusCode: 404, headers: NO_STORE, body: JSON.stringify({ error: 'order_not_found' }) }
+    }
+
+    // WEC-742: the poll asks one question — "is it paid yet?" — and pays for
+    // one query to answer it.
+    if (minimal) {
+      return {
+        statusCode: 200,
+        headers: NO_STORE,
+        body: JSON.stringify({ order, children: [], items: [] }),
+      }
     }
 
     const { data: children, error: cErr } = await supabase

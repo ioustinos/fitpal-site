@@ -331,10 +331,43 @@ export interface ConfirmationOrder {
   days: ConfirmationOrderDay[]
 }
 
+/**
+ * WEC-742: "is this order paid yet?", asked by the Viva return page while it
+ * waits for a webhook that hasn't landed.
+ *
+ * Same reason as `fetchOrderForConfirmation`: querying `orders` from the
+ * browser returns nothing for a guest — `auth.uid() = user_id` with both null
+ * is NULL, which is zero rows and no error. The poll therefore always failed
+ * for exactly the people it exists to serve, and the page settled on a
+ * "payment pending" screen with no order number, which is the one thing a
+ * customer who has just been charged needs to see.
+ */
+export async function fetchOrderPaymentState(
+  orderId: string,
+): Promise<{ orderId: string; orderNumber: string; paymentStatus: string; total: number } | null> {
+  const res = await fetch(
+    `/api/order-confirmation?orderId=${encodeURIComponent(orderId)}&minimal=1`,
+    { headers: { Accept: 'application/json' } },
+  ).catch(() => null)
+
+  if (!res || !res.ok) return null
+
+  const payload = await res.json().catch(() => null) as { order?: DbOrder } | null
+  const o = payload?.order
+  if (!o) return null
+
+  return {
+    orderId: o.id,
+    orderNumber: o.order_number,
+    paymentStatus: o.payment_status ?? 'pending',
+    total: o.total,
+  }
+}
+
 export async function fetchOrderForConfirmation(
   orderIdOrNumber: string,
 ): Promise<{ data: ConfirmationOrder | null; error: string | null }> {
-  // WEC-726: read through the server, not straight from the browser.
+  // WEC-740: read through the server, not straight from the browser.
   //
   // The direct query worked only for a LOGGED-IN customer. A guest has no
   // `auth.uid()` and the order has no `user_id`, so the "Users read own orders"

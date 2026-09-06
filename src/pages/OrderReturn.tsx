@@ -4,9 +4,11 @@
 //   1. Pull the `t` (transactionId) and `s` (orderCode) params Viva appended.
 //   2. Call /api/viva-verify?t=... which does the authoritative GET against
 //      Viva's Retrieve Transaction API and flips payment_status if paid.
-//   3. If still pending (verify returned 'pending'), poll Supabase directly
-//      for up to 10s — gives the webhook or reconcile a chance to finish
-//      without making us look stuck.
+//   3. If still pending (verify returned 'pending'), poll the order through
+//      /api/order-confirmation?minimal=1 for up to 10s — gives the webhook or
+//      reconcile a chance to finish without making us look stuck. Server-side
+//      by necessity, not preference: a guest cannot read their own order from
+//      the browser (WEC-742).
 //   4. On success: fetch the full order + children + items and render the
 //      SAME confirmation UI the cash flow uses (`.conf-*` CSS classes,
 //      mirrors components/checkout/ConfirmationScreen.tsx).
@@ -19,7 +21,7 @@ import { supabase } from '../lib/supabase'
 import { planReference } from '../lib/api/wallet'
 import { useUIStore } from '../store/useUIStore'
 import { useCartStore } from '../store/useCartStore'
-import { fetchOrderForConfirmation, type ConfirmationOrder } from '../lib/api/orders'
+import { fetchOrderForConfirmation, fetchOrderPaymentState, type ConfirmationOrder } from '../lib/api/orders'
 import { fmt } from '../lib/helpers'
 import { makeTr } from '../lib/translations'
 
@@ -182,29 +184,30 @@ export function OrderReturn({ mode }: Props) {
       if (pollingRef.current) return
       pollingRef.current = true
 
+      // WEC-742: through the server. The direct query this replaced returned
+      // zero rows for every guest, so the loop below could only ever time out
+      // for them — and then hand them a pending screen with no order number.
       const deadline = Date.now() + 10_000
+      let last: Awaited<ReturnType<typeof fetchOrderPaymentState>> = null
       while (!cancelled && Date.now() < deadline) {
-        const { data } = await supabase
-          .from('orders')
-          .select('id, order_number, payment_status, total')
-          .eq('id', orderId)
-          .maybeSingle()
+        const data = await fetchOrderPaymentState(orderId)
         if (cancelled) return
-        if (data?.payment_status === 'paid') {
+        if (data) last = data
+        if (data?.paymentStatus === 'paid') {
           setOutcome({
             status: 'paid',
             kind: 'order',
-            orderId: data.id as string,
-            orderNumber: data.order_number as string,
-            amountCents: data.total as number,
+            orderId: data.orderId,
+            orderNumber: data.orderNumber,
+            amountCents: data.total,
           })
           pollingRef.current = false
           return
         }
-        if (data?.payment_status === 'failed') {
+        if (data?.paymentStatus === 'failed') {
           setOutcome({
             status: 'failed',
-            orderNumber: data.order_number as string,
+            orderNumber: data.orderNumber,
             reason: 'Bank declined',
           })
           pollingRef.current = false
@@ -215,14 +218,11 @@ export function OrderReturn({ mode }: Props) {
 
       pollingRef.current = false
       if (!cancelled) {
-        const { data } = await supabase
-          .from('orders')
-          .select('order_number')
-          .eq('id', orderId)
-          .maybeSingle()
+        // Reuse whatever the poll already saw rather than asking again — it
+        // read the order successfully, it just never turned paid.
         setOutcome({
           status: 'pending',
-          orderNumber: (data?.order_number as string) ?? undefined,
+          orderNumber: last?.orderNumber ?? (await fetchOrderPaymentState(orderId))?.orderNumber,
         })
       }
     }
