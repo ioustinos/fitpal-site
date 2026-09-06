@@ -113,14 +113,28 @@ export function TimeSlotPicker({ dayDate, inline = false }: TimeSlotPickerProps)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedSlot, zoneSlotSet, dayDate])
 
+  // WEC-712 (Ioustinos, 2026-09-06): "the one time window available should be
+  // preselected to save one click". When exactly ONE window is selectable
+  // there is no choice to make, so making the customer click it is pure
+  // friction — most visible on a company store with a single fixed window, but
+  // it is right anywhere the list narrows to one.
+  //
+  // Deliberately does NOT pre-select when several are offered: picking a
+  // delivery time on the customer's behalf is a different thing entirely.
+  const selectableSlots = displaySlots.filter((s) => zoneSlotSet === null || zoneSlotSet.has(s))
+  useEffect(() => {
+    if (selectedSlot) return
+    if (selectableSlots.length !== 1) return
+    setDelivery(dayDate, { ...current, timeSlot: selectableSlots[0] })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedSlot, selectableSlots.join('|'), dayDate])
+
   // WEC-138 empty state: we can hit this in two cases:
   //  - settings.time_slots is empty in admin (misconfig — shouldn't happen in prod)
   //  - the resolved zone has no slots at all (also misconfig)
   //  Either way, pretending there's a grid is confusing; we render a hint
   //  so the user knows to contact support rather than blaming the site.
-  const hasAnyEnabled = displaySlots.some(
-    (slot) => zoneSlotSet === null || zoneSlotSet.has(slot),
-  )
+  const hasAnyEnabled = selectableSlots.length > 0
 
   const grid = !hasAnyEnabled ? (
     <div className="time-grid-empty">

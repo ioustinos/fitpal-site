@@ -878,6 +878,15 @@ export default async (request: Request) => {
       // address to validate. Pickup days still need a time slot but use the
       // same global slot list (no per-fulfillment slot setting in V1).
       const isPickup = day.fulfillmentType === 'pickup'
+
+      // WEC-712 (Ioustinos, 2026-09-06): pickup is RETAIL-only. A company or
+      // reseller store delivers to its one fixed corporate address, so
+      // "collect from the shop" is not on offer there. The UI hides the
+      // toggle; this is the half that a forged payload cannot get around.
+      if (isPickup && !isMainStore) {
+        addError(errors, k, 'Pickup is not available on this store — orders are delivered to the company address')
+      }
+
       const zip = day.addressZip?.replace(/\s/g, '')
       let matchedZone: any = null
       if (isPickup) {

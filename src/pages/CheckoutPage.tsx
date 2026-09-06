@@ -197,6 +197,18 @@ export function CheckoutPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fulfillment, pickupLocations.length])
 
+  // WEC-712: a non-retail storefront is delivery-only. If a cart somehow
+  // carries a pickup day (stale state, a store that was switched from retail),
+  // reset it — the server refuses pickup on these stores, so leaving the value
+  // would fail at submit with a confusing error instead of here, silently.
+  useEffect(() => {
+    if (storefront.isMain) return
+    const fl = useCartStore.getState().fulfillment
+    for (const [date, type] of Object.entries(fl)) {
+      if (type === 'pickup') useCartStore.getState().setFulfillment(date, 'delivery')
+    }
+  }, [storefront.isMain, fulfillment])
+
   // ── WEC-417 / WEC-423: draft persistence (triggers B + C) ────────────────
   // B: debounced 2s on changes to cart / addresses / time slots / payment /
   //    voucher / fulfillment / customer contact. Also fires on mount (React
@@ -918,7 +930,13 @@ export function CheckoutPage() {
               // exactly. As long as a pickup location is configured, the
               // toggle is offered on every day block (the weekday gate
               // we shipped in stage 1 was dropped at Ioustinos's request).
-              const pickupLoc = pickupLocations[0]
+              // WEC-712 (Ioustinos, 2026-09-06): pickup is a RETAIL-only
+              // option. A company or reseller store delivers to its one fixed
+              // corporate address — "παραλαβή από το κατάστημα" makes no sense
+              // there, so the whole toggle is hidden rather than shown disabled.
+              // Hiding `pickupLoc` also hides the pickup window + location
+              // blocks below, which are gated on the same value.
+              const pickupLoc = storefront.isMain ? pickupLocations[0] : undefined
               const pickupAvailable = !!pickupLoc
               return (
                 <div key={dDate} className="day-deliv-block">
