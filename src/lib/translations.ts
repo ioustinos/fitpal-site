@@ -5,9 +5,8 @@ const T = {
     // Banner / heading
     heading: 'Εβδομαδιαίο Μενού',
     sub: 'Επίλεξε μέρα, πρόσθεσε τα αγαπημένα σου πιάτα και παραγγείλε με ένα κλικ',
-    pillMin: 'Ελάχιστη παραγγελία 15 €',
     pillDelivery: 'Παράδοση 9:00–15:00',
-    daylabel: 'Επιλεξε ημερα',
+    daylabel: 'Επίλεξε ημέρα',
     // Cart
     cartTitle: 'Η Παραγγελία μου',
     cartSub: 'Ανασκόπηση & ολοκλήρωση',
@@ -66,7 +65,6 @@ const T = {
     confirmed: 'Η παραγγελία σου καταχωρήθηκε!',
     confSub: 'Θα λάβεις email επιβεβαίωσης σύντομα.\nΕυχαριστούμε που επέλεξες fitpal meals!',
     backMenu: '← Επιστροφή στο Μενού',
-    minWarn: 'Ελάχιστη παραγγελία 15 € ανά ημέρα',
     // Tags
     popular: 'Popular',
     veg: 'Veg',
@@ -432,7 +430,6 @@ const T = {
   en: {
     heading: 'Weekly Menu',
     sub: 'Pick a day, add your favourite dishes and order with one click',
-    pillMin: 'Minimum order 15 €',
     pillDelivery: 'Delivery 9:00–15:00',
     daylabel: 'Select a day',
     cartTitle: 'My Order',
@@ -486,7 +483,6 @@ const T = {
     confirmed: 'Your order has been placed!',
     confSub: "You'll receive a confirmation email shortly.\nThank you for choosing fitpal meals!",
     backMenu: '← Back to Menu',
-    minWarn: 'Minimum order 15 € per day',
     popular: 'Popular',
     veg: 'Veg',
     lc: 'Low Carb',

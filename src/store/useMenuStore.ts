@@ -112,7 +112,7 @@ export const useMenuStore = create<MenuStore>((set, get) => ({
   zones: [],
   timeSlots: [],
   settings: {
-    minOrder: 15,
+    minOrder: 10,
     cutoffHour: 18,
     cutoffWeekdayOverrides: {},
     cutoffDateOverrides: {},
@@ -189,6 +189,18 @@ export const useMenuStore = create<MenuStore>((set, get) => ({
       set({
         isLoading: false,
         error: metaRes.error ?? 'Failed to load menu',
+        hasFetched: true,
+      })
+      return
+    }
+
+    // WEC-661: never silently fall back to a placeholder minimum (a wrong minimum
+    // is a wrong price). If settings didn't load, surface an error instead of
+    // committing null/placeholder settings downstream.
+    if (settingsRes.error || !settingsRes.data) {
+      set({
+        isLoading: false,
+        error: settingsRes.error ?? 'Failed to load settings',
         hasFetched: true,
       })
       return

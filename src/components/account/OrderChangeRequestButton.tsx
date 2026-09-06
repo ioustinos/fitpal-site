@@ -10,7 +10,6 @@ import {
   fetchMyChangeRequests,
   type OrderChangeReason,
 } from '../../lib/api/orderChangeRequests'
-import { useMenuStore } from '../../store/useMenuStore'
 
 const ACTIONABLE = new Set(['pending', 'confirmed'])
 
@@ -30,9 +29,6 @@ interface Props {
 
 export function OrderChangeRequestButton({ orderId, orderStatusRaw, userId, lang }: Props) {
   const isEl = lang === 'el'
-  // WEC-683: cutoff hour is read from settings (never hardcoded) so changing
-  // cutoff_hour in /admin/settings updates this caveat with no deploy.
-  const cutoffHour = useMenuStore((s) => s.settings.cutoffHour)
 
   const [open, setOpen] = useState(false)
   const [reason, setReason] = useState<OrderChangeReason>('cancel')
@@ -40,8 +36,8 @@ export function OrderChangeRequestButton({ orderId, orderStatusRaw, userId, lang
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState<string | null>(null)
   const [alreadyRequested, setAlreadyRequested] = useState(false)
-  // WEC-664: post-submit confirmation is a centred «Ελήφθη» that auto-dismisses
-  // after 7s and has an × to close early. No toast, no acknowledgement email.
+  // WEC-664: post-submit confirmation is a centred processing message that
+  // auto-dismisses after 7s and has an × to close early. No acknowledgement email.
   const [received, setReceived] = useState(false)
   useEffect(() => {
     if (!received) return
@@ -66,6 +62,13 @@ export function OrderChangeRequestButton({ orderId, orderStatusRaw, userId, lang
   if (!actionable || !userId) return null
 
   async function submit() {
+    // WEC-664: details are required — say exactly what's missing, don't just block.
+    if (!message.trim()) {
+      setErr(isEl
+        ? 'Συμπλήρωσε τις λεπτομέρειες του αιτήματος για να συνεχίσεις.'
+        : 'Please add the details of your request to continue.')
+      return
+    }
     setBusy(true)
     setErr(null)
     const { error } = await createOrderChangeRequest({ orderId, userId: userId!, reason, message })
@@ -98,11 +101,14 @@ export function OrderChangeRequestButton({ orderId, orderStatusRaw, userId, lang
               ? 'Πες μας τι θέλεις να αλλάξεις και θα επικοινωνήσουμε μαζί σου. Οι αλλαγές δεν είναι αυτόματες.'
               : "Tell us what you'd like to change and we'll get back to you. Changes aren't automatic."}
           </p>
-          {/* WEC-683: soft timing caveat — hour from settings, not hardcoded. */}
+          {/* WEC-683: definite timing statement with a literal 18:00, per the Fitpal
+              team (2026-09-06). Intentionally NOT read from settings.cutoffHour — the
+              team asked for this exact wording. If ops ever changes the cutoff this
+              string must be updated by hand (drift tradeoff noted on the ticket). */}
           <p className="order-change-modal-sub" style={{ color: 'var(--text-muted)', fontStyle: 'italic', marginTop: -4 }}>
             {isEl
-              ? `Οι αλλαγές για την παραγγελία της επόμενης ημέρας μετά τις ${cutoffHour}:00 ενδέχεται να μην είναι εφικτές.`
-              : `Changes to the next day's order after ${cutoffHour}:00 may not be possible.`}
+              ? 'Οι αλλαγές για την παραγγελία της επόμενης ημέρας, δεν πραγματοποιούνται μετά τις 18:00.'
+              : "Changes to the next day's order are not made after 18:00."}
           </p>
 
           <label className="form-label">{isEl ? 'Λόγος' : 'Reason'}</label>
@@ -112,12 +118,13 @@ export function OrderChangeRequestButton({ orderId, orderStatusRaw, userId, lang
             ))}
           </select>
 
-          <label className="form-label" style={{ marginTop: 12 }}>{isEl ? 'Λεπτομέρειες' : 'Details'}</label>
+          <label className="form-label" style={{ marginTop: 12 }}>{isEl ? 'Λεπτομέρειες *' : 'Details *'}</label>
           <textarea
             className="form-input"
             rows={4}
+            required
             value={message}
-            onChange={(e) => setMessage(e.target.value)}
+            onChange={(e) => { setMessage(e.target.value); if (err) setErr(null) }}
             placeholder={isEl ? 'Γράψε τι θέλεις να αλλάξει…' : 'Describe what you want changed…'}
           />
 
@@ -149,7 +156,8 @@ export function OrderChangeRequestButton({ orderId, orderStatusRaw, userId, lang
             style={{
               position: 'relative', background: '#fff', borderRadius: 16,
               padding: '28px 44px', boxShadow: '0 12px 40px rgba(0,0,0,0.2)',
-              fontSize: 20, fontWeight: 700, color: '#0f172a',
+              fontSize: 16, fontWeight: 600, color: '#0f172a',
+              maxWidth: 360, textAlign: 'center', lineHeight: 1.45,
             }}
           >
             <button
@@ -164,7 +172,9 @@ export function OrderChangeRequestButton({ orderId, orderStatusRaw, userId, lang
             >
               ×
             </button>
-            {isEl ? 'Ελήφθη' : 'Received'}
+            {isEl
+              ? 'Η ομάδα μας επεξεργάζεται το αίτημα σου. Θα σε ενημερώσουμε για την εξέλιξή του.'
+              : "Our team is processing your request. We'll keep you posted on its progress."}
           </div>
         </div>
       )}
