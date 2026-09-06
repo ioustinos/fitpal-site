@@ -285,21 +285,31 @@ export interface StoreMember {
 }
 
 export async function fetchStoreMembers(storeId: string): Promise<{ data: StoreMember[] | null; error: string | null }> {
+  // Two queries on purpose. `store_members.user_id` references auth.users, NOT
+  // public.profiles, so PostgREST has no relationship to embed across — a
+  // `profiles:user_id(...)` embed fails with "Could not find a relationship".
+  // Resolving the profiles separately is the only shape that actually works.
   const { data, error } = await supabase
     .from('store_members')
-    .select('user_id, created_at, profiles:user_id (name, email)')
+    .select('user_id, created_at')
     .eq('store_id', storeId)
     .order('created_at')
   if (error) return { data: null, error: error.message }
-  // PostgREST types an embedded FK as an array even when it resolves to one
-  // row, so normalise both shapes rather than trusting either.
-  type ProfileBit = { name: string | null; email: string | null }
-  const rows = (data ?? []) as unknown as Array<{
-    user_id: string; created_at: string; profiles: ProfileBit | ProfileBit[] | null
-  }>
+
+  const rows = (data ?? []) as Array<{ user_id: string; created_at: string }>
+  if (rows.length === 0) return { data: [], error: null }
+
+  const { data: profs } = await supabase
+    .from('profiles')
+    .select('id, name, email')
+    .in('id', rows.map((r) => r.user_id))
+  const byId = new Map(
+    ((profs ?? []) as Array<{ id: string; name: string | null; email: string | null }>).map((p) => [p.id, p]),
+  )
+
   return {
     data: rows.map((r) => {
-      const p = Array.isArray(r.profiles) ? r.profiles[0] : r.profiles
+      const p = byId.get(r.user_id)
       return {
         userId: r.user_id,
         email: p?.email ?? null,
