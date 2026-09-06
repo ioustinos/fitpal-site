@@ -4,6 +4,36 @@ import { useUIStore } from '../../store/useUIStore'
 import { useMenuStore } from '../../store/useMenuStore'
 import { formatSlots, resolveZone } from '../../lib/helpers'
 import { makeTr } from '../../lib/translations'
+import { useStorefront } from '../../lib/storefront/StoreProvider'
+
+/**
+ * WEC-712: a company/reseller store has its own fixed delivery window(s),
+ * held as a `time_slots` row in `store_settings`. Accepts the same shapes the
+ * global setting uses — "09:00-11:00" strings or {from,to} / {time_from,time_to}
+ * objects — and normalises to the "HH:MM–HH:MM" label the grid renders.
+ */
+function storeSlotLabels(raw: unknown): string[] {
+  if (!Array.isArray(raw)) return []
+  const pad = (t: string) => {
+    const p = String(t).trim().split(':')
+    return `${(p[0] ?? '').padStart(2, '0')}:${(p[1] ?? '00').padStart(2, '0')}`
+  }
+  return raw
+    .map((s) => {
+      if (typeof s === 'string') {
+        const [a, b] = s.split(/[-–]/)
+        return a && b ? `${pad(a)}–${pad(b)}` : ''
+      }
+      if (s && typeof s === 'object') {
+        const o = s as { from?: string; to?: string; time_from?: string; time_to?: string }
+        const a = o.from ?? o.time_from
+        const b = o.to ?? o.time_to
+        return a && b ? `${pad(a)}–${pad(b)}` : ''
+      }
+      return ''
+    })
+    .filter(Boolean)
+}
 
 interface TimeSlotPickerProps {
   /** WEC-336: ISO delivery date this picker controls slots for. */
@@ -18,6 +48,9 @@ export function TimeSlotPicker({ dayDate, inline = false }: TimeSlotPickerProps)
   const setDelivery = useCartStore((s) => s.setDelivery)
   const timeSlots = useMenuStore((s) => s.timeSlots)
   const zones = useMenuStore((s) => s.zones)
+  const storefront = useStorefront()
+  const storefrontSettings = storefront.settings as Record<string, unknown>
+  const isMainStore = storefront.isMain
   const t = makeTr(lang)
 
   const current = delivery[dayDate]
@@ -36,6 +69,14 @@ export function TimeSlotPicker({ dayDate, inline = false }: TimeSlotPickerProps)
   // Sorted by actual start-time (minutes-since-midnight) so that "9:00–11:00"
   // lands before "10:00–12:00" — lexical sort of formatted strings puts "9" last.
   const { displaySlots, zoneSlotSet } = useMemo(() => {
+    // WEC-712: on a store with its own fixed window(s), that list IS the grid.
+    // Zone slots do not apply — the delivery address is the company's, fixed,
+    // and possibly outside every retail zone. Showing the retail windows here
+    // would offer the customer a choice the server then rejects.
+    const storeSlots = storeSlotLabels(storefrontSettings.time_slots)
+    if (!isMainStore && storeSlots.length > 0) {
+      return { displaySlots: storeSlots, zoneSlotSet: null }
+    }
     const defaults = formatSlots(timeSlots)
     let zoneSlots: string[] = []
     if (currentZone) {
@@ -52,7 +93,8 @@ export function TimeSlotPicker({ dayDate, inline = false }: TimeSlotPickerProps)
     }
     unioned.sort((a, b) => startMin(a) - startMin(b))
     return { displaySlots: unioned, zoneSlotSet: currentZone ? set : null }
-  }, [timeSlots, currentZone])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [timeSlots, currentZone, isMainStore, storefrontSettings])
 
   function handleSelect(slot: string) {
     setDelivery(dayDate, { ...current, timeSlot: slot })
