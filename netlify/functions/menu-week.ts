@@ -183,6 +183,27 @@ export const handler: Handler = async (event) => {
     // 2. Dish IDs deduplicated across the week's days.
     const dishIds = Array.from(new Set(assignments.map((a) => a.dish_id)))
 
+    // WEC-714: a weekly menu belongs to exactly ONE store, so the menu id alone
+    // determines whether this is a wholesale read — which means the existing
+    // per-menuId edge cache stays correct with no new cache key.
+    //
+    // On a reseller store the price is `reseller_price`, with NO runtime
+    // fallback to retail: the prefill was a one-time data operation, not a
+    // rule. A variant that is not `reseller_available` is not sold on this
+    // channel and is omitted entirely — it must not be orderable, and a
+    // hidden-but-present variant would be exactly that.
+    let isResellerMenu = false
+    {
+      const { data: menuRow } = await supabase
+        .from('weekly_menus')
+        .select('store_id, stores!inner(type)')
+        .eq('id', menuId)
+        .maybeSingle()
+      const st = (menuRow as { stores?: { type?: string } | Array<{ type?: string }> } | null)?.stores
+      const type = Array.isArray(st) ? st[0]?.type : st?.type
+      isResellerMenu = type === 'reseller'
+    }
+
     // 3. Parallel fetch dishes + variants + dish_tags + dish_ingredients.
     //    Each is an indexed IN-list query against dishIds.
     //    dish_ingredients and dish_variants can exceed PostgREST's 1000-row
@@ -216,7 +237,7 @@ export const handler: Handler = async (event) => {
         .eq('active', true),
       fetchAllPages<Record<string, unknown>>(
         () => supabase.from('dish_variants'),
-        'id, dish_id, label_el, label_en, price, calories, protein, carbs, fat, sort_order, is_default',
+        'id, dish_id, label_el, label_en, price, reseller_price, reseller_available, calories, protein, carbs, fat, sort_order, is_default',
         (q) => q.in('dish_id', dishIds),
       ),
       supabase.from('dish_tags').select('dish_id, tag_id').in('dish_id', dishIds),
@@ -233,7 +254,21 @@ export const handler: Handler = async (event) => {
     if (dishIngsRes.error) throw new Error(`dish_ingredients: ${dishIngsRes.error.message}`)
 
     const dishes = (dishesRes.data ?? []) as DbDish[]
-    const variants = (variantsRes.data ?? []) as DbVariant[]
+    let variants = (variantsRes.data ?? []) as DbVariant[]
+    if (isResellerMenu) {
+      variants = variants
+        .filter((v) => {
+          const r = v as unknown as { reseller_available?: boolean; reseller_price?: number | null }
+          // Opt-in channel: not enabled → not sold here. And no price → not
+          // sold here either, rather than quietly charging the retail price,
+          // which on a wholesale channel is margin-negative.
+          return r.reseller_available === true && typeof r.reseller_price === 'number'
+        })
+        .map((v) => ({
+          ...v,
+          price: (v as unknown as { reseller_price: number }).reseller_price,
+        }))
+    }
     const dishTags = (dishTagsRes.data ?? []) as { dish_id: string; tag_id: string }[]
     const dishIngs = (dishIngsRes.data ?? []) as { dish_id: string; ingredient_id: string }[]
 
@@ -264,7 +299,13 @@ export const handler: Handler = async (event) => {
       variantsByDish.set(k, arr)
     }
 
-    const wireDishes: WireDish[] = dishes.map((d) => ({
+    // WEC-714: on a reseller store a dish whose variants are all disabled has
+    // nothing to sell — drop it rather than render a dish with no price.
+    const visibleDishes = isResellerMenu
+      ? dishes.filter((d) => (variantsByDish.get(d.id)?.length ?? 0) > 0)
+      : dishes
+
+    const wireDishes: WireDish[] = visibleDishes.map((d) => ({
       id: d.id,
       categoryId: d.category_id,
       nameEl: d.name_el,

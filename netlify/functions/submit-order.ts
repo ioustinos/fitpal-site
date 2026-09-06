@@ -544,7 +544,7 @@ export default async (request: Request) => {
       // Variant prices + macros
       supabase
         .from('dish_variants')
-        .select('id, dish_id, price, calories, protein, carbs, fat, label_el, label_en')
+        .select('id, dish_id, price, reseller_price, reseller_available, calories, protein, carbs, fat, label_el, label_en')
         .in('id', allVariantIds),
 
       // Dish names + active status
@@ -612,6 +612,32 @@ export default async (request: Request) => {
 
     const storeId: string | null = storeRow?.id ?? null
     const isMainStore = !storeRow || storeRow.is_default === true || storeRow.type === 'main'
+    const isResellerStore = storeRow?.type === 'reseller'
+
+    // ── WEC-714: reseller access gate ───────────────────────────────────
+    // A hidden menu is not access control. The client refuses to render a
+    // reseller store to a non-member, but the only thing that actually stops
+    // a forged POST is this check.
+    if (isResellerStore) {
+      if (!userId) {
+        return Response.json(
+          { error: 'Sign in to order from this store', validationErrors: { general: ['Sign in to order from this store'] } },
+          { status: 401 },
+        )
+      }
+      const { data: membership, error: memErr } = await supabase
+        .from('store_members')
+        .select('user_id')
+        .eq('store_id', storeId as string)
+        .eq('user_id', userId)
+        .maybeSingle()
+      if (memErr || !membership) {
+        return Response.json(
+          { error: 'You do not have access to this store', validationErrors: { general: ['You do not have access to this store'] } },
+          { status: 403 },
+        )
+      }
+    }
 
     /**
      * The ONE locked delivery address (WEC-709 keeps it as columns on
@@ -690,7 +716,21 @@ export default async (request: Request) => {
     const nowMs = Date.now()
 
     // Build lookup maps
-    const variantMap = new Map((variantsRes.data ?? []).map((v: any) => [v.id, v]))
+    // WEC-714: on a reseller store the authoritative price is
+    // `reseller_price`, with NO runtime fallback to retail — the prefill was a
+    // one-time data operation, not a rule. Rewriting `price` here means every
+    // downstream consumer (day totals, order_items.unit_price, the Viva
+    // amount) is automatically wholesale, with no second code path to keep in
+    // step. A variant not enabled for the channel, or with no wholesale price,
+    // is dropped from the map and then fails the normal "variant not found"
+    // validation with a clear message.
+    const rawVariants = (variantsRes.data ?? []) as any[]
+    const usableVariants = isResellerStore
+      ? rawVariants
+          .filter((v) => v.reseller_available === true && typeof v.reseller_price === 'number')
+          .map((v) => ({ ...v, price: v.reseller_price as number }))
+      : rawVariants
+    const variantMap = new Map(usableVariants.map((v: any) => [v.id, v]))
     const dishMap = new Map((dishesRes.data ?? []).map((d: any) => [d.id, d]))
 
     // Menu availability: set of "date|dishId" pairs that are valid
