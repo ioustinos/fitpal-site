@@ -15,6 +15,7 @@
 
 import type { Handler } from '@netlify/functions'
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
+import { loadCategoryDiscounts, effectiveDiscountPct } from '../lib/stores/categoryDiscounts'
 
 const SUPABASE_URL = process.env.VITE_SUPABASE_URL ?? ''
 const SUPABASE_ANON_KEY = process.env.VITE_SUPABASE_ANON_KEY ?? ''
@@ -193,16 +194,28 @@ export const handler: Handler = async (event) => {
     // channel and is omitted entirely — it must not be orderable, and a
     // hidden-but-present variant would be exactly that.
     let isResellerMenu = false
+    let menuStoreId: string | null = null
+    let menuStoreIsMain = true
     {
       const { data: menuRow } = await supabase
         .from('weekly_menus')
-        .select('store_id, stores!inner(type)')
+        .select('store_id, stores!inner(type, is_default)')
         .eq('id', menuId)
         .maybeSingle()
-      const st = (menuRow as { stores?: { type?: string } | Array<{ type?: string }> } | null)?.stores
-      const type = Array.isArray(st) ? st[0]?.type : st?.type
-      isResellerMenu = type === 'reseller'
+      const row = menuRow as { store_id?: string | null; stores?: any } | null
+      const st = Array.isArray(row?.stores) ? row?.stores[0] : row?.stores
+      isResellerMenu = st?.type === 'reseller'
+      menuStoreId = row?.store_id ?? null
+      menuStoreIsMain = st?.type === 'main' || st?.is_default === true
     }
+
+    // WEC-717: category discounts, per store, with retail's living under
+    // store_id IS NULL. Resolved here and folded into the dish's `discountPct`
+    // so the customer site renders it through the SAME struck-through visual
+    // it already uses for a dish-level discount — no second visual language,
+    // no new client code. `submit-order` resolves the identical number from
+    // the same helper, so what is displayed is what is charged.
+    const categoryDiscounts = await loadCategoryDiscounts(supabase, menuStoreId, menuStoreIsMain)
 
     // 3. Parallel fetch dishes + variants + dish_tags + dish_ingredients.
     //    Each is an indexed IN-list query against dishIds.
@@ -316,7 +329,7 @@ export const handler: Handler = async (event) => {
       ingredientsEn: d.ingredients_en,
       imageUrl: d.image_url,
       emoji: d.emoji,
-      discountPct: d.discount_pct,
+      discountPct: effectiveDiscountPct(d.discount_pct, d.category_id, categoryDiscounts) || null,
       previewCal: d.preview_cal,
       previewPro: d.preview_pro,
       previewCarb: d.preview_carb,

@@ -17,6 +17,7 @@ import {
   fetchStoreMembers, addStoreMemberByEmail, removeStoreMember,
   cloneLatestRetailWeek, storeReadiness,
   fetchCloneSources, planClone, cloneWeekToStores,
+  fetchCategoryDiscounts, setCategoryDiscount, type CategoryDiscountRow,
   type AdminStore, type StoreMember,
   type CloneSourceWeek, type ClonePlanTarget, type CloneResult,
 } from '../../lib/api/adminStores'
@@ -315,6 +316,11 @@ function StoreEditor({ store, onSaved }: { store: AdminStore; onSaved: () => voi
         </Section>
       )}
 
+      {/* WEC-717: retail gets category discounts too — Ioustinos asked for the
+          feature "on the regular site as well but each company can set their
+          own". For the retail store these write store_id = NULL. */}
+      <CategoryDiscountsSection storeId={isRetail ? null : store.id} label={isRetail ? 'the retail site' : store.nameEl} />
+
       {!isRetail && <MenusSection store={store} onChanged={onSaved} />}
       {store.type === 'reseller' && <MembersSection storeId={store.id} onChanged={onSaved} />}
 
@@ -543,5 +549,75 @@ function CloneWeekPanel({ stores, onDone }: { stores: AdminStore[]; onDone: () =
         )}
       </div>
     </div>
+  )
+}
+
+
+/**
+ * WEC-717: a discount percentage per category, for one storefront.
+ *
+ * `storeId === null` means the RETAIL site — that is how the table was
+ * designed in WEC-709, and it is why saving uses delete-then-insert rather
+ * than an upsert (a NULL cannot be matched by `on conflict`).
+ *
+ * A dish that carries its own `discount_pct` ignores this — dish-level wins,
+ * no stacking, so the effective price stays explainable.
+ */
+function CategoryDiscountsSection({ storeId, label }: { storeId: string | null; label: string }) {
+  const [rows, setRows] = useState<CategoryDiscountRow[]>([])
+  const [draft, setDraft] = useState<Record<string, string>>({})
+  const [msg, setMsg] = useState<string | null>(null)
+  const [busy, setBusy] = useState<string | null>(null)
+
+  async function load() {
+    const { data } = await fetchCategoryDiscounts(storeId)
+    setRows(data ?? [])
+    setDraft(Object.fromEntries((data ?? []).map((r) => [r.categoryId, r.pct ? String(r.pct) : ''])))
+  }
+  useEffect(() => { void load() /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [storeId])
+
+  const active = rows.filter((r) => r.pct > 0)
+
+  return (
+    <Section
+      title="Category discounts"
+      sub={`Applied to every dish in the category on ${label}. A dish with its own discount ignores this — the dish-level one wins, they do not stack.`}
+    >
+      {rows.length === 0 && <div className="admin-text-muted" style={{ fontSize: 13 }}>No active categories.</div>}
+      {rows.map((r) => (
+        <div key={r.categoryId} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13 }}>
+          <span style={{ minWidth: 170 }}>{r.nameEl}</span>
+          <input
+            className="admin-input"
+            style={{ width: 90 }}
+            placeholder="—"
+            value={draft[r.categoryId] ?? ''}
+            onChange={(e) => setDraft({ ...draft, [r.categoryId]: e.target.value })}
+          />
+          <span style={{ color: '#6b7280' }}>%</span>
+          <button
+            className="admin-btn"
+            disabled={busy === r.categoryId || (draft[r.categoryId] ?? '') === (r.pct ? String(r.pct) : '')}
+            onClick={async () => {
+              setBusy(r.categoryId); setMsg(null)
+              const raw = (draft[r.categoryId] ?? '').trim()
+              const { error } = await setCategoryDiscount(storeId, r.categoryId, raw ? Number(raw) : 0)
+              setBusy(null)
+              setMsg(error ?? `Saved — ${r.nameEl}`)
+              await load()
+            }}
+          >
+            {busy === r.categoryId ? '…' : 'Save'}
+          </button>
+          {r.pct > 0 && <span style={{ color: '#059669', fontWeight: 700 }}>−{r.pct}% live</span>}
+        </div>
+      ))}
+      {active.length > 0 && (
+        <div style={{ fontSize: 12, color: '#6b7280' }}>
+          {active.length} categor{active.length === 1 ? 'y is' : 'ies are'} discounted on {label}.
+        </div>
+      )}
+      {msg && <div style={{ fontSize: 12, color: msg.startsWith('Saved') ? '#059669' : '#dc2626' }}>{msg}</div>}
+    </Section>
   )
 }

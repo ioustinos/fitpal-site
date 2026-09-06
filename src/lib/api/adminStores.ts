@@ -595,3 +595,82 @@ export async function cloneWeekToStores(
   void purgeMenuCache(['menu', 'stores'])
   return results
 }
+
+// ─── WEC-717: category discounts, per store AND on the retail site ──────────
+//
+// Ioustinos: *"A company can choose to have a discount on whole categories
+// (add this feature to the regular site as well but each company can set their
+// own)."* Retail's rows are the ones with `store_id IS NULL`; a company store
+// reads only its own and never inherits retail's.
+//
+// 🔵 Interaction with `dishes.discount_pct`: the DISH-level discount wins and
+// the two do NOT stack. Fil's call, flagged on the ticket — stacking makes the
+// effective price impossible to explain to a customer on the phone.
+
+export interface CategoryDiscountRow {
+  categoryId: string
+  nameEl: string
+  nameEn: string
+  /** 0 = no discount configured for this store. */
+  pct: number
+}
+
+/** Pass `null` for the retail site. */
+export async function fetchCategoryDiscounts(
+  storeId: string | null,
+): Promise<{ data: CategoryDiscountRow[] | null; error: string | null }> {
+  const catsRes = await supabase
+    .from('categories')
+    .select('id, name_el, name_en, sort_order, active')
+    .eq('active', true)
+    .order('sort_order')
+  if (catsRes.error) return { data: null, error: catsRes.error.message }
+
+  const q = supabase.from('category_discounts').select('category_id, discount_pct')
+  const discRes = storeId ? await q.eq('store_id', storeId) : await q.is('store_id', null)
+  if (discRes.error) return { data: null, error: discRes.error.message }
+
+  const byCat = new Map(
+    ((discRes.data ?? []) as Array<{ category_id: string; discount_pct: number | string }>)
+      .map((r) => [r.category_id, Number(r.discount_pct)]),
+  )
+
+  return {
+    data: ((catsRes.data ?? []) as Array<{ id: string; name_el: string; name_en: string }>).map((c) => ({
+      categoryId: c.id,
+      nameEl: c.name_el,
+      nameEn: c.name_en,
+      pct: byCat.get(c.id) ?? 0,
+    })),
+    error: null,
+  }
+}
+
+/** `pct <= 0` removes the discount. `storeId` null = the retail site. */
+export async function setCategoryDiscount(
+  storeId: string | null,
+  categoryId: string,
+  pct: number,
+): Promise<{ error: string | null }> {
+  if (!Number.isFinite(pct) || pct <= 0) {
+    const del = supabase.from('category_discounts').delete().eq('category_id', categoryId)
+    const { error } = storeId ? await del.eq('store_id', storeId) : await del.is('store_id', null)
+    void purgeMenuCache(['menu', 'stores'])
+    return { error: error?.message ?? null }
+  }
+  if (pct > 100) return { error: 'A discount cannot exceed 100%.' }
+
+  // No upsert: the retail rows have a NULL store_id, and `on conflict` cannot
+  // match a NULL through the plain unique constraint — that is exactly why
+  // WEC-709 added a partial unique index for them. Delete-then-insert is the
+  // shape that works for both cases.
+  const del = supabase.from('category_discounts').delete().eq('category_id', categoryId)
+  const { error: delErr } = storeId ? await del.eq('store_id', storeId) : await del.is('store_id', null)
+  if (delErr) return { error: delErr.message }
+
+  const { error } = await supabase
+    .from('category_discounts')
+    .insert({ store_id: storeId, category_id: categoryId, discount_pct: pct })
+  void purgeMenuCache(['menu', 'stores'])
+  return { error: error?.message ?? null }
+}

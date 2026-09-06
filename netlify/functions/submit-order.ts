@@ -10,6 +10,7 @@ import { createVivaOrder } from '../lib/viva/createOrder'
 // WEC-580: order-confirmation Klaviyo events moved out of the request path into
 // order-events-background (invoked below). No direct Klaviyo import here anymore.
 import { corsHeaders } from '../lib/cors'
+import { loadCategoryDiscounts, effectiveDiscountPct, applyDiscountCents } from '../lib/stores/categoryDiscounts'
 import { checkRateLimit, clientIp } from '../lib/rateLimit'
 import { isMirrorEligible } from '../lib/airtable/pushOrder'
 // WEC-490: shared per-day validator. Same rules + codes as the client uses
@@ -550,7 +551,7 @@ export default async (request: Request) => {
       // Dish names + active status
       supabase
         .from('dishes')
-        .select('id, name_el, name_en, active, category_id')
+        .select('id, name_el, name_en, active, category_id, discount_pct')
         .in('id', allDishIds),
 
       // Menu-day assignments (which dishes are on which dates)
@@ -725,11 +726,32 @@ export default async (request: Request) => {
     // is dropped from the map and then fails the normal "variant not found"
     // validation with a clear message.
     const rawVariants = (variantsRes.data ?? []) as any[]
-    const usableVariants = isResellerStore
+    const channelVariants = isResellerStore
       ? rawVariants
           .filter((v) => v.reseller_available === true && typeof v.reseller_price === 'number')
           .map((v) => ({ ...v, price: v.reseller_price as number }))
       : rawVariants
+
+    // ── WEC-717: category discounts, applied SERVER-SIDE ─────────────────
+    //
+    // ⚠️ This also fixes a pre-existing latent bug: `submit-order` never
+    // applied `dishes.discount_pct` at all. The customer site has always shown
+    // a discounted price (effPrice in DishCard / DishModal / VariantPicker)
+    // while the server charged the full one. It was invisible only because 0
+    // of 323 dishes currently carry a discount — the first admin to set one
+    // would have overcharged every customer who saw it.
+    //
+    // Both discounts now resolve through the same helper the read path uses,
+    // dish-level winning over category-level with no stacking, so the price on
+    // screen and the price charged cannot drift.
+    const categoryDiscounts = await loadCategoryDiscounts(supabase, storeId, isMainStore)
+    const dishById = new Map((dishesRes.data ?? []).map((d: any) => [d.id, d]))
+    const usableVariants = channelVariants.map((v: any) => {
+      const dish = dishById.get(v.dish_id)
+      const pct = effectiveDiscountPct(dish?.discount_pct, dish?.category_id, categoryDiscounts)
+      return pct > 0 ? { ...v, price: applyDiscountCents(v.price, pct) } : v
+    })
+
     const variantMap = new Map(usableVariants.map((v: any) => [v.id, v]))
     const dishMap = new Map((dishesRes.data ?? []).map((d: any) => [d.id, d]))
 
