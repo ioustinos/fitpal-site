@@ -63,6 +63,11 @@ export function TimeSlotPicker({ dayDate, inline = false }: TimeSlotPickerProps)
     [current?.zip, zones],
   )
 
+  // WEC-739#2: a zip that is PRESENT but resolves to no zone is "out of zone"
+  // — distinct from "no zip entered yet". Out-of-zone must grey + disable every
+  // slot (before, currentZone===null made zoneSlotSet null → all slots enabled).
+  const outOfZone = (current?.zip ?? '').trim() !== '' && !currentZone
+
   // Union of default slots + zone-specific slots (if zone known).
   // We render the full union so admins know the whole catalog exists; zone-
   // unavailable ones are greyed out and non-clickable.
@@ -147,7 +152,7 @@ export function TimeSlotPicker({ dayDate, inline = false }: TimeSlotPickerProps)
       {displaySlots.map((slot) => {
         // If a zone is resolved, only that zone's slots are enabled; if no
         // zone resolved yet, all default slots stay enabled.
-        const unavailable = zoneSlotSet !== null && !zoneSlotSet.has(slot)
+        const unavailable = outOfZone || (zoneSlotSet !== null && !zoneSlotSet.has(slot))
         const isSelected = selectedSlot === slot
         return (
           <button

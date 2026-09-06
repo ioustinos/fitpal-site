@@ -9,6 +9,7 @@ import { MealIcon } from '../components/icons/MealIcon'
 import { GoalCardArt } from '../components/icons/GoalIllustration'
 import type { ActivityLevel, DaysPerWeek, Goal, MealsSelection, PaymentMethod, PlanLength, Sex, MealKey } from '../lib/wallet/types'
 import { purchaseWalletPlan, sendEmailOtp, verifyEmailOtp, savePhoneToProfile } from '../lib/api/walletPlan'
+import { parsePhone } from '../lib/phone'
 import { DemoDishesModal } from '../components/wallet/DemoDishesModal'
 import { DietPicker, type DietSelection } from '../components/wallet/DietPicker'
 import { StartDatePicker } from '../components/wallet/StartDatePicker'
@@ -673,7 +674,9 @@ export function WalletPage() {
     // OTP verified — write phone to profile, then refresh + purchase.
     // savePhoneToProfile is idempotent; failure here shouldn't block the
     // purchase (user can fix the phone later from Account → Profile).
-    const phoneRes = await savePhoneToProfile(suPhone.trim())
+    // WEC-739#3: store E.164 so every downstream consumer (checkout <PhoneInput>,
+    // emails, Airtable, admin) gets a valid value. Fall back to raw if unparseable.
+    const phoneRes = await savePhoneToProfile(parsePhone(suPhone.trim()) ?? suPhone.trim())
     if (!phoneRes.ok) {
       // eslint-disable-next-line no-console
       console.warn('[wallet signup] phone save failed:', phoneRes.error)
