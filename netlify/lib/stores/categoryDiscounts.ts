@@ -19,8 +19,19 @@
 
 import type { SupabaseClient } from '@supabase/supabase-js'
 
-/** category_id → discount percentage (0–100). */
-export type CategoryDiscountMap = Map<string, number>
+// WEC-749: the arithmetic lives in ONE file now — `src/lib/pricing.ts` — and is
+// re-exported here so existing server imports keep working. Netlify bundles
+// from src/ already (see wallet-plan-purchase.ts), so this is genuinely the
+// same code the admin UI runs, not a mirror of it. What stays in this file is
+// the only thing that is server-specific: the Supabase read.
+export {
+  effectiveDiscountPct,
+  applyDiscountCents,
+  channelPriceCents,
+  unitPriceCents,
+  type CategoryDiscountMap,
+} from '../../../src/lib/pricing'
+import type { CategoryDiscountMap } from '../../../src/lib/pricing'
 
 /**
  * @param storeId the resolved store, or null when the store could not be
@@ -51,35 +62,4 @@ export async function loadCategoryDiscounts(
     /* Fail-open: no discounts rather than a broken menu or a failed order. */
   }
   return map
-}
-
-/**
- * The discount percentage that actually applies to a dish, 0 when none.
- * Dish-level wins; no stacking.
- */
-export function effectiveDiscountPct(
-  dishDiscountPct: number | null | undefined,
-  categoryId: string | null | undefined,
-  categoryDiscounts: CategoryDiscountMap,
-): number {
-  if (dishDiscountPct && dishDiscountPct > 0) return dishDiscountPct
-  if (!categoryId) return 0
-  return categoryDiscounts.get(categoryId) ?? 0
-}
-
-/**
- * Apply a percentage to a price in CENTS.
- *
- * ⚠️ This deliberately mirrors the CLIENT's `effPrice` in
- * `src/lib/helpers.ts` step for step — convert to euros, multiply, round to
- * 2dp, convert back — rather than doing the arithmetic in cents. Cent-based
- * rounding is tidier but disagrees with the client by one cent on some prices,
- * and "the total I saw is not the total I was charged" is a far worse bug than
- * an ugly line of code. If `effPrice` ever changes, change this with it.
- */
-export function applyDiscountCents(priceCents: number, pct: number): number {
-  if (!pct || pct <= 0) return priceCents
-  const euros = priceCents / 100
-  const discounted = +(euros * (1 - pct / 100)).toFixed(2)
-  return Math.round(discounted * 100)
 }
