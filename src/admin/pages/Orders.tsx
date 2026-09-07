@@ -1637,9 +1637,18 @@ function DayItemRow({ item, dish, priceFor, orderId, childOrderId, editable, adm
             {!currentInList && item.variantId && (
               <option value={item.variantId}>{item.variantLabelEl || '—'}</option>
             )}
-            {variants.map((v) => (
-              <option key={v.id} value={v.id}>{(v.labelEl || '—')} · {(v.price / 100).toFixed(2)} €</option>
-            ))}
+            {/* WEC-749: the label must quote the price this order would be
+                charged, not the retail column — otherwise the dropdown says
+                4.90 € while the Unit column beside it says 3.50 €. A variant
+                with no wholesale price on a reseller order is not selectable. */}
+            {variants.map((v) => {
+              const p = priceFor(dish, v)
+              return (
+                <option key={v.id} value={v.id} disabled={p === null}>
+                  {(v.labelEl || '—')} · {p === null ? 'not sold here' : `${(p / 100).toFixed(2)} €`}
+                </option>
+              )
+            })}
           </select>
         ) : (
           <span className="admin-sub">{item.variantLabelEl || '—'}</span>
