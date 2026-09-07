@@ -1715,6 +1715,8 @@ function AddItemPanel({
 
   const dish = dishes.find((d) => d.id === dishId) ?? null
   const variant = dish?.variants.find((v) => v.id === variantId) ?? null
+  // WEC-749: what this order would actually be charged for the picked variant.
+  const pickedPrice = variant ? priceFor(dish, variant) : null
 
   const filtered = useMemo(() => {
     const n = foldGreek(search.trim())
@@ -1849,8 +1851,11 @@ function AddItemPanel({
 
           <div className="admin-additem-actions">
             <button className="admin-btn-ghost" onClick={() => { reset(); setOpen(false) }}>Cancel</button>
-            <button className="admin-btn-primary" disabled={saving || !variant} onClick={add}>
-              {saving ? 'Adding…' : variant ? `Add · ${((variant.price * qty) / 100).toFixed(2)} €` : 'Add'}
+            {/* WEC-749: quote the channel price on the button too — the chip
+                above already does, and two different numbers on one panel is
+                worse than either being wrong on its own. */}
+            <button className="admin-btn-primary" disabled={saving || !variant || pickedPrice === null} onClick={add}>
+              {saving ? 'Adding…' : (variant && pickedPrice !== null) ? `Add · ${((pickedPrice * qty) / 100).toFixed(2)} €` : 'Add'}
             </button>
           </div>
         </div>
