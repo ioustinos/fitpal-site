@@ -645,10 +645,17 @@ export function CheckoutPage() {
         dish_id: it.dishId, variant_id: it.variantId, qty: it.quantity,
       })))
       try {
+        // WEC-748: tell the quote which storefront it is pricing for. Without
+        // it the quote came back at retail on a reseller store and the drift
+        // modal fired on every order — showing a HIGHER total than the cart,
+        // right before charging the correct lower one.
         const qRes = await fetch('/api/menu-quote', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ lines: linesForQuote }),
+          body: JSON.stringify({
+            lines: linesForQuote,
+            storeSlug: storefront.isMain ? null : storefront.slug,
+          }),
         })
         if (qRes.ok) {
           const q = await qRes.json() as { totalCents?: number; missingVariantIds?: string[] }
