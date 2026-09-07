@@ -1240,6 +1240,49 @@
 .admin-zone-item-name { font-size: 13px; font-weight: 600; color: var(--a-text); }
 .admin-zone-item-meta { font-size: 11px; color: var(--a-text-muted); margin-top: 3px; }
 
+/* WEC-746: "New store" block at the foot of the Stores sidebar.
+   It used to borrow `.admin-inline-form`, which is a HORIZONTAL add-row:
+   `.admin-inline-form .admin-input { flex: 1 1 140px }`. Stores overrode the
+   container to `flex-direction: column` inline — and in a column flex box that
+   140px basis is a HEIGHT, so every field grew into a ~140px-tall box. The
+   `<select>` then sized itself to its longest option and pushed out of the
+   260px column. Hence its own class, sized deliberately. */
+.admin-store-new {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  border-top: 1px solid var(--a-border);
+  background: var(--a-bg);
+}
+.admin-store-new-title {
+  font-size: 11px; font-weight: 800; letter-spacing: .04em;
+  text-transform: uppercase; color: var(--a-text-muted);
+}
+.admin-store-new .admin-input,
+.admin-store-new .admin-select {
+  flex: 0 0 auto;      /* never stretch — the bug above */
+  width: 100%;
+  min-width: 0;        /* let a long <option> shrink instead of overflowing */
+  padding: 7px 10px;
+  font-size: 13px;
+}
+.admin-store-new .admin-select { padding-right: 26px; text-overflow: ellipsis; }
+.admin-store-new .admin-btn-primary { width: 100%; justify-content: center; padding: 8px 12px; }
+.admin-store-new-hint { font-size: 11px; color: var(--a-text-muted); line-height: 1.4; }
+.admin-store-new-err { font-size: 11px; color: #dc2626; }
+.admin-store-new-check {
+  display: flex; gap: 7px; align-items: flex-start;
+  font-size: 12px; color: var(--a-text); line-height: 1.35; cursor: pointer;
+}
+.admin-store-new-check input { margin: 2px 0 0; flex: 0 0 auto; }
+
+/* WEC-746: PlacesAutocomplete wraps its input in a plain <div>, so the input
+   no longer stretches the way it does as a direct grid child of the label —
+   it falls back to the browser's default ~20-character width. Every other
+   field on the form is full width; this one has to match. */
+.places-ac-wrap .admin-input { width: 100%; }
+
 .admin-zones-editor {
   background: var(--a-surface);
   border: 1px solid var(--a-border);
