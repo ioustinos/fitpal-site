@@ -371,25 +371,41 @@ function StoreEditor({ store, onSaved }: { store: AdminStore; onSaved: () => voi
           title="Airtable"
           sub="This number is how the kitchen's Airtable board recognises the store. Copy it, then create the matching store row in Airtable."
         >
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
-            <div style={{
-              fontSize: 30, fontWeight: 800, letterSpacing: '.02em', lineHeight: 1,
-              color: form.airtableStoreId ? '#111827' : '#dc2626',
-              fontVariantNumeric: 'tabular-nums',
-            }}>
-              {form.airtableStoreId || '—'}
+          {/* WEC-751: the number alone told nobody what to DO with it. Whoever
+              creates a store is usually not the person who knows the Airtable
+              base exists, and the failure is silent — orders file under retail
+              and only an ops audit ever catches it. So the instruction sits
+              next to the number, in the imperative, and stays visible until
+              somebody ticks it off. */}
+          <div className="admin-airtable-callout">
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+              <div style={{
+                fontSize: 34, fontWeight: 800, letterSpacing: '.02em', lineHeight: 1,
+                color: form.airtableStoreId ? '#111827' : '#dc2626',
+                fontVariantNumeric: 'tabular-nums',
+              }}>
+                {form.airtableStoreId || '—'}
+              </div>
+              {form.airtableStoreId && (
+                <button
+                  className="admin-btn"
+                  onClick={() => { void navigator.clipboard?.writeText(form.airtableStoreId).then(
+                    () => setMsg(`Copied ${form.airtableStoreId} — now add the matching row in Airtable → Stores.`),
+                    () => setMsg(null),
+                  ) }}
+                >
+                  Copy
+                </button>
+              )}
             </div>
-            {form.airtableStoreId && (
-              <button
-                className="admin-btn"
-                onClick={() => { void navigator.clipboard?.writeText(form.airtableStoreId).then(
-                  () => setMsg(`Copied ${form.airtableStoreId} — now add the matching row in Airtable.`),
-                  () => setMsg(null),
-                ) }}
-              >
-                Copy
-              </button>
-            )}
+            <div className="admin-airtable-todo">
+              <strong>Add this on Airtable → Stores table.</strong>
+              <span>
+                Nobody is warned if you don't. The orders still arrive — they are just filed under
+                <strong> Fitpal retail (9999)</strong> instead of this store, and the kitchen sees no
+                difference until someone audits the board.
+              </span>
+            </div>
           </div>
 
           <Field
