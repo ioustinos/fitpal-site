@@ -650,7 +650,7 @@
 /* Variants repeater — WEC-474 added "Ext code" column (11 cols total) */
 .admin-variant-headers {
   display: grid;
-  grid-template-columns: 32px 90px 90px 1.4fr 1.4fr 0.9fr repeat(4, 64px) 32px;
+  grid-template-columns: 32px 90px 90px 1.4fr 1.4fr 0.9fr 34px 0.9fr repeat(4, 64px) 32px;
   gap: 6px; margin-bottom: 6px; padding: 0 4px;
 }
 .admin-variant-headers > span {
@@ -659,11 +659,17 @@
 }
 .admin-variant-row {
   display: grid;
-  grid-template-columns: 32px 90px 90px 1.4fr 1.4fr 0.9fr repeat(4, 64px) 32px;
+  grid-template-columns: 32px 90px 90px 1.4fr 1.4fr 0.9fr 34px 0.9fr repeat(4, 64px) 32px;
   gap: 6px; margin-bottom: 8px; align-items: center;
 }
 .admin-variant-row .admin-input { padding: 6px 8px; font-size: 13px; }
 .admin-variant-row .admin-input.numeric { text-align: center; padding: 6px 4px; }
+/* WEC-747: wholesale columns. The checkbox gates the price beside it — an
+   unticked variant is simply not sold wholesale, and its price is meaningless,
+   so it reads as disabled rather than as an empty field you forgot to fill. */
+.admin-variant-b2b { display: flex; align-items: center; justify-content: center; }
+.admin-variant-b2b input { width: 16px; height: 16px; cursor: pointer; margin: 0; }
+.admin-variant-row .admin-input.b2b-off { opacity: .4; }
 .admin-variant-code {
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   font-size: 12px; color: var(--a-text-muted); padding: 6px 4px;

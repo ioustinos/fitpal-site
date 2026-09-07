@@ -750,7 +750,7 @@ function DishDrawer({
                     ...form.variants,
                     // WEC-474: new variant gets externalId=null; backend defaults
                     // to the generated variant id on save when null/empty.
-                    { id: `new-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 5)}`, dishId: form.id, labelEl: '', labelEn: '', price: 0, calories: 0, protein: 0, carbs: 0, fat: 0, sortOrder: form.variants.length, isDefault: false, externalId: null },
+                    { id: `new-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 5)}`, dishId: form.id, labelEl: '', labelEn: '', price: 0, calories: 0, protein: 0, carbs: 0, fat: 0, sortOrder: form.variants.length, isDefault: false, externalId: null, resellerAvailable: false, resellerPrice: null },
                   ])
                 }
               >
@@ -766,6 +766,11 @@ function DishDrawer({
                 <span>Label EL</span>
                 <span>Label EN</span>
                 <span>Price €</span>
+                {/* WEC-747: the wholesale pair. Availability and price are one
+                    decision — a variant is sold wholesale AT a price — so they
+                    sit together, immediately after retail price for comparison. */}
+                <span title="Sold to resellers? Untick and the variant is hidden on every reseller storefront.">B2B</span>
+                <span title="Wholesale price, VAT included. Blank = not sellable wholesale, even if B2B is ticked — there is no fallback to retail.">B2B €</span>
                 <span>kcal</span>
                 <span>Pro</span>
                 <span>Carb</span>
@@ -876,6 +881,26 @@ function VariantRow({ v, onChange, onDelete, onSetDefault }: { v: AdminVariant; 
       <NumberField className="admin-input numeric" scale={100} min={0} allowBlank placeholder="€"
         value={v.price === 0 ? null : v.price}
         onChange={(val) => onChange({ ...v, price: val ?? 0 })}
+      />
+      {/* WEC-747: wholesale availability + price. Until now these two columns
+          existed only in the database and could be changed only by SQL, which
+          is why 1,370 of 1,371 variants sat unavailable and the reseller
+          storefront was effectively empty. */}
+      <div className="admin-variant-b2b">
+        <input
+          type="checkbox"
+          checked={!!v.resellerAvailable}
+          onChange={(e) => onChange({ ...v, resellerAvailable: e.target.checked })}
+          title="Sold to resellers"
+          aria-label="Sold to resellers"
+        />
+      </div>
+      <NumberField
+        className={`admin-input numeric${v.resellerAvailable ? '' : ' b2b-off'}`}
+        scale={100} min={0} allowBlank placeholder="—"
+        value={v.resellerPrice ?? null}
+        onChange={(val) => onChange({ ...v, resellerPrice: val })}
+        title="Wholesale price incl. VAT. Blank means the variant is hidden from resellers — there is no fallback to the retail price."
       />
       <NumberField className="admin-input numeric" integer min={0} allowBlank placeholder="kcal" value={v.calories || null} onChange={(val) => onChange({ ...v, calories: val ?? 0 })} />
       <NumberField className="admin-input numeric" integer min={0} allowBlank placeholder="g" value={v.protein || null} onChange={(val) => onChange({ ...v, protein: val ?? 0 })} />

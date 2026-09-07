@@ -879,11 +879,21 @@ export default async (request: Request) => {
       // same global slot list (no per-fulfillment slot setting in V1).
       const isPickup = day.fulfillmentType === 'pickup'
 
-      // WEC-712 (Ioustinos, 2026-09-06): pickup is RETAIL-only. A company or
-      // reseller store delivers to its one fixed corporate address, so
-      // "collect from the shop" is not on offer there. The UI hides the
-      // toggle; this is the half that a forged payload cannot get around.
-      if (isPickup && !isMainStore) {
+      // WEC-747 (Ioustinos, 2026-09-07): pickup is available on RETAIL and on
+      // RESELLER stores, never on a COMPANY store.
+      //
+      // The distinction is who the buyer is. A company portal exists to deliver
+      // lunch to one office — "collect from the shop" makes no sense there, and
+      // the store's locked address is the whole point. A reseller is a business
+      // buying stock, and collecting it from the kitchen is a normal way to do
+      // that.
+      //
+      // Supersedes WEC-712, where I blocked pickup on every non-main store —
+      // right for companies, wrong for resellers, and I generalised from one to
+      // the other without asking.
+      //
+      // The UI hides the toggle; this is the half a forged payload can't get around.
+      if (isPickup && !isMainStore && !isResellerStore) {
         addError(errors, k, 'Pickup is not available on this store — orders are delivered to the company address')
       }
 
