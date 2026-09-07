@@ -30,9 +30,12 @@ import {
   fetchMenusOverlapping, fetchMenuDayDishes,
   createWeeklyMenu, deleteWeeklyMenu, setMenuActive, renameMenu, setMenuDateActive,
   addDishToDay, removeMenuDayDish, reorderMenuDayDishes, duplicateMenuContent,
-  setMenuCategoryOrder, isoDaySpan,
+  setMenuCategoryOrder, isoDaySpan, setMenuStore,
   type AdminWeeklyMenu, type AdminMenuDayDish,
 } from '../../lib/api/adminMenus'
+// WEC-752: the builder has to know which storefronts exist before it can say
+// whose week it is showing.
+import { fetchAdminStores, type AdminStore } from '../../lib/api/adminStores'
 import { CategoryOrderStrip } from '../components/CategoryOrderStrip'
 import { foldGreek } from '../../lib/text'
 import {
@@ -69,6 +72,11 @@ export function Menus() {
   const weekEnd = fmtIso(addDays(monday, 4))
 
   const [menusInWeek, setMenusInWeek] = useState<AdminWeeklyMenu[]>([])
+  // WEC-752: which storefront's menus this screen is editing. Defaults to
+  // retail, which is what nearly every session wants and, more importantly,
+  // is what the screen used to imply while quietly showing everyone's weeks.
+  const [stores, setStores] = useState<AdminStore[]>([])
+  const [storeFilter, setStoreFilter] = useState<string | null>(null)   // null until stores load
   const [selectedMenuId, setSelectedMenuId] = useState<string | null>(null)
   const [assignments, setAssignments] = useState<AdminMenuDayDish[]>([])
   const [loading, setLoading] = useState(true)
@@ -100,6 +108,11 @@ export function Menus() {
       setDishes((dr.data ?? []).filter((d) => d.active))
       setCategories(cr.data ?? [])
       setTags(tr.data ?? [])
+      // WEC-752
+      const sr = await fetchAdminStores()
+      const list = sr.data ?? []
+      setStores(list)
+      setStoreFilter((cur) => cur ?? (list.find((x) => x.isDefault)?.id ?? list[0]?.id ?? null))
     })()
   }, [])
 
@@ -115,7 +128,12 @@ export function Menus() {
     // week with no exact menu, dish assignments silently landed in an
     // overlapping (wrong-week) menu. Now: no exact menu → nothing selected, and
     // the builder shows a banner prompting to create one for this week.
-    const exact = data?.find((m) => m.fromDate === weekStart) ?? null
+    //
+    // WEC-752: …and scoped to the SELECTED STORE. Without that scope this line
+    // picked whichever store's week happened to come back first, so opening the
+    // builder on a week that several storefronts share could silently drop you
+    // into Savills' menu while you believed you were editing retail.
+    const exact = data?.find((m) => m.fromDate === weekStart && m.storeId === storeFilter) ?? null
     setSelectedMenuId(exact?.id ?? null)
     setEditingName(exact?.name ?? '')
     if (exact) {
@@ -127,8 +145,21 @@ export function Menus() {
     }
     setLoading(false)
   }
-  useEffect(() => { loadWeek() /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [weekStart])
+  useEffect(() => {
+    if (storeFilter) loadWeek()
+    /* eslint-disable-next-line react-hooks/exhaustive-deps */
+  }, [weekStart, storeFilter])
 
+  // WEC-752: the picker lists only the selected storefront's weeks. The others
+  // still exist for the same dates — they are simply not this screen's business.
+  const menusForStore = useMemo(
+    () => menusInWeek.filter((m) => m.storeId === storeFilter),
+    [menusInWeek, storeFilter],
+  )
+  const selectedStore = useMemo(
+    () => stores.find((s2) => s2.id === storeFilter) ?? null,
+    [stores, storeFilter],
+  )
   const selectedMenu = useMemo(
     () => menusInWeek.find((m) => m.id === selectedMenuId) ?? null,
     [menusInWeek, selectedMenuId],
@@ -167,7 +198,15 @@ export function Menus() {
   // ─── Actions ──────────────────────────────────────────────────────
   async function handleNewMenu() {
     setError(null)
-    const { data, error } = await createWeeklyMenu({ fromDate: weekStart, toDate: weekEnd, name: `Week of ${weekStart}` })
+    // WEC-752: named AND attached to the storefront on screen. A retail week
+    // keeps its plain name; a store's week is suffixed so it is identifiable
+    // wherever it is listed.
+    const suffix = selectedStore && !selectedStore.isDefault ? ` — ${selectedStore.nameEl}` : ''
+    const { data, error } = await createWeeklyMenu({
+      fromDate: weekStart, toDate: weekEnd,
+      name: `Week of ${weekStart}${suffix}`,
+      storeId: storeFilter,
+    })
     if (error) { setError(error); return }
     await loadWeek()
     if (data) setSelectedMenuId(data.id)
@@ -505,11 +544,35 @@ export function Menus() {
         )
       })()}
 
+      {/* WEC-752: WHOSE menu is this. First control on the screen, because it
+          changes the meaning of everything below it. It used to be absent, and
+          the builder showed every storefront's weeks in one undifferentiated
+          list — which is how a Botaniq week ended up published on retail. */}
+      <div className={`admin-menu-storebar${selectedStore && !selectedStore.isDefault ? ' is-store' : ''}`}>
+        <label className="admin-form-label" style={{ margin: 0 }}>Storefront</label>
+        <select
+          className="admin-select"
+          value={storeFilter ?? ''}
+          onChange={(e) => { setStoreFilter(e.target.value); setSelectedMenuId(null); setAssignments([]) }}
+        >
+          {stores.map((st) => (
+            <option key={st.id} value={st.id}>
+              {st.nameEl}{st.isDefault ? ' — retail' : ` /${st.slug}`}
+            </option>
+          ))}
+        </select>
+        {selectedStore && !selectedStore.isDefault && (
+          <span className="admin-menu-storebar-warn">
+            You are editing <strong>{selectedStore.nameEl}</strong>, not the retail menu.
+          </span>
+        )}
+      </div>
+
       <div className="admin-menu-controls">
         <div className="admin-menu-select-wrap">
           <label className="admin-form-label">Menu</label>
-          {menusInWeek.length === 0 ? (
-            <div className="admin-text-muted">No menu for this week yet.</div>
+          {menusForStore.length === 0 ? (
+            <div className="admin-text-muted">No menu for this week on this storefront yet.</div>
           ) : (
             <select className="admin-select" value={selectedMenuId ?? ''} onChange={(e) => {
               const id = e.target.value
@@ -518,7 +581,7 @@ export function Menus() {
               setEditingName(m?.name ?? '')
               if (id) fetchMenuDayDishes(id).then(({ data }) => setAssignments(data ?? []))
             }}>
-              {menusInWeek.map((m) => (
+              {menusForStore.map((m) => (
                 <option key={m.id} value={m.id}>
                   {m.name ?? `${m.fromDate} — ${m.toDate}`}{m.active ? ' • published' : ''}
                 </option>
@@ -536,6 +599,37 @@ export function Menus() {
               onBlur={handleRename}
               placeholder="Optional menu name"
             />
+          </div>
+        )}
+        {/* WEC-752: move a week to another storefront. This is the repair tool
+            as much as the feature — until now a misfiled week could only be
+            moved with SQL. */}
+        {selectedMenu && (
+          <div className="admin-menu-select-wrap">
+            <label className="admin-form-label">Belongs to</label>
+            <select
+              className="admin-select"
+              value={selectedMenu.storeId ?? ''}
+              onChange={async (e) => {
+                const target = stores.find((st) => st.id === e.target.value)
+                if (!target || target.id === selectedMenu.storeId) return
+                if (!confirm(
+                  `Move «${selectedMenu.name ?? selectedMenu.fromDate}» to ${target.nameEl}?\n\n` +
+                  `It will disappear from ${selectedStore?.nameEl ?? 'this storefront'} and appear on ${target.nameEl}` +
+                  `${selectedMenu.active ? ' — and it is PUBLISHED, so customers see the change immediately.' : '.'}`,
+                )) return
+                const { error: mvErr } = await setMenuStore(selectedMenu.id, target.id)
+                if (mvErr) { setError(mvErr); return }
+                setSelectedMenuId(null); setAssignments([])
+                await loadWeek()
+              }}
+            >
+              {stores.map((st) => (
+                <option key={st.id} value={st.id}>
+                  {st.nameEl}{st.isDefault ? ' — retail' : ` /${st.slug}`}
+                </option>
+              ))}
+            </select>
           </div>
         )}
         <div className="admin-menu-actions">

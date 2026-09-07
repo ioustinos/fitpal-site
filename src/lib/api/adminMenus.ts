@@ -36,6 +36,19 @@ export interface AdminWeeklyMenu {
   inactiveDates: string[]
   /** Snapshot of category id ordering for this menu (WEC-253). */
   categoryOrder: string[]
+  /**
+   * WEC-752: which storefront this week belongs to.
+   *
+   * It was always in the database (`weekly_menus.store_id`, WEC-709) and never
+   * on this screen, so the builder listed every store's weeks in one flat list
+   * and `createWeeklyMenu` let the column default decide — meaning every week
+   * made here silently belonged to RETAIL. A week named "… - Botaniq" went live
+   * on the retail site that way.
+   */
+  storeId: string | null
+  storeSlug: string | null
+  storeName: string | null
+  storeIsDefault: boolean
 }
 
 export interface AdminMenuDayDish {
@@ -92,19 +105,30 @@ export function weekDays(monday: Date): Date[] {
 // ─── Queries ──────────────────────────────────────────────────────────────
 
 function mapMenuRow(r: unknown): AdminWeeklyMenu {
-  const row = r as { id: string; name: string | null; from_date: string; to_date: string; active: boolean | null; inactive_dates: string[] | null; category_order: string[] | null }
+  const row = r as {
+    id: string; name: string | null; from_date: string; to_date: string
+    active: boolean | null; inactive_dates: string[] | null; category_order: string[] | null
+    store_id?: string | null
+    stores?: { slug: string; name_el: string; is_default: boolean } | Array<{ slug: string; name_el: string; is_default: boolean }> | null
+  }
+  const st = Array.isArray(row.stores) ? row.stores[0] : row.stores
   return {
     id: row.id, name: row.name, fromDate: row.from_date, toDate: row.to_date,
     active: row.active ?? false,
     inactiveDates: row.inactive_dates ?? [],
     categoryOrder: row.category_order ?? [],
+    storeId: row.store_id ?? null,
+    storeSlug: st?.slug ?? null,
+    storeName: st?.name_el ?? null,
+    storeIsDefault: st?.is_default ?? false,
   }
 }
 
 export async function fetchMenusOverlapping(fromIso: string, toIso: string): Promise<{ data: AdminWeeklyMenu[] | null; error: string | null }> {
   const { data, error } = await supabase
     .from('weekly_menus')
-    .select('*')
+    // WEC-752: carry the owning store, so the builder can say whose week this is.
+    .select('*, stores(slug, name_el, is_default)')
     .gte('to_date', fromIso)
     .lte('from_date', toIso)
     .order('from_date', { ascending: false })
@@ -161,7 +185,16 @@ export function isoDaySpan(a: string, b: string): number {
   return Math.round((Date.UTC(by, bm - 1, bd) - Date.UTC(ay, am - 1, ad)) / 86_400_000)
 }
 
-export async function createWeeklyMenu(input: { fromDate: string; toDate: string; name?: string | null }): Promise<{ data: AdminWeeklyMenu | null; error: string | null }> {
+export async function createWeeklyMenu(input: {
+  fromDate: string; toDate: string; name?: string | null
+  /**
+   * WEC-752: which storefront the week is for. REQUIRED in practice — the
+   * caller passes the store currently selected in the builder. Omitting it
+   * falls back to the column default (retail), which is exactly the silent
+   * behaviour this ticket exists to end, so the builder never omits it.
+   */
+  storeId?: string | null
+}): Promise<{ data: AdminWeeklyMenu | null; error: string | null }> {
   // WEC-563: a weekly menu must be exactly one Mon–Fri week. Guard against the
   // 12-day-range incident (2026-07-24) where a menu spanned two weeks and the
   // customer day strip rendered two weeks side by side.
@@ -192,8 +225,10 @@ export async function createWeeklyMenu(input: { fromDate: string; toDate: string
       name: input.name ?? null,
       active: false,
       category_order: categoryOrder,
+      // WEC-752: explicit. undefined would let the DB default (retail) decide.
+      ...(input.storeId ? { store_id: input.storeId } : {}),
     })
-    .select('*')
+    .select('*, stores(slug, name_el, is_default)')
     .single()
   if (error) return { data: null, error: error.message }
   void purgeMenuCache()
@@ -294,5 +329,22 @@ export async function duplicateMenuContent(sourceMenuId: string, targetMenuId: s
   })
   const { error } = await supabase.from('menu_day_dishes').insert(rows)
   void purgeMenuCache()
+  return { error: error?.message ?? null }
+}
+
+/**
+ * WEC-752: move an existing week to another storefront.
+ *
+ * The repair tool as much as the feature — before this, a week created for a
+ * store but attached to retail (which was every week the builder made) could
+ * only be fixed with SQL. That is how «Week of 2026-09-07 - Botaniq» sat live
+ * on the retail site.
+ *
+ * Purges 'menu' AND 'stores' tags: the week disappears from one storefront's
+ * cached menu and appears in another's, so both are stale until dropped.
+ */
+export async function setMenuStore(menuId: string, storeId: string): Promise<{ error: string | null }> {
+  const { error } = await supabase.from('weekly_menus').update({ store_id: storeId }).eq('id', menuId)
+  void purgeMenuCache(['menu', 'stores'])
   return { error: error?.message ?? null }
 }
