@@ -3,6 +3,7 @@ import { useCartStore } from '../../store/useCartStore'
 import { useMenuStore } from '../../store/useMenuStore'
 import { useAuthStore } from '../../store/useAuthStore'
 import { effPrice, isDayOrderable } from '../../lib/helpers'
+import { thumbUrl } from '../../lib/imageThumb'
 import { MacroDotsRow, MacroValuesRow } from '../ui/MacroDots'
 import { dishDietFlags } from '../../lib/api/diet'
 import { makeTr } from '../../lib/translations'
@@ -130,7 +131,7 @@ export function DishCard({ dish, dayIndex }: DishCardProps) {
         {dish.img ? (
           <img
             className="dish-img"
-            src={dish.img}
+            src={thumbUrl(dish.img, 700, 72)}
             alt={name}
             loading="lazy"
             onError={(e) => {

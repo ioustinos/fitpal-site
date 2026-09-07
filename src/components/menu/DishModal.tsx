@@ -7,6 +7,7 @@ import { useMenuStore } from '../../store/useMenuStore'
 import { useAuthStore } from '../../store/useAuthStore'
 import { useToast } from '../ui/Toast'
 import { effPrice, isDayOrderable } from '../../lib/helpers'
+import { thumbUrl } from '../../lib/imageThumb'
 import { dishDietFlags } from '../../lib/api/diet'
 import { makeTr } from '../../lib/translations'
 import { RecipePanel } from './RecipePanel'
@@ -205,7 +206,7 @@ export function DishModal() {
         {dish.img && !imgError ? (
           <img
             className="dm-img"
-            src={dish.img}
+            src={thumbUrl(dish.img, 1080, 78)}
             alt={name}
             onError={() => setImgError(true)}
           />
