@@ -1283,6 +1283,23 @@
 }
 .admin-store-new-check input { margin: 2px 0 0; flex: 0 0 auto; }
 
+/* WEC-751: the Airtable store id, with the manual step that goes with it. Amber
+   rather than red — it is a to-do, not a failure; red is reserved for the
+   "no id at all" state, which IS one. */
+.admin-airtable-callout {
+  border: 1px solid #fcd34d;
+  background: #fffbeb;
+  border-radius: 10px;
+  padding: 14px 16px;
+  display: flex; flex-direction: column; gap: 10px;
+}
+.admin-airtable-todo {
+  display: flex; flex-direction: column; gap: 3px;
+  font-size: 12.5px; line-height: 1.45; color: #78350f;
+  border-top: 1px dashed #fcd34d; padding-top: 9px;
+}
+.admin-airtable-todo strong { font-size: 13px; color: #92400e; }
+
 /* WEC-746: PlacesAutocomplete wraps its input in a plain <div>, so the input
    no longer stretches the way it does as a direct grid child of the label —
    it falls back to the browser's default ~20-character width. Every other
