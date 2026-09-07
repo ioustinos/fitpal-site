@@ -309,13 +309,33 @@ export async function reorderMenuDayDishes(items: Array<{ id: string; date: stri
  * Duplicate all menu_day_dishes rows from `sourceMenuId` into `targetMenuId`,
  * shifting dates by a number of days so they land in the new week.
  */
-export async function duplicateMenuContent(sourceMenuId: string, targetMenuId: string, dateShiftDays: number): Promise<{ error: string | null }> {
+/**
+ * Copy every day-assignment from one menu into another, shifting the dates.
+ *
+ * WEC-754: `replace` clears the target first. The default stays `false` so the
+ * long-standing "Duplicate from last week" button behaves exactly as it always
+ * has — but note what append means on a target that already has dishes: the
+ * rows are ADDED, so copying twice gives you every dish twice. That was
+ * survivable while the only source was last week; with an arbitrary source
+ * store it is a foot-gun, so the new copy panel defaults to replace.
+ */
+export async function duplicateMenuContent(
+  sourceMenuId: string,
+  targetMenuId: string,
+  dateShiftDays: number,
+  opts: { replace?: boolean } = {},
+): Promise<{ error: string | null }> {
   const { data: src, error: srcErr } = await supabase
     .from('menu_day_dishes')
     .select('date, dish_id, sort_order')
     .eq('menu_id', sourceMenuId)
   if (srcErr) return { error: srcErr.message }
   if (!src || src.length === 0) return { error: null }
+
+  if (opts.replace) {
+    const { error: delErr } = await supabase.from('menu_day_dishes').delete().eq('menu_id', targetMenuId)
+    if (delErr) return { error: delErr.message }
+  }
 
   const rows = src.map((r) => {
     const d = new Date(r.date as string)
@@ -347,4 +367,34 @@ export async function setMenuStore(menuId: string, storeId: string): Promise<{ e
   const { error } = await supabase.from('weekly_menus').update({ store_id: storeId }).eq('id', menuId)
   void purgeMenuCache(['menu', 'stores'])
   return { error: error?.message ?? null }
+}
+
+/**
+ * WEC-754: every menu belonging to one storefront, newest first.
+ *
+ * Powers the "copy from another store" picker — the source may be any week of
+ * any store, not only the week currently on screen, because the usual case is
+ * "give this company what retail had last week".
+ */
+export async function fetchMenusForStore(
+  storeId: string,
+  limit = 40,
+): Promise<{ data: AdminWeeklyMenu[] | null; error: string | null }> {
+  const { data, error } = await supabase
+    .from('weekly_menus')
+    .select('*, stores(slug, name_el, is_default)')
+    .eq('store_id', storeId)
+    .order('from_date', { ascending: false })
+    .limit(limit)
+  if (error) return { data: null, error: error.message }
+  return { data: (data ?? []).map(mapMenuRow), error: null }
+}
+
+/** WEC-754: how many day-assignments a menu holds — shown before copying. */
+export async function countMenuAssignments(menuId: string): Promise<number> {
+  const { count } = await supabase
+    .from('menu_day_dishes')
+    .select('id', { count: 'exact', head: true })
+    .eq('menu_id', menuId)
+  return count ?? 0
 }
