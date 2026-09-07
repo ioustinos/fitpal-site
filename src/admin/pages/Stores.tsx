@@ -21,6 +21,7 @@ import {
   type AdminStore, type StoreMember,
   type CloneSourceWeek, type ClonePlanTarget, type CloneResult,
 } from '../../lib/api/adminStores'
+import { PlacesAutocomplete } from '../../components/ui/PlacesAutocomplete'
 
 const PAYMENT_METHODS = ['cash', 'card', 'link', 'transfer', 'wallet'] as const
 
@@ -128,26 +129,39 @@ export function Stores() {
               </button>
             ))}
 
-            <div className="admin-inline-form" style={{ padding: 10, display: 'flex', flexDirection: 'column', gap: 6 }}>
-              <div style={{ fontSize: 11, fontWeight: 800, textTransform: 'uppercase', color: '#6b7280', letterSpacing: '.04em' }}>
-                New store
-              </div>
+            {/* WEC-746: own class — see the note in admin.css. */}
+            <div className="admin-store-new">
+              <div className="admin-store-new-title">New store</div>
+
               <input className="admin-input" placeholder="URL slug, e.g. acme" value={newSlug}
                      onChange={(e) => setNewSlug(e.target.value.toLowerCase())} />
-              {slugError && <div style={{ color: '#dc2626', fontSize: 11 }}>{slugError}</div>}
+              {slugError && <div className="admin-store-new-err">{slugError}</div>}
               {newSlug && !slugError && (
-                <div style={{ color: '#6b7280', fontSize: 11 }}>orders.fitpal.gr/{newSlug}</div>
+                <div className="admin-store-new-hint">orders.fitpal.gr/{newSlug}</div>
               )}
+
               <input className="admin-input" placeholder="Company name" value={newName}
                      onChange={(e) => setNewName(e.target.value)} />
-              <select className="admin-input" value={newType} onChange={(e) => setNewType(e.target.value as 'company' | 'reseller')}>
-                <option value="company">Company portal — open to anyone with the URL</option>
-                <option value="reseller">Reseller portal — invited users only</option>
+
+              {/* Short option labels: a <select> is as wide as its widest option,
+                  and this one lives in a 260px column. The explanation moved to
+                  the hint line below, where it can wrap. */}
+              <select className="admin-select" value={newType}
+                      onChange={(e) => setNewType(e.target.value as 'company' | 'reseller')}>
+                <option value="company">Company portal</option>
+                <option value="reseller">Reseller portal</option>
               </select>
-              <label style={{ fontSize: 12, display: 'flex', gap: 6, alignItems: 'center' }}>
+              <div className="admin-store-new-hint">
+                {newType === 'company'
+                  ? 'Open to anyone with the URL.'
+                  : 'Invited members only, at wholesale prices.'}
+              </div>
+
+              <label className="admin-store-new-check">
                 <input type="checkbox" checked={cloneMenu} onChange={(e) => setCloneMenu(e.target.checked)} />
-                Clone the newest active retail week into it
+                <span>Clone the newest active retail week into it</span>
               </label>
+
               <button className="admin-btn-primary" onClick={handleCreate} disabled={!newSlug.trim() || !!slugError || creating}>
                 {creating ? 'Creating…' : '+ Create store'}
               </button>
@@ -284,7 +298,27 @@ function StoreEditor({ store, onSaved }: { store: AdminStore; onSaved: () => voi
 
       {!isRetail && (
         <Section title="Delivery address" sub="ONE address. Every order on this store is delivered here, and a customer's own saved address never overrides it.">
-          <Field label="Street" value={form.addressStreet} onChange={(v) => setForm({ ...form, addressStreet: v })} />
+          {/* WEC-746: same Places autocomplete the customer checkout uses.
+              Picking a suggestion fills Area and Postcode too — and the
+              postcode is the field that decides everything downstream, so
+              having it typed by hand once per store was a real risk. */}
+          <label style={{ display: 'grid', gap: 3 }}>
+            <span style={{ fontSize: 12, color: '#374151', fontWeight: 600 }}>Street</span>
+            <PlacesAutocomplete
+              className="admin-input"
+              value={form.addressStreet}
+              onChange={(v) => setForm((f) => ({ ...f, addressStreet: v }))}
+              onSelect={(place) => setForm((f) => ({
+                ...f,
+                addressStreet: place.street || f.addressStreet,
+                // Only overwrite when Google actually returned something —
+                // a picked place with no postcode must not blank a good one.
+                addressArea: place.area || f.addressArea,
+                addressZip: place.zip || f.addressZip,
+              }))}
+              placeholder="Start typing the office address…"
+            />
+          </label>
           <Field label="Area" value={form.addressArea} onChange={(v) => setForm({ ...form, addressArea: v })} />
           <Field label="Postcode" value={form.addressZip} onChange={(v) => setForm({ ...form, addressZip: v })} />
           <Field label="Floor" value={form.addressFloor} onChange={(v) => setForm({ ...form, addressFloor: v })} />
