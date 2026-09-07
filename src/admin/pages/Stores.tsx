@@ -314,7 +314,11 @@ function StoreEditor({ store, onSaved }: { store: AdminStore; onSaved: () => voi
                 // Only overwrite when Google actually returned something —
                 // a picked place with no postcode must not blank a good one.
                 addressArea: place.area || f.addressArea,
-                addressZip: place.zip || f.addressZip,
+                // Google returns Greek postcodes spaced — "151 25". `resolveZone`
+                // strips whitespace before matching, so a space would still
+                // resolve; it is stored unspaced anyway because this value is
+                // also read by eyes and pushed to Airtable.
+                addressZip: place.zip ? place.zip.replace(/\s/g, '') : f.addressZip,
               }))}
               placeholder="Start typing the office address…"
             />
