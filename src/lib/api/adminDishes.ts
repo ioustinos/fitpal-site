@@ -26,6 +26,21 @@ export interface AdminVariant {
    * via the variant_id → external_id map at push time.
    */
   externalId: string | null
+  /**
+   * WEC-714 / WEC-747: the wholesale pair, editable in the variant row.
+   *
+   * `resellerAvailable` decides whether the variant appears at all on a
+   * reseller storefront; `resellerPrice` (cents, VAT included) is what it costs
+   * there. Both must be set — `menu-week.ts` and `submit-order.ts` filter on
+   * `reseller_available AND typeof reseller_price === 'number'` with **no
+   * fallback to retail**, deliberately: a variant with a missing wholesale
+   * price is hidden rather than silently sold at the retail price.
+   *
+   * Loaded from Ioustinos's Meals Management sheet (column C «B2B», column L
+   * «Price B2B (ΦΠΑ)») and maintainable here afterwards.
+   */
+  resellerAvailable: boolean
+  resellerPrice: number | null
 }
 
 export interface AdminDish {
@@ -151,6 +166,8 @@ export async function fetchAdminDishes(): Promise<{ data: AdminDish[] | null; er
       calories: number | null; protein: number | null; carbs: number | null; fat: number | null; sort_order: number;
       is_default: boolean | null;
       external_id: string | null;
+      reseller_available: boolean | null;
+      reseller_price: number | null;
     }
     const arr = variantsByDish.get(row.dish_id) ?? []
     arr.push({
@@ -159,6 +176,10 @@ export async function fetchAdminDishes(): Promise<{ data: AdminDish[] | null; er
       carbs: row.carbs ?? 0, fat: row.fat ?? 0, sortOrder: row.sort_order ?? 0,
       isDefault: row.is_default ?? false,
       externalId: row.external_id ?? null,
+      // WEC-747: null price stays null — it is meaningfully different from 0,
+      // and coercing it would make an unsellable variant look like a free one.
+      resellerAvailable: row.reseller_available ?? false,
+      resellerPrice: row.reseller_price ?? null,
     })
     variantsByDish.set(row.dish_id, arr)
   }
@@ -334,6 +355,12 @@ export async function saveDish(input: SaveDishInput): Promise<{ data: { id: stri
         sort_order: i,
         is_default: !!v.isDefault,
         external_id: vExt.length > 0 ? vExt : variantId,
+        // WEC-747: saveDish DELETES every variant and re-inserts it. Any column
+        // missing from this object is therefore silently wiped on the next save
+        // of the dish — the same trap `promote_draft_atomic` sprang on
+        // `store_id`. The wholesale pair has to be carried through explicitly.
+        reseller_available: !!v.resellerAvailable,
+        reseller_price: typeof v.resellerPrice === 'number' ? Math.round(v.resellerPrice) : null,
       }
     })
     const { error: insVarErr } = await supabase.from('dish_variants').insert(variantRows)
