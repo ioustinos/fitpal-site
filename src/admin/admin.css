@@ -1277,6 +1277,12 @@
 }
 .admin-store-new-check input { margin: 2px 0 0; flex: 0 0 auto; }
 
+/* WEC-746: PlacesAutocomplete wraps its input in a plain <div>, so the input
+   no longer stretches the way it does as a direct grid child of the label —
+   it falls back to the browser's default ~20-character width. Every other
+   field on the form is full width; this one has to match. */
+.places-ac-wrap .admin-input { width: 100%; }
+
 .admin-zones-editor {
   background: var(--a-surface);
   border: 1px solid var(--a-border);
