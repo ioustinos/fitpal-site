@@ -30,9 +30,13 @@ import {
   fetchMenusOverlapping, fetchMenuDayDishes,
   createWeeklyMenu, deleteWeeklyMenu, setMenuActive, renameMenu, setMenuDateActive,
   addDishToDay, removeMenuDayDish, reorderMenuDayDishes, duplicateMenuContent,
-  setMenuCategoryOrder, isoDaySpan,
+  setMenuCategoryOrder, isoDaySpan, setMenuStore,
+  fetchMenusForStore, countMenuAssignments,
   type AdminWeeklyMenu, type AdminMenuDayDish,
 } from '../../lib/api/adminMenus'
+// WEC-752: the builder has to know which storefronts exist before it can say
+// whose week it is showing.
+import { fetchAdminStores, type AdminStore } from '../../lib/api/adminStores'
 import { CategoryOrderStrip } from '../components/CategoryOrderStrip'
 import { foldGreek } from '../../lib/text'
 import {
@@ -69,6 +73,19 @@ export function Menus() {
   const weekEnd = fmtIso(addDays(monday, 4))
 
   const [menusInWeek, setMenusInWeek] = useState<AdminWeeklyMenu[]>([])
+  // WEC-752: which storefront's menus this screen is editing. Defaults to
+  // retail, which is what nearly every session wants and, more importantly,
+  // is what the screen used to imply while quietly showing everyone's weeks.
+  const [stores, setStores] = useState<AdminStore[]>([])
+  const [storeFilter, setStoreFilter] = useState<string | null>(null)   // null until stores load
+  // WEC-754: "copy from another storefront / week" panel.
+  const [copyOpen, setCopyOpen] = useState(false)
+  const [copySourceStore, setCopySourceStore] = useState<string | null>(null)
+  const [copySourceMenus, setCopySourceMenus] = useState<AdminWeeklyMenu[]>([])
+  const [copySourceMenuId, setCopySourceMenuId] = useState<string | null>(null)
+  const [copySourceCount, setCopySourceCount] = useState<number | null>(null)
+  const [copyReplace, setCopyReplace] = useState(true)
+  const [copyBusy, setCopyBusy] = useState(false)
   const [selectedMenuId, setSelectedMenuId] = useState<string | null>(null)
   const [assignments, setAssignments] = useState<AdminMenuDayDish[]>([])
   const [loading, setLoading] = useState(true)
@@ -100,6 +117,11 @@ export function Menus() {
       setDishes((dr.data ?? []).filter((d) => d.active))
       setCategories(cr.data ?? [])
       setTags(tr.data ?? [])
+      // WEC-752
+      const sr = await fetchAdminStores()
+      const list = sr.data ?? []
+      setStores(list)
+      setStoreFilter((cur) => cur ?? (list.find((x) => x.isDefault)?.id ?? list[0]?.id ?? null))
     })()
   }, [])
 
@@ -115,7 +137,12 @@ export function Menus() {
     // week with no exact menu, dish assignments silently landed in an
     // overlapping (wrong-week) menu. Now: no exact menu → nothing selected, and
     // the builder shows a banner prompting to create one for this week.
-    const exact = data?.find((m) => m.fromDate === weekStart) ?? null
+    //
+    // WEC-752: …and scoped to the SELECTED STORE. Without that scope this line
+    // picked whichever store's week happened to come back first, so opening the
+    // builder on a week that several storefronts share could silently drop you
+    // into Savills' menu while you believed you were editing retail.
+    const exact = data?.find((m) => m.fromDate === weekStart && m.storeId === storeFilter) ?? null
     setSelectedMenuId(exact?.id ?? null)
     setEditingName(exact?.name ?? '')
     if (exact) {
@@ -127,8 +154,21 @@ export function Menus() {
     }
     setLoading(false)
   }
-  useEffect(() => { loadWeek() /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [weekStart])
+  useEffect(() => {
+    if (storeFilter) loadWeek()
+    /* eslint-disable-next-line react-hooks/exhaustive-deps */
+  }, [weekStart, storeFilter])
 
+  // WEC-752: the picker lists only the selected storefront's weeks. The others
+  // still exist for the same dates — they are simply not this screen's business.
+  const menusForStore = useMemo(
+    () => menusInWeek.filter((m) => m.storeId === storeFilter),
+    [menusInWeek, storeFilter],
+  )
+  const selectedStore = useMemo(
+    () => stores.find((s2) => s2.id === storeFilter) ?? null,
+    [stores, storeFilter],
+  )
   const selectedMenu = useMemo(
     () => menusInWeek.find((m) => m.id === selectedMenuId) ?? null,
     [menusInWeek, selectedMenuId],
@@ -167,7 +207,15 @@ export function Menus() {
   // ─── Actions ──────────────────────────────────────────────────────
   async function handleNewMenu() {
     setError(null)
-    const { data, error } = await createWeeklyMenu({ fromDate: weekStart, toDate: weekEnd, name: `Week of ${weekStart}` })
+    // WEC-752: named AND attached to the storefront on screen. A retail week
+    // keeps its plain name; a store's week is suffixed so it is identifiable
+    // wherever it is listed.
+    const suffix = selectedStore && !selectedStore.isDefault ? ` — ${selectedStore.nameEl}` : ''
+    const { data, error } = await createWeeklyMenu({
+      fromDate: weekStart, toDate: weekEnd,
+      name: `Week of ${weekStart}${suffix}`,
+      storeId: storeFilter,
+    })
     if (error) { setError(error); return }
     await loadWeek()
     if (data) setSelectedMenuId(data.id)
@@ -180,12 +228,58 @@ export function Menus() {
     const prevEnd = fmtIso(addDays(prevMonday, 4))
     const { data: prev, error: pErr } = await fetchMenusOverlapping(prevIso, prevEnd)
     if (pErr) { setError(pErr); return }
-    const prevMenu = prev?.find((m) => m.fromDate === prevIso) ?? prev?.[0]
-    if (!prevMenu) { setError('No menu found for last week to duplicate.'); return }
+    // WEC-754: scope to the CURRENT storefront. This used to fall back to
+    // `prev?.[0]` across every store, so "duplicate from last week" could pull
+    // Savills' week into retail depending only on row order — the same class of
+    // bug as the WEC-752 auto-select.
+    const prevMenu = prev?.find((m) => m.fromDate === prevIso && m.storeId === storeFilter)
+    if (!prevMenu) { setError('No menu for last week on this storefront. Use “Copy from…” to pull one from another store.'); return }
     const { error: dupErr } = await duplicateMenuContent(prevMenu.id, selectedMenuId, 7)
     if (dupErr) { setError(dupErr); return }
     await loadWeek()
   }
+  // ─── WEC-754: copy a week in from another storefront ───────────────
+  //
+  // The Stores page already pushes one week OUT to many stores (WEC-716). This
+  // is the pull: "fill the week I am editing from that store's week". Same
+  // primitive, opposite direction, and the direction you want when composing a
+  // single store rather than rolling out to all of them.
+  async function openCopyPanel() {
+    setError(null)
+    setCopyOpen(true)
+    // Default the source to retail — the overwhelmingly common source.
+    const retail = stores.find((st) => st.isDefault)?.id ?? stores[0]?.id ?? null
+    setCopySourceStore(retail)
+    if (retail) await loadCopySourceMenus(retail)
+  }
+  async function loadCopySourceMenus(storeId: string) {
+    setCopySourceMenuId(null); setCopySourceCount(null)
+    const { data, error: e } = await fetchMenusForStore(storeId)
+    if (e) { setError(e); return }
+    const list = data ?? []
+    setCopySourceMenus(list)
+    // Prefer the same week if the source store has one, else the newest.
+    const sameWeek = list.find((m) => m.fromDate === weekStart)
+    const pick = sameWeek ?? list[0] ?? null
+    if (pick) { setCopySourceMenuId(pick.id); setCopySourceCount(await countMenuAssignments(pick.id)) }
+  }
+  async function handleCopyFrom() {
+    if (!selectedMenuId || !copySourceMenuId) return
+    const src = copySourceMenus.find((m) => m.id === copySourceMenuId)
+    if (!src) return
+    if (src.id === selectedMenuId) { setError('That is the menu you are editing.'); return }
+    // Dates rarely line up — shift by the difference between the two Mondays so
+    // a week copied from any other week lands on this one's days.
+    const shift = isoDaySpan(src.fromDate, weekStart)
+    if (!Number.isFinite(shift)) { setError('Could not work out the date shift.'); return }
+    setCopyBusy(true); setError(null)
+    const { error: e } = await duplicateMenuContent(src.id, selectedMenuId, shift, { replace: copyReplace })
+    setCopyBusy(false)
+    if (e) { setError(e); return }
+    setCopyOpen(false)
+    await loadWeek()
+  }
+
   async function handleTogglePublish() {
     if (!selectedMenu) return
     const { error } = await setMenuActive(selectedMenu.id, !selectedMenu.active)
@@ -505,11 +599,35 @@ export function Menus() {
         )
       })()}
 
+      {/* WEC-752: WHOSE menu is this. First control on the screen, because it
+          changes the meaning of everything below it. It used to be absent, and
+          the builder showed every storefront's weeks in one undifferentiated
+          list — which is how a Botaniq week ended up published on retail. */}
+      <div className={`admin-menu-storebar${selectedStore && !selectedStore.isDefault ? ' is-store' : ''}`}>
+        <label className="admin-form-label" style={{ margin: 0 }}>Storefront</label>
+        <select
+          className="admin-select"
+          value={storeFilter ?? ''}
+          onChange={(e) => { setStoreFilter(e.target.value); setSelectedMenuId(null); setAssignments([]) }}
+        >
+          {stores.map((st) => (
+            <option key={st.id} value={st.id}>
+              {st.nameEl}{st.isDefault ? ' — retail' : ` /${st.slug}`}
+            </option>
+          ))}
+        </select>
+        {selectedStore && !selectedStore.isDefault && (
+          <span className="admin-menu-storebar-warn">
+            You are editing <strong>{selectedStore.nameEl}</strong>, not the retail menu.
+          </span>
+        )}
+      </div>
+
       <div className="admin-menu-controls">
         <div className="admin-menu-select-wrap">
           <label className="admin-form-label">Menu</label>
-          {menusInWeek.length === 0 ? (
-            <div className="admin-text-muted">No menu for this week yet.</div>
+          {menusForStore.length === 0 ? (
+            <div className="admin-text-muted">No menu for this week on this storefront yet.</div>
           ) : (
             <select className="admin-select" value={selectedMenuId ?? ''} onChange={(e) => {
               const id = e.target.value
@@ -518,7 +636,7 @@ export function Menus() {
               setEditingName(m?.name ?? '')
               if (id) fetchMenuDayDishes(id).then(({ data }) => setAssignments(data ?? []))
             }}>
-              {menusInWeek.map((m) => (
+              {menusForStore.map((m) => (
                 <option key={m.id} value={m.id}>
                   {m.name ?? `${m.fromDate} — ${m.toDate}`}{m.active ? ' • published' : ''}
                 </option>
@@ -538,11 +656,44 @@ export function Menus() {
             />
           </div>
         )}
+        {/* WEC-752: move a week to another storefront. This is the repair tool
+            as much as the feature — until now a misfiled week could only be
+            moved with SQL. */}
+        {selectedMenu && (
+          <div className="admin-menu-select-wrap">
+            <label className="admin-form-label">Belongs to</label>
+            <select
+              className="admin-select"
+              value={selectedMenu.storeId ?? ''}
+              onChange={async (e) => {
+                const target = stores.find((st) => st.id === e.target.value)
+                if (!target || target.id === selectedMenu.storeId) return
+                if (!confirm(
+                  `Move «${selectedMenu.name ?? selectedMenu.fromDate}» to ${target.nameEl}?\n\n` +
+                  `It will disappear from ${selectedStore?.nameEl ?? 'this storefront'} and appear on ${target.nameEl}` +
+                  `${selectedMenu.active ? ' — and it is PUBLISHED, so customers see the change immediately.' : '.'}`,
+                )) return
+                const { error: mvErr } = await setMenuStore(selectedMenu.id, target.id)
+                if (mvErr) { setError(mvErr); return }
+                setSelectedMenuId(null); setAssignments([])
+                await loadWeek()
+              }}
+            >
+              {stores.map((st) => (
+                <option key={st.id} value={st.id}>
+                  {st.nameEl}{st.isDefault ? ' — retail' : ` /${st.slug}`}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
         <div className="admin-menu-actions">
           <button className="admin-btn-ghost" onClick={handleNewMenu}>+ New menu</button>
           {selectedMenu && (
             <>
               <button className="admin-btn-ghost" onClick={handleDuplicateFromPrev}>Duplicate from last week</button>
+              {/* WEC-754 */}
+              <button className="admin-btn-ghost" onClick={openCopyPanel}>Copy from…</button>
               <button className="admin-btn-ghost" onClick={() => exportMenuToPdf(buildExportModel())}>Export PDF</button>
               <button className="admin-btn-ghost" onClick={() => { setXlsFmt('standard'); setXlsPromptOpen(true) }}>Export Excel</button>
               <button
@@ -556,6 +707,95 @@ export function Menus() {
           )}
         </div>
       </div>
+
+      {/* WEC-754: copy a week in from another storefront or another week. The
+          Stores page pushes one week out to many stores; this pulls one in. */}
+      {copyOpen && selectedMenu && (
+        <div className="admin-menu-copy">
+          <div className="admin-menu-copy-head">
+            <strong>Copy dishes into «{selectedMenu.name ?? weekStart}»</strong>
+            <button className="admin-row-btn" onClick={() => setCopyOpen(false)}>Close</button>
+          </div>
+
+          <div className="admin-menu-copy-row">
+            <div className="admin-menu-select-wrap">
+              <label className="admin-form-label">From storefront</label>
+              <select
+                className="admin-select"
+                value={copySourceStore ?? ''}
+                onChange={async (e) => { setCopySourceStore(e.target.value); await loadCopySourceMenus(e.target.value) }}
+              >
+                {stores.map((st) => (
+                  <option key={st.id} value={st.id}>
+                    {st.nameEl}{st.isDefault ? ' — retail' : ` /${st.slug}`}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="admin-menu-select-wrap">
+              <label className="admin-form-label">Which week</label>
+              {copySourceMenus.length === 0 ? (
+                <div className="admin-text-muted">That storefront has no menus.</div>
+              ) : (
+                <select
+                  className="admin-select"
+                  value={copySourceMenuId ?? ''}
+                  onChange={async (e) => {
+                    setCopySourceMenuId(e.target.value)
+                    setCopySourceCount(await countMenuAssignments(e.target.value))
+                  }}
+                >
+                  {copySourceMenus.map((m) => (
+                    <option key={m.id} value={m.id}>
+                      {m.name ?? m.fromDate} · {m.fromDate}{m.active ? ' • published' : ''}
+                    </option>
+                  ))}
+                </select>
+              )}
+            </div>
+          </div>
+
+          <label className="admin-form-checkbox" style={{ marginTop: 4 }}>
+            <input type="checkbox" checked={copyReplace} onChange={(e) => setCopyReplace(e.target.checked)} />
+            <span>
+              <strong>Replace</strong> what is already in this week
+              {!copyReplace && <span style={{ color: '#b45309' }}> — unticked, dishes are ADDED, so copying twice lists everything twice</span>}
+            </span>
+          </label>
+
+          {copySourceMenuId && (
+            <div className="admin-menu-copy-summary">
+              {(() => {
+                const src = copySourceMenus.find((m) => m.id === copySourceMenuId)
+                if (!src) return null
+                const shift = isoDaySpan(src.fromDate, weekStart)
+                return (
+                  <>
+                    Copying <strong>{copySourceCount ?? '…'}</strong> dish assignments from{' '}
+                    <strong>{src.fromDate}</strong> onto <strong>{weekStart}</strong>
+                    {shift !== 0 && <> — dates shifted by {shift > 0 ? '+' : ''}{shift} days, Monday onto Monday</>}.
+                    {selectedMenu.active && (
+                      <> This week is <strong>published</strong>, so customers see the result immediately.</>
+                    )}
+                  </>
+                )
+              })()}
+            </div>
+          )}
+
+          <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+            <button
+              className="admin-btn-primary"
+              disabled={!copySourceMenuId || copyBusy || copySourceMenuId === selectedMenuId}
+              onClick={handleCopyFrom}
+            >
+              {copyBusy ? 'Copying…' : 'Copy dishes'}
+            </button>
+            <button className="admin-btn-ghost" onClick={() => setCopyOpen(false)}>Cancel</button>
+          </div>
+        </div>
+      )}
 
       {/* WEC-253: per-menu category ordering. Only shown when a menu is selected. */}
       <CategoryOrderStrip
