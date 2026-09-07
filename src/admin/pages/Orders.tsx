@@ -30,6 +30,9 @@ import { NumberField } from '../components/NumberField'
 import { foldGreek } from '../../lib/text'
 // WEC-528: shared Order Type classifier (same module the Airtable push uses)
 import { orderTypeCode, ORDER_TYPE_LABELS, type OrderTypeCode } from '../../lib/orderType'
+// WEC-749: the single pricing rule, shared with submit-order and menu-quote.
+import { unitPriceCents, type PricingChannel } from '../../lib/pricing'
+import { supabase } from '../../lib/supabase'
 // WEC-577/499: single source of truth for payment-method labels
 import { paymentShort, PAYMENT_METHOD_IDS } from '../../lib/paymentMethods'
 // WEC-557: customer «Αίτημα αλλαγής» requests surfaced in the drawer + list.
@@ -1275,11 +1278,58 @@ function NotesBlock({ order, adminUser, onChanged }: { order: AdminOrder; adminU
 
 const EMPTY_SET: Set<string> = new Set()
 
+/** WEC-749: retail, no discounts — the safe default while the channel loads. */
+const NO_DISCOUNTS: PricingChannel = { isReseller: false, categoryDiscounts: new Map() }
+
+/**
+ * WEC-749: resolve how this order's storefront prices things.
+ *
+ * Retail orders (`storeSlug` null or 'main') read the `store_id IS NULL`
+ * discount rows; a store reads only its own and never inherits retail's, which
+ * is the rule set in WEC-717 ("each company can set their own").
+ *
+ * Fail-open: any lookup problem returns retail-with-no-discounts, matching the
+ * behaviour before this fix rather than blocking the admin from editing.
+ */
+async function fetchOrderPricingChannel(storeSlug: string | null | undefined): Promise<PricingChannel> {
+  try {
+    const slug = (storeSlug ?? '').trim()
+    const isMain = !slug || slug === 'main'
+
+    let storeId: string | null = null
+    let isReseller = false
+    if (!isMain) {
+      const { data } = await supabase.from('stores').select('id, type').eq('slug', slug).maybeSingle()
+      const s = data as { id: string; type: string } | null
+      if (!s) return NO_DISCOUNTS
+      storeId = s.id
+      isReseller = s.type === 'reseller'
+    }
+
+    const q = supabase.from('category_discounts').select('category_id, discount_pct')
+    const { data: rows } = isMain ? await q.is('store_id', null) : await q.eq('store_id', storeId!)
+    const categoryDiscounts = new Map<string, number>()
+    for (const r of (rows ?? []) as Array<{ category_id: string; discount_pct: number | string }>) {
+      const pct = typeof r.discount_pct === 'number' ? r.discount_pct : Number(r.discount_pct)
+      if (Number.isFinite(pct) && pct > 0) categoryDiscounts.set(r.category_id, pct)
+    }
+    return { isReseller, categoryDiscounts }
+  } catch {
+    return NO_DISCOUNTS
+  }
+}
+
 function DaysSection({ order, adminUser, onChanged }: { order: AdminOrder; adminUser: string; onChanged: () => void }) {
   // WEC-371: dish catalog + per-day on-menu hints (for the add-item picker and
   // the inline variant editor).
   const [dishes, setDishes] = useState<AdminDish[]>([])
   const [onMenuByDate, setOnMenuByDate] = useState<Record<string, Set<string>>>({})
+  // WEC-749: the order's pricing channel. Without it both edit paths wrote the
+  // RETAIL price into order_items.unit_price on a B2B or reseller order, and
+  // recompute_order_money rebuilt the total from it — so an admin adding a
+  // forgotten dish for a corporate customer charged them more than the same
+  // dish cost in their own basket minutes earlier.
+  const [channel, setChannel] = useState<PricingChannel>(NO_DISCOUNTS)
   useEffect(() => {
     let cancelled = false
     fetchAdminDishes().then((r) => { if (!cancelled) setDishes((r.data ?? []).filter((d) => d.active)) })
@@ -1288,11 +1338,28 @@ function DaysSection({ order, adminUser, onChanged }: { order: AdminOrder; admin
         fetchOnMenuDishIds(c.deliveryDate).then((s) => [c.deliveryDate, s] as const),
       ),
     ).then((pairs) => { if (!cancelled) setOnMenuByDate(Object.fromEntries(pairs)) })
+    fetchOrderPricingChannel(order.storeSlug).then((c) => { if (!cancelled) setChannel(c) })
     return () => { cancelled = true }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [order.id])
 
   const dishById = useMemo(() => new Map(dishes.map((d) => [d.id, d])), [dishes])
+
+  /**
+   * Price one variant the way this order's storefront prices it. Null means the
+   * variant is not sold on this channel at all (a reseller store with no
+   * wholesale price for it) — callers must refuse to add it rather than fall
+   * back to retail.
+   */
+  const priceFor = useMemo(
+    () => (dish: AdminDish | null | undefined, variant: AdminDish['variants'][number]): number | null =>
+      unitPriceCents(
+        { price: variant.price, resellerPrice: variant.resellerPrice, resellerAvailable: variant.resellerAvailable },
+        dish ? { discountPct: dish.discountPct, categoryId: dish.categoryId } : null,
+        channel,
+      ),
+    [channel],
+  )
 
   // WEC-372: item edits (variant / qty / remove / add / cancel day) only while
   // the order is Pending. Revert a Confirmed order to Pending, then re-confirm.
@@ -1313,6 +1380,7 @@ function DaysSection({ order, adminUser, onChanged }: { order: AdminOrder; admin
           child={c}
           dishById={dishById}
           dishes={dishes}
+          priceFor={priceFor}
           onMenuIds={onMenuByDate[c.deliveryDate] ?? EMPTY_SET}
           editable={editable}
           adminUser={adminUser}
@@ -1330,12 +1398,14 @@ function fmtDay(iso: string): string {
 }
 
 function DayCard({
-  order, child, dishById, dishes, onMenuIds, editable, adminUser, onChanged,
+  order, child, dishById, dishes, priceFor, onMenuIds, editable, adminUser, onChanged,
 }: {
   order: AdminOrder
   child: AdminChildOrder
   dishById: Map<string, AdminDish>
   dishes: AdminDish[]
+  /** WEC-749: prices a variant on THIS order's channel. Null = not sold here. */
+  priceFor: (dish: AdminDish | null | undefined, variant: AdminDish['variants'][number]) => number | null
   onMenuIds: Set<string>
   editable: boolean
   adminUser: string
@@ -1448,6 +1518,7 @@ function DayCard({
                   key={it.id}
                   item={it}
                   dish={it.dishId ? dishById.get(it.dishId) : undefined}
+                  priceFor={priceFor}
                   orderId={order.id}
                   childOrderId={child.id}
                   editable={canEdit}
@@ -1472,6 +1543,7 @@ function DayCard({
               orderId={order.id}
               childOrderId={child.id}
               dishes={dishes}
+              priceFor={priceFor}
               onMenuIds={onMenuIds}
               paymentStatus={order.paymentStatus}
               adminUser={adminUser}
@@ -1484,9 +1556,11 @@ function DayCard({
   )
 }
 
-function DayItemRow({ item, dish, orderId, childOrderId, editable, adminUser, onChanged }: {
+function DayItemRow({ item, dish, priceFor, orderId, childOrderId, editable, adminUser, onChanged }: {
   item: AdminOrderItem
   dish: AdminDish | undefined
+  /** WEC-749 — see DayCard. */
+  priceFor: (dish: AdminDish | null | undefined, variant: AdminDish['variants'][number]) => number | null
   orderId: string
   childOrderId: string
   editable: boolean
@@ -1519,12 +1593,20 @@ function DayItemRow({ item, dish, orderId, childOrderId, editable, adminUser, on
   async function changeVariant(variantId: string) {
     const v = dish?.variants.find((x) => x.id === variantId)
     if (!v) return
+    // WEC-749: price on the ORDER's channel, not the retail column. On a
+    // reseller order a variant with no wholesale price returns null — refuse
+    // rather than fall back to retail, which would overcharge by ~60%.
+    const unit = priceFor(dish, v)
+    if (unit === null) {
+      alert('That variant has no wholesale price, so it cannot be sold on this store. Set a B2B price in Dishes first.')
+      return
+    }
     setWorking(true)
     await updateOrderItemVariant({
       itemId: item.id, orderId, childOrderId,
       quantity: item.quantity,
       variantId: v.id, variantLabelEl: v.labelEl, variantLabelEn: v.labelEn,
-      unitPrice: v.price, calories: v.calories, protein: v.protein, carbs: v.carbs, fat: v.fat,
+      unitPrice: unit, calories: v.calories, protein: v.protein, carbs: v.carbs, fat: v.fat,
       oldLabel: item.variantLabelEl, adminUser,
     })
     setWorking(false); onChanged()
@@ -1601,11 +1683,13 @@ function DayItemRow({ item, dish, orderId, childOrderId, editable, adminUser, on
     catalogue (admins can add off-menu dishes), with on-menu dishes badged +
     floated to the top. Payment is handled manually after saving. */
 function AddItemPanel({
-  orderId, childOrderId, dishes, onMenuIds, paymentStatus, adminUser, onAdded,
+  orderId, childOrderId, dishes, priceFor, onMenuIds, paymentStatus, adminUser, onAdded,
 }: {
   orderId: string
   childOrderId: string
   dishes: AdminDish[]
+  /** WEC-749 — see DayCard. */
+  priceFor: (dish: AdminDish | null | undefined, variant: AdminDish['variants'][number]) => number | null
   onMenuIds: Set<string>
   paymentStatus: PaymentStatus
   adminUser: string
@@ -1644,13 +1728,22 @@ function AddItemPanel({
 
   async function add() {
     if (!dish || !variant) return
+    // WEC-749: the ORDER's channel price — wholesale on a reseller store, and
+    // any category discount the store carries. This value is written straight
+    // to order_items.unit_price and recompute_order_money rebuilds the total
+    // from it, so getting it wrong is a wrong charge, not a wrong label.
+    const unit = priceFor(dish, variant)
+    if (unit === null) {
+      setErr('No wholesale price for this variant — it is not sold on this store. Set a B2B price in Dishes first.')
+      return
+    }
     setSaving(true); setErr(null)
     const { error } = await addOrderItem({
       orderId, childOrderId,
       dishId: dish.id, variantId: variant.id,
       nameEl: dish.nameEl, nameEn: dish.nameEn,
       variantLabelEl: variant.labelEl, variantLabelEn: variant.labelEn,
-      unitPrice: variant.price,
+      unitPrice: unit,
       quantity: qty,
       calories: variant.calories, protein: variant.protein, carbs: variant.carbs, fat: variant.fat,
       comment,
@@ -1714,16 +1807,24 @@ function AddItemPanel({
 
           <label className="admin-form-label">Variant</label>
           <div className="admin-chip-wrap">
-            {dish.variants.map((v) => (
+            {dish.variants.map((v) => {
+              // WEC-749: show the price this order will actually be charged,
+              // not the retail column. Null = not sold on this store, so the
+              // chip is disabled rather than quietly priced at retail.
+              const chipPrice = priceFor(dish, v)
+              return (
               <button
                 key={v.id}
                 type="button"
-                className={`admin-chip${variantId === v.id ? ' on' : ''}`}
-                onClick={() => setVariantId(v.id)}
+                disabled={chipPrice === null}
+                title={chipPrice === null ? 'Not sold on this store — no B2B price set' : undefined}
+                className={`admin-chip${variantId === v.id ? ' on' : ''}${chipPrice === null ? ' disabled' : ''}`}
+                onClick={() => chipPrice !== null && setVariantId(v.id)}
               >
-                {v.labelEl || '—'} · {(v.price / 100).toFixed(2)} €
+                {v.labelEl || '—'} · {chipPrice === null ? '—' : `${(chipPrice / 100).toFixed(2)} €`}
               </button>
-            ))}
+              )
+            })}
           </div>
 
           <div className="admin-grid-2" style={{ marginTop: 10 }}>
