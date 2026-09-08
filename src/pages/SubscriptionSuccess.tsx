@@ -26,13 +26,11 @@ import {
   type SubscriptionDetails,
 } from '../lib/api/wallet'
 import { track } from '../lib/tracking'
+import { LANDING_URL } from '../lib/siteUrls'
 
 // WEC-665 parity: dev hosts go to the dev landing so testers stay on dev.
-const LANDING_URL =
-  typeof window !== 'undefined' &&
-  (window.location.host.startsWith('dev--') || window.location.host.includes('localhost'))
-    ? 'https://dev--fitpal-landing.netlify.app'
-    : 'https://fitpal.gr'
+// WEC-756: that host sniff now lives once, in lib/siteUrls.ts — this file used
+// to carry its own copy. Import it; do not re-derive the host here.
 
 function goalLabel(goal: string | null, el: boolean): string {
   if (!goal) return '—'

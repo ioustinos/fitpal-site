@@ -22,6 +22,7 @@ import { ImpersonationBanner } from './components/admin/ImpersonationBanner'
 import { ConsentBanner } from './components/consent/ConsentBanner'
 import { StoreProvider } from './lib/storefront/StoreProvider'
 import { initTracking } from './lib/tracking'
+import { LANDING_URL } from './lib/siteUrls'
 
 // Admin is lazy-loaded so the customer bundle stays lean — /admin/* code
 // won't be fetched until a user actually visits the admin panel.
@@ -35,9 +36,14 @@ function CustomerApp() {
   const lang = useUIStore((s) => s.lang)
 
   // Cross-domain marketing routes (Subscriptions / A La Carte / B2B / About)
-  // live on the landing site. Hardcoded to dev for now; flip to
-  // 'https://fitpal.gr' as part of dev → prod cutover.
-  const MARKETING_BASE = 'https://dev--fitpal-landing.netlify.app'
+  // live on the landing site.
+  //
+  // WEC-756: this used to be a flat constant pinned to dev, with a comment
+  // saying "flip at prod cutover". The cutover happened on 1 Sept (WEC-306)
+  // and it was never flipped, so every footer link on orders.fitpal.gr sent
+  // customers to dev--fitpal-landing.netlify.app. Now resolved once, in
+  // lib/siteUrls.ts. Do not reintroduce a literal here.
+  const MARKETING_BASE = LANDING_URL
 
   // Deeplink: fitpal-landing CTAs land users straight in the v2 subscription
   // wizard via `?view=subscription`. The v2 wizard is rendered as WalletPage
