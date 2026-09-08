@@ -25,6 +25,7 @@ import { useUIStore } from '../../store/useUIStore'
 import { useMenuStore } from '../../store/useMenuStore'
 import { supabase } from '../supabase'
 import { resolveSlugFromLocation } from './reserved'
+import { LANDING_URL } from '../siteUrls'
 import { fetchStorefront, type StoreRow, type StoreSettingRow } from './api'
 
 export interface Storefront {
@@ -264,7 +265,9 @@ function StoreMessage({ kind, slug }: { kind: 'inactive' | 'not_found' | 'error'
       <img src="/logo.svg" alt="Fitpal" style={{ height: 32, marginBottom: 8 }} />
       <h1 style={{ fontSize: 20, margin: 0 }}>{copy.title}</h1>
       <p style={{ color: '#6b7280', margin: 0, maxWidth: 420 }}>{copy.body}</p>
-      <a href="/" style={{ marginTop: 8, color: '#00b96b', fontWeight: 600 }}>
+      {/* WEC-756: the label said «fitpal.gr» but the href was "/", i.e. the
+          order-site root. Now it actually goes where it says. */}
+      <a href={LANDING_URL} style={{ marginTop: 8, color: '#00b96b', fontWeight: 600 }}>
         {lang === 'en' ? 'Go to fitpal.gr →' : 'Πήγαινε στο fitpal.gr →'}
       </a>
     </div>
