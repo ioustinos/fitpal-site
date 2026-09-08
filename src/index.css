@@ -1676,7 +1676,7 @@ header {
 /* WEC-647 Option 2 — subscription banner previews the plan wizard.
    Matched to the Claude Design pack (docs/design/subscription-banner-2026-08). */
 .sub-wizard-card {
-  flex: 1; min-width: 0; min-height: 208px; height: auto; background: #fff; border-radius: 20px;
+  flex: 1; min-width: 0; height: 208px; background: #fff; border-radius: 20px;
   box-shadow: 0 8px 22px rgba(0, 55, 44, 0.12);
   display: flex; overflow: hidden; cursor: pointer;
   transition: transform 0.2s ease, box-shadow 0.2s ease;
@@ -1684,22 +1684,20 @@ header {
 .sub-wizard-card:hover { transform: translateY(-2px); box-shadow: 0 12px 28px rgba(0, 55, 44, 0.18); }
 .sub-wizard-card:focus-visible { outline: 2px solid var(--green-dark); outline-offset: 3px; }
 .swc-photo { flex: none; width: 112px; align-self: stretch; background-size: cover; background-position: center; }
-.swc-body { flex: 1; min-width: 0; padding: 16px 18px; display: flex; flex-direction: column; justify-content: center; gap: 12px; }
+.swc-body { flex: 1; min-width: 0; padding: 14px 18px; display: flex; flex-direction: column; justify-content: space-between; }
 .swc-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
 .swc-head-txt { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 .swc-eyebrow { font-size: 11px; font-weight: 600; letter-spacing: 0.14em; color: #00875a; }
 .swc-headline { font-size: 21px; font-weight: 800; color: #004739; letter-spacing: -0.01em; line-height: 1.15; }
 .swc-disc { flex: none; background: #F7A81B; color: #00382C; font-size: 15px; font-weight: 800; padding: 7px 14px; border-radius: 999px; white-space: nowrap; }
-.swc-steprow { display: flex; flex-direction: column; gap: 5px; }
-.swc-steplabel { font-size: 10px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: #00875a; }
 .swc-progress { display: flex; gap: 6px; align-items: center; }
 .swc-progress-fill { flex: none; width: 60px; height: 4px; border-radius: 2px; background: #2DB56A; }
 .swc-progress-track { flex: 1; height: 4px; border-radius: 2px; background: #E8E1CE; }
-.swc-fields { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-.swc-field { border: 1px solid #DFE7E1; background: #F7FBF9; border-radius: 12px; padding: 12px 13px; display: flex; align-items: center; justify-content: space-between; gap: 5px; white-space: nowrap; overflow: hidden; }
+.swc-fields { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.swc-field { border: 1px solid #DFE7E1; border-radius: 12px; padding: 11px 12px; display: flex; align-items: center; justify-content: space-between; gap: 5px; white-space: nowrap; overflow: hidden; }
 .swc-field > span:first-child { font-size: 11px; font-weight: 600; color: #8c9990; overflow: hidden; text-overflow: ellipsis; }
 .swc-chev { font-size: 11px; font-weight: 600; color: #B9C4BD; flex: none; }
-.swc-cta-row { display: flex; align-items: center; justify-content: flex-end; margin-top: 12px; }
+.swc-cta-row { display: flex; align-items: center; justify-content: flex-end; }
 .swc-cta { background: #004739; color: #fff; font-size: 14px; font-weight: 800; padding: 13px 20px; border: none; border-radius: 999px; cursor: pointer; white-space: nowrap; transition: background 0.18s ease; }
 .swc-cta:hover { background: #00382C; }
 
@@ -3165,8 +3163,8 @@ a.btn-conf-done { display: inline-block; text-decoration: none; }
 .wpv2-length-badge.value   { background: var(--fp-ink-900); color: var(--fp-paper); }
 .wpv2-length-name { font-size: 18px; font-weight: 800; color: var(--fp-ink-900); letter-spacing: -0.3px; }
 .wpv2-length-sub { font-size: 12px; color: var(--fp-ink-500); font-weight: 500; }
-.wpv2-length-disc { font-size: 12px; font-weight: 700; color: var(--fp-green-700); margin-top: 2px; }
-.wpv2-length-disc.none { color: var(--fp-ink-400); font-weight: 600; }
+/* WEC-755 — positioning only; appearance lives on .fp-disc-pill (DiscountPill). */
+.wpv2-length-disc { margin-top: 2px; align-self: flex-start; }
 /* WEC-360 — free-delivery perk pill on the 1mo/3mo plan cards. */
 .wpv2-length-perk { display: inline-flex; align-items: center; gap: 5px; margin-top: 4px; padding: 3px 9px; width: fit-content; background: var(--fp-green-50); color: var(--fp-green-800, var(--fp-green-700)); border: 1px solid var(--fp-green-200, var(--fp-green-100)); border-radius: 999px; font-size: 10.5px; font-weight: 800; letter-spacing: 0.2px; }
 .wpv2-length-perk svg { color: var(--fp-green-600); }
@@ -3243,8 +3241,7 @@ a.btn-conf-done { display: inline-block; text-decoration: none; }
 .wpv2-paymethods-label { font-size: 11px; font-weight: 700; color: var(--fp-ink-500); letter-spacing: 0.5px; text-transform: uppercase; }
 .wpv2-paymethods-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
 .wpv2-paymethod { padding: 9px 6px; background: var(--fp-paper); border: 1.5px solid var(--fp-ink-200); border-radius: var(--fp-radius-sm); font-size: 12px; font-weight: 700; color: var(--fp-ink-700); cursor: pointer; transition: all 0.15s; font-family: inherit; }
-.wpv2-paymethod:not(:disabled):hover { border-color: var(--fp-green-300); }
-.wpv2-paymethod:disabled { opacity: 0.4; cursor: not-allowed; }  /* WEC-658: Αντικαταβολή greyed when unavailable (over cash cap) */
+.wpv2-paymethod:hover { border-color: var(--fp-green-300); }
 .wpv2-paymethod.sel { border-color: var(--fp-green-600); background: var(--fp-green-50); color: var(--fp-green-900); }
 .wpv2-paymethods-hint { font-size: 11px; color: var(--fp-ink-500); font-weight: 500; line-height: 1.4; padding-top: 2px; }
 
@@ -4300,8 +4297,23 @@ body.is-impersonating { padding-top: 36px; }
 }
 
 /* ── WEC-583 · wizard discount-split badges ──────────────────────────────── */
-.wpv2-freq-disc { margin-left: auto; font-size: 12px; font-weight: 800; color: var(--fp-green-700); background: rgba(0,185,107,.10); padding: 2px 8px; border-radius: 999px; white-space: nowrap; }
-.wpv2-meal-disc { margin-left: auto; font-size: 11px; font-weight: 800; color: var(--fp-green-700); background: rgba(0,185,107,.12); padding: 1px 6px; border-radius: 999px; white-space: nowrap; }
+/* WEC-755 — positioning only; appearance lives on .fp-disc-pill (DiscountPill). */
+.wpv2-freq-disc { margin-left: auto; }
+.wpv2-meal-disc { margin-left: auto; }
+
+/* ── WEC-755 · DiscountPill — the ONE discount treatment, app-wide ──────────
+   Always «−X%». Never a plus. Never the word «έκπτωση» beside it. If you are
+   about to write another inline percentage span, use <DiscountPill> instead. */
+.fp-disc-pill {
+  display: inline-flex; align-items: center; justify-content: center;
+  font-size: 12px; font-weight: 800; line-height: 1.5;
+  color: var(--fp-green-700); background: rgba(0,185,107,.12);
+  padding: 2px 8px; border-radius: 999px;
+  white-space: nowrap; font-variant-numeric: tabular-nums;
+}
+.fp-disc-pill--sm { font-size: 11px; padding: 1px 6px; }
+/* Holds the exact same box without ink, so siblings in a grid stay aligned. */
+.fp-disc-pill--ghost { visibility: hidden; }
 .wpv2-aside-discbreak { font-size: 11px; color: var(--fp-ink-400); display: flex; flex-wrap: wrap; gap: 0 2px; padding: 2px 0 0; line-height: 1.4; }
 
 /* ── WEC-588 · Account prefs payment picker — saved-but-hidden + empty states ── */

@@ -9,7 +9,6 @@ import { MealIcon } from '../components/icons/MealIcon'
 import { GoalCardArt } from '../components/icons/GoalIllustration'
 import type { ActivityLevel, DaysPerWeek, Goal, MealsSelection, PaymentMethod, PlanLength, Sex, MealKey } from '../lib/wallet/types'
 import { purchaseWalletPlan, sendEmailOtp, verifyEmailOtp, savePhoneToProfile } from '../lib/api/walletPlan'
-import { parsePhone } from '../lib/phone'
 import { DemoDishesModal } from '../components/wallet/DemoDishesModal'
 import { DietPicker, type DietSelection } from '../components/wallet/DietPicker'
 import { StartDatePicker } from '../components/wallet/StartDatePicker'
@@ -18,6 +17,7 @@ import { saveProfileAllergies, saveProfileAvoidedIngredients } from '../lib/api/
 import { useMenuStore } from '../store/useMenuStore'
 import { supabase } from '../lib/supabase'
 import { MacroIcon } from '../components/ui/MacroDots'
+import { DiscountPill } from '../components/ui/DiscountPill'
 import { isValidGreekVat, vatDigits } from '../lib/vat'
 
 /* ─────────────────────────────────────────────────────────────────
@@ -674,9 +674,7 @@ export function WalletPage() {
     // OTP verified — write phone to profile, then refresh + purchase.
     // savePhoneToProfile is idempotent; failure here shouldn't block the
     // purchase (user can fix the phone later from Account → Profile).
-    // WEC-739#3: store E.164 so every downstream consumer (checkout <PhoneInput>,
-    // emails, Airtable, admin) gets a valid value. Fall back to raw if unparseable.
-    const phoneRes = await savePhoneToProfile(parsePhone(suPhone.trim()) ?? suPhone.trim())
+    const phoneRes = await savePhoneToProfile(suPhone.trim())
     if (!phoneRes.ok) {
       // eslint-disable-next-line no-console
       console.warn('[wallet signup] phone save failed:', phoneRes.error)
@@ -991,7 +989,9 @@ export function WalletPage() {
                       <span className="wpv2-meal-kcal">{result.perMeal[m].kcal} kcal</span>
                     </span>
                     {/* WEC-583: this meal earns the extra-meals discount (3rd/4th selected). */}
-                    {earningMeals.has(m) && mealStepPct > 0 && <span className="wpv2-meal-disc">+{mealStepPct}%</span>}
+                    {earningMeals.has(m) && mealStepPct > 0 && (
+                      <DiscountPill pct={mealStepPct} size="sm" className="wpv2-meal-disc" hideWhenZero />
+                    )}
                   </button>
                 )
               })}
@@ -1053,7 +1053,7 @@ export function WalletPage() {
                       <div className="wpv2-freq-name">{isEl ? f.nameEl : f.nameEn}</div>
                       <div className="wpv2-freq-sub">{isEl ? f.subEl : f.subEn}</div>
                     </div>
-                    {dPct > 0 && <span className="wpv2-freq-disc">+{dPct}%</span>}
+                    {dPct > 0 && <DiscountPill pct={dPct} className="wpv2-freq-disc" hideWhenZero />}
                   </button>
                 )
               })}
@@ -1083,7 +1083,7 @@ export function WalletPage() {
                   {isEl ? 'Διάρκεια πλάνου' : 'Plan duration'}
                 </div>
                 <div className="wpv2-section-sub">
-                  {isEl ? 'Μεγαλύτερη διάρκεια = μεγαλύτερη έκπτωση.' : 'Longer plan = bigger discount.'}
+                  {isEl ? 'Όσο μεγαλύτερη η διάρκεια, τόσο χαμηλότερη η τιμή.' : 'The longer the plan, the lower the price.'}
                 </div>
               </div>
             </div>
@@ -1102,11 +1102,10 @@ export function WalletPage() {
                     <span className={`wpv2-length-badge ${pl.badge.cls}`}>{isEl ? pl.badge.el : pl.badge.en}</span>
                     <div className="wpv2-length-name">{isEl ? pl.nameEl : pl.nameEn}</div>
                     <div className="wpv2-length-sub">{isEl ? pl.daysLabel.el : pl.daysLabel.en}</div>
-                    <div className={`wpv2-length-disc${disc === 0 ? ' none' : ''}`}>
-                      {disc === 0
-                        ? (isEl ? 'Χωρίς έκπτωση' : 'No discount')
-                        : `−${Math.round(disc * 100)}% ${isEl ? 'έκπτωση' : 'off'}`}
-                    </div>
+                    {/* WEC-755: same pill as the meals/frequency rows. At 0% it
+                        renders invisible rather than «Χωρίς έκπτωση», so the three
+                        cards in the grid keep their vertical rhythm. */}
+                    <DiscountPill pct={Math.round(disc * 100)} className="wpv2-length-disc" />
                     {/* WEC-360: free-delivery incentive on the longer plans. */}
                     {(pl.id === '1mo' || pl.id === '3mo') && (
                       <div className="wpv2-length-perk">
@@ -1352,7 +1351,8 @@ export function WalletPage() {
               )}
               {result.discountPct > 0 && (
                 <div className="wpv2-aside-row discount">
-                  <span className="wpv2-aside-row-lbl">{isEl ? 'Συνολική έκπτωση' : 'Total discount'} ({Math.round(result.discountPct * 100)}%)</span>
+                  {/* WEC-755: «έκπτωση» is out; the −X% carries the meaning. */}
+                  <span className="wpv2-aside-row-lbl">{isEl ? 'Συνολικό όφελος' : 'Total saving'} (−{Math.round(result.discountPct * 100)}%)</span>
                   <span className="wpv2-aside-row-val">−{fmtEur(discountAmt)}</span>
                 </div>
               )}
