@@ -1780,6 +1780,44 @@ function SubscriptionTab({ user, lang }: any) {
     <div className="tab-section">
       <h2 className="tab-title">{pageTitle}</h2>
 
+      {/* WEC-758 follow-up — "active" and "paid" are two different things.
+          A cash/transfer subscription is activated (and the wallet credited)
+          the moment it is bought, but the money has not arrived yet. The
+          customer therefore sees a perfectly normal active subscription and,
+          before this banner existed, nothing anywhere reminded them that they
+          still owe it — nor gave them a route back to the IBAN and the WP-
+          reference. Cash needs no reminder (the courier collects on delivery),
+          so only transfer gets the bank details line. */}
+      {wallet.pendingReference && (
+        <div className="subs-owed">
+          <div className="subs-owed-head">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <circle cx="12" cy="12" r="10" /><line x1="12" y1="8" x2="12" y2="13" /><line x1="12" y1="16" x2="12.01" y2="16" />
+            </svg>
+            <strong>{t('acPendingPlanTitle')}</strong>
+          </div>
+          <div className="subs-owed-body">
+            {wallet.pendingMethod === 'transfer'
+              ? t('acPendingPlanDescTransfer')
+              : t('acPendingPlanDescCash')}
+          </div>
+          <div className="subs-owed-ref">
+            {t('acPendingPlanRef')}: <strong>{wallet.pendingReference}</strong>
+            {typeof wallet.pendingAmount === 'number' && wallet.pendingAmount > 0
+              ? ` · ${wallet.pendingAmount.toFixed(2)} €`
+              : ''}
+          </div>
+          {wallet.pendingMethod === 'transfer' && (
+            <button
+              className="subs-owed-cta"
+              onClick={() => { closeAccount(); setTimeout(() => { window.location.href = `/subscription/success/${wallet.pendingReference}` }, 300) }}
+            >
+              {t('acPendingPlanCta')}
+            </button>
+          )}
+        </div>
+      )}
+
       {/* 1. HERO — plan name + active badge + key dates (plan only) */}
       {hasPlan && (
         <div className="subs-hero">

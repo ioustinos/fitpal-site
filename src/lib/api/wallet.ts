@@ -180,7 +180,17 @@ export async function fetchWallet(userId: string): Promise<{
   let pendingReference: string | undefined
   let pendingMethod: string | undefined
   let pendingAmount: number | undefined
-  if (!w.active_plan_id) {
+  // WEC-758 follow-up: the gate used to be `if (!w.active_plan_id)`, i.e. "only
+  // look for a pending plan when there is no active one". That conflated two
+  // independent questions. Since cash/transfer plans are now ACTIVATED at
+  // purchase (wallet credited, active_plan_id set) while payment_status stays
+  // 'pending', a transfer customer had an active subscription AND still owed
+  // the money — and the old gate hid the IBAN/reference from exactly them.
+  //
+  // Ask the two questions separately:
+  //   "does this user have a subscription?"  -> w.active_plan_id  (above)
+  //   "does this user still owe money?"      -> payment_status    (here)
+  {
     const { data: pendRow } = await supabase
       .from('wallet_plans')
       .select('id, payment_method, amount_to_pay_cents, cost, created_at')
