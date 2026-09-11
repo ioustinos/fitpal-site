@@ -19,6 +19,7 @@ import { CutoffSchedules } from './pages/CutoffSchedules'
 import { Payments as SettingsPayments } from './pages/Payments'
 import { MenuOptions } from './pages/MenuOptions'
 import { Advanced } from './pages/Advanced'
+import { Copy } from './pages/Copy'
 import { Zones } from './pages/Zones'
 // WEC-715: company + reseller storefronts (epic WEC-649).
 import { Stores } from './pages/Stores'
@@ -61,6 +62,8 @@ export default function AdminApp() {
           <Route path="payments" element={<SettingsPayments />} />
           <Route path="menu-options" element={<MenuOptions />} />
           <Route path="advanced" element={<Advanced />} />
+          {/* WEC-735: every user-visible string, editable without a deploy. */}
+          <Route path="copy" element={<Copy />} />
           <Route path="design-system" element={<DesignSystem />} />
 
           {/* Legacy /admin/settings redirects to the first settings-group
