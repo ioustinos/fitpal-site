@@ -18,7 +18,6 @@
 // customer path, log loudly).
 
 import { createClient, SupabaseClient } from '@supabase/supabase-js'
-import nodemailer from 'nodemailer'
 import { corsHeaders } from '../lib/cors'
 import { checkRateLimit, clientIp } from '../lib/rateLimit'
 
@@ -68,21 +67,50 @@ function esc(s: string | null | undefined): string {
     .replace(/"/g, '&quot;')
 }
 
-// Brevo SMTP — same relay as Supabase Auth's OTP mail.
-const mailer = nodemailer.createTransport({
-  host: 'smtp-relay.brevo.com',
-  port: 587,
-  secure: false,
-  auth: { user: process.env.BREVO_SMTP_USER, pass: process.env.BREVO_SMTP_PASS },
-})
+// Brevo REST API — NOT SMTP.
+//
+// This used to open an SMTP connection to smtp-relay.brevo.com:587 from the
+// Lambda. Between 2026-08-25 and 2026-09-11 not one notification reached Brevo:
+// four real change requests, zero rows in Brevo's transactional log, while
+// other mail from the same sender (info@fitpal.gr) delivered fine the same day.
+// So the message never left us — it was not a deliverability problem.
+//
+// Three things produce that identical signature (missing/rotated SMTP
+// credentials, outbound port 587 blocked or timing out from the Lambda, or the
+// function timing out mid-send) and we could not tell them apart from outside.
+// The REST API removes the whole category: plain HTTPS, no port 587, no
+// connection pooling, an explicit HTTP status and a response body we can store.
+//
+// This was pre-approved in this file's own header from day one: "If this ever
+// turns flaky in the logs, switch to Brevo's REST API — that decision is
+// already made, don't re-open it."
+const BREVO_API_KEY = process.env.BREVO_API_KEY ?? ''
+const SENDER = { name: 'Fitpal', email: 'info@fitpal.gr' }
 
-async function sendAdminMail(to: string[], subject: string, html: string): Promise<boolean> {
+/** Returns null on success, or the reason it failed (stored on the row). */
+async function sendMail(
+  to: { email: string; name?: string }[],
+  subject: string,
+  html: string,
+): Promise<string | null> {
+  if (!BREVO_API_KEY) return 'BREVO_API_KEY is not set'
   try {
-    await mailer.sendMail({ from: '"Fitpal" <info@fitpal.gr>', to: to.join(','), subject, html })
-    return true
+    const res = await fetch('https://api.brevo.com/v3/smtp/email', {
+      method: 'POST',
+      headers: {
+        'api-key': BREVO_API_KEY,
+        'Content-Type': 'application/json',
+        accept: 'application/json',
+      },
+      body: JSON.stringify({ sender: SENDER, to, subject, htmlContent: html }),
+    })
+    if (!res.ok) {
+      const body = await res.text().catch(() => '')
+      return `Brevo ${res.status}: ${body.slice(0, 300)}`
+    }
+    return null
   } catch (e) {
-    console.error('[change-request] brevo smtp send failed:', e)
-    return false
+    return `fetch failed: ${e instanceof Error ? e.message : String(e)}`
   }
 }
 
@@ -138,15 +166,40 @@ export default async (request: Request) => {
     .sort()
 
   // Insert the request (service role — RLS-exempt, and this IS the server path).
-  const { error: insErr } = await supabase.from('order_change_requests').insert({
-    order_id: orderId,
-    user_id: jwtUserId,
-    reason,
-    message: message || null,
-  })
+  // WEC-601: keep the new row's id — the notification outcome is written back
+  // onto it below, so a failure is visible in the database instead of only in a
+  // Netlify console line.
+  const { data: insRow, error: insErr } = await supabase
+    .from('order_change_requests')
+    .insert({
+      order_id: orderId,
+      user_id: jwtUserId,
+      reason,
+      message: message || null,
+    })
+    .select('id')
+    .single()
   if (insErr) return Response.json({ error: insErr.message }, { status: 500, headers: cors })
+  const requestId = (insRow as { id: string } | null)?.id ?? null
 
-  // ── Notify admins (FAIL-SOFT — the request already succeeded above) ──────────
+  // Customer's language, for the acknowledgement email. Same source and same
+  // default-to-Greek posture as notify-order-cancelled.ts.
+  let custLang = 'el'
+  {
+    const { data: pref } = await supabase
+      .from('user_prefs')
+      .select('lang')
+      .eq('user_id', jwtUserId)
+      .maybeSingle()
+    const l = (pref as { lang?: string } | null)?.lang
+    if (l === 'en' || l === 'el') custLang = l
+  }
+
+  // ── Notify admins + acknowledge to the customer ─────────────────────────────
+  // FAIL-SOFT: the request already succeeded above and must stay succeeded.
+  let adminNotifiedAt: string | null = null
+  let customerNotifiedAt: string | null = null
+  let notifyError: string | null = null
   try {
     const { data: setting } = await supabase
       .from('settings').select('value').eq('key', 'order_confirmation_admin_emails').maybeSingle()
@@ -194,14 +247,74 @@ export default async (request: Request) => {
   <a href="${esc(adminUrl)}" style="display:inline-block;background:#004739;color:#fff;padding:10px 18px;border-radius:6px;text-decoration:none;font-weight:bold">Άνοιγμα στο admin</a>
 </div>`
 
-      const ok = await sendAdminMail(adminEmails, subject, html)
-      if (!ok) console.error('[change-request] admin email NOT delivered for order %s', order.order_number)
+      const err = await sendMail(adminEmails.map((email) => ({ email })), subject, html)
+      if (err) {
+        console.error('[change-request] admin email NOT delivered for order %s: %s', order.order_number, err)
+        notifyError = err
+      } else {
+        adminNotifiedAt = new Date().toISOString()
+      }
     } else {
-      console.warn('[change-request] no valid admin recipients in order_confirmation_admin_emails')
+      const warn = 'no valid admin recipients in order_confirmation_admin_emails'
+      console.warn('[change-request] %s', warn)
+      notifyError = warn
+    }
+
+    // ── Acknowledge to the CUSTOMER (WEC-601, added 2026-09-11) ─────────────
+    // Until now the customer got a toast and nothing else: close the tab and
+    // there was no evidence the request had ever been filed. The wording is
+    // deliberately the SAME sentence as the on-screen toast (WEC-664), so we
+    // are not inventing a second promise with different words.
+    const custEmail = (order.customer_email as string | null)?.trim()
+    if (custEmail) {
+      const el = custLang !== 'en'
+      const ackSubject = el
+        ? `Λάβαμε το αίτημά σου — ${order.order_number}`
+        : `We received your request — ${order.order_number}`
+      const ackBody = el
+        ? 'Η ομάδα μας επεξεργάζεται το αίτημα σου. Θα σε ενημερώσουμε για την εξέλιξή του.'
+        : 'Our team is reviewing your request. We will let you know how it goes.'
+      const ackHtml = `<div style="font-family:Arial,Helvetica,sans-serif;font-size:15px;color:#222;line-height:1.6">
+  <p style="margin:0 0 14px">${el ? 'Γεια σου' : 'Hi'} ${esc((order.customer_name as string | null)?.split(' ')[0] ?? '')},</p>
+  <p style="margin:0 0 14px">${esc(ackBody)}</p>
+  <table cellpadding="6" cellspacing="0" border="0" style="border-collapse:collapse;margin:0 0 16px">
+    <tr><td style="color:#666">${el ? 'Παραγγελία' : 'Order'}</td><td><b>${esc(order.order_number as string)}</b></td></tr>
+    <tr><td style="color:#666">${el ? 'Λόγος' : 'Reason'}</td><td>${esc(REASON_LABEL[reason])}</td></tr>
+  </table>
+  ${message ? `<p style="margin:0 0 6px;color:#666">${el ? 'Το μήνυμά σου' : 'Your message'}</p>
+  <blockquote style="margin:0 0 16px;padding:10px 14px;background:#f6f6f6;border-left:3px solid #00b96b;white-space:pre-wrap">${esc(message)}</blockquote>` : ''}
+  <p style="margin:0;color:#666;font-size:13px">${el ? 'Ομάδα Fitpal' : 'The Fitpal team'} · support@fitpal.gr</p>
+</div>`
+      const custErr = await sendMail(
+        [{ email: custEmail, name: (order.customer_name as string | null) ?? undefined }],
+        ackSubject,
+        ackHtml,
+      )
+      if (custErr) {
+        console.error('[change-request] customer ack NOT delivered for %s: %s', order.order_number, custErr)
+        notifyError = notifyError ? `${notifyError} | customer: ${custErr}` : `customer: ${custErr}`
+      } else {
+        customerNotifiedAt = new Date().toISOString()
+      }
     }
   } catch (e) {
     // Never fail the customer's request on a notification error.
     console.error('[change-request] notification block failed (non-fatal):', e)
+    notifyError = e instanceof Error ? e.message : String(e)
+  }
+
+  // Persist the outcome so "did the admins get an email?" is a SQL query rather
+  // than half an hour in the Brevo UI. This is the whole reason the failure went
+  // unnoticed for two and a half weeks.
+  if (requestId) {
+    await supabase
+      .from('order_change_requests')
+      .update({
+        admin_notified_at: adminNotifiedAt,
+        customer_notified_at: customerNotifiedAt,
+        notify_error: notifyError,
+      })
+      .eq('id', requestId)
   }
 
   return Response.json({ ok: true }, { status: 200, headers: cors })

@@ -6,6 +6,7 @@ import { useMenuStore } from '../../store/useMenuStore'
 import { makeTr } from '../../lib/translations'
 import { ACCOUNT_TABS, accountTabLabel, logoutIcon } from '../../lib/accountNav'
 import { LogoLockup } from '../ui/LogoLockup'
+import { LANDING_URL } from '../../lib/siteUrls'
 
 export function Header() {
   const lang = useUIStore((s) => s.lang)
@@ -57,16 +58,35 @@ export function Header() {
 
   return (
     <header>
-      {/* Logo — WEC-587: clickable → order-site home (menu). */}
+      {/* Logo → the marketing site. WEC-587 had it go to the order-site menu;
+          Ioustinos overruled that on 2026-09-11 — the brand mark should lead to
+          the brand home, which is what people expect of a logo.
+
+          ⚠️ Real <a href>, no preventDefault: this leaves the SPA, and
+          middle-click / cmd-click must open a new tab like any other link. */}
       <a
         className="logo"
-        href="/"
+        href={LANDING_URL}
         aria-label="Fitpal Meals"
-        onClick={(e) => { e.preventDefault(); goToMenu() }}
       >
         <LogoLockup className="logo-lockup" />
         <div className="logo-sub">Healthy delivery</div>
       </a>
+
+      {/* WEC-756: the menu needs its own control now.
+          Before this, goToMenu() was reachable from exactly two places — the
+          logo and sign-out — so with the logo repointed at the landing site a
+          customer in checkout, the plan wizard or their account had NO way back
+          to the menu except the browser Back button. This button is the
+          replacement for that route. Remove it only if you give the menu some
+          other affordance first. */}
+      <button
+        type="button"
+        className="hdr-menu-link"
+        onClick={() => goToMenu()}
+      >
+        {t('hdrMenu')}
+      </button>
 
       {/* Right side */}
       <div className="lang-wrap">

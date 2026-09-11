@@ -166,6 +166,26 @@ header {
 .hdr-admin-link:hover { background: rgba(255,255,255,0.15); border-color: rgba(255,255,255,0.3); }
 .hdr-admin-link svg { color: var(--white); }
 
+/* WEC-756 — «Μενού» header link. The logo now leaves for the landing site, so
+   this is the only in-header route back to the weekly menu; it sits beside the
+   logo (not in the right-hand cluster) because that is where the logo used to
+   take you. Styled as a quiet text link so it does not compete with the mark. */
+.hdr-menu-link {
+  min-height: 44px; margin-left: 14px; padding: 0 2px;
+  display: inline-flex; align-items: center;
+  background: none; border: 0; cursor: pointer;
+  font-family: inherit; font-size: 13px; font-weight: 700;
+  color: rgba(255,255,255,0.72); letter-spacing: 0.2px; white-space: nowrap;
+  border-bottom: 2px solid transparent; transition: color .15s, border-color .15s;
+}
+.hdr-menu-link:hover { color: #fff; border-bottom-color: var(--green); }
+/* Below 640px the header is already tight (logo + lang + account); drop the
+   sub-label's neighbour spacing rather than the link itself — the menu must
+   stay reachable on mobile, which is where Back-button-only hurts most. */
+@media (max-width: 640px) {
+  .hdr-menu-link { margin-left: 10px; font-size: 12px; }
+}
+
 /* ══════════════════════════════════════════
    PAGE BANNER
 ══════════════════════════════════════════ */

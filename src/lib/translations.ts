@@ -203,6 +203,9 @@ const T = {
     paymentMethod: 'Τρόπος πληρωμής',
     reviewOrder: 'Επισκόπηση παραγγελίας',
     backToMenu: 'Πίσω στο μενού',
+    // WEC-756: header nav item. The logo now leaves for the landing site, so the
+    // menu needs its own control — it used to be reachable only via the logo.
+    hdrMenu: 'Μενού',
     continue: 'Συνέχεια',
     orderSummary: 'Σύνοψη παραγγελίας',
     orderNotes: 'Σχόλια παραγγελίας',
@@ -622,6 +625,7 @@ const T = {
     paymentMethod: 'Payment method',
     reviewOrder: 'Review order',
     backToMenu: 'Back to menu',
+    hdrMenu: 'Menu',
     continue: 'Continue',
     orderSummary: 'Order summary',
     orderNotes: 'Order notes',
