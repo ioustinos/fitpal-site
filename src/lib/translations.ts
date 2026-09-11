@@ -24,6 +24,7 @@ import { account } from './i18n/account'
 import { wallet } from './i18n/wallet'
 import { auth } from './i18n/auth'
 import { errors } from './i18n/errors'
+import { getUiStringOverride } from './i18n/overrides'
 
 export type Lang = 'el' | 'en'
 
@@ -47,7 +48,12 @@ const T = {
 export type TKey = keyof typeof T['en']
 
 export function tr(lang: Lang, key: TKey): string {
-  return (T[lang] as Record<string, string>)[key] ?? key
+  // WEC-734: an admin override wins over the compiled default. getUiStringOverride
+  // returns undefined for "no override" AND for an empty override, so a blank
+  // field in /admin/copy restores the default rather than blanking the label.
+  // The file value remains the last line of defence — this layer can only ever
+  // improve on it, never remove it.
+  return getUiStringOverride(lang, key) ?? (T[lang] as Record<string, string>)[key] ?? key
 }
 
 /** Hook-friendly shorthand — call useLang() to get a bound tr */

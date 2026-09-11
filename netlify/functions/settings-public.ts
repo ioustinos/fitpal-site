@@ -58,8 +58,21 @@ interface SettingRow {
   value: unknown
 }
 
+interface UiStringRow {
+  key: string
+  value_el: string | null
+  value_en: string | null
+}
+
 interface SettingsResponse {
   rows: SettingRow[]
+  // WEC-734: admin copy overrides ride ALONG with settings rather than getting
+  // their own endpoint. This response is already edge-cached for 5 minutes with
+  // a 24h stale-while-revalidate and a `settings` purge tag, so carrying them
+  // here costs zero extra requests and zero extra DB round-trips — the whole
+  // point of the decision. A separate endpoint or an on-mount fetch would turn
+  // a free feature into a per-page cost. Do not "tidy" this into its own route.
+  uiStrings: UiStringRow[]
   generatedAt: string
 }
 
@@ -76,12 +89,21 @@ export const handler: Handler = async (event) => {
   })
 
   try {
-    const { data, error } = await supabase
-      .from('settings')
-      .select('key, value')
-      .in('key', PUBLIC_KEYS as unknown as string[])
+    // One round trip for both. ui_strings is public-read by RLS (the strings are
+    // on the page anyway) so the anon key is enough.
+    const [{ data, error }, uiRes] = await Promise.all([
+      supabase.from('settings').select('key, value').in('key', PUBLIC_KEYS as unknown as string[]),
+      supabase.from('ui_strings').select('key, value_el, value_en'),
+    ])
 
     if (error) throw new Error(error.message)
+
+    // ⚠️ A failed overrides read is NOT fatal. Copy overrides are a nicety; the
+    // compiled defaults are always right. Failing the whole settings response —
+    // which carries the minimum order and the cutoff — because someone's typo
+    // fix could not be read would be a catastrophic trade.
+    const uiStrings: UiStringRow[] = uiRes.error ? [] : ((uiRes.data ?? []) as UiStringRow[])
+    if (uiRes.error) console.warn('[settings-public] ui_strings read failed, serving file defaults:', uiRes.error.message)
 
     let rows: SettingRow[] = (data ?? []) as SettingRow[]
 
@@ -111,6 +133,7 @@ export const handler: Handler = async (event) => {
 
     const body: SettingsResponse = {
       rows,
+      uiStrings,
       generatedAt: new Date().toISOString(),
     }
 

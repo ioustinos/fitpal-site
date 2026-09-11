@@ -10,7 +10,11 @@
 import { readdirSync, readFileSync } from 'node:fs'
 
 const dir = new URL('../src/lib/i18n/', import.meta.url)
-const files = readdirSync(dir).filter((f) => f.endsWith('.ts'))
+// Only the string modules. overrides.ts lives here too but holds runtime code,
+// not copy — counting it would report a module that has no keys.
+const files = readdirSync(dir)
+  .filter((f) => f.endsWith('.ts'))
+  .filter((f) => /^\s{2}el:\s*\{/m.test(readFileSync(new URL(f, dir), 'utf8')))
 const KEY = /^\s{4}([A-Za-z_][\w]*)\s*:/
 
 let fail = 0
