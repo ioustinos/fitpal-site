@@ -4381,3 +4381,23 @@ body.is-impersonating { padding-top: 36px; }
 .cart-benefit-lbl { display: flex; flex-direction: column; gap: 1px; font-size: 13px; }
 .cart-benefit-sub { font-size: 10px; font-weight: 600; color: var(--text-muted, #6b7280); letter-spacing: .01em; }
 .cart-benefit-amt { font-weight: 900; font-size: 14px; color: var(--text, #111827); white-space: nowrap; }
+
+/* ── WEC-758 follow-up · "you still owe for this subscription" banner ────────
+   Shown above an ACTIVE subscription when payment_status is still 'pending'.
+   Since cash/transfer plans activate at purchase, "active" no longer implies
+   "paid" — this is the only thing in the account that says the money is owed,
+   and for bank transfer it is the customer's route back to the IBAN. */
+.subs-owed {
+  border: 1px solid #f5c26b; background: #fff8e8; border-radius: var(--radius-sm, 10px);
+  padding: 12px 14px; margin-bottom: 14px; color: #6b4e12;
+}
+.subs-owed-head { display: flex; align-items: center; gap: 8px; font-size: 14px; margin-bottom: 4px; }
+.subs-owed-head svg { color: #c98a16; flex-shrink: 0; }
+.subs-owed-body { font-size: 13px; line-height: 1.5; }
+.subs-owed-ref { font-size: 13px; margin-top: 6px; font-variant-numeric: tabular-nums; }
+.subs-owed-cta {
+  margin-top: 10px; padding: 8px 14px; border-radius: 999px; cursor: pointer;
+  border: 1px solid #c98a16; background: transparent; color: #6b4e12;
+  font-family: inherit; font-size: 13px; font-weight: 700;
+}
+.subs-owed-cta:hover { background: #fdefd2; }
