@@ -330,7 +330,34 @@ export default async (request: Request) => {
     // (transfer = when the wire lands; cash = when the courier collects on
     // first delivery). Both fire the same pending Subscription Purchased event.
     if (body.paymentMethod === 'transfer' || body.paymentMethod === 'cash') {
-      // Plan stays pending until admin marks paid.
+      // WEC-758: ACTIVATE the plan immediately — credit the wallet, set
+      // wallets.active_plan_id / active — while payment_status stays 'pending'.
+      //
+      // Why: 15 cash and 10 transfer customers had bought a subscription and
+      // could not order with it, because credit only landed when an admin got
+      // round to marking the plan paid. The money is still tracked as owed;
+      // only the credit moved earlier.
+      //
+      // wallet_plan_activate is idempotent on wallet_plans.activated_at, and
+      // wallet_plan_mark_paid now skips its crediting half when activated_at is
+      // already set — that pair is what stops the admin's later "mark paid"
+      // crediting the same customer a second time. Do not call the wallet
+      // UPDATE directly from here; go through the RPC or you lose that guard.
+      //
+      // NOT fail-soft: an uncredited "active" subscription is worse than a
+      // failed purchase, because the customer believes they can order.
+      const { error: activateErr } = await supabase.rpc('wallet_plan_activate', {
+        p_plan_id: walletPlanId,
+      })
+      if (activateErr) {
+        console.error('[wallet-plan-purchase] wallet_plan_activate failed for plan=%s:', walletPlanId, activateErr)
+        return Response.json(
+          { error: 'Το πλάνο δημιουργήθηκε αλλά δεν ενεργοποιήθηκε. Επικοινώνησε μαζί μας στο support@fitpal.gr.' },
+          { status: 500, headers: cors },
+        )
+      }
+
+      // Payment itself stays pending until an admin marks paid.
       // WEC-emails: fire Subscription Purchased event in 'pending payment'
       // mode (the email shows bank-transfer instructions). Klaviyo flow
       // routes EL/EN templates via event.lang. Fail-soft.
