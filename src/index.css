@@ -170,8 +170,12 @@ header {
    this is the only in-header route back to the weekly menu; it sits beside the
    logo (not in the right-hand cluster) because that is where the logo used to
    take you. Styled as a quiet text link so it does not compete with the mark. */
+/* WEC-756 fix: logo + «Μενού» are ONE flex child of <header>, otherwise
+   justify-content:space-between strands the button in the middle of the bar. */
+.hdr-left { display: flex; align-items: center; gap: 20px; min-width: 0; }
+
 .hdr-menu-link {
-  min-height: 44px; margin-left: 14px; padding: 0 2px;
+  min-height: 44px; padding: 0 2px;
   display: inline-flex; align-items: center;
   background: none; border: 0; cursor: pointer;
   font-family: inherit; font-size: 13px; font-weight: 700;
@@ -183,7 +187,8 @@ header {
    sub-label's neighbour spacing rather than the link itself — the menu must
    stay reachable on mobile, which is where Back-button-only hurts most. */
 @media (max-width: 640px) {
-  .hdr-menu-link { margin-left: 10px; font-size: 12px; }
+  .hdr-left { gap: 12px; }
+  .hdr-menu-link { font-size: 12px; }
 }
 
 /* ══════════════════════════════════════════
@@ -1696,7 +1701,13 @@ header {
 /* WEC-647 Option 2 — subscription banner previews the plan wizard.
    Matched to the Claude Design pack (docs/design/subscription-banner-2026-08). */
 .sub-wizard-card {
-  flex: 1; min-width: 0; height: 208px; background: #fff; border-radius: 20px;
+  /* WEC-647 fix: this was `height: 208px` with `overflow: hidden`, but the
+     contents (head + step row + 2x2 fields + CTA) need ~263px — so the CTA was
+     sliced off at the bottom edge and, because .swc-body is space-between with
+     no free space left to distribute, it also sat flush against the fields with
+     no gap above it. min-height keeps the intended proportions and lets the
+     card grow instead of cropping itself. */
+  flex: 1; min-width: 0; min-height: 208px; background: #fff; border-radius: 20px;
   box-shadow: 0 8px 22px rgba(0, 55, 44, 0.12);
   display: flex; overflow: hidden; cursor: pointer;
   transition: transform 0.2s ease, box-shadow 0.2s ease;
@@ -1704,7 +1715,12 @@ header {
 .sub-wizard-card:hover { transform: translateY(-2px); box-shadow: 0 12px 28px rgba(0, 55, 44, 0.18); }
 .sub-wizard-card:focus-visible { outline: 2px solid var(--green-dark); outline-offset: 3px; }
 .swc-photo { flex: none; width: 112px; align-self: stretch; background-size: cover; background-position: center; }
-.swc-body { flex: 1; min-width: 0; padding: 14px 18px; display: flex; flex-direction: column; justify-content: space-between; }
+.swc-body { flex: 1; min-width: 0; padding: 16px 18px; display: flex; flex-direction: column; justify-content: space-between; gap: 12px; }
+/* WEC-647: .swc-steprow and .swc-steplabel were referenced in MenuPage.tsx but
+   had no CSS at all, so they fell back to raw block layout and ate vertical
+   space. Keep the label stacked above the bar — that is how it already reads. */
+.swc-steprow { display: flex; flex-direction: column; gap: 6px; }
+.swc-steplabel { font-size: 13px; font-weight: 600; color: #5c6b62; line-height: 1.2; }
 .swc-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
 .swc-head-txt { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 .swc-eyebrow { font-size: 11px; font-weight: 600; letter-spacing: 0.14em; color: #00875a; }

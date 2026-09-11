@@ -64,14 +64,20 @@ export function Header() {
 
           ⚠️ Real <a href>, no preventDefault: this leaves the SPA, and
           middle-click / cmd-click must open a new tab like any other link. */}
-      <a
-        className="logo"
-        href={LANDING_URL}
-        aria-label="Fitpal Meals"
-      >
-        <LogoLockup className="logo-lockup" />
-        <div className="logo-sub">Healthy delivery</div>
-      </a>
+      {/* WEC-756 fix: <header> is `justify-content: space-between` and had exactly
+          TWO children (logo, right-hand cluster). Dropping «Μενού» in as a third
+          child made space-between push it to the middle of the bar, floating on
+          its own. Grouping it WITH the logo restores two children, so it sits
+          beside the mark as intended. */}
+      <div className="hdr-left">
+        <a
+          className="logo"
+          href={LANDING_URL}
+          aria-label="Fitpal Meals"
+        >
+          <LogoLockup className="logo-lockup" />
+          <div className="logo-sub">Healthy delivery</div>
+        </a>
 
       {/* WEC-756: the menu needs its own control now.
           Before this, goToMenu() was reachable from exactly two places — the
@@ -80,13 +86,14 @@ export function Header() {
           to the menu except the browser Back button. This button is the
           replacement for that route. Remove it only if you give the menu some
           other affordance first. */}
-      <button
-        type="button"
-        className="hdr-menu-link"
-        onClick={() => goToMenu()}
-      >
-        {t('hdrMenu')}
-      </button>
+        <button
+          type="button"
+          className="hdr-menu-link"
+          onClick={() => goToMenu()}
+        >
+          {t('hdrMenu')}
+        </button>
+      </div>
 
       {/* Right side */}
       <div className="lang-wrap">
