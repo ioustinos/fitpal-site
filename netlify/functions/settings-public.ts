@@ -33,6 +33,7 @@ const SUPABASE_ANON_KEY = process.env.VITE_SUPABASE_ANON_KEY ?? ''
 const PUBLIC_KEYS = [
   'min_order',
   'cutoff_hour',
+  'cutoff_offset_days',        // WEC-763
   'cutoff_weekday_overrides',
   'cutoff_date_overrides',
   'payment_methods_enabled',
@@ -41,6 +42,14 @@ const PUBLIC_KEYS = [
   'macros_display',
   'pickup_locations',
   'variant_pill_threshold',
+  // WEC-763: the delivery windows. This was missing since WEC-676 shipped the
+  // "Παράδοση 09:00–15:00" banner, so `settings.timeSlots` was ALWAYS empty on
+  // the customer site and MenuPage fell through to its hardcoded
+  // `?? '09:00–15:00'`. Retail never noticed — its real windows happen to span
+  // exactly 09:00–15:00 — but a store with its own window could not change the
+  // banner no matter what it set, which is what Christos hit on `evercurious`
+  // (window 12:00–14:00, banner 09:00–15:00).
+  'time_slots',
 ] as const
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i

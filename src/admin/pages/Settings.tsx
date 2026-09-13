@@ -95,7 +95,12 @@ export function Settings() {
 
       {!loading && (
         <>
-          <CutoffHourSection value={Number(byKey.get('cutoff_hour') ?? 18)} onSave={(v) => save('cutoff_hour', v)} />
+          <CutoffHourSection
+            value={Number(byKey.get('cutoff_hour') ?? 18)}
+            onSave={(v) => save('cutoff_hour', v)}
+            offsetDays={Number(byKey.get('cutoff_offset_days') ?? 1)}
+            onSaveOffset={(v) => save('cutoff_offset_days', v)}
+          />
           <WeekdayOverridesSection value={(byKey.get('cutoff_weekday_overrides') as WeekdayOverrides) ?? {}} onSave={(v) => save('cutoff_weekday_overrides', v)} />
           <DateOverridesSection value={(byKey.get('cutoff_date_overrides') as DateOverrides) ?? {}} onSave={(v) => save('cutoff_date_overrides', v)} />
           <MinOrderSection value={Number(byKey.get('min_order') ?? 1500)} onSave={(v) => save('min_order', v)} />
@@ -127,15 +132,75 @@ export function SectionCard({ title, desc, children }: { title: string; desc?: s
   )
 }
 
-export function CutoffHourSection({ value, onSave }: { value: number; onSave: (v: number) => void }) {
+/**
+ * WEC-763: the day half of a cutoff, in words.
+ *
+ * 🟢 Ioustinos: «cutoff time should always be declared as — day selector (same
+ * day, previous day, N days before) + time selector». Exported so the store
+ * editor states the rule the same way; two screens describing one rule in two
+ * vocabularies is how «7» came to be read as "07:00 same morning".
+ */
+export const CUTOFF_OFFSET_OPTIONS: { value: number; label: string }[] = [
+  { value: 0, label: 'Same day' },
+  { value: 1, label: 'Previous day' },
+  { value: 2, label: '2 days before' },
+  { value: 3, label: '3 days before' },
+  { value: 4, label: '4 days before' },
+  { value: 5, label: '5 days before' },
+  { value: 6, label: '6 days before' },
+  { value: 7, label: '7 days before' },
+]
+
+/** WEC-763: "Orders close at 11:00 on the delivery day itself." */
+export function describeCutoff(offsetDays: number, hour: number): string {
+  const t = `${String(hour).padStart(2, '0')}:00`
+  if (offsetDays === 0) return `Orders close at ${t} on the delivery day itself.`
+  if (offsetDays === 1) return `Orders close at ${t} the day before delivery.`
+  return `Orders close at ${t}, ${offsetDays} days before delivery.`
+}
+
+export function CutoffHourSection({
+  value, onSave, offsetDays = 1, onSaveOffset,
+}: {
+  value: number
+  onSave: (v: number) => void
+  /** WEC-763 */
+  offsetDays?: number
+  onSaveOffset?: (v: number) => void
+}) {
   const [h, setH] = useState(value)
+  const [off, setOff] = useState(offsetDays)
   useEffect(() => setH(value), [value])
+  useEffect(() => setOff(offsetDays), [offsetDays])
+  const dirty = h !== value || off !== offsetDays
   return (
-    <SectionCard title="Default cutoff hour" desc="Hour on the previous calendar day at which ordering closes for the next-day delivery (unless an override below applies).">
+    <SectionCard title="Default cutoff" desc="When ordering closes for a delivery day, unless an override below applies.">
       <div className="admin-inline-form">
-        <NumberField className="admin-input" integer min={0} max={23} value={h} onChange={(v) => setH(Math.max(0, Math.min(23, v ?? 0)))} style={{ width: 110 }} />
-        <span className="admin-text-muted">:00 (24-hour)</span>
-        <button className="admin-btn-primary" disabled={h === value} onClick={() => onSave(h)}>Save</button>
+        <label className="admin-text-muted">Closes</label>
+        <select
+          className="admin-select"
+          value={off}
+          onChange={(e) => setOff(Number(e.target.value))}
+          style={{ width: 160 }}
+        >
+          {CUTOFF_OFFSET_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+        </select>
+        <label className="admin-text-muted">at</label>
+        <NumberField className="admin-input" integer min={0} max={23} value={h} onChange={(v) => setH(Math.max(0, Math.min(23, v ?? 0)))} style={{ width: 90 }} />
+        <span className="admin-text-muted">:00</span>
+        <button
+          className="admin-btn-primary"
+          disabled={!dirty}
+          onClick={() => { if (h !== value) onSave(h); if (off !== offsetDays) onSaveOffset?.(off) }}
+        >
+          Save
+        </button>
+      </div>
+      <div className="admin-text-muted" style={{ marginTop: 8, fontSize: 12.5 }}>
+        {describeCutoff(off, h)}
+        {off === 0 && (
+          <strong> Same-day ordering — make sure the kitchen can actually deliver on this notice.</strong>
+        )}
       </div>
     </SectionCard>
   )

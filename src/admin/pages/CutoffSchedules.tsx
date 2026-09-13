@@ -38,6 +38,8 @@ export function CutoffSchedules() {
           <CutoffHourSection
             value={Number(byKey.get('cutoff_hour') ?? 18)}
             onSave={(v) => save('cutoff_hour', v)}
+            offsetDays={Number(byKey.get('cutoff_offset_days') ?? 1)}
+            onSaveOffset={(v) => save('cutoff_offset_days', v)}
           />
           <WeekdayOverridesSection
             value={(byKey.get('cutoff_weekday_overrides') as WeekdayOverrides) ?? {}}
