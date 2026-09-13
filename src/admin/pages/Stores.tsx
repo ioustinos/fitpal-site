@@ -27,6 +27,12 @@ import { CUTOFF_OFFSET_OPTIONS, describeCutoff } from './Settings'   // WEC-763
 
 const PAYMENT_METHODS = ['cash', 'card', 'link', 'transfer', 'wallet'] as const
 
+/** WEC-763: ISO weekday (1=Mon) → name, for the override caveat. */
+const WEEKDAY_NAMES: Record<number, string> = {
+  1: 'Monday', 2: 'Tuesday', 3: 'Wednesday', 4: 'Thursday',
+  5: 'Friday', 6: 'Saturday', 7: 'Sunday',
+}
+
 /**
  * WEC-763: accept what a human types and store one canonical shape.
  *
@@ -265,6 +271,7 @@ function StoreEditor({ store, onSaved }: { store: AdminStore; onSaved: () => voi
 
   // WEC-763: the retail windows are the menu of choices a store picks from.
   const [retailSlots, setRetailSlots] = useState<string[]>([])
+  const [retailOverrideDows, setRetailOverrideDows] = useState<number[]>([])   // WEC-763
   useEffect(() => {
     let cancelled = false
     fetchAllSettings().then(({ data }) => {
@@ -272,6 +279,17 @@ function StoreEditor({ store, onSaved }: { store: AdminStore; onSaved: () => voi
       const raw = (data ?? []).find((r) => r.key === 'time_slots')?.value
       const list = Array.isArray(raw) ? (raw as unknown[]).filter((x): x is string => typeof x === 'string') : []
       setRetailSlots(list.map((w) => normaliseWindow(w) ?? w))
+      // WEC-763: retail's per-weekday overrides are resolved BEFORE a store's
+      // own day+time, and a store cannot set its own (deferred by Ioustinos,
+      // 2026-09-14). So those weekdays quietly ignore whatever is chosen here.
+      // Naming them beats letting someone set "Same day" and report Monday as
+      // a bug.
+      const wd = (data ?? []).find((r) => r.key === 'cutoff_weekday_overrides')?.value
+      setRetailOverrideDows(
+        wd && typeof wd === 'object' && !Array.isArray(wd)
+          ? Object.keys(wd as Record<string, unknown>).map(Number).filter((n) => n >= 1 && n <= 7)
+          : [],
+      )
     })
     return () => { cancelled = true }
   }, [])
@@ -424,6 +442,15 @@ function StoreEditor({ store, onSaved }: { store: AdminStore; onSaved: () => voi
             {cutoffOffset === '0' && (
               <div style={{ fontSize: 12, color: '#b45309', marginTop: 3, fontWeight: 600 }}>
                 Same-day ordering — check the kitchen can deliver on this notice.
+              </div>
+            )}
+            {/* WEC-763: the honest caveat, shown only when it actually bites. */}
+            {(cutoffOffset !== '' || cutoffHour !== '') && retailOverrideDows.length > 0 && (
+              <div style={{ fontSize: 12, color: '#b45309', marginTop: 4, lineHeight: 1.45 }}>
+                <strong>Except {retailOverrideDows.map((d) => WEEKDAY_NAMES[d]).join(', ')}.</strong> Retail
+                has a separate rule for {retailOverrideDows.length === 1 ? 'that day' : 'those days'}, and
+                those rules win over this setting. Stores cannot override them yet — tell Ioustinos if a
+                company needs it.
               </div>
             )}
           </div>
