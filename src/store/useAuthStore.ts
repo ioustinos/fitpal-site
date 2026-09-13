@@ -10,6 +10,7 @@ import { fetchWallet } from '../lib/api/wallet'
 import { fetchUserOrders, type OrderHistoryItem } from '../lib/api/orders'
 import { fetchAdminStatus, type AdminRole } from '../lib/api/admin'
 import { fetchProfileDiet, type ProfileDiet } from '../lib/api/diet'
+import { setSentryUser } from '../lib/monitoring/sentry'
 
 // ─── Domain types ─────────────────────────────────────────────────────────────
 
@@ -198,7 +199,13 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
   authTab: 'login',
   sessionChecked: false,
 
-  setUser: (user) => set({ user }),
+  setUser: (user) => {
+    // WEC-762: Sentry identity is the Supabase user id ONLY — never email, never
+    // name. Enough to answer "is this broken for one customer or everyone?",
+    // and nothing that turns Sentry into a copy of the customer table.
+    setSentryUser(user?.id ?? null)
+    set({ user })
+  },
   setAuthTab: (authTab) => set({ authTab, authError: null }),
   setError: (authError) => set({ authError }),
 
@@ -217,6 +224,7 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
       return false
     }
 
+    setSentryUser(user?.id ?? null)
     set({ user, isLoading: false })
     return true
   },
@@ -238,6 +246,7 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
       return true
     }
 
+    setSentryUser(user?.id ?? null)
     set({ user, isLoading: false })
     return true
   },
@@ -246,6 +255,7 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
     // Impersonation state is cleared by App.tsx's onAuthStateChange handler
     // on the SIGNED_OUT event triggered below. No special-casing here.
     await signOut()
+    setSentryUser(null)
     set({ user: null })
   },
 
@@ -260,6 +270,7 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
         session.user.id,
         session.user.email ?? '',
       )
+      setSentryUser(user?.id ?? null)
       set({ user, sessionChecked: true })
     } else {
       set({ sessionChecked: true })
