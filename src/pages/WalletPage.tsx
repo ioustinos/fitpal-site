@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useUIStore } from '../store/useUIStore'
 import { useAuthStore } from '../store/useAuthStore'
 import { calculateWalletPlan, durationDiscountPct, daysDiscountPct, mealsDiscountPct } from '../lib/wallet/calculator'
@@ -19,6 +19,7 @@ import { supabase } from '../lib/supabase'
 import { MacroIcon } from '../components/ui/MacroDots'
 import { DiscountPill } from '../components/ui/DiscountPill'
 import { isValidGreekVat, vatDigits } from '../lib/vat'
+import { track } from '../lib/tracking'
 
 /* ─────────────────────────────────────────────────────────────────
    Static content & display data
@@ -239,6 +240,23 @@ export function WalletPage() {
   const refreshUser = useAuthStore((s) => s.refreshUser)
 
   const isEl = lang === 'el'
+
+  // ── Tracking: landing on the subscription wizard ──────────────────────────
+  // Until now this page fired NOTHING, so the subscription funnel had a
+  // conversion (`subscribe`, on the success page) and no top — no retargeting
+  // audience of people who opened the wizard and did not buy, and nothing for
+  // Klaviyo to hang an abandonment flow on.
+  //
+  // Meta ViewContent, once per mount. Inert while VITE_TRACKING_ENABLED is off.
+  const viewedRef = useRef(false)
+  useEffect(() => {
+    if (viewedRef.current) return
+    viewedRef.current = true
+    track('view_content', {
+      contentName: 'Subscription wizard',
+      contentIds: ['subscription-wizard'],
+    }, user ? { email: user.email, externalId: user.id, firstName: user.name } : undefined)
+  }, [user])
 
   /* ── Calculator state — strings for free-typing inputs ─────── */
   const [goal, setGoal] = useState<Goal>(DEFAULTS.goal)
@@ -1445,7 +1463,19 @@ export function WalletPage() {
                     key={pm}
                     type="button"
                     className={`wpv2-paymethod${paymentMethod === pm ? ' sel' : ''}`}
-                    onClick={() => setPaymentMethod(pm)}
+                    onClick={() => {
+                      setPaymentMethod(pm)
+                      // The middle of the subscription funnel. `add_payment_info` is
+                      // a Meta STANDARD event and is used nowhere else in the app,
+                      // so it stays a clean signal for this flow specifically —
+                      // reusing `initiate_checkout` would blend it with food orders
+                      // and make both unoptimisable.
+                      track('add_payment_info', {
+                        value: Math.round(result.priceTotal * 100) / 100,
+                        currency: 'EUR',
+                        contentName: `Subscription · ${pm}`,
+                      }, user ? { email: user.email, externalId: user.id } : undefined)
+                    }}
                     disabled={pm === 'cash' && cashOverCap}
                     title={pm === 'cash' && cashOverCap
                       ? (isEl ? `Μη διαθέσιμη άνω των ${cashMaxAmount} €` : `Unavailable over ${cashMaxAmount} €`)

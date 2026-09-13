@@ -39,6 +39,12 @@ export function loadMetaPixel(): void {
   })(window, document, 'script', 'https://connect.facebook.net/en_US/fbevents.js')
 
   window.fbq('init', id)
+  // ⚠️ Meta's own snippet is `init` THEN `track('PageView')`. We only ever
+  // called init, and no code path calls track('page_view') either — so with the
+  // master switch on, Meta would have received conversions but not a single
+  // PageView: no audiences to retarget, no landing-page data, and a Pixel that
+  // looks half-broken in Events Manager. Fire it on load, like everyone else.
+  window.fbq('track', 'PageView')
   pixelLoaded = true
 }
 
