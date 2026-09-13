@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useRef } from 'react'
+import { lazy, Suspense, useEffect, useRef, useSyncExternalStore } from 'react'
 import { Routes, Route } from 'react-router-dom'
 import { useUIStore } from './store/useUIStore'
 import { useAuthStore } from './store/useAuthStore'
@@ -23,6 +23,7 @@ import { ConsentBanner } from './components/consent/ConsentBanner'
 import { StoreProvider } from './lib/storefront/StoreProvider'
 import { initTracking } from './lib/tracking'
 import { LANDING_URL } from './lib/siteUrls'
+import { subscribeUiStrings, uiStringOverrideVersion } from './lib/i18n/overrides'
 
 // Admin is lazy-loaded so the customer bundle stays lean — /admin/* code
 // won't be fetched until a user actually visits the admin panel.
@@ -30,6 +31,13 @@ const AdminApp = lazy(() => import('./admin/AdminApp'))
 
 /** The existing customer site — unchanged, still driven by useUIStore. */
 function CustomerApp() {
+  // WEC-734: admin copy overrides arrive with the settings fetch, i.e. AFTER
+  // first paint. `tr()` is a plain synchronous function reading a module-level
+  // map, so nothing would tell React the strings changed. Subscribing once here
+  // re-renders the customer tree the moment they land — one subscription at the
+  // root instead of touching all 400+ t() call sites, which was the constraint.
+  useSyncExternalStore(subscribeUiStrings, uiStringOverrideVersion, uiStringOverrideVersion)
+
   const isCheckout = useUIStore((s) => s.isCheckout)
   const isAccountPage = useUIStore((s) => s.isAccountPage)
   const isWalletPage = useUIStore((s) => s.isWalletPage)

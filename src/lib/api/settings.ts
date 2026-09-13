@@ -1,3 +1,4 @@
+import { applyUiStringOverrides } from '../i18n/overrides'
 // WEC-350: settings now sourced from the edge-cached /api/settings/public
 // endpoint instead of querying public.settings directly. The Netlify function
 // (netlify/functions/settings-public.ts) returns rows in the same `{ key, value }`
@@ -192,8 +193,15 @@ export async function fetchSettings(
     if (!res.ok) {
       return { data: DEFAULTS, error: `settings-public: HTTP ${res.status}` }
     }
-    const body = (await res.json()) as { rows: { key: string; value: unknown }[] }
+    const body = (await res.json()) as {
+      rows: { key: string; value: unknown }[]
+      uiStrings?: unknown
+    }
     rows = body.rows ?? []
+    // WEC-734: admin copy overrides travel in this same payload. Applied here
+    // rather than in a separate fetch so there is no extra request and no extra
+    // DB read — see the comment in netlify/functions/settings-public.ts.
+    applyUiStringOverrides(body.uiStrings)
   } catch (e) {
     const msg = e instanceof Error ? e.message : 'unknown'
     return { data: DEFAULTS, error: `settings-public: ${msg}` }

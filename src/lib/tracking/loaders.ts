@@ -39,6 +39,16 @@ export function loadMetaPixel(): void {
   })(window, document, 'script', 'https://connect.facebook.net/en_US/fbevents.js')
 
   window.fbq('init', id)
+  // ⚠️ Deliberately NO `fbq('track','PageView')` here.
+  //
+  // Meta's stock snippet pairs init with a PageView, and on 2026-09-12 I added
+  // one — which was wrong. `initTracking()` → `applyConsent()` already calls
+  // `loadMetaPixel()` and THEN `track('page_view')` (see lib/tracking/index.ts),
+  // so firing here too sends the PageView twice on every consent grant. That
+  // inflates reach and poisons every conversion rate computed against it, and
+  // it is the kind of thing nobody notices for months.
+  //
+  // The loader loads. index.ts decides what to fire.
   pixelLoaded = true
 }
 
