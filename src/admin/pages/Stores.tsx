@@ -22,8 +22,32 @@ import {
   type CloneSourceWeek, type ClonePlanTarget, type CloneResult,
 } from '../../lib/api/adminStores'
 import { PlacesAutocomplete } from '../../components/ui/PlacesAutocomplete'
+import { fetchAllSettings } from '../../lib/api/adminSettings'   // WEC-763
 
 const PAYMENT_METHODS = ['cash', 'card', 'link', 'transfer', 'wallet'] as const
+
+/**
+ * WEC-763: accept what a human types and store one canonical shape.
+ *
+ * The checkout picker and `submit-order` both split on `-`/`–` and zero-pad, so
+ * "9:00-14:00", "09:00 - 14:00" and "09:00–14:00" already behave identically at
+ * read time. Normalising on the way IN means the stored value matches what the
+ * customer will see, instead of relying on every future reader being equally
+ * forgiving. Returns null when it is not a window at all.
+ */
+function normaliseWindow(raw: string): string | null {
+  const parts = String(raw).split(/[-–]/)
+  if (parts.length !== 2) return null
+  const pad = (t: string) => {
+    const m = /^(\d{1,2}):(\d{2})$/.exec(t.trim())
+    if (!m) return null
+    const h = Number(m[1])
+    if (h > 23) return null
+    return `${String(h).padStart(2, '0')}:${m[2]}`
+  }
+  const a = pad(parts[0]); const b = pad(parts[1])
+  return a && b && a < b ? `${a}-${b}` : null
+}
 
 export function Stores() {
   const [stores, setStores] = useState<AdminStore[]>([])
@@ -220,6 +244,9 @@ function StoreEditor({ store, onSaved }: { store: AdminStore; onSaved: () => voi
   const [benefit, setBenefit] = useState(typeof s.company_benefit === 'number' ? String((s.company_benefit as number) / 100) : '')
   const [cutoffHour, setCutoffHour] = useState(typeof s.cutoff_hour === 'number' ? String(s.cutoff_hour) : '')
   const [windows, setWindows] = useState(Array.isArray(s.time_slots) ? (s.time_slots as string[]).join(', ') : '')
+  // WEC-763: windows as a picked list, not a typed string.
+  const [customWindow, setCustomWindow] = useState('')
+  const windowList = windows.split(',').map((w) => w.trim()).filter(Boolean)
   const [methods, setMethods] = useState<string[]>(() => {
     const raw = s.payment_methods_enabled
     if (Array.isArray(raw)) return raw as string[]
@@ -230,6 +257,19 @@ function StoreEditor({ store, onSaved }: { store: AdminStore; onSaved: () => voi
     return []
   })
   const hasMethodOverride = s.payment_methods_enabled !== undefined
+
+  // WEC-763: the retail windows are the menu of choices a store picks from.
+  const [retailSlots, setRetailSlots] = useState<string[]>([])
+  useEffect(() => {
+    let cancelled = false
+    fetchAllSettings().then(({ data }) => {
+      if (cancelled) return
+      const raw = (data ?? []).find((r) => r.key === 'time_slots')?.value
+      const list = Array.isArray(raw) ? (raw as unknown[]).filter((x): x is string => typeof x === 'string') : []
+      setRetailSlots(list.map((w) => normaliseWindow(w) ?? w))
+    })
+    return () => { cancelled = true }
+  }, [])
 
   const readiness = storeReadiness(store)
   const isRetail = store.isDefault
@@ -341,9 +381,79 @@ function StoreEditor({ store, onSaved }: { store: AdminStore; onSaved: () => voi
             <Field label="Company benefit per delivery day (€)" value={benefit} onChange={setBenefit} placeholder="0 — no benefit" />
           )}
           <Field label="Cutoff hour (0–23)" value={cutoffHour} onChange={setCutoffHour} placeholder="inherits retail" />
-          <Field label="Delivery window(s)" value={windows} onChange={setWindows} placeholder="12:00-14:00" />
+          {/* WEC-763: the cutoff number only sets the HOUR. The DAY is always the
+              one BEFORE delivery — there is currently no way to express "order by
+              11:00 for the same day". Say so here rather than letting someone set
+              11 and conclude the field is broken (Christos, 2026-09-14). */}
           <div style={{ fontSize: 12, color: '#6b7280', marginTop: -4 }}>
-            Comma-separated. One window = a fixed slot; the customer sees only that.
+            Orders close at this hour on the <strong>day before</strong> delivery. «7» = 07:00 the previous
+            morning. Same-day cutoffs are not supported yet.
+          </div>
+
+          {/* WEC-763: windows are a CHOICE, not free text. Christos: «tha eprepe
+              na einai slots k na epilegeis». The retail windows are the offer;
+              a store picks from them, or adds one of its own for an agreed slot
+              retail does not run. */}
+          <div>
+            <span style={{ fontSize: 12, color: '#374151', fontWeight: 600 }}>Delivery window(s)</span>
+            <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginTop: 5 }}>
+              {retailSlots.map((w) => (
+                <label key={w} style={{ fontSize: 13, display: 'flex', gap: 5, alignItems: 'center' }}>
+                  <input
+                    type="checkbox"
+                    checked={windowList.includes(w)}
+                    onChange={(e) => setWindows(
+                      (e.target.checked ? [...windowList, w] : windowList.filter((x) => x !== w))
+                        .sort().join(', '),
+                    )}
+                  />
+                  {w}
+                </label>
+              ))}
+              {retailSlots.length === 0 && (
+                <span className="admin-text-muted" style={{ fontSize: 12 }}>No retail windows configured.</span>
+              )}
+            </div>
+            {/* Windows this store has that retail does not — kept visible and
+                removable, so a bespoke slot is never silently orphaned. */}
+            {windowList.filter((w) => !retailSlots.includes(w)).length > 0 && (
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 6 }}>
+                {windowList.filter((w) => !retailSlots.includes(w)).map((w) => (
+                  <span key={w} className="admin-pc-chip">
+                    {w} <span style={{ color: '#6b7280' }}>· custom</span>
+                    <button type="button" onClick={() => setWindows(windowList.filter((x) => x !== w).join(', '))}>×</button>
+                  </span>
+                ))}
+              </div>
+            )}
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginTop: 6 }}>
+              <input
+                className="admin-input admin-input-tight"
+                style={{ maxWidth: 150 }}
+                placeholder="12:00-14:00"
+                value={customWindow}
+                onChange={(e) => setCustomWindow(e.target.value)}
+              />
+              <button
+                type="button"
+                className="admin-btn-ghost"
+                onClick={() => {
+                  const norm = normaliseWindow(customWindow)
+                  if (!norm) { setMsg('Use the format 12:00-14:00.'); return }
+                  if (!windowList.includes(norm)) setWindows([...windowList, norm].sort().join(', '))
+                  setCustomWindow('')
+                }}
+              >
+                + Add window
+              </button>
+            </div>
+            <div style={{ fontSize: 12, color: '#6b7280', marginTop: 5 }}>
+              {windowList.length === 0
+                ? 'None selected — the store inherits the retail windows.'
+                : windowList.length === 1
+                  ? `One window (${windowList[0]}) — the customer sees only that, already selected.`
+                  : `${windowList.length} windows — the customer picks one.`}
+            </div>
           </div>
           <div>
             <span style={{ fontSize: 12, color: '#374151', fontWeight: 600 }}>Payment methods</span>
