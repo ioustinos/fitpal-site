@@ -33,6 +33,7 @@ const SUPABASE_ANON_KEY = process.env.VITE_SUPABASE_ANON_KEY ?? ''
 const PUBLIC_KEYS = [
   'min_order',
   'cutoff_hour',
+  'cutoff_offset_days',        // WEC-763
   'cutoff_weekday_overrides',
   'cutoff_date_overrides',
   'payment_methods_enabled',

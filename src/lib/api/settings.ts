@@ -95,7 +95,13 @@ export type MacrosDisplay = 'numbers' | 'dots'
 
 export interface AppSettings {
   minOrder: number                                        // euros
-  cutoffHour: number                                      // default cutoff hour on previous day
+  cutoffHour: number                                      // hour at which ordering closes
+  /**
+   * WEC-763: how many days BEFORE the delivery day the cutoff falls.
+   * 0 = same day · 1 = previous day (default) · N = N days before.
+   * Was hardcoded to 1, which made a same-day cutoff impossible to express.
+   */
+  cutoffOffsetDays: number
   cutoffWeekdayOverrides: Record<number, WeekdayCutoff>   // key = ISO weekday of delivery
   cutoffDateOverrides: Record<string, DateCutoff>         // key = YYYY-MM-DD of delivery
   /**
@@ -157,6 +163,7 @@ const DEFAULT_VISIBILITY: PaymentMethodVisibilityMap = {
 const DEFAULTS: AppSettings = {
   minOrder: 15,
   cutoffHour: 18,
+  cutoffOffsetDays: 1,   // WEC-763 — previous day, the behaviour before this key existed
   cutoffWeekdayOverrides: {},
   cutoffDateOverrides: {},
   paymentMethodVisibility: DEFAULT_VISIBILITY,
@@ -357,6 +364,11 @@ export async function fetchSettings(
     data: {
       minOrder: typeof map.min_order === 'number' ? map.min_order / 100 : DEFAULTS.minOrder,
       cutoffHour: typeof map.cutoff_hour === 'number' ? map.cutoff_hour : DEFAULTS.cutoffHour,
+      // WEC-763 — clamped the same way the server clamps it, so the two halves
+      // of the rule cannot disagree about a nonsense value.
+      cutoffOffsetDays: typeof map.cutoff_offset_days === 'number'
+        ? Math.max(0, Math.min(7, Math.trunc(map.cutoff_offset_days)))
+        : DEFAULTS.cutoffOffsetDays,
       cutoffWeekdayOverrides,
       cutoffDateOverrides,
       paymentMethodVisibility,

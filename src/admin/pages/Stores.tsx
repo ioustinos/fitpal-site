@@ -23,6 +23,7 @@ import {
 } from '../../lib/api/adminStores'
 import { PlacesAutocomplete } from '../../components/ui/PlacesAutocomplete'
 import { fetchAllSettings } from '../../lib/api/adminSettings'   // WEC-763
+import { CUTOFF_OFFSET_OPTIONS, describeCutoff } from './Settings'   // WEC-763
 
 const PAYMENT_METHODS = ['cash', 'card', 'link', 'transfer', 'wallet'] as const
 
@@ -243,6 +244,10 @@ function StoreEditor({ store, onSaved }: { store: AdminStore; onSaved: () => voi
   const [minOrder, setMinOrder] = useState(typeof s.min_order === 'number' ? String((s.min_order as number) / 100) : '')
   const [benefit, setBenefit] = useState(typeof s.company_benefit === 'number' ? String((s.company_benefit as number) / 100) : '')
   const [cutoffHour, setCutoffHour] = useState(typeof s.cutoff_hour === 'number' ? String(s.cutoff_hour) : '')
+  // WEC-763: '' = inherit retail, otherwise 0..7 days before delivery.
+  const [cutoffOffset, setCutoffOffset] = useState(
+    typeof s.cutoff_offset_days === 'number' ? String(s.cutoff_offset_days) : '',
+  )
   const [windows, setWindows] = useState(Array.isArray(s.time_slots) ? (s.time_slots as string[]).join(', ') : '')
   // WEC-763: windows as a picked list, not a typed string.
   const [customWindow, setCustomWindow] = useState('')
@@ -291,6 +296,9 @@ function StoreEditor({ store, onSaved }: { store: AdminStore; onSaved: () => voi
       await setStoreSetting(store.id, 'min_order', minOrder ? Math.round(Number(minOrder) * 100) : null)
       await setStoreSetting(store.id, 'company_benefit', benefit ? Math.round(Number(benefit) * 100) : null)
       await setStoreSetting(store.id, 'cutoff_hour', cutoffHour ? Number(cutoffHour) : null)
+      // WEC-763. '0' is a real value, so test for empty string rather than
+      // truthiness — `Number('0') || null` would silently drop same-day.
+      await setStoreSetting(store.id, 'cutoff_offset_days', cutoffOffset === '' ? null : Number(cutoffOffset))
       await setStoreSetting(store.id, 'time_slots',
         windows.trim() ? windows.split(',').map((w) => w.trim()).filter(Boolean) : null)
       await setStoreSetting(store.id, 'payment_methods_enabled',
@@ -380,14 +388,44 @@ function StoreEditor({ store, onSaved }: { store: AdminStore; onSaved: () => voi
           {store.type === 'company' && (
             <Field label="Company benefit per delivery day (€)" value={benefit} onChange={setBenefit} placeholder="0 — no benefit" />
           )}
-          <Field label="Cutoff hour (0–23)" value={cutoffHour} onChange={setCutoffHour} placeholder="inherits retail" />
-          {/* WEC-763: the cutoff number only sets the HOUR. The DAY is always the
-              one BEFORE delivery — there is currently no way to express "order by
-              11:00 for the same day". Say so here rather than letting someone set
-              11 and conclude the field is broken (Christos, 2026-09-14). */}
-          <div style={{ fontSize: 12, color: '#6b7280', marginTop: -4 }}>
-            Orders close at this hour on the <strong>day before</strong> delivery. «7» = 07:00 the previous
-            morning. Same-day cutoffs are not supported yet.
+          {/* WEC-763: a cutoff is a DAY plus a TIME, said in words. The old
+              lone 0–23 field silently meant "the day before", so «7» read as
+              07:00 that morning and behaved as 07:00 the morning before. */}
+          <div>
+            <span style={{ fontSize: 12, color: '#374151', fontWeight: 600 }}>Cutoff</span>
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginTop: 5, flexWrap: 'wrap' }}>
+              <select
+                className="admin-select"
+                style={{ width: 150 }}
+                value={cutoffOffset}
+                onChange={(e) => setCutoffOffset(e.target.value)}
+              >
+                <option value="">inherits retail</option>
+                {CUTOFF_OFFSET_OPTIONS.map((o) => <option key={o.value} value={String(o.value)}>{o.label}</option>)}
+              </select>
+              <span style={{ fontSize: 13, color: '#6b7280' }}>at</span>
+              <input
+                className="admin-input"
+                style={{ width: 74 }}
+                value={cutoffHour}
+                placeholder="18"
+                onChange={(e) => setCutoffHour(e.target.value.replace(/[^0-9]/g, '').slice(0, 2))}
+              />
+              <span style={{ fontSize: 13, color: '#6b7280' }}>:00</span>
+            </div>
+            <div style={{ fontSize: 12, color: '#6b7280', marginTop: 5 }}>
+              {cutoffHour === '' && cutoffOffset === ''
+                ? 'Both empty — this store inherits the retail cutoff.'
+                : describeCutoff(
+                    cutoffOffset === '' ? 1 : Number(cutoffOffset),
+                    cutoffHour === '' ? 18 : Number(cutoffHour),
+                  )}
+            </div>
+            {cutoffOffset === '0' && (
+              <div style={{ fontSize: 12, color: '#b45309', marginTop: 3, fontWeight: 600 }}>
+                Same-day ordering — check the kitchen can deliver on this notice.
+              </div>
+            )}
           </div>
 
           {/* WEC-763: windows are a CHOICE, not free text. Christos: «tha eprepe

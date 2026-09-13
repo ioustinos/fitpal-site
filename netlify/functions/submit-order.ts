@@ -158,6 +158,8 @@ interface DateCutoff    { cutoffDate: string; hour: number }
 
 interface CutoffSettings {
   cutoffHour: number
+  /** WEC-763: how many days BEFORE delivery the cutoff falls. 0 = same day. */
+  cutoffOffsetDays: number
   weekdayOverrides: Record<number, WeekdayCutoff>
   dateOverrides: Record<string, DateCutoff>
   /** cents — admin-configurable minimum per child order */
@@ -220,12 +222,15 @@ function getCutoffMs(isoDate: string, cfg: CutoffSettings): number {
     return athensWallClockMs(isoSubDays(isoDate, diff), wdOv.hour)
   }
 
-  // 3. Default: previous calendar day at cfg.cutoffHour Athens.
-  return athensWallClockMs(isoSubDays(isoDate, 1), cfg.cutoffHour)
+  // 3. Default: `cutoffOffsetDays` before delivery, at cfg.cutoffHour Athens.
+  // WEC-763 — must stay in step with `getCutoffDate` in src/lib/helpers.ts,
+  // which is the client half of this same rule. 0 = same day.
+  return athensWallClockMs(isoSubDays(isoDate, cfg.cutoffOffsetDays), cfg.cutoffHour)
 }
 
 const DEFAULT_CUTOFF: CutoffSettings = {
   cutoffHour: 18,
+  cutoffOffsetDays: 1,   // WEC-763
   weekdayOverrides: {},
   dateOverrides: {},
   minOrderCents: 1500,
@@ -237,6 +242,10 @@ function parseCutoffSettings(rows: { key: string; value: unknown }[] | null): Cu
   for (const row of rows ?? []) {
     if (row.key === 'cutoff_hour' && typeof row.value === 'number') {
       cfg.cutoffHour = row.value
+    } else if (row.key === 'cutoff_offset_days' && typeof row.value === 'number') {
+      // WEC-763. Clamped: a negative offset would put the cutoff AFTER the
+      // delivery day, and anything past a week is a data-entry slip, not a rule.
+      cfg.cutoffOffsetDays = Math.max(0, Math.min(7, Math.trunc(row.value)))
     } else if (row.key === 'min_order' && typeof row.value === 'number') {
       cfg.minOrderCents = row.value
     } else if (row.key === 'cutoff_weekday_overrides' && row.value && typeof row.value === 'object') {
@@ -575,7 +584,7 @@ export default async (request: Request) => {
       supabase
         .from('settings')
         .select('key, value')
-        .in('key', ['cutoff_hour', 'cutoff_weekday_overrides', 'cutoff_date_overrides', 'min_order', 'payment_methods_enabled', 'bank_transfer_info', 'pickup_locations', 'time_slots']),
+        .in('key', ['cutoff_hour', 'cutoff_offset_days', 'cutoff_weekday_overrides', 'cutoff_date_overrides', 'min_order', 'payment_methods_enabled', 'bank_transfer_info', 'pickup_locations', 'time_slots']),
 
       storeQuery,
       storeSettingsQuery,

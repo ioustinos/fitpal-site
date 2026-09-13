@@ -247,9 +247,16 @@ export const getCutoffDate = (isoDate: string, settings: AppSettings): Date => {
     return cutoff
   }
 
-  // 3. Default: previous calendar day at cutoffHour
+  // 3. Default: `cutoffOffsetDays` before delivery, at `cutoffHour`.
+  //
+  // WEC-763: the offset used to be a hardcoded 1, so a cutoff could only ever
+  // mean "the day before at H:00". A company that closes orders at 11:00 for
+  // delivery the SAME day could not be expressed at all — setting 11 gave
+  // 11:00 the previous morning, which is stricter than the 18:00 default, and
+  // the storefront simply skipped the day. 0 = same day, 1 = previous day
+  // (the default, unchanged for everyone who never sets it), N = N days before.
   const cutoff = new Date(delivery)
-  cutoff.setDate(cutoff.getDate() - 1)
+  cutoff.setDate(cutoff.getDate() - settings.cutoffOffsetDays)
   cutoff.setHours(settings.cutoffHour, 0, 0, 0)
   return cutoff
 }
