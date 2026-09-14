@@ -23,6 +23,11 @@ export interface ReconcileSummary {
   errors: number
   durationMs: number | null
   notes: string | null
+  /** WEC-766: one bad run is noise; a bad run EVERY run is the signal.
+   *  Counted over the last hour so the dashboard can tell them apart. */
+  runsLastHour: number
+  errorRunsLastHour: number
+  errorsLastHour: number
 }
 
 function todayIso(): string {
@@ -100,16 +105,35 @@ export async function fetchDashboardStats(): Promise<{ data: DashboardStats | nu
  * health card. Silently returns null if the table is empty or RLS denies.
  */
 export async function fetchLatestReconcileRun(): Promise<{ data: ReconcileSummary | null; error: string | null }> {
-  const { data, error } = await supabase
-    .from('reconcile_runs')
-    .select('run_at, checked, paid, failed, still_pending, cancelled_timeout, errors, duration_ms, notes')
-    .eq('provider', 'viva')
-    .order('run_at', { ascending: false })
-    .limit(1)
-    .maybeSingle()
+  const hourAgo = new Date(Date.now() - 3600 * 1000).toISOString()
 
+  const [latestRes, hourRes] = await Promise.all([
+    supabase
+      .from('reconcile_runs')
+      .select('run_at, checked, paid, failed, still_pending, cancelled_timeout, errors, duration_ms, notes')
+      .eq('provider', 'viva')
+      .order('run_at', { ascending: false })
+      .limit(1)
+      .maybeSingle(),
+    // WEC-766: the last-hour window. Before this the row showed only the most
+    // recent run's error count, in grey — which is how two dead rows produced
+    // ~770 errors a day for weeks without anyone seeing a thing.
+    supabase
+      .from('reconcile_runs')
+      .select('errors')
+      .eq('provider', 'viva')
+      .gte('run_at', hourAgo)
+      .limit(500),
+  ])
+
+  const { data, error } = latestRes
   if (error) return { data: null, error: error.message }
   if (!data) return { data: null, error: null }
+
+  const hourRows = (hourRes.data ?? []) as Array<{ errors: number }>
+  const runsLastHour = hourRows.length
+  const errorRunsLastHour = hourRows.filter((r) => (r.errors ?? 0) > 0).length
+  const errorsLastHour = hourRows.reduce((sum, r) => sum + (r.errors ?? 0), 0)
 
   const row = data as {
     run_at: string
@@ -135,6 +159,9 @@ export async function fetchLatestReconcileRun(): Promise<{ data: ReconcileSummar
       errors: row.errors,
       durationMs: row.duration_ms,
       notes: row.notes,
+      runsLastHour,
+      errorRunsLastHour,
+      errorsLastHour,
     },
     error: null,
   }

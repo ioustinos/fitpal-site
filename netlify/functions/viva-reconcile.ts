@@ -317,13 +317,19 @@ export default async (request?: Request) => {
   const abandonThreshold = new Date(Date.now() - 48 * 3600 * 1000).toISOString()
   const { data: orphanCandidates } = await supabase
     .from('orders')
-    .select('id, payment_method, viva_order_code:payment_links(viva_order_code)')
+    .select('id, payment_method, payment_status, viva_order_code:payment_links(viva_order_code)')
     // payment_links join above resolves implicitly; explicit join via
     // payment_links is cleaner — fetch viva_order_code in a follow-up query
     // to keep this readable.
     .in('payment_method', ['card', 'link'])
     // WEC-599: «pending_link_sent» is still an unpaid orphan candidate.
     .in('payment_status', ['pending', 'pending_link_sent'])
+    // WEC-766 (bug 1): an order an admin already cancelled has nothing left
+    // for us to cancel. Without this filter such a row is re-selected every
+    // five minutes forever — and since the UPDATE below can never match it
+    // (see bug 2), it never leaves the candidate set. That is how two rows
+    // produced ~770 "errors" a day and made this job's alarm meaningless.
+    .neq('status', 'cancelled')
     .lt('created_at', abandonThreshold)
   // Build a map of order_id → viva_order_code via payment_links for the
   // verify-before-cancel step.
@@ -339,8 +345,22 @@ export default async (request?: Request) => {
     }
   }
 
-  for (const cand of (orphanCandidates ?? []) as Array<{ id: string }>) {
+  // WEC-766 (bug 3): Phase 1 and the wallet leg both partition by which Viva
+  // merchant created the row; Phase 2 never did. A sandbox-created order can
+  // only ever answer "unknown" from the live merchant, and «state-unknown»
+  // counts as an error — every run, forever. Skip them the same way.
+  const foreignOrphanCodes = await findForeignEnvCodes(
+    supabase,
+    creds.checkoutHost,
+    Array.from(orphanCodeByOrder.values()).filter((c): c is string => !!c),
+  )
+
+  for (const cand of (orphanCandidates ?? []) as Array<{ id: string; payment_status?: string }>) {
     const code = orphanCodeByOrder.get(cand.id) ?? null
+    if (code && foreignOrphanCodes.has(code)) {
+      skippedForeignEnv++
+      continue
+    }
     // No viva_order_code → Viva never knew about this order, safe to cancel.
     let vivaSaidPaid = false
     if (code) {
@@ -384,7 +404,11 @@ export default async (request?: Request) => {
         updated_at: new Date().toISOString(),
       })
       .eq('id', cand.id)
-      .eq('payment_status', 'pending')   // race guard (someone else may have flipped it)
+      // WEC-766 (bug 2): the SELECT accepts «pending_link_sent» (WEC-599) but
+      // this guard only accepted «pending», so a link-sent orphan could be
+      // selected forever and never updated. Guard on the same set, which still
+      // blocks a concurrent markPaid (that writes 'paid', not either of these).
+      .in('payment_status', ['pending', 'pending_link_sent'])   // race guard
     if (upErr) {
       errors++
       errorNotes.push(`cancel ${cand.id}: ${upErr.message}`)
@@ -400,7 +424,7 @@ export default async (request?: Request) => {
           old_value: 'pending', new_value: 'cancelled',
           label: 'reconcile-orphan-timeout', admin_user: 'system_reconcile' },
         { table_name: 'orders', order_id: cand.id, field_name: 'payment_status',
-          old_value: 'pending', new_value: 'failed',
+          old_value: cand.payment_status ?? 'pending', new_value: 'failed',
           label: 'reconcile-orphan-timeout', admin_user: 'system_reconcile' },
       ])
     } catch (err) {
