@@ -176,7 +176,13 @@ function ReconcileHealthRow({ reconcile }: { reconcile: ReconcileSummary | null 
   const ageLabel = formatAge(reconcile.ageSeconds)
   const stale = reconcile.ageSeconds > 15 * 60 // >15 min = missed 3 runs
   const canary = reconcile.paidRescued > 0    // reconcile rescued orders → webhook unhealthy
-  const tone = canary ? '#ef4444' : stale ? '#f59e0b' : '#6b7280'
+  // WEC-766: errors used to render in the same grey as everything else, so a
+  // job that had been failing every five minutes for weeks looked identical to
+  // a healthy one. Persistent = more than one run in the last hour errored;
+  // a single blip stays amber rather than crying wolf.
+  const erroringPersistently = reconcile.errorRunsLastHour > 1
+  const erroringOnce = reconcile.errorRunsLastHour === 1
+  const tone = canary || erroringPersistently ? '#ef4444' : stale || erroringOnce ? '#f59e0b' : '#6b7280'
 
   return (
     <div
@@ -199,8 +205,12 @@ function ReconcileHealthRow({ reconcile }: { reconcile: ReconcileSummary | null 
       {canary && (
         <span>· ⚠ rescued <strong>{reconcile.paidRescued}</strong> (webhook may be down)</span>
       )}
-      {reconcile.errors > 0 && (
-        <span>· {reconcile.errors} error{reconcile.errors === 1 ? '' : 's'}</span>
+      {reconcile.errorRunsLastHour > 0 && (
+        <span>
+          · {erroringPersistently ? '⚠ ' : ''}
+          <strong>{reconcile.errorsLastHour}</strong> error{reconcile.errorsLastHour === 1 ? '' : 's'} in{' '}
+          {reconcile.errorRunsLastHour}/{reconcile.runsLastHour} runs (last hour)
+        </span>
       )}
       {stale && !canary && <span>· (stale — no run in 15+ min)</span>}
     </div>
