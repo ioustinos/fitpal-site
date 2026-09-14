@@ -135,7 +135,28 @@ export const handler: Handler = async (event) => {
       // rather than showing the storefront an error page.
       if (!storeErr && storeRows?.length) {
         const merged = new Map<string, unknown>(rows.map((r) => [r.key, r.value]))
-        for (const r of storeRows as SettingRow[]) merged.set(r.key, r.value)
+        const storeOwn = new Set<string>()
+        for (const r of storeRows as SettingRow[]) { merged.set(r.key, r.value); storeOwn.add(r.key) }
+
+        // WEC-764: a store that sets its OWN cutoff does not inherit retail's
+        // per-weekday / per-date exceptions.
+        //
+        // Those exceptions resolve BEFORE the default day+time, so without this
+        // they silently beat a setting the store did choose, on days the store
+        // never said anything about. Retail closes Monday deliveries on Sunday
+        // 18:00; a company on "same day, 11:00" got same-day Tue–Fri and a
+        // Monday that closed the previous evening — which is exactly the
+        // «φαινόταν η Δευτέρα κλειστή» Christos reported.
+        //
+        // 🟢 Ioustinos, 2026-09-14: an explicit per-store cutoff wins. A store
+        // can still carry its own overrides once someone gives it some; only
+        // the INHERITED ones are dropped.
+        const setsOwnCutoff = storeOwn.has('cutoff_hour') || storeOwn.has('cutoff_offset_days')
+        if (setsOwnCutoff) {
+          if (!storeOwn.has('cutoff_weekday_overrides')) merged.set('cutoff_weekday_overrides', {})
+          if (!storeOwn.has('cutoff_date_overrides')) merged.set('cutoff_date_overrides', {})
+        }
+
         rows = [...merged].map(([key, value]) => ({ key, value }))
       }
     }

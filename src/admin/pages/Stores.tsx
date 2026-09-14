@@ -444,13 +444,14 @@ function StoreEditor({ store, onSaved }: { store: AdminStore; onSaved: () => voi
                 Same-day ordering — check the kitchen can deliver on this notice.
               </div>
             )}
-            {/* WEC-763: the honest caveat, shown only when it actually bites. */}
+            {/* WEC-764: the caveat is gone — an explicit store cutoff now wins
+                over retail's weekday exceptions. Say so, because the previous
+                behaviour was surprising enough to be reported as a bug. */}
             {(cutoffOffset !== '' || cutoffHour !== '') && retailOverrideDows.length > 0 && (
-              <div style={{ fontSize: 12, color: '#b45309', marginTop: 4, lineHeight: 1.45 }}>
-                <strong>Except {retailOverrideDows.map((d) => WEEKDAY_NAMES[d]).join(', ')}.</strong> Retail
-                has a separate rule for {retailOverrideDows.length === 1 ? 'that day' : 'those days'}, and
-                those rules win over this setting. Stores cannot override them yet — tell Ioustinos if a
-                company needs it.
+              <div style={{ fontSize: 12, color: '#6b7280', marginTop: 4, lineHeight: 1.45 }}>
+                Applies to <strong>every day</strong> of the week. Retail's separate rules for{' '}
+                {retailOverrideDows.map((d) => WEEKDAY_NAMES[d]).join(', ')} do <strong>not</strong> apply
+                to this store while it has its own cutoff.
               </div>
             )}
           </div>

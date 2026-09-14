@@ -680,6 +680,16 @@ export default async (request: Request) => {
       settingsByKey.set(r.key, r.value)
       storeOwnKeys.add(r.key)
     }
+    // WEC-764: mirror of the rule in settings-public.ts — a store that sets its
+    // own cutoff does not inherit retail's weekday / date exceptions, which
+    // would otherwise resolve first and override the store's own choice on days
+    // the store never mentioned. The two must agree or the client offers a day
+    // the server then refuses.
+    if (!isMainStore && (storeOwnKeys.has('cutoff_hour') || storeOwnKeys.has('cutoff_offset_days'))) {
+      if (!storeOwnKeys.has('cutoff_weekday_overrides')) settingsByKey.set('cutoff_weekday_overrides', {})
+      if (!storeOwnKeys.has('cutoff_date_overrides')) settingsByKey.set('cutoff_date_overrides', {})
+    }
+
     const effectiveSettingRows = [...settingsByKey].map(([key, value]) => ({ key, value }))
 
     const cutoffCfg = parseCutoffSettings(effectiveSettingRows)
