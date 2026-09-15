@@ -4,14 +4,40 @@
 //   - Excel → builds an HTML <table> and downloads it as .xls; Excel/Numbers/
 //            Sheets open it natively. No runtime deps = no npm install needed.
 
+/** WEC-768: one variant with its own money + macros, so the PDF can print
+ *  them on the variant's own line. Each variant really does have its own
+ *  price and its own macros — averaging them onto the dish would be a lie. */
+export interface MenuExportVariant {
+  label: string
+  priceCents: number
+  cal: number
+  pro: number
+  carb: number
+  fat: number
+  isDefault: boolean
+}
+
 export interface MenuExportDish {
   nameEl: string
   nameEn: string
   externalId: string | null
+  /** Labels only. UNCHANGED — the Excel export reads this and must not move. */
   variants: string[]
   /** WEC-593: real variant count (NOT variants.length — empty labels are
    *  filtered out of that array). Gates the GonnaOrder «-1» suffix. */
   variantCount: number
+  /** WEC-768: full variant rows for the PDF. Optional so any other caller of
+   *  this model keeps compiling. */
+  variantRows?: MenuExportVariant[]
+}
+
+/** WEC-768: what the operator ticked in the pre-print popup.
+ *  Dish titles and category headings are deliberately NOT options — Ioustinos
+ *  ruled they must always print. */
+export interface PdfExportOpts {
+  variants?: boolean
+  prices?: boolean
+  macros?: boolean
 }
 
 /** WEC-593: options for the Excel export. */
@@ -48,22 +74,64 @@ function esc(s: string): string {
     .replace(/"/g, '&quot;')
 }
 
-function dayBlocksHtml(data: MenuExportData): string {
+function fmtEur(cents: number): string {
+  return `${(cents / 100).toFixed(2)} €`
+}
+
+/** «320 kcal · Π 25γ · Υ 30γ · Λ 10γ» — Greek initials because the people
+ *  holding this printout in the kitchen read Greek. */
+function fmtMacros(v: MenuExportVariant): string {
+  const parts: string[] = []
+  if (v.cal) parts.push(`${v.cal} kcal`)
+  if (v.pro) parts.push(`Π ${v.pro}γ`)
+  if (v.carb) parts.push(`Υ ${v.carb}γ`)
+  if (v.fat) parts.push(`Λ ${v.fat}γ`)
+  return parts.join(' · ')
+}
+
+/** The trailing «— 5.50 € — 320 kcal …» for one variant, per the ticked opts. */
+function metaHtml(v: MenuExportVariant | undefined, opts: PdfExportOpts): string {
+  if (!v) return ''
+  let out = ''
+  if (opts.prices) out += `<span class="price">${esc(fmtEur(v.priceCents))}</span>`
+  if (opts.macros) {
+    const m = fmtMacros(v)
+    if (m) out += `<span class="macros">${esc(m)}</span>`
+  }
+  return out
+}
+
+function dishHtml(d: MenuExportDish, opts: PdfExportOpts): string {
+  const rows = d.variantRows ?? []
+  const fallback = rows.find((v) => v.isDefault) ?? rows[0]
+
+  // Variants OFF → the dish line carries the DEFAULT variant's price/macros,
+  // so ticking «Prices» never produces a sheet with no prices on it.
+  if (!opts.variants) {
+    return `<div class="dish"><span class="dish-name">${esc(d.nameEl)}</span>${metaHtml(fallback, opts)}</div>`
+  }
+
+  const varLines = rows
+    .filter((v) => v.label)
+    .map((v) => `<div class="var"><span class="var-label">${esc(v.label)}</span>${metaHtml(v, opts)}</div>`)
+    .join('')
+
+  // A dish with no usable variant labels still needs its price/macros shown.
+  const inlineMeta = varLines ? '' : metaHtml(fallback, opts)
+  return `<div class="dish"><span class="dish-name">${esc(d.nameEl)}</span>${inlineMeta}${varLines}</div>`
+}
+
+function dayBlocksHtml(data: MenuExportData, opts: PdfExportOpts): string {
   return data.days
     .map((day) => {
       const cats = day.categories.length
         ? day.categories
-            .map((c) => {
-              const rows = c.dishes
-                .map((d) => {
-                  const variants = d.variants.filter(Boolean).join(' · ')
-                  return `<div class="dish"><span class="dish-name">${esc(d.nameEl)}</span>${
-                    variants ? `<span class="dish-variants">${esc(variants)}</span>` : ''
-                  }</div>`
-                })
-                .join('')
-              return `<div class="cat"><div class="cat-name">${esc(c.catName)}</div>${rows}</div>`
-            })
+            .map(
+              (c) =>
+                `<div class="cat"><div class="cat-name">${esc(c.catName)}</div>${c.dishes
+                  .map((d) => dishHtml(d, opts))
+                  .join('')}</div>`,
+            )
             .join('')
         : '<div class="empty">—</div>'
       return `<section class="day"><h2>${esc(day.dayName)} · ${esc(day.date)}</h2>${cats}</section>`
@@ -71,28 +139,35 @@ function dayBlocksHtml(data: MenuExportData): string {
     .join('')
 }
 
-export function exportMenuToPdf(data: MenuExportData): void {
+export function exportMenuToPdf(data: MenuExportData, opts: PdfExportOpts = { variants: true }): void {
   const html = `<!doctype html><html><head><meta charset="utf-8"><title>${esc(data.title)}</title>
     <style>
+      /* WEC-768: A4, ONE column. The old layout was a 2-up grid of days, which
+         on A4 squeezed every day into a narrow box and wrapped long dish names
+         to pieces. Days stack; inside a day, categories stack. Never side by side. */
+      @page { size: A4; margin: 12mm; }
       * { box-sizing: border-box; }
-      body { font-family: -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; color: #111; margin: 24px; }
+      body { font-family: -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; color: #111; margin: 0; }
       h1 { font-size: 20px; margin: 0 0 2px; }
-      .sub { color: #666; font-size: 12px; margin-bottom: 18px; }
-      .days { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; }
-      .day { break-inside: avoid; border: 1px solid #ddd; border-radius: 8px; padding: 12px 14px; }
-      .day h2 { font-size: 14px; margin: 0 0 8px; border-bottom: 2px solid #00b96b; padding-bottom: 4px; }
-      .cat { margin-bottom: 10px; }
-      .cat-name { font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; color: #00875a; font-weight: 700; margin-bottom: 3px; }
-      .dish { font-size: 12px; margin: 2px 0; }
+      .sub { color: #666; font-size: 12px; margin-bottom: 16px; }
+      .day { margin-bottom: 14px; }
+      .day h2 { font-size: 15px; margin: 0 0 8px; border-bottom: 2px solid #00b96b; padding-bottom: 4px; }
+      /* Keep a category whole on one page where it fits — a heading orphaned at
+         the foot of a page is how a kitchen misses half a category. */
+      .cat { margin: 0 0 10px; break-inside: avoid; page-break-inside: avoid; }
+      .cat-name { font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; color: #00875a; font-weight: 700; margin-bottom: 4px; }
+      .dish { font-size: 12px; margin: 0 0 5px; break-inside: avoid; page-break-inside: avoid; }
       .dish-name { font-weight: 600; }
-      .dish-variants { color: #666; margin-left: 6px; }
+      .var { font-size: 11px; color: #444; margin: 1px 0 0 14px; }
+      .var-label { color: #444; }
+      .price { font-weight: 600; color: #00875a; margin-left: 8px; white-space: nowrap; }
+      .macros { color: #6b7280; margin-left: 8px; white-space: nowrap; }
       .empty { color: #999; font-size: 12px; }
-      @media print { body { margin: 12mm; } .days { gap: 12px; } }
     </style></head>
     <body>
       <h1>${esc(data.title)}</h1>
       <div class="sub">${esc(data.weekFrom)} — ${esc(data.weekTo)}</div>
-      <div class="days">${dayBlocksHtml(data)}</div>
+      ${dayBlocksHtml(data, opts)}
       <script>window.onload = function () { setTimeout(function () { window.print(); }, 250); };</script>
     </body></html>`
   const win = window.open('', '_blank')

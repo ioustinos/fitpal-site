@@ -41,8 +41,24 @@ import { CategoryOrderStrip } from '../components/CategoryOrderStrip'
 import { foldGreek } from '../../lib/text'
 import {
   exportMenuToPdf, exportMenuToXls,
-  type MenuExportData, type MenuExportCategory,
+  type MenuExportData, type MenuExportCategory, type PdfExportOpts,
 } from '../lib/exportMenu'
+
+// WEC-768: the pre-print choices, remembered. The same person prints the
+// kitchen sheet every week; making them re-tick three boxes each time is the
+// kind of small friction that gets a feature quietly abandoned.
+const PDF_OPTS_KEY = 'fitpal_admin_menu_pdf_opts'
+
+function loadPdfOpts(): PdfExportOpts {
+  try {
+    const raw = localStorage.getItem(PDF_OPTS_KEY)
+    if (raw) {
+      const p = JSON.parse(raw) as PdfExportOpts
+      return { variants: !!p.variants, prices: !!p.prices, macros: !!p.macros }
+    }
+  } catch { /* corrupt or unavailable — fall through to the default */ }
+  return { variants: true, prices: false, macros: false }
+}
 
 const DAY_NAMES_BY_DOW = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'] as const
 
@@ -94,6 +110,9 @@ export function Menus() {
   // WEC-593: Excel export format popup (Standard vs GonnaOrder external IDs).
   const [xlsPromptOpen, setXlsPromptOpen] = useState(false)
   const [xlsFmt, setXlsFmt] = useState<'standard' | 'gonnaorder'>('standard')
+  // WEC-768: PDF content picker
+  const [pdfPromptOpen, setPdfPromptOpen] = useState(false)
+  const [pdfOpts, setPdfOpts] = useState<PdfExportOpts>(loadPdfOpts)
 
   const [dishes, setDishes] = useState<AdminDish[]>([])
   const [categories, setCategories] = useState<AdminCategory[]>([])
@@ -391,6 +410,20 @@ export function Menus() {
               variants: (d?.variants ?? []).map((v) => v.labelEl).filter(Boolean),
               // WEC-593: real variant count (not the filtered label array) — gates the GonnaOrder «-1».
               variantCount: (d?.variants ?? []).length,
+              // WEC-768: price + macros live on the VARIANT, so the PDF can put
+              // them on the variant's own line rather than inventing a dish-level
+              // average. Ordered like the customer site so the sheet matches it.
+              variantRows: [...(d?.variants ?? [])]
+                .sort((x, y) => x.sortOrder - y.sortOrder)
+                .map((v) => ({
+                  label: v.labelEl,
+                  priceCents: v.price,
+                  cal: v.calories,
+                  pro: v.protein,
+                  carb: v.carbs,
+                  fat: v.fat,
+                  isDefault: v.isDefault,
+                })),
             }
           }),
         })
@@ -526,6 +559,55 @@ export function Menus() {
 
   return (
     <div className="admin-page admin-menus">
+      {/* WEC-768: PDF content picker. Dish titles + category headings are NOT
+          optional — they always print; only the extras are switchable. */}
+      {pdfPromptOpen && (
+        <div className="admin-modal-overlay" onClick={() => setPdfPromptOpen(false)}>
+          <div
+            className="admin-modal"
+            style={{ maxWidth: 460, height: 'auto', padding: 24 }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 style={{ margin: '0 0 4px', fontSize: 17 }}>Τι να τυπωθεί · What to print</h3>
+            <p style={{ margin: '0 0 16px', color: '#4b5563', fontSize: 13, lineHeight: 1.45 }}>
+              Οι κατηγορίες και τα ονόματα των πιάτων τυπώνονται πάντα. · A4, μία στήλη.
+            </p>
+            {([
+              ['variants', 'Παραλλαγές · Variants', 'Οι επιλογές κάτω από κάθε πιάτο.'],
+              ['prices', 'Τιμές · Prices', 'Η τιμή κάθε παραλλαγής.'],
+              ['macros', 'Μακροθρεπτικά · Macros', 'Θερμίδες, πρωτεΐνη, υδατάνθρακες, λιπαρά.'],
+            ] as const).map(([key, label, hint]) => (
+              <label key={key} className="admin-form-checkbox" style={{ alignItems: 'flex-start', marginBottom: 10 }}>
+                <input
+                  type="checkbox"
+                  checked={!!pdfOpts[key]}
+                  onChange={(e) => setPdfOpts((p) => ({ ...p, [key]: e.target.checked }))}
+                />
+                <span><strong>{label}</strong><br /><span style={{ color: '#6b7280', fontSize: 12 }}>{hint}</span></span>
+              </label>
+            ))}
+            {!pdfOpts.variants && (pdfOpts.prices || pdfOpts.macros) && (
+              <p style={{ margin: '4px 0 0', color: '#6b7280', fontSize: 12, lineHeight: 1.4 }}>
+                Με τις παραλλαγές κλειστές, δείχνονται της προεπιλεγμένης παραλλαγής.
+              </p>
+            )}
+            <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 20 }}>
+              <button className="admin-btn-ghost" onClick={() => setPdfPromptOpen(false)}>Άκυρο · Cancel</button>
+              <button
+                className="admin-btn-primary"
+                onClick={() => {
+                  try { localStorage.setItem(PDF_OPTS_KEY, JSON.stringify(pdfOpts)) } catch { /* non-fatal */ }
+                  exportMenuToPdf(buildExportModel(), pdfOpts)
+                  setPdfPromptOpen(false)
+                }}
+              >
+                Εκτύπωση · Print
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* WEC-593: Excel export format popup — Standard vs GonnaOrder external IDs. */}
       {xlsPromptOpen && (
         <div className="admin-modal-overlay" onClick={() => setXlsPromptOpen(false)}>
@@ -694,7 +776,7 @@ export function Menus() {
               <button className="admin-btn-ghost" onClick={handleDuplicateFromPrev}>Duplicate from last week</button>
               {/* WEC-754 */}
               <button className="admin-btn-ghost" onClick={openCopyPanel}>Copy from…</button>
-              <button className="admin-btn-ghost" onClick={() => exportMenuToPdf(buildExportModel())}>Export PDF</button>
+              <button className="admin-btn-ghost" onClick={() => setPdfPromptOpen(true)}>Export PDF</button>
               <button className="admin-btn-ghost" onClick={() => { setXlsFmt('standard'); setXlsPromptOpen(true) }}>Export Excel</button>
               <button
                 className={selectedMenu.active ? 'admin-btn-ghost' : 'admin-btn-primary'}
