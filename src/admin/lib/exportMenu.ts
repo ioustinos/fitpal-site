@@ -89,15 +89,14 @@ function fmtMacros(v: MenuExportVariant): string {
   return parts.join(' · ')
 }
 
-/** The trailing «— 5.50 € — 320 kcal …» for one variant, per the ticked opts. */
+/** The right-hand number columns for one variant, per the ticked opts.
+ *  Fixed widths + right alignment so the prices line up in a column down the
+ *  page — on a printed sheet that is the single biggest readability win. */
 function metaHtml(v: MenuExportVariant | undefined, opts: PdfExportOpts): string {
   if (!v) return ''
   let out = ''
   if (opts.prices) out += `<span class="price">${esc(fmtEur(v.priceCents))}</span>`
-  if (opts.macros) {
-    const m = fmtMacros(v)
-    if (m) out += `<span class="macros">${esc(m)}</span>`
-  }
+  if (opts.macros) out += `<span class="macros">${esc(fmtMacros(v))}</span>`
   return out
 }
 
@@ -108,17 +107,17 @@ function dishHtml(d: MenuExportDish, opts: PdfExportOpts): string {
   // Variants OFF → the dish line carries the DEFAULT variant's price/macros,
   // so ticking «Prices» never produces a sheet with no prices on it.
   if (!opts.variants) {
-    return `<div class="dish"><span class="dish-name">${esc(d.nameEl)}</span>${metaHtml(fallback, opts)}</div>`
+    return `<div class="dish"><div class="row"><span class="label name">${esc(d.nameEl)}</span>${metaHtml(fallback, opts)}</div></div>`
   }
 
   const varLines = rows
     .filter((v) => v.label)
-    .map((v) => `<div class="var"><span class="var-label">${esc(v.label)}</span>${metaHtml(v, opts)}</div>`)
+    .map((v) => `<div class="row var"><span class="label">${esc(v.label)}</span>${metaHtml(v, opts)}</div>`)
     .join('')
 
   // A dish with no usable variant labels still needs its price/macros shown.
   const inlineMeta = varLines ? '' : metaHtml(fallback, opts)
-  return `<div class="dish"><span class="dish-name">${esc(d.nameEl)}</span>${inlineMeta}${varLines}</div>`
+  return `<div class="dish"><div class="row"><span class="label name">${esc(d.nameEl)}</span>${inlineMeta}</div>${varLines}</div>`
 }
 
 function dayBlocksHtml(data: MenuExportData, opts: PdfExportOpts): string {
@@ -140,33 +139,71 @@ function dayBlocksHtml(data: MenuExportData, opts: PdfExportOpts): string {
 }
 
 export function exportMenuToPdf(data: MenuExportData, opts: PdfExportOpts = { variants: true }): void {
+  // WEC-768: the number columns only reserve space when they are actually
+  // printed — otherwise a names-only sheet would carry a wide empty gutter.
+  const colClass = `${opts.prices ? ' show-price' : ''}${opts.macros ? ' show-macros' : ''}`
+
   const html = `<!doctype html><html><head><meta charset="utf-8"><title>${esc(data.title)}</title>
     <style>
       /* WEC-768: A4, ONE column. The old layout was a 2-up grid of days, which
          on A4 squeezed every day into a narrow box and wrapped long dish names
          to pieces. Days stack; inside a day, categories stack. Never side by side. */
-      @page { size: A4; margin: 12mm; }
+      @page { size: A4; margin: 14mm 13mm; }
       * { box-sizing: border-box; }
-      body { font-family: -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; color: #111; margin: 0; }
-      h1 { font-size: 20px; margin: 0 0 2px; }
-      .sub { color: #666; font-size: 12px; margin-bottom: 16px; }
-      .day { margin-bottom: 14px; }
-      .day h2 { font-size: 15px; margin: 0 0 8px; border-bottom: 2px solid #00b96b; padding-bottom: 4px; }
-      /* Keep a category whole on one page where it fits — a heading orphaned at
-         the foot of a page is how a kitchen misses half a category. */
-      .cat { margin: 0 0 10px; break-inside: avoid; page-break-inside: avoid; }
-      .cat-name { font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; color: #00875a; font-weight: 700; margin-bottom: 4px; }
-      .dish { font-size: 12px; margin: 0 0 5px; break-inside: avoid; page-break-inside: avoid; }
-      .dish-name { font-weight: 600; }
-      .var { font-size: 11px; color: #444; margin: 1px 0 0 14px; }
-      .var-label { color: #444; }
-      .price { font-weight: 600; color: #00875a; margin-left: 8px; white-space: nowrap; }
-      .macros { color: #6b7280; margin-left: 8px; white-space: nowrap; }
-      .empty { color: #999; font-size: 12px; }
+      body {
+        font-family: -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        color: #111; margin: 0; font-size: 13px; line-height: 1.4;
+        -webkit-print-color-adjust: exact; print-color-adjust: exact;
+      }
+
+      /* ── Masthead ─────────────────────────────────────────────── */
+      header { border-bottom: 3px solid #00b96b; padding-bottom: 8px; margin-bottom: 18px; }
+      h1 { font-size: 23px; line-height: 1.2; margin: 0 0 3px; letter-spacing: -0.2px; }
+      .sub { color: #6b7280; font-size: 13px; }
+
+      /* ── Day ──────────────────────────────────────────────────── */
+      .day { margin-bottom: 20px; }
+      /* A day heading stranded at the foot of a page with its first category
+         overleaf is worse than a slightly short page. */
+      .day h2 {
+        font-size: 15px; margin: 0 0 10px; padding: 5px 9px;
+        background: #f0fdf7; border-left: 3px solid #00b96b; border-radius: 3px;
+        break-after: avoid; page-break-after: avoid;
+      }
+
+      /* ── Category ─────────────────────────────────────────────── */
+      .cat { margin: 0 0 13px; break-inside: avoid; page-break-inside: avoid; }
+      .cat:last-child { margin-bottom: 0; }
+      .cat-name {
+        font-size: 11.5px; text-transform: uppercase; letter-spacing: 0.7px;
+        color: #00875a; font-weight: 700; margin: 0 0 5px;
+        padding-bottom: 3px; border-bottom: 1px solid #e5e7eb;
+      }
+
+      /* ── Dish + variants ──────────────────────────────────────── */
+      .dish { margin: 0 0 7px; break-inside: avoid; page-break-inside: avoid; }
+      .dish:last-child { margin-bottom: 0; }
+
+      /* One row = label on the left, fixed number columns on the right, so the
+         prices and macros align vertically all the way down the page. */
+      .row { display: flex; align-items: baseline; gap: 10px; }
+      .label { flex: 1 1 auto; min-width: 0; }
+      .name { font-weight: 600; font-size: 13.5px; }
+      .var { margin: 2px 0 0 16px; color: #374151; font-size: 12.5px; }
+
+      .price, .macros { flex: 0 0 auto; text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+      .price { font-weight: 700; color: #00875a; font-size: 13px; }
+      .macros { color: #6b7280; font-size: 12px; }
+      .show-price .price { width: 62px; }
+      .show-macros .macros { width: 185px; }
+
+      .empty { color: #9ca3af; font-size: 12.5px; }
     </style></head>
-    <body>
-      <h1>${esc(data.title)}</h1>
-      <div class="sub">${esc(data.weekFrom)} — ${esc(data.weekTo)}</div>
+    <body class="${colClass.trim()}">
+      <header>
+        <h1>${esc(data.title)}</h1>
+        <div class="sub">${esc(data.weekFrom)} — ${esc(data.weekTo)}</div>
+      </header>
       ${dayBlocksHtml(data, opts)}
       <script>window.onload = function () { setTimeout(function () { window.print(); }, 250); };</script>
     </body></html>`
