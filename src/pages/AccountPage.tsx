@@ -34,6 +34,8 @@ import {
   saveProfileAvoidedIngredients,
   type IngredientOption,
 } from '../lib/api/diet'
+// WEC-771: ΑΦΜ validation — the same helpers the checkout uses.
+import { isValidGreekVat, vatDigits } from '../lib/vat'
 
 /** WEC-169: orders list shows 50 per page; the pagination bar hides itself
  *  when the filtered list fits on one page. */
@@ -546,6 +548,45 @@ function PrefsTab({ user, lang, updatePrefs }: any) {
               checked={prefs.goalTracking ?? false}
               onChange={(v) => setPrefs((prev: any) => ({ ...prev, goalTracking: v }))}
             />
+          </div>
+        </div>
+      </div>
+
+      {/* WEC-771: the invoice details the checkout remembers. Editable here so a
+          customer whose company name or ΑΦΜ changes can fix it once, instead of
+          correcting a prefilled field on every future order. */}
+      <div className="prefs-section-card">
+        <div className="prefs-section-header">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/>
+          </svg>
+          <div>
+            <div className="prefs-section-title">{t('acInvoiceDetails')}</div>
+            <div className="prefs-section-desc">{t('acInvoiceDetailsDesc')}</div>
+          </div>
+        </div>
+        <div className="prefs-list">
+          <div className="form-row">
+            <label className="form-label">{t('coCompanyOrName')}</label>
+            <input
+              className="form-input"
+              value={prefs.invoiceName ?? ''}
+              onChange={(e) => setPrefs((prev: any) => ({ ...prev, invoiceName: e.target.value }))}
+            />
+          </div>
+          <div className="form-row">
+            <label className="form-label">{t('vat')}</label>
+            <input
+              className="form-input"
+              value={prefs.invoiceVat ?? ''}
+              inputMode="numeric"
+              maxLength={9}
+              placeholder="123456782"
+              onChange={(e) => setPrefs((prev: any) => ({ ...prev, invoiceVat: vatDigits(e.target.value) }))}
+            />
+            {!!prefs.invoiceVat && prefs.invoiceVat.length === 9 && !isValidGreekVat(prefs.invoiceVat) && (
+              <div className="form-hint form-hint-error">{t('coVatInvalid')}</div>
+            )}
           </div>
         </div>
       </div>

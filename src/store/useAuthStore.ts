@@ -102,6 +102,10 @@ export interface UserPrefs {
   paymentMethod?: string
   cutlery?: boolean
   invoice?: boolean
+  // WEC-771: remembered invoice details, so checkout stops re-asking the same
+  // customer for the same company name and VAT number on every order.
+  invoiceName?: string
+  invoiceVat?: string
   slots?: Record<number, string>       // preferred time slot per day-of-week
   dayAddress?: Record<number, string>   // preferred address ID per day-of-week
   lang?: string

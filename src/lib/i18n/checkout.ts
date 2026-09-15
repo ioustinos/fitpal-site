@@ -86,6 +86,8 @@ export const checkout = {
     coOrderNotesPh: 'π.χ. χτύπα δύο φορές το κουδούνι, άφησε στη θυρωρό…',
     coCutlery: 'Μαχαιροπίρουνα',
     coCompanyOrName: 'Επωνυμία / Όνομα',
+    // WEC-771
+    coSaveInvoiceToAccount: 'Αποθήκευση στοιχείων τιμολογίου στον λογαριασμό μου',
     coEnterCompanyName: 'Συμπλήρωσε την επωνυμία ή το όνομα',
     coVatRequired: 'Το ΑΦΜ είναι υποχρεωτικό',
     coVat9Digits: 'Το ΑΦΜ πρέπει να έχει 9 ψηφία',
@@ -231,6 +233,7 @@ export const checkout = {
     coOrderNotesPh: 'e.g. ring the bell twice, leave with the doorman…',
     coCutlery: 'Cutlery',
     coCompanyOrName: 'Company / Name',
+    coSaveInvoiceToAccount: 'Save these invoice details to my account',
     coEnterCompanyName: 'Enter a company or name',
     coVatRequired: 'VAT number is required',
     coVat9Digits: 'VAT must be 9 digits',

@@ -1,6 +1,7 @@
 import { useEffect } from 'react'
 import { useCartStore } from '../../store/useCartStore'
 import { useUIStore } from '../../store/useUIStore'
+import { useAuthStore } from '../../store/useAuthStore'
 import { makeTr } from '../../lib/translations'
 import { Toggle } from '../ui/Toggle'
 import { isValidGreekVat, vatDigits } from '../../lib/vat'
@@ -24,7 +25,23 @@ export function ExtrasSection({ attempted = false }: ExtrasSectionProps) {
   const lang = useUIStore((s) => s.lang)
   const payment = useCartStore((s) => s.payment)
   const setPayment = useCartStore((s) => s.setPayment)
+  const user = useAuthStore((s) => s.user)
   const t = makeTr(lang)
+
+  // WEC-771: prefill Επωνυμία + ΑΦΜ from the account the moment the invoice
+  // toggle goes on, so the same customer is never asked twice. Only fills
+  // EMPTY fields — whatever is already typed always wins, including a one-off
+  // invoice to a different company.
+  const savedName = user?.prefs?.invoiceName
+  const savedVat = user?.prefs?.invoiceVat
+  useEffect(() => {
+    if (!payment.invoice) return
+    const patch: { invoiceName?: string; invoiceVat?: string } = {}
+    if (!payment.invoiceName?.trim() && savedName) patch.invoiceName = savedName
+    if (!payment.invoiceVat?.trim() && savedVat) patch.invoiceVat = savedVat
+    if (Object.keys(patch).length) setPayment(patch)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [payment.invoice, savedName, savedVat])
 
   // WEC-564: a wallet-debited meal order can't carry its own invoice — the
   // money was already settled (and invoiced where applicable) at subscription
@@ -146,6 +163,23 @@ export function ExtrasSection({ attempted = false }: ExtrasSectionProps) {
               </div>
             )}
           </div>
+
+          {/* WEC-771: Maria was retyping the same company name and 9-digit ΑΦΜ
+              on every phone order for the same customer. Ticked by default;
+              untick for a one-off invoice to a different company. Only offered
+              to a signed-in customer — a guest has no account to save it on. */}
+          {user && (
+            <label
+              style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 4, cursor: 'pointer', fontSize: 13 }}
+            >
+              <input
+                type="checkbox"
+                checked={payment.saveInvoice !== false}
+                onChange={(e) => setPayment({ saveInvoice: e.target.checked })}
+              />
+              <span>{t('coSaveInvoiceToAccount')}</span>
+            </label>
+          )}
         </div>
       )}
     </div>

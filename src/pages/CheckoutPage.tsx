@@ -19,7 +19,7 @@ import { dayLabel } from '../lib/datelabels'
 import { isValidPhone } from '../lib/phone'
 import { isValidGreekVat, vatDigits } from '../lib/vat'
 import { isValidEmail } from '../lib/email'
-import { updateProfile } from '../lib/api/auth'
+import { updateProfile, savePrefs } from '../lib/api/auth'
 import { useMenuStore } from '../store/useMenuStore'
 import { useToast } from '../components/ui/Toast'
 import { submitOrder } from '../lib/api/orders'
@@ -786,6 +786,25 @@ export function CheckoutPage() {
     }
 
     setOrderNumber(data?.orderNumber ?? '')
+
+    // WEC-771: the order is placed — now remember the invoice details on the
+    // account so the next one prefills. AFTER success on purpose: a failed
+    // submit must not leave the customer with details from an order that
+    // never happened. Fire-and-forget; a save failure is a nuisance next
+    // time, never a reason to interrupt a confirmed order.
+    if (user && payment.invoice && payment.saveInvoice !== false) {
+      const nextName = payment.invoiceName?.trim() ?? ''
+      const nextVat = payment.invoiceVat?.trim() ?? ''
+      if (nextName || nextVat) {
+        const prefs = useAuthStore.getState().user?.prefs ?? {}
+        if (prefs.invoiceName !== nextName || prefs.invoiceVat !== nextVat) {
+          void savePrefs(user.id, { ...prefs, invoiceName: nextName, invoiceVat: nextVat })
+            .then(({ error: prefErr }) => {
+              if (prefErr) console.warn('[checkout] invoice details not saved to account:', prefErr)
+            })
+        }
+      }
+    }
 
     // WEC-417: the draft just promoted to a real order on the server (or this
     // was a legacy no-draft submit). Clear the client draft id so a refresh /
