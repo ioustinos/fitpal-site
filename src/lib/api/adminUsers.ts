@@ -388,3 +388,71 @@ export async function grantWalletCredit(args: {
     return { data: null, error: err instanceof Error ? err.message : 'Network error' }
   }
 }
+
+/* ────────────────────────────────────────────────────────────────────────────
+ *  WEC-770 · Create a customer on their behalf
+ *
+ *  The team takes orders by phone from people who have never used the site.
+ *  Before this they had to ask Ioustinos to insert rows by hand.
+ * ──────────────────────────────────────────────────────────────────────────── */
+
+export interface NewCustomerInput {
+  email: string
+  name?: string
+  phone?: string
+  address?: {
+    street?: string
+    area?: string
+    zip?: string
+    floor?: string
+    doorbell?: string
+    notes?: string
+  }
+}
+
+export interface NewCustomerResult {
+  userId: string | null
+  error: string | null
+  /** Set when the email already belongs to a customer, so the UI can offer
+   *  to jump to them instead of just refusing. */
+  existingUserId?: string
+  existingName?: string | null
+}
+
+export async function createAdminCustomer(input: NewCustomerInput): Promise<NewCustomerResult> {
+  const { data: sess } = await supabase.auth.getSession()
+  const token = sess?.session?.access_token
+  if (!token) return { userId: null, error: 'Not signed in' }
+
+  // Direct function path, not /api/* — same reason as impersonation: under
+  // `netlify dev --offline` Vite's SPA fallback swallows /api/* and hands back
+  // index.html. Production is unaffected either way.
+  const res = await fetch('/.netlify/functions/admin-create-customer', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    body: JSON.stringify(input),
+  })
+  const json = await res.json().catch(() => ({}))
+  if (!res.ok) {
+    return {
+      userId: null,
+      error: json?.error ?? `Failed (${res.status})`,
+      existingUserId: json?.existingUserId,
+      existingName: json?.existingName ?? null,
+    }
+  }
+  return { userId: json.userId as string, error: null }
+}
+
+/**
+ * Invite a customer created by an admin.
+ *
+ * Reuses the site's existing OTP / magic-link login email rather than a
+ * password-reset mail: the customer never had a password, so "reset your
+ * password" would be nonsense to them. This is the same bilingual email the
+ * normal login flow sends, already delivering through Brevo.
+ */
+export async function sendCustomerInvite(email: string, name?: string): Promise<{ ok: boolean; error?: string }> {
+  const { sendEmailOtp } = await import('./auth')
+  return sendEmailOtp(email, name)
+}

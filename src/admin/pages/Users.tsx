@@ -2,8 +2,11 @@ import { useEffect, useState } from 'react'
 import {
   fetchAdminUsers, fetchAdminUserDetail, saveAdminUserNotes, setWalletAdminManaged, setWalletActive,
   grantWalletCredit,
+  // WEC-770
+  createAdminCustomer, sendCustomerInvite, type NewCustomerInput,
   type AdminUserRow, type AdminUserDetail, type WalletGrantType,
 } from '../../lib/api/adminUsers'
+import { fetchAdminZones, type AdminZone } from '../../lib/api/adminZones'
 import { useImpersonationStore } from '../../store/useImpersonationStore'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { fetchActivePlanDetails, type PlanDetails } from '../../lib/api/planDetails'
@@ -102,6 +105,22 @@ export function Users() {
     refresh({ page: 0, search: searchInput })
   }
 
+  // WEC-770: create-customer modal. Zones are loaded once so the postcode can
+  // be checked against the delivery area AT CREATION, rather than the admin
+  // discovering it at checkout with the customer on the phone.
+  const [newOpen, setNewOpen] = useState(false)
+  const [zones, setZones] = useState<AdminZone[]>([])
+  useEffect(() => {
+    if (!newOpen || zones.length) return
+    void fetchAdminZones().then(({ data }) => { if (data) setZones(data) })
+  }, [newOpen, zones.length])
+
+  async function handleCustomerCreated(userId: string) {
+    setNewOpen(false)
+    await refresh({ page: 0, search: '' })
+    void loadDetail(userId)
+  }
+
   async function handleImpersonate(d: AdminUserDetail) {
     // Approach A — session swap. The store stashes the admin's session,
     // calls /api/admin-impersonate-start to mint a magic-link token for
@@ -121,6 +140,14 @@ export function Users() {
 
   return (
     <div className="admin-page">
+      {newOpen && (
+        <NewCustomerModal
+          zones={zones}
+          onClose={() => setNewOpen(false)}
+          onCreated={handleCustomerCreated}
+          onOpenExisting={(id) => { setNewOpen(false); void loadDetail(id) }}
+        />
+      )}
       <div className="admin-page-head">
         <div>
           <h1 className="admin-page-title">Users</h1>
@@ -135,6 +162,10 @@ export function Users() {
             style={{ minWidth: 260 }}
           />
           <button className="admin-btn-primary" type="submit">Search</button>
+          {/* WEC-770 */}
+          <button className="admin-btn-ghost" type="button" onClick={() => setNewOpen(true)}>
+            + Νέος πελάτης
+          </button>
           {search && (
             <button
               className="admin-btn-ghost"
@@ -304,9 +335,16 @@ function UserDetail({
             </div>
           )}
         </div>
-        <button className="admin-btn-primary" onClick={onImpersonate}>
-          Place order for this customer →
-        </button>
+        <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
+          {/* WEC-770: an admin-created customer has no password and has never
+              logged in. This sends them the normal OTP / magic-link login
+              email — NOT a password reset, which would be nonsense to someone
+              who never had one. Only fires when pressed. */}
+          <InviteButton email={detail.email} name={detail.name} />
+          <button className="admin-btn-primary" onClick={onImpersonate}>
+            Place order for this customer →
+          </button>
+        </div>
       </div>
 
       {err && <div className="admin-error-banner" style={{ marginTop: 12 }}>{err}</div>}
@@ -660,5 +698,161 @@ function GrantCreditModal({
         </div>
       </div>
     </div>
+  )
+}
+
+
+/* ────────────────────────────────────────────────────────────────────────────
+ *  WEC-770 · Create customer
+ * ──────────────────────────────────────────────────────────────────────────── */
+
+function NewCustomerModal({
+  zones, onClose, onCreated, onOpenExisting,
+}: {
+  zones: AdminZone[]
+  onClose: () => void
+  onCreated: (userId: string) => void
+  onOpenExisting: (userId: string) => void
+}) {
+  const [f, setF] = useState({
+    email: '', name: '', phone: '',
+    street: '', area: '', zip: '', floor: '', doorbell: '', notes: '',
+  })
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [existingId, setExistingId] = useState<string | null>(null)
+
+  const set = (k: keyof typeof f) => (e: React.ChangeEvent<HTMLInputElement>) =>
+    setF((p) => ({ ...p, [k]: e.target.value }))
+
+  // Postcode-only zone match — the same rule the customer checkout uses.
+  const zip = f.zip.trim()
+  const zone = zip ? zones.find((z) => z.active && z.postcodes.includes(zip)) : undefined
+  const zipKnown = zones.length > 0 && zip.length >= 4
+
+  async function submit() {
+    setError(null); setExistingId(null); setBusy(true)
+    const payload: NewCustomerInput = {
+      email: f.email, name: f.name, phone: f.phone,
+      address: f.street.trim()
+        ? { street: f.street, area: f.area, zip: f.zip, floor: f.floor, doorbell: f.doorbell, notes: f.notes }
+        : undefined,
+    }
+    const res = await createAdminCustomer(payload)
+    setBusy(false)
+    if (res.error) {
+      setError(res.error)
+      if (res.existingUserId) setExistingId(res.existingUserId)
+      return
+    }
+    if (res.userId) onCreated(res.userId)
+  }
+
+  return (
+    <div className="admin-modal-overlay" onClick={onClose}>
+      <div
+        className="admin-modal"
+        style={{ maxWidth: 600, height: 'auto', padding: 24 }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <h3 style={{ margin: '0 0 4px', fontSize: 17 }}>Νέος πελάτης · New customer</h3>
+        <p style={{ margin: '0 0 16px', color: '#4b5563', fontSize: 13, lineHeight: 1.45 }}>
+          Ο λογαριασμός δημιουργείται έτοιμος προς χρήση — <strong>δεν στέλνεται κανένα email</strong> και
+          δεν χρειάζεται ο πελάτης να κάνει τίποτα. Μπορείς να καταχωρήσεις παραγγελία του αμέσως.
+        </p>
+
+        <Field label="Email *" value={f.email} onChange={set('email')} placeholder="name@example.com" />
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+          <Field label="Όνομα" value={f.name} onChange={set('name')} />
+          <Field label="Τηλέφωνο" value={f.phone} onChange={set('phone')} />
+        </div>
+
+        <div style={{ marginTop: 14, paddingTop: 12, borderTop: '1px solid #e5e7eb' }}>
+          <div style={{ fontSize: 12, fontWeight: 700, color: '#6b7280', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 8 }}>
+            Διεύθυνση παράδοσης — προαιρετική
+          </div>
+          <Field label="Οδός και αριθμός" value={f.street} onChange={set('street')} />
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+            <Field label="Περιοχή" value={f.area} onChange={set('area')} />
+            <Field label="Τ.Κ." value={f.zip} onChange={set('zip')} />
+          </div>
+          {zipKnown && (
+            zone
+              ? <div style={{ fontSize: 12, color: '#00875a', marginTop: -4 }}>✓ Εντός ζώνης: {zone.nameEl}</div>
+              : <div style={{ fontSize: 12, color: '#b45309', marginTop: -4 }}>
+                  ⚠ Ο Τ.Κ. {zip} δεν ανήκει σε καμία ενεργή ζώνη παράδοσης. Ο λογαριασμός θα δημιουργηθεί κανονικά,
+                  αλλά η παραγγελία θα κοπεί στο checkout.
+                </div>
+          )}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+            <Field label="Όροφος" value={f.floor} onChange={set('floor')} />
+            <Field label="Κουδούνι" value={f.doorbell} onChange={set('doorbell')} />
+          </div>
+          <Field label="Σχόλια διεύθυνσης" value={f.notes} onChange={set('notes')} />
+        </div>
+
+        {error && (
+          <div className="admin-error-banner" style={{ marginTop: 12 }}>
+            {error}
+            {existingId && (
+              <>
+                {' '}
+                <button className="admin-inline-link" onClick={() => onOpenExisting(existingId)}>
+                  Άνοιξέ τον →
+                </button>
+              </>
+            )}
+          </div>
+        )}
+
+        <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 20 }}>
+          <button className="admin-btn-ghost" onClick={onClose} disabled={busy}>Άκυρο</button>
+          <button className="admin-btn-primary" onClick={submit} disabled={busy || !f.email.trim()}>
+            {busy ? 'Δημιουργία…' : 'Δημιουργία πελάτη'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function Field({
+  label, value, onChange, placeholder,
+}: {
+  label: string
+  value: string
+  onChange: (e: React.ChangeEvent<HTMLInputElement>) => void
+  placeholder?: string
+}) {
+  return (
+    <label style={{ display: 'block', marginBottom: 10 }}>
+      <span style={{ display: 'block', fontSize: 12, color: '#6b7280', marginBottom: 3 }}>{label}</span>
+      <input className="admin-input" style={{ width: '100%' }} value={value} onChange={onChange} placeholder={placeholder} />
+    </label>
+  )
+}
+
+function InviteButton({ email, name }: { email: string; name: string | null }) {
+  const [state, setState] = useState<'idle' | 'busy' | 'sent' | 'error'>('idle')
+  const [msg, setMsg] = useState<string | null>(null)
+
+  async function send() {
+    if (!email) return
+    if (!window.confirm(`Να σταλεί email σύνδεσης στον ${email};`)) return
+    setState('busy')
+    const { ok, error } = await sendCustomerInvite(email, name ?? undefined)
+    if (ok) { setState('sent'); setMsg(null) }
+    else { setState('error'); setMsg(error ?? 'Απέτυχε') }
+  }
+
+  return (
+    <button
+      className="admin-btn-ghost"
+      onClick={send}
+      disabled={state === 'busy' || state === 'sent' || !email}
+      title={msg ?? 'Στέλνει το κανονικό email σύνδεσης (OTP / magic link)'}
+    >
+      {state === 'sent' ? '✓ Στάλθηκε' : state === 'busy' ? 'Αποστολή…' : 'Στείλε πρόσκληση'}
+    </button>
   )
 }
