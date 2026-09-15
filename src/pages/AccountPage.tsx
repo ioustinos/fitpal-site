@@ -52,7 +52,9 @@ const ORDERS_PAGE_SIZE = 50
 export function AccountPage() {
   const lang = useUIStore((s) => s.lang)
   const closeAccount = useUIStore((s) => s.closeAccount)
+  const goToAccount = useUIStore((s) => s.goToAccount)
   const goToMenu = useUIStore((s) => s.goToMenu)
+  const sessionChecked = useAuthStore((s) => s.sessionChecked)
   const accountTab = useUIStore((s) => s.accountTab)
   const { user, logout, updatePrefs, updateGoals, updateAddresses } = useAuthStore()
 
@@ -77,6 +79,13 @@ export function AccountPage() {
   // team flagged that changing tab (e.g. Παρατηρήσεις → Στόχοι) left the user
   // stranded mid-page.
   useEffect(() => { window.scrollTo({ top: 0, behavior: 'smooth' }) }, [tab])
+
+  // WEC-772: a logged-out deep link to /account/* would render a blank shell
+  // forever. Once the session check has settled with no user, fall back to the
+  // menu (which also restores the URL to /).
+  useEffect(() => {
+    if (sessionChecked && !user) goToMenu()
+  }, [sessionChecked, user])
 
   if (!user) return null
 
@@ -113,7 +122,7 @@ export function AccountPage() {
             <button
               key={tb.key}
               className={`account-nav-item${tab === tb.key ? ' active' : ''}`}
-              onClick={() => setTab(tb.key)}
+              onClick={() => goToAccount(tb.key)}
             >
               {tb.icon}
               {accountTabLabel(tb.key, lang)}

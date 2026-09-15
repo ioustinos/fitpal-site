@@ -24,6 +24,8 @@ import { StoreProvider } from './lib/storefront/StoreProvider'
 import { initTracking } from './lib/tracking'
 import { LANDING_URL } from './lib/siteUrls'
 import { subscribeUiStrings, uiStringOverrideVersion } from './lib/i18n/overrides'
+import { ACCOUNT_TABS } from './lib/accountNav'
+import { resolveSlugFromLocation } from './lib/storefront/reserved'
 
 // Admin is lazy-loaded so the customer bundle stays lean — /admin/* code
 // won't be fetched until a user actually visits the admin panel.
@@ -41,6 +43,7 @@ function CustomerApp() {
   const isCheckout = useUIStore((s) => s.isCheckout)
   const isAccountPage = useUIStore((s) => s.isAccountPage)
   const isWalletPage = useUIStore((s) => s.isWalletPage)
+  const accountTab = useUIStore((s) => s.accountTab)
   const lang = useUIStore((s) => s.lang)
 
   // Cross-domain marketing routes (Subscriptions / A La Carte / B2B / About)
@@ -72,6 +75,53 @@ function CustomerApp() {
       useUIStore.getState().goToWalletPage()
     }
   }, [])
+
+  // WEC-772: /account/:tab is a real, refresh-surviving deep link. On mount,
+  // read the path back into the store so a reload or a pasted /account/prefs
+  // link renders the account page instead of dumping the customer on the menu.
+  const accountDeeplinkHandled = useRef(false)
+  useEffect(() => {
+    if (accountDeeplinkHandled.current) return
+    accountDeeplinkHandled.current = true
+    if (typeof window === 'undefined') return
+    // 'account' is a RESERVED_SEGMENTS word, so it can't be a store slug — that
+    // means indexOf finds the account segment whether the path is /account/tab
+    // (main) or /<store>/account/tab (B2B), and the segment after it is the tab.
+    const parts = window.location.pathname.split('/').filter(Boolean)
+    const idx = parts.indexOf('account')
+    if (idx !== -1) {
+      const raw = (parts[idx + 1] || 'orders').toLowerCase()
+      const alias = raw === 'wallet' ? 'subscription' : raw // WEC-589 merged tab
+      const valid = ACCOUNT_TABS.some((tb) => tb.key === alias)
+      useUIStore.getState().goToAccount(valid ? alias : 'orders')
+    }
+  }, [])
+
+  // WEC-772: keep the URL in step with the account view so refresh + share work.
+  // `account` and every tab key are RESERVED_SEGMENTS, so /account/<tab> can
+  // never be mistaken for a storefront slug (see lib/storefront/reserved.ts).
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    // WEC-772 (B2B fix): keep the store slug in front of /account/<tab> so a
+    // signed-in customer inside a company/reseller store (/<slug>/…) is NOT
+    // silently dropped onto the retail store on reload. Derive the base from the
+    // PATH (not useStorefront, which reports `main` during async resolution).
+    const slug = resolveSlugFromLocation({
+      hostname: window.location.hostname,
+      pathname: window.location.pathname,
+      search: window.location.search,
+    })
+    const base = slug ? `/${slug}` : ''
+    const search = window.location.search
+    const path = window.location.pathname
+    const onAccount = path.split('/').filter(Boolean).includes('account')
+    if (isAccountPage) {
+      const want = `${base}/account/${accountTab || 'orders'}`
+      if (path !== want) window.history.replaceState(null, '', want + search)
+    } else if (onAccount) {
+      window.history.replaceState(null, '', (base || '/') + search)
+    }
+  }, [isAccountPage, accountTab])
 
   return (
     <>
