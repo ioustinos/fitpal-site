@@ -4502,24 +4502,26 @@ body.is-impersonating { padding-top: 36px; }
 /* Mobile — the gradient turns vertical so the food stays visible at the top
    and the text sits on solid green underneath. */
 @media (max-width: 900px) {
-  /* align-self: the row is align-items:stretch, which was inflating the card
-     to ~800px on a phone and leaving a huge empty green field under the text.
-     Let it be as tall as its own content. */
-  .sub-photo-card { height: auto; min-height: 152px; align-self: flex-start; }
+  /* Mobile per the design: the gradient turns vertical, the food stays visible
+     at the top and the text sits on solid green underneath. A FIXED height with
+     the content absolutely positioned is deliberate — height:auto inside
+     .banner-row (align-items:stretch) inflated the card to ~800px with a big
+     empty green field under the CTA. */
+  .sub-photo-card { height: 210px; align-self: flex-start; }
   .spc-scrim {
-    background: linear-gradient(180deg, rgba(0,56,44,.5) 0%, rgba(0,56,44,.9) 52%, #00382C 100%);
+    background: linear-gradient(180deg, rgba(0,56,44,.35) 0%, rgba(0,56,44,.88) 48%, #00382C 100%);
   }
   .spc-content {
-    position: relative; inset: auto;
     flex-direction: column; align-items: stretch; justify-content: flex-end;
-    gap: 10px; padding: 12px; min-height: 152px;
+    gap: 8px; padding: 12px;
   }
   .spc-toprow { gap: 6px; }
   .spc-disc { font-size: 11px; padding: 3px 9px; }
   .spc-eyebrow { font-size: 10px; letter-spacing: .12em; }
-  .spc-headline { font-size: 19px; line-height: 1.15; white-space: normal; }
-  .spc-sub { font-size: 11px; max-width: none; }
-  .spc-right { align-items: stretch; }
-  .spc-cta { padding: 12px; text-align: center; }
+  .spc-headline { font-size: 19px; line-height: 1.15; }
+  .spc-sub { font-size: 11px; max-width: none; line-height: 1.3; }
+  .spc-right { align-items: stretch; gap: 4px; }
+  .spc-cta { padding: 11px; text-align: center; }
   .spc-steps { text-align: center; }
+}
 }
