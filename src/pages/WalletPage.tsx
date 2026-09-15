@@ -1043,9 +1043,17 @@ export function WalletPage() {
                   {isEl
                     ? <>{selectedKcal} kcal · <strong>{pct}%</strong> των ημερήσιων αναγκών σου</>
                     : <>{selectedKcal} kcal · <strong>{pct}%</strong> of your daily intake</>}
+                  {/* WEC-777: the extra-meals discount is real and already
+                      applied — say so. The percentage comes from the same
+                      config the calculator uses, so the copy can never
+                      advertise a discount we don't actually give. The number
+                      itself renders through DiscountPill (WEC-755) so every
+                      discount on the site looks the same. */}
                   {extraMealPct > 0 && (
                     <span className="wpv2-meals-discount">
-                      {isEl ? <> · <strong>−{extraMealPct}%</strong> για επιπλέον γεύματα</> : <> · <strong>−{extraMealPct}%</strong> for extra meals</>}
+                      {' · '}{t('walEarnedPrefix')}{' '}
+                      <DiscountPill pct={extraMealPct} size="sm" />{' '}
+                      {t('walEarnedSuffix')}
                     </span>
                   )}
                 </div>

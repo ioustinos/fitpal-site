@@ -19,6 +19,9 @@ export const wallet = {
     // number, not the sentence.
     walCashOverCapHint: 'Η αντικαταβολή δεν είναι διαθέσιμη για κόστος συνδρομής πάνω από {max} ευρώ',
     walCashOverCapShort: 'Μη διαθέσιμη άνω των {max} €',
+    // WEC-777: wraps the DiscountPill — «κέρδισες [−2%] έκπτωση επιπλέον»
+    walEarnedPrefix: 'κέρδισες',
+    walEarnedSuffix: 'έκπτωση επιπλέον',
     // Wallet
     walletBalance: 'Υπόλοιπο',
     walletTopUp: 'Αναπλήρωση',
@@ -28,6 +31,8 @@ export const wallet = {
   en: {
     walCashOverCapHint: 'Cash on delivery is not available for subscriptions over {max} €',
     walCashOverCapShort: 'Unavailable over {max} €',
+    walEarnedPrefix: 'you earned an extra',
+    walEarnedSuffix: 'discount',
     // Wallet
     walletBalance: 'Balance',
     walletTopUp: 'Top Up',
