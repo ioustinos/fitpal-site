@@ -4502,7 +4502,10 @@ body.is-impersonating { padding-top: 36px; }
 /* Mobile — the gradient turns vertical so the food stays visible at the top
    and the text sits on solid green underneath. */
 @media (max-width: 900px) {
-  .sub-photo-card { height: auto; min-height: 152px; }
+  /* align-self: the row is align-items:stretch, which was inflating the card
+     to ~800px on a phone and leaving a huge empty green field under the text.
+     Let it be as tall as its own content. */
+  .sub-photo-card { height: auto; min-height: 152px; align-self: flex-start; }
   .spc-scrim {
     background: linear-gradient(180deg, rgba(0,56,44,.5) 0%, rgba(0,56,44,.9) 52%, #00382C 100%);
   }
