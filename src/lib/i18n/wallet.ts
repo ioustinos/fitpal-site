@@ -13,6 +13,12 @@
 
 export const wallet = {
   el: {
+    // WEC-778: cash-on-delivery cap. {max} is replaced at render with
+    // settings.cash_max_amount, so editing this text in /admin/copy keeps the
+    // number in sync with the actual rule. Drop the token and you lose the
+    // number, not the sentence.
+    walCashOverCapHint: 'Η αντικαταβολή δεν είναι διαθέσιμη για κόστος συνδρομής πάνω από {max} ευρώ',
+    walCashOverCapShort: 'Μη διαθέσιμη άνω των {max} €',
     // Wallet
     walletBalance: 'Υπόλοιπο',
     walletTopUp: 'Αναπλήρωση',
@@ -20,6 +26,8 @@ export const wallet = {
     walletSubscribe: 'Εγγραφή',
   },
   en: {
+    walCashOverCapHint: 'Cash on delivery is not available for subscriptions over {max} €',
+    walCashOverCapShort: 'Unavailable over {max} €',
     // Wallet
     walletBalance: 'Balance',
     walletTopUp: 'Top Up',
