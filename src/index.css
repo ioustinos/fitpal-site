@@ -4437,3 +4437,78 @@ body.is-impersonating { padding-top: 36px; }
   font-family: inherit; font-size: 13px; font-weight: 700;
 }
 .subs-owed-cta:hover { background: #fdefd2; }
+
+
+/* ── WEC-775 · Subscription banner — Σχεδίαση 4 «Φωτογραφία σε όλο το πλάτος»
+   Spec: docs/design/subscription-banner-2026-08/Banner Report.dc.html.
+   The photo is the surface; a horizontal gradient carries the text. Title
+   left, CTA right, the food visible in the middle. 208px tall on desktop. */
+.sub-photo-card {
+  position: relative;
+  height: 208px;
+  border-radius: 20px;
+  overflow: hidden;
+  cursor: pointer;
+  box-shadow: 0 10px 24px rgba(0, 55, 44, 0.18);
+}
+.spc-photo {
+  position: absolute; inset: 0;
+  background-size: cover; background-position: center;
+}
+.spc-scrim {
+  position: absolute; inset: 0; pointer-events: none;
+  background: linear-gradient(90deg, #00382C 0%, rgba(0,56,44,.9) 36%, rgba(0,56,44,.18) 60%, rgba(0,56,44,.6) 100%);
+}
+.spc-content {
+  position: absolute; inset: 0; padding: 20px;
+  display: flex; align-items: center; justify-content: space-between; gap: 14px;
+  pointer-events: none;
+}
+.spc-left { display: flex; flex-direction: column; gap: 7px; min-width: 0; }
+.spc-toprow { display: flex; align-items: center; gap: 10px; white-space: nowrap; }
+.spc-disc {
+  background: #F7A81B; color: #00382C;
+  font-size: 15px; font-weight: 800; padding: 6px 13px; border-radius: 999px;
+}
+.spc-eyebrow { font-size: 11px; font-weight: 600; letter-spacing: .14em; color: #a8c4b7; }
+.spc-headline {
+  font-size: 24px; font-weight: 800; color: #fff;
+  letter-spacing: -.01em; line-height: 1.1; white-space: nowrap;
+}
+/* WEC-775: the design's sub was one short line and used white-space:nowrap.
+   The replacement copy is a full sentence, so it MUST be allowed to wrap —
+   capped so it never runs under the food or the CTA. */
+.spc-sub {
+  font-size: 13px; font-weight: 400; color: #cfe6d9;
+  line-height: 1.35; max-width: 42ch;
+}
+.spc-right { flex: none; display: flex; flex-direction: column; align-items: flex-end; gap: 6px; }
+.spc-cta {
+  background: #2DB56A; color: #fff; border: 0; cursor: pointer;
+  font-size: 14px; font-weight: 800; padding: 13px 20px; border-radius: 999px;
+  pointer-events: auto; white-space: nowrap;
+}
+.spc-cta:hover { background: #35C878; }
+.spc-steps { font-size: 11px; font-weight: 400; color: #cfe6d9; white-space: nowrap; }
+
+/* Mobile — the gradient turns vertical so the food stays visible at the top
+   and the text sits on solid green underneath. */
+@media (max-width: 720px) {
+  .sub-photo-card { height: auto; min-height: 152px; }
+  .spc-scrim {
+    background: linear-gradient(180deg, rgba(0,56,44,.5) 0%, rgba(0,56,44,.9) 52%, #00382C 100%);
+  }
+  .spc-content {
+    position: relative; inset: auto;
+    flex-direction: column; align-items: stretch; justify-content: flex-end;
+    gap: 10px; padding: 12px; min-height: 152px;
+  }
+  .spc-toprow { gap: 6px; }
+  .spc-disc { font-size: 11px; padding: 3px 9px; }
+  .spc-eyebrow { font-size: 10px; letter-spacing: .12em; }
+  .spc-headline { font-size: 19px; line-height: 1.15; white-space: normal; }
+  .spc-sub { font-size: 11px; max-width: none; }
+  .spc-right { align-items: stretch; }
+  .spc-cta { padding: 12px; text-align: center; }
+  .spc-steps { text-align: center; }
+}

@@ -230,42 +230,34 @@ export function MenuPage() {
                     </div>
                   </div>
                 ) : (
-                  /* WEC-647 Option 2 — wizard-preview banner, matched to the Claude
-                     Design pack: dish photo · eyebrow + headline + ΕΩΣ -20% pill ·
-                     progress bar · 2×2 wizard-step fields · dark-green CTA. */
+                  /* WEC-775 — Σχεδίαση 4 «Φωτογραφία σε όλο το πλάτος» from
+                     docs/design/subscription-banner-2026-08/Banner Report.dc.html.
+                     The photo IS the surface; a horizontal green gradient keeps the
+                     text readable. Title left, CTA right, food in the middle.
+                     Replaces Option 2 (the wizard preview) per Ioustinos 16/09. */
                   <div
-                    className="sub-wizard-card"
+                    className="sub-photo-card"
                     onClick={() => goToWalletPage()}
                     role="button"
                     tabIndex={0}
                     onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); goToWalletPage() } }}
                   >
-                    <div className="swc-photo" style={{ backgroundImage: 'url(/banner-dish.jpg)' }} aria-hidden="true" />
-                    <div className="swc-body">
-                      <div className="swc-head">
-                        <div className="swc-head-txt">
-                          <span className="swc-eyebrow">{t('subBannerEyebrow')}</span>
-                          <span className="swc-headline">{t('subBannerHeadline')}</span>
+                    <div className="spc-photo" style={{ backgroundImage: 'url(/banner-dish.jpg)' }} aria-hidden="true" />
+                    <div className="spc-scrim" aria-hidden="true" />
+                    <div className="spc-content">
+                      <div className="spc-left">
+                        <div className="spc-toprow">
+                          <span className="spc-disc">{t('subBannerDiscount')}</span>
+                          <span className="spc-eyebrow">{t('subBannerEyebrow')}</span>
                         </div>
-                        <span className="swc-disc">{t('subBannerDiscount')}</span>
+                        <span className="spc-headline">{t('subBannerHeadline')}</span>
+                        <span className="spc-sub">{t('subBannerSub')}</span>
                       </div>
-                      <div className="swc-steprow" aria-hidden="true">
-                        <span className="swc-steplabel">{t('subBannerStepLabel')}</span>
-                        <div className="swc-progress">
-                          <span className="swc-progress-fill" />
-                          <span className="swc-progress-track" />
-                        </div>
-                      </div>
-                      <div className="swc-fields" aria-hidden="true">
-                        <div className="swc-field"><span>{t('subBannerStep1')}</span><span className="swc-chev">⌄</span></div>
-                        <div className="swc-field"><span>{t('subBannerStep2')}</span><span className="swc-chev">⌄</span></div>
-                        <div className="swc-field"><span>{t('subBannerStep3')}</span><span className="swc-chev">⌄</span></div>
-                        <div className="swc-field"><span>{t('subBannerStep4')}</span><span className="swc-chev">⌄</span></div>
-                      </div>
-                      <div className="swc-cta-row">
-                        <button type="button" className="swc-cta" onClick={(e) => { e.stopPropagation(); goToWalletPage() }}>
+                      <div className="spc-right">
+                        <button type="button" className="spc-cta" onClick={(e) => { e.stopPropagation(); goToWalletPage() }}>
                           {t('subBannerCta')} →
                         </button>
+                        <span className="spc-steps">{t('subBannerSteps')}</span>
                       </div>
                     </div>
                   </div>
