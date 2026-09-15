@@ -198,7 +198,11 @@ header {
 .page-banner::after { content: ''; position: absolute; right: -40px; top: -40px; width: 200px; height: 200px; background: var(--lime); border-radius: 50%; opacity: 0.16; }
 .page-banner::before { content: ''; position: absolute; right: 60px; bottom: -60px; width: 140px; height: 140px; background: var(--green); border-radius: 50%; opacity: 0.08; }
 /* WEC-338 — banner row now splits 50/50; both cards carry equal visual weight. */
-.banner-row { display: flex; align-items: stretch; gap: 16px; margin-bottom: 22px; }
+/* WEC-775: wrap. The row is [weekly-menu banner 260px][promo card]; between
+   the mobile breakpoint and a wide desktop the card was being squeezed to
+   ~317px, where a side-by-side banner cannot work. Below its flex-basis the
+   card now drops to its own full-width line instead of collapsing. */
+.banner-row { display: flex; flex-wrap: wrap; align-items: stretch; gap: 16px; margin-bottom: 22px; }
 .banner-row .page-banner { margin-bottom: 0; }
 .banner-top { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; position: relative; z-index: 1; }
 .banner-heading { font-size: 22px; font-weight: 900; color: var(--white); letter-spacing: -0.5px; }
@@ -4447,7 +4451,7 @@ body.is-impersonating { padding-top: 36px; }
   /* .banner-row is a flex row (the weekly-menu banner sits beside this card),
      so without a flex basis the card collapses to width:0 and disappears —
      which is exactly what it did on the first deploy. */
-  flex: 1; min-width: 0;
+  flex: 1 1 420px; min-width: 0;
   position: relative;
   height: 208px;
   border-radius: 20px;
@@ -4477,7 +4481,7 @@ body.is-impersonating { padding-top: 36px; }
 .spc-eyebrow { font-size: 11px; font-weight: 600; letter-spacing: .14em; color: #a8c4b7; }
 .spc-headline {
   font-size: 24px; font-weight: 800; color: #fff;
-  letter-spacing: -.01em; line-height: 1.1; white-space: nowrap;
+  letter-spacing: -.01em; line-height: 1.15;
 }
 /* WEC-775: the design's sub was one short line and used white-space:nowrap.
    The replacement copy is a full sentence, so it MUST be allowed to wrap —
@@ -4497,7 +4501,7 @@ body.is-impersonating { padding-top: 36px; }
 
 /* Mobile — the gradient turns vertical so the food stays visible at the top
    and the text sits on solid green underneath. */
-@media (max-width: 720px) {
+@media (max-width: 900px) {
   .sub-photo-card { height: auto; min-height: 152px; }
   .spc-scrim {
     background: linear-gradient(180deg, rgba(0,56,44,.5) 0%, rgba(0,56,44,.9) 52%, #00382C 100%);
