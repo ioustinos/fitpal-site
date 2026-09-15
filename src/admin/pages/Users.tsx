@@ -845,14 +845,25 @@ function InviteButton({ email, name }: { email: string; name: string | null }) {
     else { setState('error'); setMsg(error ?? 'Απέτυχε') }
   }
 
+  // A failure used to leave the label reading «Στείλε πρόσκληση» with the
+  // reason hidden in a tooltip — indistinguishable from "nothing happened".
+  // Say it out loud instead.
   return (
-    <button
-      className="admin-btn-ghost"
-      onClick={send}
-      disabled={state === 'busy' || state === 'sent' || !email}
-      title={msg ?? 'Στέλνει το κανονικό email σύνδεσης (OTP / magic link)'}
-    >
-      {state === 'sent' ? '✓ Στάλθηκε' : state === 'busy' ? 'Αποστολή…' : 'Στείλε πρόσκληση'}
-    </button>
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 2 }}>
+      <button
+        className="admin-btn-ghost"
+        onClick={send}
+        disabled={state === 'busy' || state === 'sent' || !email}
+        title="Στέλνει το κανονικό email σύνδεσης (OTP / magic link)"
+      >
+        {state === 'sent' ? '✓ Στάλθηκε'
+          : state === 'busy' ? 'Αποστολή…'
+          : state === 'error' ? '✗ Ξαναδοκίμασε'
+          : 'Στείλε πρόσκληση'}
+      </button>
+      {state === 'error' && msg && (
+        <span style={{ fontSize: 11, color: '#b91c1c', maxWidth: 240, textAlign: 'right' }}>{msg}</span>
+      )}
+    </div>
   )
 }
