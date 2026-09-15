@@ -17,6 +17,7 @@ import { TermsPage } from './pages/TermsPage'
 import { DishModal } from './components/menu/DishModal'
 import { AuthModal } from './components/layout/AuthModal'
 import { WalletModal } from './components/wallet/WalletModal'
+import { DemoDishesModal } from './components/wallet/DemoDishesModal'
 import SiteFooter from './components/layout/SiteFooter'
 import { ImpersonationBanner } from './components/admin/ImpersonationBanner'
 import { ConsentBanner } from './components/consent/ConsentBanner'
@@ -45,6 +46,8 @@ function CustomerApp() {
   const isWalletPage = useUIStore((s) => s.isWalletPage)
   const accountTab = useUIStore((s) => s.accountTab)
   const lang = useUIStore((s) => s.lang)
+  const demoDishesOpen = useUIStore((s) => s.demoDishesOpen)
+  const closeDemoDishes = useUIStore((s) => s.closeDemoDishes)
 
   // Cross-domain marketing routes (Subscriptions / A La Carte / B2B / About)
   // live on the landing site.
@@ -70,9 +73,17 @@ function CustomerApp() {
     if (subscriptionDeeplinkHandled.current) return
     subscriptionDeeplinkHandled.current = true
     if (typeof window === 'undefined') return
-    const view = new URLSearchParams(window.location.search).get('view')
+    const params = new URLSearchParams(window.location.search)
+    const view = params.get('view')
     if (view === 'subscription' || view === 'subscriptions') {
       useUIStore.getState().goToWalletPage()
+    }
+    // WEC-781: landing menu-carousel CTA deep-links to /?menu=1 to auto-open the
+    // «Δες μερικά πιάτα» demo-dishes popup (admin-controlled, single list, no
+    // filter) — the same popup the wizard uses, not a forked landing copy.
+    const menu = params.get('menu')
+    if (menu === '1' || menu === 'true') {
+      useUIStore.getState().openDemoDishes()
     }
   }, [])
 
@@ -144,6 +155,7 @@ function CustomerApp() {
 
       {/* Global modals */}
       <DishModal />
+      <DemoDishesModal open={demoDishesOpen} onClose={closeDemoDishes} isEl={lang === 'el'} />
       <AuthModal />
       <WalletModal />
       <Toast />

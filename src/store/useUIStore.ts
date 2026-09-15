@@ -35,6 +35,8 @@ interface UIStore {
   accountTab: string
   isSubscriptionPage: boolean
   isWalletPage: boolean
+  /** WEC-781: the «Δες μερικά πιάτα» demo-dishes popup, openable anywhere (deep-link). */
+  demoDishesOpen: boolean
 
   setLang: (lang: Lang) => void
   setActiveDay: (day: number) => void
@@ -46,6 +48,8 @@ interface UIStore {
   openDishModalForEdit: (dish: Dish, ctx: CartItemEditCtx) => void
   openAuthModal: () => void
   openWalletModal: () => void
+  openDemoDishes: () => void
+  closeDemoDishes: () => void
   closeModal: () => void
   goToCheckout: () => void
   closeCheckout: () => void
@@ -73,6 +77,7 @@ export const useUIStore = create<UIStore>((set) => ({
   accountTab: 'orders',
   isSubscriptionPage: false,
   isWalletPage: false,
+  demoDishesOpen: false,
 
   // Session-only language toggle. Logged-in users manage a persistent default
   // via Account → Preferences (see PrefsTab). That's the explicit control; the
@@ -99,6 +104,8 @@ export const useUIStore = create<UIStore>((set) => ({
   }),
   openAuthModal: () => set({ openModal: 'auth' }),
   openWalletModal: () => set({ openModal: 'wallet' }),
+  openDemoDishes: () => set({ demoDishesOpen: true }),
+  closeDemoDishes: () => set({ demoDishesOpen: false }),
   closeModal: () => set({ openModal: null, selectedDish: null, selectedDayIndex: null, editingCartItem: null }),
   // WEC-738: clear any open modal (e.g. dish modal) so it can't survive the
   // transition onto a full-page overlay and re-mount over it.
