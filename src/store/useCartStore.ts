@@ -44,6 +44,10 @@ export interface PaymentInfo {
   invoice?: boolean
   invoiceName?: string
   invoiceVat?: string
+  /** WEC-771: tick to write Επωνυμία + ΑΦΜ back to the customer's account so
+   *  the next order prefills them. Transient — never sent to the server with
+   *  the order (CheckoutPage picks the submit fields explicitly). */
+  saveInvoice?: boolean
   notes?: string
 }
 

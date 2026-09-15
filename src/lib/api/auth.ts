@@ -65,6 +65,9 @@ interface DbUserPrefs {
   payment_method: string | null
   cutlery: boolean
   invoice: boolean
+  // WEC-771
+  invoice_name: string | null
+  invoice_vat: string | null
   lang: string | null
   newsletter: boolean
   only_admin_orders: boolean
@@ -132,6 +135,9 @@ const toPrefs = (
     paymentMethod: row.payment_method ?? undefined,
     cutlery: row.cutlery,
     invoice: row.invoice,
+    // WEC-771: what prefills the checkout invoice fields next time.
+    invoiceName: row.invoice_name ?? undefined,
+    invoiceVat: row.invoice_vat ?? undefined,
     slots: Object.keys(slots).length > 0 ? slots : undefined,
     dayAddress: Object.keys(dayAddress).length > 0 ? dayAddress : undefined,
     lang: row.lang ?? undefined,
@@ -575,6 +581,10 @@ export async function savePrefs(
       payment_method: prefs.paymentMethod ?? 'cash',
       cutlery: prefs.cutlery ?? false,
       invoice: prefs.invoice ?? false,
+      // WEC-771. Empty string is stored as NULL so "cleared" and "never set"
+      // are the same thing to every reader.
+      invoice_name: prefs.invoiceName?.trim() || null,
+      invoice_vat: prefs.invoiceVat?.trim() || null,
       // vegetarian / gluten_free / low_carb intentionally NOT written: the
       // dietary toggles were removed as deprecated (never read by app/Klaviyo/
       // Airtable). Columns remain in the DB but are no longer updated.
