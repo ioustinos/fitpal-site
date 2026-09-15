@@ -4444,6 +4444,10 @@ body.is-impersonating { padding-top: 36px; }
    The photo is the surface; a horizontal gradient carries the text. Title
    left, CTA right, the food visible in the middle. 208px tall on desktop. */
 .sub-photo-card {
+  /* .banner-row is a flex row (the weekly-menu banner sits beside this card),
+     so without a flex basis the card collapses to width:0 and disappears —
+     which is exactly what it did on the first deploy. */
+  flex: 1; min-width: 0;
   position: relative;
   height: 208px;
   border-radius: 20px;
