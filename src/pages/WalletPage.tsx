@@ -5,7 +5,6 @@ import { calculateWalletPlan, durationDiscountPct, daysDiscountPct, mealsDiscoun
 import { loadWalletSettingsFromDb } from '../lib/wallet/loadSettingsClient'
 import type { WalletSettings } from '../lib/wallet/types'
 import { DEFAULT_WALLET_SETTINGS, ACTIVITY_LABELS, MEAL_LABELS, lipometrisiFeeCents, LIPOMETRISI_FEE_CENTS } from '../lib/wallet/constants'
-import { makeTr } from '../lib/translations'
 import { MealIcon } from '../components/icons/MealIcon'
 import { GoalCardArt } from '../components/icons/GoalIllustration'
 import type { ActivityLevel, DaysPerWeek, Goal, MealsSelection, PaymentMethod, PlanLength, Sex, MealKey } from '../lib/wallet/types'
@@ -241,11 +240,6 @@ export function WalletPage() {
   const refreshUser = useAuthStore((s) => s.refreshUser)
 
   const isEl = lang === 'el'
-  // WEC-778: WalletPage is hand-bilingual (`isEl ? … : …`) everywhere, which is
-  // why none of its copy is editable from /admin/copy. Introducing the shared
-  // translator here so at least the new strings are. Converting the rest is a
-  // separate job (WEC-730/731).
-  const t = makeTr(lang)
 
   // ── Tracking: landing on the subscription wizard ──────────────────────────
   // Until now this page fired NOTHING, so the subscription funnel had a
@@ -326,13 +320,6 @@ export function WalletPage() {
   // WEC-691: support address for the "didn't get a code" fallback.
   const supportEmail = useMenuStore((s) => s.settings.contact.supportEmail) || 'info@fitpal.gr'
   const cashOverCap = result.amountToPay > cashMaxAmount
-  // WEC-778: was three hardcoded bilingual template literals, so the team could
-  // not reword it from /admin/copy — which is exactly what Ioustinos asked for.
-  // One key, rendered in three places, with {max} filled from the setting.
-  const fillMax = (key: 'walCashOverCapHint' | 'walCashOverCapShort') =>
-    t(key).replace('{max}', String(cashMaxAmount))
-  const cashOverCapText = fillMax('walCashOverCapHint')
-  const cashOverCapShort = fillMax('walCashOverCapShort')
   const invoiceIncomplete =
     wantInvoice && (!invoiceName.trim() || invoiceVat.length !== 9 || !isValidGreekVat(invoiceVat))
   // If the plan grows past the cap while cash is selected, fall back to card.
@@ -520,7 +507,9 @@ export function WalletPage() {
   async function startPurchase(opts: { skipQuoteCheck?: boolean } = {}) {
     // WEC-658: last-line client guards (server enforces these too).
     if (paymentMethod === 'cash' && cashOverCap) {
-      setErrMsg(cashOverCapText)
+      setErrMsg(isEl
+        ? `Η αντικαταβολή δεν είναι διαθέσιμη για ποσά άνω των ${cashMaxAmount} €.`
+        : `Cash on delivery isn't available for amounts over ${cashMaxAmount} €.`)
       return
     }
     if (invoiceIncomplete) {
@@ -1043,17 +1032,9 @@ export function WalletPage() {
                   {isEl
                     ? <>{selectedKcal} kcal · <strong>{pct}%</strong> των ημερήσιων αναγκών σου</>
                     : <>{selectedKcal} kcal · <strong>{pct}%</strong> of your daily intake</>}
-                  {/* WEC-777: the extra-meals discount is real and already
-                      applied — say so. The percentage comes from the same
-                      config the calculator uses, so the copy can never
-                      advertise a discount we don't actually give. The number
-                      itself renders through DiscountPill (WEC-755) so every
-                      discount on the site looks the same. */}
                   {extraMealPct > 0 && (
                     <span className="wpv2-meals-discount">
-                      {' · '}{t('walEarnedPrefix')}{' '}
-                      <DiscountPill pct={extraMealPct} size="sm" />{' '}
-                      {t('walEarnedSuffix')}
+                      {isEl ? <> · <strong>−{extraMealPct}%</strong> για επιπλέον γεύματα</> : <> · <strong>−{extraMealPct}%</strong> for extra meals</>}
                     </span>
                   )}
                 </div>
@@ -1496,7 +1477,9 @@ export function WalletPage() {
                       }, user ? { email: user.email, externalId: user.id } : undefined)
                     }}
                     disabled={pm === 'cash' && cashOverCap}
-                    title={pm === 'cash' && cashOverCap ? cashOverCapShort : undefined}
+                    title={pm === 'cash' && cashOverCap
+                      ? (isEl ? `Μη διαθέσιμη άνω των ${cashMaxAmount} €` : `Unavailable over ${cashMaxAmount} €`)
+                      : undefined}
                   >
                     {pm === 'card'     && (isEl ? 'Χρεωστική/πιστωτική κάρτα' : 'Debit/credit card')}
                     {pm === 'cash'     && (isEl ? 'Αντικαταβολή'             : 'Cash on delivery')}
@@ -1505,7 +1488,11 @@ export function WalletPage() {
                 ))}
               </div>
               {cashOverCap && (
-                <div className="wpv2-paymethods-hint">{cashOverCapText}</div>
+                <div className="wpv2-paymethods-hint">
+                  {isEl
+                    ? `Η αντικαταβολή δεν είναι διαθέσιμη για ποσά άνω των ${cashMaxAmount} €.`
+                    : `Cash on delivery isn't available for amounts over ${cashMaxAmount} €.`}
+                </div>
               )}
               {paymentMethod === 'cash' && (
                 <div className="wpv2-paymethods-hint">
