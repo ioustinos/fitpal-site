@@ -148,11 +148,11 @@ export function exportMenuToPdf(data: MenuExportData, opts: PdfExportOpts = { va
       /* WEC-768: A4, ONE column. The old layout was a 2-up grid of days, which
          on A4 squeezed every day into a narrow box and wrapped long dish names
          to pieces. Days stack; inside a day, categories stack. Never side by side. */
-      @page { size: A4; margin: 14mm 13mm; }
+      @page { size: A4; margin: 14mm 13mm 14mm 22mm; }
       * { box-sizing: border-box; }
       body {
         font-family: -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-        color: #111; margin: 0; font-size: 13px; line-height: 1.4;
+        color: #111; margin: 0; font-size: 13px; line-height: 1.6;
         -webkit-print-color-adjust: exact; print-color-adjust: exact;
       }
 
@@ -162,7 +162,7 @@ export function exportMenuToPdf(data: MenuExportData, opts: PdfExportOpts = { va
       .sub { color: #6b7280; font-size: 13px; }
 
       /* ── Day ──────────────────────────────────────────────────── */
-      .day { margin-bottom: 20px; }
+      .day { margin-bottom: 24px; }
       /* A day heading stranded at the foot of a page with its first category
          overleaf is worse than a slightly short page. */
       .day h2 {
@@ -172,24 +172,27 @@ export function exportMenuToPdf(data: MenuExportData, opts: PdfExportOpts = { va
       }
 
       /* ── Category ─────────────────────────────────────────────── */
-      .cat { margin: 0 0 13px; break-inside: avoid; page-break-inside: avoid; }
+      .cat { margin: 0 0 16px; break-inside: avoid; page-break-inside: avoid; }
       .cat:last-child { margin-bottom: 0; }
       .cat-name {
-        font-size: 11.5px; text-transform: uppercase; letter-spacing: 0.7px;
-        color: #00875a; font-weight: 700; margin: 0 0 5px;
-        padding-bottom: 3px; border-bottom: 1px solid #e5e7eb;
+        font-size: 13px; text-transform: uppercase; letter-spacing: 0.7px;
+        color: #00875a; font-weight: 700; margin: 0 0 7px;
+        padding-bottom: 4px; border-bottom: 1px solid #e5e7eb;
       }
 
       /* ── Dish + variants ──────────────────────────────────────── */
-      .dish { margin: 0 0 7px; break-inside: avoid; page-break-inside: avoid; }
+      .dish { margin: 0 0 10px; break-inside: avoid; page-break-inside: avoid; }
       .dish:last-child { margin-bottom: 0; }
 
       /* One row = label on the left, fixed number columns on the right, so the
          prices and macros align vertically all the way down the page. */
       .row { display: flex; align-items: baseline; gap: 10px; }
       .label { flex: 1 1 auto; min-width: 0; }
-      .name { font-weight: 600; font-size: 13.5px; }
-      .var { margin: 2px 0 0 16px; color: #374151; font-size: 12.5px; }
+      /* WEC-768: dish titles are NOT bold. Hierarchy is carried by size and
+         by the indent of the variants under them, which is quieter to read
+         down a long sheet than a column of bold. */
+      .name { font-weight: 400; font-size: 14px; }
+      .var { margin: 3px 0 0 18px; color: #374151; font-size: 12.5px; }
 
       .price, .macros { flex: 0 0 auto; text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
       .price { font-weight: 700; color: #00875a; font-size: 13px; }
