@@ -230,42 +230,33 @@ export function MenuPage() {
                     </div>
                   </div>
                 ) : (
-                  /* WEC-647 Option 2 — wizard-preview banner, matched to the Claude
-                     Design pack: dish photo · eyebrow + headline + ΕΩΣ -20% pill ·
-                     progress bar · 2×2 wizard-step fields · dark-green CTA. */
+                  /* WEC-775 · Σχεδίαση 4 «Φωτογραφία σε όλο το πλάτος»
+                     (docs/design/subscription-banner-2026-08). Photo is the
+                     surface, a green gradient carries the text: title left,
+                     CTA right, food in the middle. */
                   <div
-                    className="sub-wizard-card"
+                    className="spc4"
                     onClick={() => goToWalletPage()}
                     role="button"
                     tabIndex={0}
                     onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); goToWalletPage() } }}
                   >
-                    <div className="swc-photo" style={{ backgroundImage: 'url(/banner-dish.jpg)' }} aria-hidden="true" />
-                    <div className="swc-body">
-                      <div className="swc-head">
-                        <div className="swc-head-txt">
-                          <span className="swc-eyebrow">{t('subBannerEyebrow')}</span>
-                          <span className="swc-headline">{t('subBannerHeadline')}</span>
+                    <div className="spc4-photo" aria-hidden="true" />
+                    <div className="spc4-scrim" aria-hidden="true" />
+                    <div className="spc4-inner">
+                      <div className="spc4-txt">
+                        <div className="spc4-top">
+                          <span className="spc4-pill">{t('subBannerDiscount')}</span>
+                          <span className="spc4-eyebrow">{t('subBannerEyebrow')}</span>
                         </div>
-                        <span className="swc-disc">{t('subBannerDiscount')}</span>
+                        <div className="spc4-h">{t('subBannerHeadline')}</div>
+                        <div className="spc4-sub">{t('subBannerSub')}</div>
                       </div>
-                      <div className="swc-steprow" aria-hidden="true">
-                        <span className="swc-steplabel">{t('subBannerStepLabel')}</span>
-                        <div className="swc-progress">
-                          <span className="swc-progress-fill" />
-                          <span className="swc-progress-track" />
-                        </div>
-                      </div>
-                      <div className="swc-fields" aria-hidden="true">
-                        <div className="swc-field"><span>{t('subBannerStep1')}</span><span className="swc-chev">⌄</span></div>
-                        <div className="swc-field"><span>{t('subBannerStep2')}</span><span className="swc-chev">⌄</span></div>
-                        <div className="swc-field"><span>{t('subBannerStep3')}</span><span className="swc-chev">⌄</span></div>
-                        <div className="swc-field"><span>{t('subBannerStep4')}</span><span className="swc-chev">⌄</span></div>
-                      </div>
-                      <div className="swc-cta-row">
-                        <button type="button" className="swc-cta" onClick={(e) => { e.stopPropagation(); goToWalletPage() }}>
+                      <div className="spc4-act">
+                        <button type="button" className="spc4-cta" onClick={(e) => { e.stopPropagation(); goToWalletPage() }}>
                           {t('subBannerCta')} →
                         </button>
+                        <span className="spc4-steps">{t('subBannerSteps')}</span>
                       </div>
                     </div>
                   </div>
