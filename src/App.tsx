@@ -25,6 +25,7 @@ import { initTracking } from './lib/tracking'
 import { LANDING_URL } from './lib/siteUrls'
 import { subscribeUiStrings, uiStringOverrideVersion } from './lib/i18n/overrides'
 import { ACCOUNT_TABS } from './lib/accountNav'
+import { resolveSlugFromLocation } from './lib/storefront/reserved'
 
 // Admin is lazy-loaded so the customer bundle stays lean — /admin/* code
 // won't be fetched until a user actually visits the admin panel.
@@ -83,9 +84,13 @@ function CustomerApp() {
     if (accountDeeplinkHandled.current) return
     accountDeeplinkHandled.current = true
     if (typeof window === 'undefined') return
-    const seg = window.location.pathname.split('/').filter(Boolean)
-    if (seg[0]?.toLowerCase() === 'account') {
-      const raw = (seg[1] || 'orders').toLowerCase()
+    // 'account' is a RESERVED_SEGMENTS word, so it can't be a store slug — that
+    // means indexOf finds the account segment whether the path is /account/tab
+    // (main) or /<store>/account/tab (B2B), and the segment after it is the tab.
+    const parts = window.location.pathname.split('/').filter(Boolean)
+    const idx = parts.indexOf('account')
+    if (idx !== -1) {
+      const raw = (parts[idx + 1] || 'orders').toLowerCase()
       const alias = raw === 'wallet' ? 'subscription' : raw // WEC-589 merged tab
       const valid = ACCOUNT_TABS.some((tb) => tb.key === alias)
       useUIStore.getState().goToAccount(valid ? alias : 'orders')
@@ -97,12 +102,24 @@ function CustomerApp() {
   // never be mistaken for a storefront slug (see lib/storefront/reserved.ts).
   useEffect(() => {
     if (typeof window === 'undefined') return
+    // WEC-772 (B2B fix): keep the store slug in front of /account/<tab> so a
+    // signed-in customer inside a company/reseller store (/<slug>/…) is NOT
+    // silently dropped onto the retail store on reload. Derive the base from the
+    // PATH (not useStorefront, which reports `main` during async resolution).
+    const slug = resolveSlugFromLocation({
+      hostname: window.location.hostname,
+      pathname: window.location.pathname,
+      search: window.location.search,
+    })
+    const base = slug ? `/${slug}` : ''
+    const search = window.location.search
     const path = window.location.pathname
+    const onAccount = path.split('/').filter(Boolean).includes('account')
     if (isAccountPage) {
-      const want = `/account/${accountTab || 'orders'}`
-      if (path !== want) window.history.replaceState(null, '', want)
-    } else if (path.startsWith('/account')) {
-      window.history.replaceState(null, '', '/')
+      const want = `${base}/account/${accountTab || 'orders'}`
+      if (path !== want) window.history.replaceState(null, '', want + search)
+    } else if (onAccount) {
+      window.history.replaceState(null, '', (base || '/') + search)
     }
   }, [isAccountPage, accountTab])
 
