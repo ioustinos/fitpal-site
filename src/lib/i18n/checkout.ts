@@ -107,6 +107,9 @@ export const checkout = {
     coConfEmailNote: 'Θα λάβεις σύντομα email επιβεβαίωσης. Αν δεν εμφανιστεί στα εισερχόμενα, έλεγξε και τον φάκελο ανεπιθύμητης αλληλογραφίας.',
     coDayTotal: 'Σύνολο ημέρας',
     coBackToMenu: 'Επιστροφή στο μενού',
+    // WEC-774
+    coBackToPlan: 'Επιστροφή στο πλάνο μου',
+    coBackToCheckout: 'Επιστροφή στην παραγγελία μου',
     coNameRequired: 'Λείπει το ονοματεπώνυμο',
     coNameMin2: 'Το ονοματεπώνυμο πρέπει να έχει τουλάχιστον 2 χαρακτήρες',
     coEmailInvalid: 'Λείπει ή είναι λάθος το email',
@@ -253,6 +256,8 @@ export const checkout = {
     coConfEmailNote: "You'll receive a confirmation email shortly. If it doesn't show up in your inbox, check your spam folder too.",
     coDayTotal: 'Day total',
     coBackToMenu: 'Back to menu',
+    coBackToPlan: 'Back to my plan',
+    coBackToCheckout: 'Back to my order',
     coNameRequired: 'Name is required',
     coNameMin2: 'Name must be at least 2 characters',
     coEmailInvalid: 'Email is missing or invalid',
