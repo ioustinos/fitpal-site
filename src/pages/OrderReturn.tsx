@@ -56,6 +56,23 @@ export function OrderReturn({ mode }: Props) {
   const [orderDetails, setOrderDetails] = useState<ConfirmationOrder | null>(null)
   const pollingRef = useRef(false)
 
+  // WEC-774: which flow the customer came from, captured ONCE on mount and
+  // before the revert effect below clears the stash. A failed payment used to
+  // dump everyone on the weekly menu — a subscriber then had to re-run the
+  // entire wizard. Both flows already survive the Viva round trip (the cart
+  // store and the wizard both persist to localStorage), so the only thing
+  // ever missing was sending them back to the right screen.
+  const cameFrom = useRef<'wallet' | 'order' | null | undefined>(undefined)
+  if (cameFrom.current === undefined) {
+    try {
+      cameFrom.current = sessionStorage.getItem('fitpal_pending_viva_wallet_plan')
+        ? 'wallet'
+        : sessionStorage.getItem('fitpal_pending_viva_order')
+          ? 'order'
+          : null
+    } catch { cameFrom.current = null }
+  }
+
   // WEC-591: the card/link success flow lands here (Viva redirect), NOT on
   // ConfirmationScreen — so the cart + persisted voucher were never cleared,
   // leaving a full cart (duplicate-order risk) and a ghost discount on the next
@@ -253,7 +270,7 @@ export function OrderReturn({ mode }: Props) {
         ? (outcome.kind === 'wallet'
             ? <WalletPaidView amountCents={outcome.amountCents} transactionId={transactionId} lang={lang} />
             : <PaidView orderNumber={outcome.orderNumber} details={orderDetails} lang={lang} />)
-        : <NonPaidView outcome={outcome} lang={lang} />}
+        : <NonPaidView outcome={outcome} lang={lang} cameFrom={cameFrom.current ?? null} />}
     </div>
   )
 }
@@ -494,7 +511,7 @@ function WalletKV({ k, v }: { k: string; v: string }) {
 
 /* ─── Non-paid states (loading, pending, failed, mismatch, error, unknown) ─── */
 
-function NonPaidView({ outcome, lang }: { outcome: Outcome; lang: 'el' | 'en' }) {
+function NonPaidView({ outcome, lang, cameFrom }: { outcome: Outcome; lang: 'el' | 'en'; cameFrom: 'wallet' | 'order' | null }) {
   const t = makeTr(lang)
   if (outcome.status === 'loading') {
     return (
@@ -519,9 +536,7 @@ function NonPaidView({ outcome, lang }: { outcome: Outcome; lang: 'el' | 'en' })
             <strong>{outcome.orderNumber}</strong>
           </p>
         )}
-        <a className="btn-conf-done" href="/">
-          {t('coBackToMenu')}
-        </a>
+        <BackToWhereYouWere from={cameFrom} lang={lang} />
       </div>
     )
   }
@@ -543,9 +558,7 @@ function NonPaidView({ outcome, lang }: { outcome: Outcome; lang: 'el' | 'en' })
             {t('coReferenceColon')} {outcome.orderNumber}
           </p>
         )}
-        <a className="btn-conf-done" href="/">
-          {t('coBackToMenu')}
-        </a>
+        <BackToWhereYouWere from={cameFrom} lang={lang} />
       </div>
     )
   }
@@ -580,5 +593,36 @@ function NonPaidView({ outcome, lang }: { outcome: Outcome; lang: 'el' | 'en' })
       <h2>{t('coMissingParams')}</h2>
       <p>{msg}</p>
     </div>
+  )
+}
+
+
+/**
+ * WEC-774: the way back after a payment that did not complete.
+ *
+ * The customer site is one route with page state in useUIStore, so a bare
+ * navigate('/checkout') would land on the menu — the store has to be told
+ * which page to show BEFORE we navigate. Success screens deliberately keep
+ * their plain «back to menu»: the order is done, there is nothing to resume.
+ */
+function BackToWhereYouWere({ from, lang }: { from: 'wallet' | 'order' | null; lang: 'el' | 'en' }) {
+  const navigate = useNavigate()
+  const t = makeTr(lang)
+
+  if (!from) {
+    return <a className="btn-conf-done" href="/">{t('coBackToMenu')}</a>
+  }
+
+  const go = () => {
+    const ui = useUIStore.getState()
+    if (from === 'wallet') ui.goToWalletPage()
+    else ui.goToCheckout()
+    navigate('/')
+  }
+
+  return (
+    <button type="button" className="btn-conf-done" onClick={go}>
+      {from === 'wallet' ? t('coBackToPlan') : t('coBackToCheckout')}
+    </button>
   )
 }
