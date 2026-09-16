@@ -32,8 +32,11 @@ export interface PlanDetails {
   planLengthWeeks: number | null
   daysPerWeek: number | null
   meals: MealKey[]
-  startDate: string | null           // ISO date
+  startDate: string | null           // ISO date — the date the CUSTOMER picked
   createdAt: string
+  /** WEC-783 · ops-facing, admin-only. Neither gates anything. */
+  activeUntil: string | null
+  adminNote: string | null
 
   // Body metrics, frozen at purchase.
   sex: string | null
@@ -93,7 +96,7 @@ export async function fetchActivePlanDetails(
       .from('wallet_plans')
       .select(
         'id, goal, plan_length, plan_length_weeks, days_per_week, daily_kcal, macro_split, ' +
-        'profile_snapshot, pricing_breakdown, services, created_at, start_date, active_until, ' +
+        'profile_snapshot, pricing_breakdown, services, created_at, start_date, active_until, admin_note, ' +
         'meal_breakfast, meal_lunch, meal_dinner, meal_snack',
       )
       .eq('id', activePlanId)
@@ -179,6 +182,8 @@ export async function fetchActivePlanDetails(
         meals: mealKeys,
         startDate,
         createdAt: row.created_at as string,
+        activeUntil: ((row as Record<string, unknown>).active_until as string | null) ?? null,
+        adminNote: ((row as Record<string, unknown>).admin_note as string | null) ?? null,
         sex: snap.sex ?? null,
         age,
         heightCm: snap.height_cm ?? null,

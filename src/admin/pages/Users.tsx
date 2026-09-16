@@ -3,7 +3,7 @@ import {
   fetchAdminUsers, fetchAdminUserDetail, saveAdminUserNotes, setWalletAdminManaged, setWalletActive,
   grantWalletCredit,
   // WEC-770
-  createAdminCustomer, sendCustomerInvite, type NewCustomerInput,
+  createAdminCustomer, sendCustomerInvite, saveWalletPlanOpsFields, type NewCustomerInput,
   type AdminUserRow, type AdminUserDetail, type WalletGrantType,
 } from '../../lib/api/adminUsers'
 import { fetchAdminZones, type AdminZone } from '../../lib/api/adminZones'
@@ -461,6 +461,7 @@ function UserDetail({
           <h3 className="admin-page-sub" style={{ marginTop: 24, marginBottom: 8 }}>Διατροφικό πλάνο (active)</h3>
           <div style={{ padding: 14, background: 'var(--a-bg)', border: '1px solid var(--a-border)', borderRadius: 8 }}>
             <PlanDetailsPanel plan={plan} />
+            <SubscriptionOpsFields plan={plan} />
           </div>
         </>
       )}
@@ -864,6 +865,86 @@ function InviteButton({ email, name }: { email: string; name: string | null }) {
       {state === 'error' && msg && (
         <span style={{ fontSize: 11, color: '#b91c1c', maxWidth: 240, textAlign: 'right' }}>{msg}</span>
       )}
+    </div>
+  )
+}
+
+
+/* ────────────────────────────────────────────────────────────────────────────
+ *  WEC-783 · «Ενεργή έως» + ops note
+ *
+ *  Maria asked for a way to record «this customer is away for a week». There is
+ *  no expiry in the system to extend — the wallet never expires and nothing
+ *  stops it being spent — so what she actually needs is a place to WRITE IT
+ *  DOWN, not a mechanism.
+ *
+ *  ⚠️ Deliberately toothless. Ioustinos: «αν θελήσει ο πελάτης να φάει
+ *  νωρίτερα δεν θα πρέπει να υπάρχει blocker». A date in the past changes
+ *  nothing; the customer keeps ordering and keeps spending their wallet.
+ * ──────────────────────────────────────────────────────────────────────────── */
+
+function SubscriptionOpsFields({ plan }: { plan: PlanDetails }) {
+  const adminUser = useAuthStore((s) => s.user)
+  const [until, setUntil] = useState(plan.activeUntil ?? '')
+  const [note, setNote] = useState(plan.adminNote ?? '')
+  // What is persisted right now. The `plan` prop is not refetched after a save,
+  // so comparing against it would leave the button permanently "dirty".
+  const [persisted, setPersisted] = useState({ until: plan.activeUntil ?? '', note: plan.adminNote ?? '' })
+  const [saving, setSaving] = useState(false)
+  const [saved, setSaved] = useState(false)
+  const [err, setErr] = useState<string | null>(null)
+
+  useEffect(() => {
+    setUntil(plan.activeUntil ?? '')
+    setNote(plan.adminNote ?? '')
+    setPersisted({ until: plan.activeUntil ?? '', note: plan.adminNote ?? '' })
+    setSaved(false)
+  }, [plan.planId, plan.activeUntil, plan.adminNote])
+
+  const dirty = persisted.until !== until || persisted.note !== note
+
+  async function save() {
+    if (!plan.planId) return
+    setSaving(true); setErr(null)
+    const { error } = await saveWalletPlanOpsFields(
+      plan.planId,
+      { activeUntil: until || null, adminNote: note || null },
+      adminUser?.email ?? 'admin',
+    )
+    setSaving(false)
+    if (error) { setErr(error); return }
+    setPersisted({ until, note }); setSaved(true)
+  }
+
+  return (
+    <div style={{ marginTop: 14, paddingTop: 12, borderTop: '1px solid var(--a-border)' }}>
+      <div style={{ fontSize: 12, fontWeight: 700, color: '#6b7280', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 2 }}>
+        Διαχείριση (δεν το βλέπει ο πελάτης)
+      </div>
+      <div style={{ fontSize: 12, color: '#6b7280', marginBottom: 10, lineHeight: 1.45 }}>
+        Μόνο για δική μας εικόνα. <strong>Δεν μπλοκάρει τίποτα</strong> — ο πελάτης μπορεί να
+        παραγγείλει και να ξοδέψει το πορτοφόλι του ακόμη κι αν η ημερομηνία έχει περάσει.
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: '180px 1fr', gap: 10, alignItems: 'end' }}>
+        <label style={{ display: 'block' }}>
+          <span style={{ display: 'block', fontSize: 12, color: '#6b7280', marginBottom: 3 }}>Ενεργή έως</span>
+          <input type="date" className="admin-input" style={{ width: '100%' }} value={until} onChange={(e) => setUntil(e.target.value)} />
+        </label>
+        <label style={{ display: 'block' }}>
+          <span style={{ display: 'block', fontSize: 12, color: '#6b7280', marginBottom: 3 }}>Σημείωση</span>
+          <input
+            className="admin-input"
+            style={{ width: '100%' }}
+            placeholder="π.χ. παύση 12–19/10, παράταση 1 εβδομάδα"
+            value={note}
+            onChange={(e) => setNote(e.target.value)}
+          />
+        </label>
+      </div>
+      {err && <div className="admin-error-banner" style={{ marginTop: 10 }}>{err}</div>}
+      <button className="admin-btn-primary" style={{ marginTop: 10 }} onClick={save} disabled={saving || !dirty || !plan.planId}>
+        {saving ? 'Αποθήκευση…' : saved && !dirty ? '✓ Αποθηκεύτηκε' : 'Αποθήκευση'}
+      </button>
     </div>
   )
 }
