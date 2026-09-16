@@ -3279,6 +3279,24 @@ a.btn-conf-done { display: inline-block; text-decoration: none; }
 .wpv2-paymethod { padding: 9px 6px; background: var(--fp-paper); border: 1.5px solid var(--fp-ink-200); border-radius: var(--fp-radius-sm); font-size: 12px; font-weight: 700; color: var(--fp-ink-700); cursor: pointer; transition: all 0.15s; font-family: inherit; }
 .wpv2-paymethod:hover { border-color: var(--fp-green-300); }
 .wpv2-paymethod.sel { border-color: var(--fp-green-600); background: var(--fp-green-50); color: var(--fp-green-900); }
+/* WEC-778: the cash option is disabled over the cap, but `disabled` had no
+   styling at all — it simply stopped responding, which reads as a broken
+   button rather than an unavailable one. Grey it out and say so with the
+   cursor. Strikethrough is deliberate: at a glance it is the difference
+   between «this is off» and «this is broken». */
+.wpv2-paymethod:disabled,
+.wpv2-paymethod[disabled] {
+  background: var(--fp-ink-50, #f4f5f4);
+  border-color: var(--fp-ink-200);
+  border-style: dashed;
+  color: var(--fp-ink-400, #9aa39c);
+  text-decoration: line-through;
+  text-decoration-thickness: 1px;
+  cursor: not-allowed;
+  opacity: 0.75;
+}
+.wpv2-paymethod:disabled:hover,
+.wpv2-paymethod[disabled]:hover { border-color: var(--fp-ink-200); }
 .wpv2-paymethods-hint { font-size: 11px; color: var(--fp-ink-500); font-weight: 500; line-height: 1.4; padding-top: 2px; }
 
 /* WEC-360 — receipt/invoice block in the sidebar. */
