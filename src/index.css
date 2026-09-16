@@ -4499,8 +4499,11 @@ body.is-impersonating { padding-top: 36px; }
 }
 .spc4-eyebrow { font-size: 11px; font-weight: 600; letter-spacing: .14em; color: #a8c4b7; }
 .spc4-h {
-  font-size: 24px; font-weight: 800; color: #fff;
-  letter-spacing: -.01em; line-height: 1.12;
+  /* WEC-775: this slot now holds a full sentence, not the design's 4-word
+     headline, so it is a step down in size with a width cap — otherwise it
+     runs the whole card and collides with the CTA. */
+  font-size: 20px; font-weight: 800; color: #fff;
+  letter-spacing: -.01em; line-height: 1.2; max-width: 30ch;
 }
 /* The design's sub was one short line with nowrap. The replacement copy is a
    full sentence, so it wraps, capped so it never runs under the food. */

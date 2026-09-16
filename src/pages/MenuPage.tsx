@@ -250,7 +250,6 @@ export function MenuPage() {
                           <span className="spc4-eyebrow">{t('subBannerEyebrow')}</span>
                         </div>
                         <div className="spc4-h">{t('subBannerHeadline')}</div>
-                        <div className="spc4-sub">{t('subBannerSub')}</div>
                       </div>
                       <div className="spc4-act">
                         <button type="button" className="spc4-cta" onClick={(e) => { e.stopPropagation(); goToWalletPage() }}>

@@ -51,8 +51,7 @@ export const menu = {
     subBannerDiscount: 'ΕΩΣ -20%',
     // WEC-775 · Σχεδίαση 4. Headline is the design's own A·OFFER-LED line;
     // the sub is the wording Ioustinos asked for.
-    subBannerHeadline: 'Έως 20% φθηνότερα γεύματα',
-    subBannerSub: 'Έχεις στόχους και θέλεις να τους αναλάβουμε εμείς; Επίλεξε τη συνδρομητική υπηρεσία',
+    subBannerHeadline: 'Έχεις στόχους και θέλεις να τους αναλάβουμε εμείς; Επίλεξε τη συνδρομητική υπηρεσία',
     subBannerSteps: 'Διάρκεια · Ημέρες · Γεύματα',
     subBannerCta: 'Φτιάξε το Πλάνο σου',
     subBannerStepLabel: 'Βήμα 1 από 4',
@@ -123,8 +122,7 @@ export const menu = {
     // WEC-647 Option 2 — subscription banner (wizard preview)
     subBannerEyebrow: 'FITPAL SUBSCRIPTION',
     subBannerDiscount: 'UP TO -20%',
-    subBannerHeadline: 'Up to 20% cheaper meals',
-    subBannerSub: 'Have goals and want us to take care of them? Choose the subscription service',
+    subBannerHeadline: 'Have goals and want us to take care of them? Choose the subscription service',
     subBannerSteps: 'Length · Days · Meals',
     subBannerCta: 'Build your plan',
     subBannerStepLabel: 'Step 1 of 4',
