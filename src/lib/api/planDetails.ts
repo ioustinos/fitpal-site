@@ -93,7 +93,7 @@ export async function fetchActivePlanDetails(
       .from('wallet_plans')
       .select(
         'id, goal, plan_length, plan_length_weeks, days_per_week, daily_kcal, macro_split, ' +
-        'profile_snapshot, pricing_breakdown, services, created_at, ' +
+        'profile_snapshot, pricing_breakdown, services, created_at, start_date, active_until, ' +
         'meal_breakfast, meal_lunch, meal_dinner, meal_snack',
       )
       .eq('id', activePlanId)
@@ -129,6 +129,11 @@ export async function fetchActivePlanDetails(
       .order('start_date', { ascending: false })
       .maybeSingle()
     startDate = (svcRow as { start_date: string | null } | null)?.start_date ?? null
+    // WEC-783: meal_services has never had a single row, so that lookup always
+    // returned null. The plan's own start_date — the one the customer picked —
+    // is the real answer; keep meal_services as the fallback for the day it
+    // starts being used.
+    startDate = ((row as Record<string, unknown>).start_date as string | null) ?? startDate
 
     const mealKeys = planMealKeys(row as PlanMealFlags)
     const perMeal: PlanMealTarget[] = mealKeys.map((key) => {

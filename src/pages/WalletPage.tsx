@@ -488,6 +488,11 @@ export function WalletPage() {
       heightCm: clampInt(heightCm, 120, 230, 170),
       weightKg: clampInt(weightKg, 35,  250, 70),
       activity, goal, meals, planLength, daysPerWeek,
+      // WEC-783: the date the customer picked in StartDatePicker. It used to
+      // live only in component state + localStorage and was dropped the moment
+      // the purchase went through — we asked, showed we'd noted it, then threw
+      // it away. Informational: it never gates ordering.
+      startDate: startDate ?? undefined,
       // WEC-553: send the λιπομέτρηση flag; the server prices it (never trusts client).
       services: { dieticianManaged, bodyFatMeasurement: bodyFat },
     }

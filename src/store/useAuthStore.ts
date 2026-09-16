@@ -68,6 +68,10 @@ export interface UserWallet {
   // "My Subscription" account tab can render real values (was "—").
   startDate?: string        // ISO date — when the active plan was purchased
   bonusExpiresAt?: string   // ISO date — wallet_plans.bonus_expires_at
+  /** WEC-783: ops-facing «Ενεργή έως» (wallet_plans.active_until). Informational
+   *  only — nothing reads it to allow or deny an order. Not rendered to the
+   *  customer; the admin panel is its audience. */
+  activeUntil?: string
   frequency?: string        // wallet_frequency enum: biweekly | monthly | quarterly
   people?: number
   daysPerWeek?: number
