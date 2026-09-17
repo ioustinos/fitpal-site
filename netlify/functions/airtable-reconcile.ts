@@ -56,7 +56,23 @@ export default async (): Promise<Response> => {
     try {
       const res = await pushOrderToAirtable(supabase, r.id)
       if (res.ok && !res.skipped) synced++
-      else skipped++
+      else {
+        skipped++
+        // WEC-789: an order that is dirty but NOT mirror-eligible (e.g. a
+        // refunded card order: `card && payment_status !== 'paid'`) returns
+        // early from pushOrderToAirtable, before the line that clears the
+        // flag. It therefore stays dirty forever and this job re-checks it
+        // every 5 minutes, reporting errors: 0 the whole time. Three orders
+        // had been looping since 10 September when this was found.
+        // Nothing will ever make them eligible, so retiring the flag is the
+        // correct end state — there is no work left to do.
+        if (res.skipped === 'not_eligible' || res.skipped === 'not_found') {
+          await supabase
+            .from('orders')
+            .update({ airtable_dirty: false })
+            .eq('id', r.id)
+        }
+      }
       const d = res.deletions
       if (d && (d.childKeys.length || d.itemUuids.length || d.skippedReason)) {
         const tag = d.skippedReason ? `SKIP(${d.skippedReason})` : d.dryRun ? 'DRYRUN' : 'DELETED'

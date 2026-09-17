@@ -691,6 +691,15 @@ export async function setOrderPaymentStatus(id: string, current: PaymentStatus, 
     const walletSum = (wRows ?? []).reduce((s, r) => s + ((r as { amount: number | null }).amount ?? 0), 0)
     paidCents = Math.max(0, total - linksSum - walletSum)
     patch.manual_paid_amount = paidCents
+  } else {
+    // WEC-789: reverting a manual mark-paid MUST clear the amount it wrote.
+    // It didn't, and the leftover was counted as real money: FP-260917-00032
+    // was marked paid manually (106.90 €), reverted to pending three minutes
+    // later, then genuinely paid 86.90 € by link. The drawer then reported
+    // "Collected 193.80 €" — the phantom plus the real payment — and, worse,
+    // the coverage check added the phantom too and called an 86.90 € payment
+    // "covers total" on a 106.90 € order, hiding a 20 € shortfall.
+    patch.manual_paid_amount = 0
   }
   const { error } = await supabase.from('orders').update(patch).eq('id', id)
   if (error) return { error: error.message }
