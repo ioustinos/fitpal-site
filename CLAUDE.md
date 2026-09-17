@@ -1,3 +1,9 @@
+# ⚠️ RULE #0 — NEVER A NAKED TICKET NUMBER (Ioustinos, repeated directive — final placement 2026-09-03)
+
+**Every time you mention a WEC-NNN ticket in chat, a comment, or a report, put a short plain-language description of what the ticket is right next to it.** Example: "WEC-655 (footer/FAQ hours + terms links)" — never just "WEC-655". Ioustinos does not memorise ticket numbers; a bare ID forces him to open Linear to understand you. This has been asked for many times. No exceptions, in any chat of this project.
+
+*(2026-09-17: this rule had lived only in the local copy of CLAUDE.md and was never committed. A folder resync overwrote it with the repo version and it was lost for ten minutes. It is now in git, so it survives the next resync.)*
+
 # Fitpal Ordering Platform — Claude Context
 
 ## LINEAR PROTOCOL — MANDATORY FOR EVERY CHAT (2026-07-27, Ioustinos directive)
