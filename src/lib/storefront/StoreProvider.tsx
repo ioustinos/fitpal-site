@@ -27,6 +27,8 @@ import { supabase } from '../supabase'
 import { resolveSlugFromLocation } from './reserved'
 import { LANDING_URL } from '../siteUrls'
 import { fetchStorefront, type StoreRow, type StoreSettingRow } from './api'
+// WEC-765: the gate replaces the customer shell, so it must mount the modal itself.
+import { AuthModal } from '../../components/layout/AuthModal'
 
 export interface Storefront {
   /** null only while the main store row is still being enriched in the background. */
@@ -120,6 +122,24 @@ function toStorefront(row: StoreRow, settings: StoreSettingRow[]): Storefront {
 export function StoreProvider({ children }: { children: ReactNode }) {
   const location = useLocation()
 
+  /**
+   * WEC-765: re-run the access check when the session changes.
+   *
+   * The gate resolved once, on mount. So a customer who signed in FROM the
+   * gate stayed staring at it — they had access now, but nothing asked again.
+   * Bumping this on every auth event makes the effect below re-evaluate, which
+   * is also what turns a sign-out back into `needs_login` immediately.
+   */
+  const [authTick, setAuthTick] = useState(0)
+  useEffect(() => {
+    const { data } = supabase.auth.onAuthStateChange((event) => {
+      if (event === 'SIGNED_IN' || event === 'SIGNED_OUT' || event === 'USER_UPDATED') {
+        setAuthTick((n) => n + 1)
+      }
+    })
+    return () => data.subscription.unsubscribe()
+  }, [])
+
   const slug = useMemo(
     () =>
       resolveSlugFromLocation({
@@ -193,7 +213,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     })
 
     return () => { cancelled = true }
-  }, [slug])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [slug, authTick])
 
   if (state.status === 'resolving') return <StoreBootFallback />
   if (state.status === 'inactive') return <StoreMessage kind="inactive" slug={slug ?? ''} />
@@ -201,6 +222,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   if (state.status === 'error') return <StoreMessage kind="error" slug={slug ?? ''} />
   if (state.status === 'needs_login') return <StoreMessage kind="needs_login" slug={slug ?? ''} />
   if (state.status === 'no_access') return <StoreMessage kind="no_access" slug={slug ?? ''} />
+
 
   return <StoreContext.Provider value={state}>{children}</StoreContext.Provider>
 }
@@ -234,6 +256,31 @@ const shellStyle: CSSProperties = {
  */
 function StoreMessage({ kind, slug }: { kind: 'inactive' | 'not_found' | 'error' | 'needs_login' | 'no_access'; slug: string }) {
   const lang = useUIStore((s) => s.lang)
+  const openAuthModal = useUIStore((s) => s.openAuthModal)
+  const location = useLocation()
+  const [switching, setSwitching] = useState(false)
+  const el = lang !== 'en'
+
+  // WEC-765: come back to exactly the URL they asked for. The gate renders ON
+  // the store's own path, so that path IS the destination.
+  const here = location.pathname + location.search
+
+  async function signInHere() {
+    openAuthModal(here)
+  }
+
+  /**
+   * `no_access` means a session exists but it is the wrong account — a very
+   * common shape of this when several people share a laptop, or when the admin
+   * testing a store is signed in as themselves. Offering "sign in" alone is no
+   * help there; they have to leave the account they are in first.
+   */
+  async function switchAccount() {
+    setSwitching(true)
+    try { await supabase.auth.signOut() } catch { /* fall through — the gate re-checks anyway */ }
+    setSwitching(false)
+    openAuthModal(here)
+  }
 
   const copy = {
     inactive: {
@@ -267,9 +314,56 @@ function StoreMessage({ kind, slug }: { kind: 'inactive' | 'not_found' | 'error'
       <p style={{ color: '#6b7280', margin: 0, maxWidth: 420 }}>{copy.body}</p>
       {/* WEC-756: the label said «fitpal.gr» but the href was "/", i.e. the
           order-site root. Now it actually goes where it says. */}
+      {/* WEC-765: the gate used to be a dead end — the only way out was to
+          leave the site. Both access states are fixable by the person reading
+          them, so give them the control that fixes it. */}
+      {kind === 'needs_login' && (
+        <button type="button" style={gatePrimaryBtn} onClick={signInHere}>
+          {el ? 'Σύνδεση' : 'Sign in'}
+        </button>
+      )}
+      {kind === 'no_access' && (
+        <button type="button" style={gateSecondaryBtn} disabled={switching} onClick={switchAccount}>
+          {switching
+            ? (el ? 'Αποσύνδεση…' : 'Signing out…')
+            : (el ? 'Σύνδεση με άλλο λογαριασμό' : 'Sign in with a different account')}
+        </button>
+      )}
+
       <a href={LANDING_URL} style={{ marginTop: 8, color: '#00b96b', fontWeight: 600 }}>
         {lang === 'en' ? 'Go to fitpal.gr →' : 'Πήγαινε στο fitpal.gr →'}
       </a>
+
+      {/* The modal lives in App's customer shell, which this gate renders
+          INSTEAD of — so without mounting it here the button would open
+          nothing. */}
+      <AuthModal />
     </div>
   )
+}
+
+/* Self-contained on purpose: this gate renders INSTEAD of the customer shell,
+   and index.css describes none of these states (see the note on shellStyle). A
+   class name here would style nothing. */
+const gateBtnBase: CSSProperties = {
+  marginTop: 14,
+  minWidth: 240,
+  padding: '12px 22px',
+  borderRadius: 10,
+  fontSize: 15,
+  fontWeight: 700,
+  fontFamily: 'inherit',
+  cursor: 'pointer',
+}
+const gatePrimaryBtn: CSSProperties = {
+  ...gateBtnBase,
+  background: '#00b96b',
+  color: '#fff',
+  border: 'none',
+}
+const gateSecondaryBtn: CSSProperties = {
+  ...gateBtnBase,
+  background: '#fff',
+  color: '#111827',
+  border: '1.5px solid #e5e5e0',
 }
