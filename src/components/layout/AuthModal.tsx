@@ -116,6 +116,16 @@ export function AuthModal() {
   async function postAuthRedirect() {
     closeModal()
     resetAll()
+    // WEC-765: an explicit destination wins over the admin shortcut. Someone
+    // who opened this modal from a store's access gate is trying to reach that
+    // store; sending them to /admin because they happen to be an admin loses
+    // the thing they asked for.
+    const returnTo = useUIStore.getState().authReturnTo
+    if (returnTo) {
+      useUIStore.setState({ authReturnTo: null })
+      navigate(returnTo)
+      return
+    }
     const user = useAuthStore.getState().user
     if (user?.isAdmin) navigate('/admin')
   }

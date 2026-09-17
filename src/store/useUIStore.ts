@@ -46,7 +46,18 @@ interface UIStore {
   openDishModal: (dish: Dish, dayIndex: number) => void
   /** WEC-340: open DishModal in edit mode for an existing cart line. */
   openDishModalForEdit: (dish: Dish, ctx: CartItemEditCtx) => void
-  openAuthModal: () => void
+  /**
+   * WEC-765: `returnTo` is where to land after a successful login.
+   *
+   * Set when the modal is opened from a place that already knows where the
+   * customer was going — today the reseller access gate, which lives on the
+   * store URL itself. Without it, an admin logging in from that gate is sent
+   * to /admin by the usual post-login rule and never reaches the store they
+   * were opening.
+   */
+  openAuthModal: (returnTo?: string) => void
+  /** WEC-765 — consumed and cleared by AuthModal after a successful login. */
+  authReturnTo: string | null
   openWalletModal: () => void
   openDemoDishes: () => void
   closeDemoDishes: () => void
@@ -102,7 +113,13 @@ export const useUIStore = create<UIStore>((set) => ({
     selectedDayIndex: null,
     editingCartItem: ctx,
   }),
-  openAuthModal: () => set({ openModal: 'auth' }),
+  authReturnTo: null,
+  openAuthModal: (returnTo?: string) =>
+    // ⚠️ WEC-765: Header and ContactSection pass this straight to onClick, so
+    // React calls it with a MouseEvent. Without the typeof guard that event
+    // would be stored as `authReturnTo` and handed to navigate() after login.
+    // Only a real string counts.
+    set({ openModal: 'auth', authReturnTo: typeof returnTo === 'string' ? returnTo : null }),
   openWalletModal: () => set({ openModal: 'wallet' }),
   openDemoDishes: () => set({ demoDishesOpen: true }),
   closeDemoDishes: () => set({ demoDishesOpen: false }),
