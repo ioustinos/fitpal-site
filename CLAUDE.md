@@ -29,6 +29,71 @@ netlify dev   # → http://localhost:8888
 - **Build command is `vite build`, NOT `tsc -b && vite build`**. `tsc -b` was dropped because WEC-141's 24 TS errors were blocking every dev deploy since Apr 13. Type-checking moved to `npm run typecheck` (tsc -b --noEmit) — available, not gating.
 - **Redirect priority:** Netlify evaluates `_redirects` BEFORE `netlify.toml`. Both `/api/*` (to functions) and `/*` (SPA fallback) now live in `public/_redirects` in that order. `netlify.toml` has no redirects — stripped to avoid the ordering footgun.
 
+## ⚠️ RULE #0b — THE WORKSPACE FOLDER IS NOT A SOURCE OF TRUTH. VERIFY IT FIRST.
+
+**Before you read a single file to answer a question about what the code does, check that the workspace folder actually matches `origin/dev`:**
+
+```bash
+W="/sessions/<session>/mnt/Fitpal New Site"
+git -C "$W" fetch -q origin dev 2>/dev/null
+git -C "$W" log --oneline -1                       # must equal origin/dev
+git -C "$W" status --porcelain | grep -v '^??'     # must be EMPTY
+```
+
+If either check fails, **do not read the workspace** — clone `origin/dev` to a fresh `/tmp` path and read that, then resync the folder (recipe below).
+
+This is not theoretical. On **2026-09-17** the folder was found sitting at an old commit with **278 dirty files**, missing `src/lib/i18n/`, `src/lib/monitoring/`, `src/lib/api/adminCopy.ts` and `src/admin/pages/Copy.tsx` — weeks of shipped work. A chat read `netlify/functions/wallet-plan-purchase.ts` from it and concluded, wrongly and confidently, that WEC-783 had never shipped. It had been on `origin/dev` the whole time.
+
+**Why it drifts:** the push recipe below sets `GIT_WORK_TREE=<workspace>` with a `/tmp` clone's `.git`. That writes files into the folder while the folder's **own** `.git` stays where it was, so its `git log` and `git status` become fiction. FUSE then refuses `unlink`, so nothing can clean it up in place.
+
+**Resync recipe** (safe — it never deletes his untracked notes and reports at the repo root):
+
+```bash
+W="/sessions/<session>/mnt/Fitpal New Site"; S=/tmp/fp-syncN
+source "$W/.auto-memory/github_credentials.sh"
+git clone -b dev "https://${GITHUB_USER}:${GITHUB_TOKEN}@github.com/${GITHUB_USER}/${FITPAL_REPO}.git" "$S" -q
+tar -czf /tmp/workspace-before-resync.tgz -C "$W" src netlify supabase public scripts   # insurance
+
+for d in src netlify supabase public scripts docs email_templates design-mockups n8n; do
+  rsync -a --delete "$S/$d/" "$W/$d/"        # `delete_file … Operation not permitted` on
+done                                          # .bak/.DS_Store/gitignored files is EXPECTED — ignore it
+for f in $(git -C "$S" ls-tree --name-only HEAD | grep -v /); do cp -f "$S/$f" "$W/$f" 2>/dev/null; done
+
+git -C "$S" remote set-url origin "https://github.com/ioustinos/fitpal-site.git"   # strip the token FIRST
+cp -rf "$S/.git/." "$W/.git/" && cp -f "$S/.git/index" "$W/.git/index"
+for r in refs/heads/dev refs/remotes/origin/dev; do git -C "$S" rev-parse origin/dev  > "$W/.git/$r"; done
+for r in refs/heads/main refs/remotes/origin/main; do git -C "$S" rev-parse origin/main > "$W/.git/$r"; done
+
+git -C "$W" status --porcelain | grep -v '^??'   # must print nothing
+grep -r "@github.com" "$W/.git/config"           # must print nothing — never leave a token on his disk
+```
+
+`cp -rf` (never `rm -rf`) — FUSE blocks deletes. Copying the clone's `.git/index` is the step people forget; without it every file reads as staged-deleted.
+
+## ⚠️ RULE #0c — MERGING dev INTO main CAN SILENTLY SHIP NOTHING
+
+`main` contains **`b6ac715`, a revert of merge `10107bd`**. Any commit that was inside that merge is still an *ancestor* of `main`, so `git merge dev` considers it already merged and re-applies **nothing** — the reverted content stays gone. On 2026-09-17 WEC-774, WEC-776 and WEC-777 were sitting undone on production for exactly this reason, invisible in the log.
+
+**So never promote with a bare merge. Promote the tree, and prove it:**
+
+```bash
+# 1. PROVE what main is actually missing — grep content, never trust git log
+for p in "src/lib/wallet/constants.ts:'3mo': 2900" "src/pages/OrderReturn.tsx:cameFrom"; do
+  f="${p%%:*}"; n="${p#*:}"
+  echo "$f  main=$(git show origin/main:$f | grep -c -- "$n")  dev=$(git show origin/dev:$f | grep -c -- "$n")"
+done
+
+# 2. Promote by TREE — both branches as parents, main's tree becomes dev's verbatim
+NEW=$(git commit-tree "$(git rev-parse origin/dev^{tree})" -p origin/main -p origin/dev -m "Merge dev -> main: …")
+git push origin "$NEW:main"
+
+# 3. Verify
+git fetch -q origin main
+[ "$(git rev-parse origin/main^{tree})" = "$(git rev-parse origin/dev^{tree})" ] && echo "tree match YES"
+```
+
+Before any promotion to `main`: `npx vite build` (that is what Netlify runs), `node scripts/check-i18n.mjs`, and diff `npm run typecheck` output against `origin/main` — ship only if there are **no NEW** errors (19 are pre-existing on both branches as of 2026-09-17; line numbers shift, so compare the sorted error text, not the count).
+
 ## Git Push Rules — CRITICAL
 - **NEVER run git from the workspace folder** — the FUSE mount blocks `unlink`, permanently breaking git lock files
 - **NEVER push to GitHub unless Ioustinos explicitly says so**
