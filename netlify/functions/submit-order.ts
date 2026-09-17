@@ -934,8 +934,16 @@ export default async (request: Request) => {
         }
       }
 
-      // 3d. Time slot validation
-      if (matchedZone && day.timeFrom && day.timeTo) {
+      // 3d. Time slot validation (against the ZONE). WEC-790: skipped when the
+      // store defines its own time_slots — check 3e below is then the sole
+      // gate, mirroring the picker (WEC-712). Otherwise a reseller/company
+      // store whose locked address falls in a zone lacking that window would be
+      // rejected here even though the store legitimately offers it.
+      const storeDefinesOwnSlots =
+        !isMainStore && storeOwnKeys.has('time_slots') &&
+        Array.isArray(settingsByKey.get('time_slots')) &&
+        (settingsByKey.get('time_slots') as unknown[]).length > 0
+      if (!storeDefinesOwnSlots && matchedZone && day.timeFrom && day.timeTo) {
         const zoneSlots = (matchedZone.zone_time_slots ?? []).filter((s: any) => s.active)
 
         // Normalize time format: ensure HH:MM format for comparison
