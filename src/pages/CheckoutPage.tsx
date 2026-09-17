@@ -306,7 +306,16 @@ export function CheckoutPage() {
   // Mirrors TimeSlotPicker's zoneSlotSet and the server's Phase-3 zone-slot
   // check. Unresolvable zip → true (postcode issues are flagged separately;
   // stacking a slot issue on top would just be noise).
+  // WEC-790: a non-main store with its own time_slots is NOT zone-gated — the
+  // picker already offers the store's fixed window(s) and the server (Phase-3
+  // check 3e) validates against them, so gating the client on the zone here
+  // would block a window the store legitimately offers (WEC-712 half-ship).
+  const storeDefinesOwnSlots =
+    !storefront.isMain &&
+    Array.isArray((storefront.settings as Record<string, unknown>).time_slots) &&
+    ((storefront.settings as Record<string, unknown>).time_slots as unknown[]).length > 0
   const slotInZone = (zip: string, from: string, to: string): boolean => {
+    if (storeDefinesOwnSlots) return true
     const zone = resolveZone(zip, zones)
     if (!zone) return true
     return timeSlots.some((s) => s.zoneId === zone.id && s.timeFrom === from && s.timeTo === to)
