@@ -456,3 +456,54 @@ export async function sendCustomerInvite(email: string, name?: string): Promise<
   const { sendEmailOtp } = await import('./auth')
   return sendEmailOtp(email, name)
 }
+
+
+/* ────────────────────────────────────────────────────────────────────────────
+ *  WEC-783 · Ops-facing subscription dates
+ *
+ *  «Ενεργή έως» and a free-text note, so the team can record things like
+ *  «παύση 12–19/10, παράταση 1 εβδομάδα» and know at a glance who is away.
+ *
+ *  ⚠️ INFORMATIONAL ONLY. Ioustinos, 17/09: «αν θελήσει ο πελάτης να φάει
+ *  νωρίτερα δεν θα πρέπει να υπάρχει blocker». Nothing reads these columns to
+ *  allow or deny an order — wallet_debit_for_order checks the wallet and the
+ *  balance, nothing else. A date in the past changes nothing.
+ * ──────────────────────────────────────────────────────────────────────────── */
+
+export async function saveWalletPlanOpsFields(
+  planId: string,
+  patch: { activeUntil?: string | null; adminNote?: string | null },
+  adminEmail: string,
+): Promise<{ error: string | null }> {
+  // Read first so the change log records what it actually replaced rather than
+  // an assumed previous value.
+  const { data: before } = await supabase
+    .from('wallet_plans')
+    .select('active_until, admin_note')
+    .eq('id', planId)
+    .maybeSingle()
+
+  const payload: Record<string, unknown> = {}
+  if (patch.activeUntil !== undefined) payload.active_until = patch.activeUntil || null
+  if (patch.adminNote !== undefined) payload.admin_note = patch.adminNote || null
+  if (Object.keys(payload).length === 0) return { error: null }
+
+  const { error } = await supabase.from('wallet_plans').update(payload).eq('id', planId)
+  if (error) return { error: error.message }
+
+  // Provenance — «who moved this date» must be answerable. Best-effort: a
+  // failed log entry is not worth failing the save the admin just made.
+  const prev = (before ?? {}) as { active_until?: string | null; admin_note?: string | null }
+  const rows = Object.entries(payload).map(([field, value]) => ({
+    table_name: 'wallet_plans',
+    field_name: field,
+    old_value: String((prev as Record<string, unknown>)[field] ?? ''),
+    new_value: String(value ?? ''),
+    label: 'WEC-783 subscription ops fields',
+    admin_user: adminEmail,
+  }))
+  const { error: logErr } = await supabase.from('admin_change_log').insert(rows)
+  if (logErr) console.warn('[saveWalletPlanOpsFields] change log failed:', logErr.message)
+
+  return { error: null }
+}

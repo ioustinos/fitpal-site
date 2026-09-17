@@ -35,7 +35,7 @@ const LENGTH_LABEL: Record<Lang, Record<string, string>> = {
 const T: Record<Lang, Record<string, string>> = {
   el: {
     plan: 'Πλάνο', goal: 'Στόχος', duration: 'Διάρκεια', daysPerWeek: 'Ημέρες / εβδομάδα',
-    meals: 'Γεύματα', start: 'Έναρξη', services: 'Υπηρεσίες',
+    meals: 'Γεύματα', start: 'Έναρξη', purchase: 'Αγορά', notPicked: 'δεν επιλέχθηκε', services: 'Υπηρεσίες',
     dietician: 'Διαχείριση από διατροφολόγο', bodyFat: 'Λιπομέτρηση',
     characteristics: 'Χαρακτηριστικά', charNote: 'Όπως καταχωρήθηκαν κατά την αγορά του πλάνου.',
     sex: 'Φύλο', age: 'Ηλικία', height: 'Ύψος', weight: 'Βάρος', activity: 'Δραστηριότητα',
@@ -47,7 +47,7 @@ const T: Record<Lang, Record<string, string>> = {
   },
   en: {
     plan: 'Plan', goal: 'Goal', duration: 'Duration', daysPerWeek: 'Days / week',
-    meals: 'Meals', start: 'Start', services: 'Services',
+    meals: 'Meals', start: 'Start', purchase: 'Purchased', notPicked: 'not chosen', services: 'Services',
     dietician: 'Dietitian management', bodyFat: 'Body-fat measurement',
     characteristics: 'Characteristics', charNote: 'As entered when the plan was purchased.',
     sex: 'Sex', age: 'Age', height: 'Height', weight: 'Weight', activity: 'Activity',
@@ -96,13 +96,21 @@ export function PlanDetailsPanel({ plan, lang = 'el' }: { plan: PlanDetails; lan
           label={t.meals}
           value={plan.meals.length ? plan.meals.map((m) => mealLabel(m, lang)).join(', ') : '—'}
         />
+        {/* WEC-783: these were one row that fell back to createdAt whenever
+            startDate was null — which was ALWAYS, since nothing stored a start
+            date. The panel therefore showed the payment date under the label
+            «Έναρξη», and the countdown ran from the wrong day. Two facts, two
+            rows, and when the customer never picked a date we say so instead
+            of quietly substituting the purchase. */}
+        <Row
+          label={t.purchase}
+          value={dash(new Date(plan.createdAt).toLocaleDateString(locale))}
+        />
         <Row
           label={t.start}
-          value={dash(
-            plan.startDate
-              ? new Date(plan.startDate + 'T00:00:00').toLocaleDateString(locale)
-              : new Date(plan.createdAt).toLocaleDateString(locale),
-          )}
+          value={plan.startDate
+            ? new Date(plan.startDate + 'T00:00:00').toLocaleDateString(locale)
+            : t.notPicked}
         />
         {(plan.dieticianManaged || plan.bodyFatMeasurement) && (
           <Row

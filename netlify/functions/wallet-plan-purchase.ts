@@ -119,6 +119,15 @@ export default async (request: Request) => {
     // pays `chargeCents` (plan + fee); the wallet is still credited only
     // `walletCreditCents` (plan base + bonus). amount_to_pay_cents = chargeCents
     // so the Viva verify amount-match holds.
+    // WEC-783 — never trust the client with a date either.
+    const rawStart = typeof body.startDate === 'string' ? body.startDate.trim() : ''
+    const startDateIso = /^\d{4}-\d{2}-\d{2}$/.test(rawStart) ? rawStart : null
+    const activeUntilIso = startDateIso
+      ? new Date(new Date(`${startDateIso}T00:00:00Z`).getTime()
+          + Math.round((result.planLengthWeeks ?? 0) * 7) * 86400000)
+          .toISOString().slice(0, 10)
+      : null
+
     const bodyFatSelected = !!body.services?.bodyFatMeasurement
     const lipoCents = bodyFatSelected ? lipometrisiFeeCents(body.planLength, true) : 0
     // WEC-703: `chargeCents` (what the customer PAYS) may be reduced by a
@@ -250,6 +259,12 @@ export default async (request: Request) => {
         plan_length: body.planLength,
         plan_length_weeks: result.planLengthWeeks,
         days_per_week: body.daysPerWeek,
+        // WEC-783: the customer's chosen start date, and the ops-facing
+        // «Ενεργή έως» seeded from it. Both are informational — nothing reads
+        // them to allow or deny an order. Validated as YYYY-MM-DD so a junk
+        // value can never reach the column.
+        start_date: startDateIso,
+        active_until: activeUntilIso,
         // Pricing snapshot
         pricing_matrix_snapshot:  config.settings.pricingMatrix,
         discount_matrix_snapshot: config.settings.discountMatrix,

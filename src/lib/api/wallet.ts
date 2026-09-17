@@ -105,6 +105,9 @@ export async function fetchWallet(userId: string): Promise<{
   let purchaseCredit: number | undefined   // wallet_credit_cents (paid + bonus)
   // WEC-349: plan composition + dates for the "My Subscription" tab.
   let startDate: string | undefined
+  // WEC-783: ops-facing «Ενεργή έως». Surfaced for the admin panel; the
+  // customer site does not render it.
+  let activeUntil: string | undefined
   let bonusExpiresAt: string | undefined
   let frequency: string | undefined
   let people: number | undefined
@@ -146,9 +149,18 @@ export async function fetchWallet(userId: string): Promise<{
         purchaseBonus  = centsToEuros((pv.bonus_credits_cents ?? plan.bonus_amount) ?? 0)
         purchaseCredit = centsToEuros((pv.wallet_credit_cents ?? plan.credits) ?? 0)
       }
-      // created_at is a timestamptz; keep the date part for display parity
-      // with the other ISO date fields the tab formats.
-      startDate = plan.created_at ? plan.created_at.split('T')[0] : undefined
+      // WEC-783: this used to be `plan.created_at` — the UI said «Ημερομηνία
+      // έναρξης» and showed the moment of PAYMENT, so the end date and the
+      // «days left» countdown both ran from the wrong day. A customer who
+      // bought today to start next Monday lost six days on paper.
+      // Now: the date the customer actually picked, or undefined when they
+      // never picked one (which the panel must say out loud rather than
+      // quietly substituting the purchase date).
+      {
+        const pd = planRow as Record<string, unknown>
+        startDate = (pd.start_date as string | null) ?? undefined
+        activeUntil = (pd.active_until as string | null) ?? undefined
+      }
       bonusExpiresAt = plan.bonus_expires_at
         ? plan.bonus_expires_at.split('T')[0]
         : undefined
@@ -167,8 +179,10 @@ export async function fetchWallet(userId: string): Promise<{
       goal = (pr.goal as string | null) ?? undefined
       const svc = (pr.services as { bodyFatMeasurement?: boolean } | null) ?? {}
       bodyFatMeasurement = !!svc?.bodyFatMeasurement
+      // WEC-783: purchase date no longer falls back to `startDate` — the two
+      // are different facts and conflating them is the bug this ticket fixes.
       const confirmedAt = pr.confirmed_at as string | null
-      purchaseDate = confirmedAt ? confirmedAt.split('T')[0] : startDate
+      purchaseDate = (confirmedAt ?? plan.created_at)?.split('T')[0]
     }
   }
 
@@ -237,6 +251,7 @@ export async function fetchWallet(userId: string): Promise<{
       purchaseBonus,
       purchaseCredit,
       startDate,
+      activeUntil,
       bonusExpiresAt,
       frequency,
       people,

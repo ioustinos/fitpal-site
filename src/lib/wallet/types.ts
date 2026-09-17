@@ -33,6 +33,10 @@ export interface WalletCalcInput {
   daysPerWeek: DaysPerWeek
   // WEC-553: bodyFatMeasurement = optional λιπομέτρηση add-on (priced server-side).
   services: { dieticianManaged: boolean; bodyFatMeasurement?: boolean }
+  /** WEC-783: ISO date the customer picked to start. Purely informational —
+   *  it is stored and displayed, and never gates ordering or wallet spend.
+   *  Optional: a purchase without a chosen date is normal. */
+  startDate?: string
 }
 
 export interface MealBreakdown {
