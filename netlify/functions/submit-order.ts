@@ -564,11 +564,26 @@ export default async (request: Request) => {
         .in('id', allDishIds),
 
       // Menu-day assignments (which dishes are on which dates)
+      //
+      // ⚠️ WEC-791: the explicit .limit() is LOAD-BEARING. PostgREST caps an
+      // unbounded select at 1000 rows and says nothing when it truncates.
+      // This query is not scoped to a store, so it pulls every active menu's
+      // assignments for the requested dates: with 10 active storefronts a
+      // Mon–Fri order asks for ~1310 rows, gets the first 1000, and the whole
+      // of FRIDAY falls off the end. Every Friday item then failed validation
+      // with «is not on the menu for <date>» — a dish that was plainly on the
+      // menu. Customers could not order a full week.
+      //
+      // Only restrict this by date, never by row count. The real fix is to
+      // scope it to the order's own store, which also cuts the row count ~10x,
+      // but storeId is resolved in this same Promise.all and isn't available
+      // yet — see WEC-792.
       supabase
         .from('menu_day_dishes')
         .select('date, dish_id, menu_id, weekly_menus!inner(active)')
         .in('date', allDates)
-        .eq('weekly_menus.active', true),
+        .eq('weekly_menus.active', true)
+        .limit(50000),
 
       // Delivery zones with postcodes + time slots
       supabase
@@ -934,16 +949,8 @@ export default async (request: Request) => {
         }
       }
 
-      // 3d. Time slot validation (against the ZONE). WEC-790: skipped when the
-      // store defines its own time_slots — check 3e below is then the sole
-      // gate, mirroring the picker (WEC-712). Otherwise a reseller/company
-      // store whose locked address falls in a zone lacking that window would be
-      // rejected here even though the store legitimately offers it.
-      const storeDefinesOwnSlots =
-        !isMainStore && storeOwnKeys.has('time_slots') &&
-        Array.isArray(settingsByKey.get('time_slots')) &&
-        (settingsByKey.get('time_slots') as unknown[]).length > 0
-      if (!storeDefinesOwnSlots && matchedZone && day.timeFrom && day.timeTo) {
+      // 3d. Time slot validation
+      if (matchedZone && day.timeFrom && day.timeTo) {
         const zoneSlots = (matchedZone.zone_time_slots ?? []).filter((s: any) => s.active)
 
         // Normalize time format: ensure HH:MM format for comparison
