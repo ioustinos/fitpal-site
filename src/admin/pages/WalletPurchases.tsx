@@ -1,6 +1,7 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import {
   fetchAdminWalletPlans, fetchAdminWalletPlanDetail, refundAdminWalletPlan, markAdminWalletPlanPaid,
+  updateWalletPlanStartDate,
   type AdminWalletPlanRow, type AdminWalletPlanDetail,
 } from '../../lib/api/adminWalletPlans'
 
@@ -213,9 +214,8 @@ function Drawer({ detail, loading, onClose, onRefunded }: DrawerProps) {
               <Section title="Plan">
                 <KV k="Goal" v={detail.goal ?? '—'} />
                 <KV k="Length" v={`${detail.planLength ?? '?'} (${detail.daysPerWeek ?? '?'} days/wk · ${detail.selectedMeals.join(' + ') || '—'})`} />
-                {/* WEC-794: the start date the customer chose (WEC-783) + derived active-until. */}
-                <KV k="Start date (έναρξη)" v={detail.startDate ? new Date(detail.startDate + 'T00:00:00').toLocaleDateString('el-GR') : '—'} />
-                <KV k="Active until (ενεργή έως)" v={detail.activeUntil ? new Date(detail.activeUntil + 'T00:00:00').toLocaleDateString('el-GR') : '—'} />
+                {/* WEC-794 + WEC-798(c): chosen start date, editable — changing it recalculates «Ενεργή έως». */}
+                <StartDateEditor detail={detail} onSaved={onRefunded} />
                 <KV k="Daily kcal" v={String(detail.dailyKcal ?? '—')} />
                 <KV k="Macro split" v={`P ${detail.macroSplit.p ?? 0}% / C ${detail.macroSplit.c ?? 0}% / F ${detail.macroSplit.f ?? 0}%`} />
                 <KV k="Dietitian-managed" v={detail.services.dieticianManaged ? 'Yes' : 'No'} />
@@ -320,6 +320,60 @@ function Section({ title, children }: { title: string; children: React.ReactNode
       <h3>{title}</h3>
       {children}
     </section>
+  )
+}
+
+function StartDateEditor({ detail, onSaved }: { detail: AdminWalletPlanDetail; onSaved: () => void }) {
+  const [val, setVal] = useState(detail.startDate ?? '')
+  const [activeUntil, setActiveUntil] = useState<string | null>(detail.activeUntil)
+  const [saving, setSaving] = useState(false)
+  const [err, setErr] = useState<string | null>(null)
+  const [ok, setOk] = useState(false)
+  useEffect(() => {
+    setVal(detail.startDate ?? ''); setActiveUntil(detail.activeUntil); setErr(null); setOk(false)
+  }, [detail.id, detail.startDate, detail.activeUntil])
+
+  // WEC-798(c): same rule as the wizard StartDatePicker — weekdays only, and the
+  // earliest is today + 2 business days (Sat/Sun never count toward the buffer).
+  const minIso = useMemo(() => {
+    const d = new Date(); d.setHours(0, 0, 0, 0)
+    let adv = 0
+    while (adv < 2) { d.setDate(d.getDate() + 1); const w = d.getDay(); if (w !== 0 && w !== 6) adv++ }
+    const y = d.getFullYear(), m = String(d.getMonth() + 1).padStart(2, '0'), dd = String(d.getDate()).padStart(2, '0')
+    return `${y}-${m}-${dd}`
+  }, [])
+
+  const fmt = (iso: string | null) => iso ? new Date(iso + 'T00:00:00').toLocaleDateString('el-GR') : '—'
+  const dirty = val !== (detail.startDate ?? '')
+
+  async function save() {
+    setErr(null); setOk(false)
+    if (!val) { setErr('Διάλεξε ημερομηνία'); return }
+    const dow = new Date(val + 'T00:00:00').getDay()
+    if (dow === 0 || dow === 6) { setErr('Μόνο εργάσιμες (Δευ–Παρ)'); return }
+    if (val < minIso) { setErr(`Νωρίτερη έναρξη: ${fmt(minIso)}`); return }
+    setSaving(true)
+    const { activeUntil: newEnd, error } = await updateWalletPlanStartDate(detail.id, val, detail.planLengthWeeks)
+    setSaving(false)
+    if (error) { setErr(error); return }
+    setActiveUntil(newEnd); setOk(true); onSaved()
+  }
+
+  return (
+    <>
+      <div className="admin-kv">
+        <span className="admin-kv-k">Start date (έναρξη)</span>
+        <span className="admin-kv-v" style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+          <input type="date" value={val} min={minIso} onChange={(e) => setVal(e.target.value)} />
+          <button type="button" className="admin-btn" disabled={saving || !dirty} onClick={save}>
+            {saving ? '…' : 'Save'}
+          </button>
+          {ok && <span style={{ color: '#0a7d2c' }}>✓ αποθηκεύτηκε</span>}
+          {err && <span style={{ color: '#c2410c' }}>{err}</span>}
+        </span>
+      </div>
+      <KV k="Active until (ενεργή έως)" v={fmt(activeUntil)} />
+    </>
   )
 }
 

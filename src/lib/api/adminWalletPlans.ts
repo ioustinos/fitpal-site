@@ -34,6 +34,7 @@ export interface AdminWalletPlanRow {
   // WEC-794: the start date the customer picked (WEC-783) + derived active-until.
   startDate: string | null
   activeUntil: string | null
+  planLengthWeeks: number | null
 }
 
 export interface AdminWalletPlanDetail extends AdminWalletPlanRow {
@@ -95,6 +96,7 @@ function rowToBase(row: Record<string, unknown>): AdminWalletPlanRow {
     invoiceVat:  (row.invoice_vat  as string | null) ?? null,
     startDate:  (row.start_date  as string | null) ?? null,
     activeUntil:(row.active_until as string | null) ?? null,
+    planLengthWeeks: (row.plan_length_weeks as number | null) ?? null,
   }
 }
 
@@ -233,4 +235,22 @@ export async function refundAdminWalletPlan(
     return { error: err.error ?? `HTTP ${res.status}` }
   }
   return { data: await res.json(), error: null }
+}
+
+// WEC-798(c): admin edits a plan's start date; «Ενεργή έως» (active_until)
+// recalculates from start_date + plan_length_weeks — the same formula
+// wallet-plan-purchase uses to prefill it. Informational, no gate (WEC-783).
+export async function updateWalletPlanStartDate(
+  id: string,
+  startDateIso: string,
+  planLengthWeeks: number | null,
+): Promise<{ activeUntil: string | null; error: string | null }> {
+  const days = Math.round((planLengthWeeks ?? 0) * 7)
+  const end = new Date(new Date(`${startDateIso}T00:00:00Z`).getTime() + days * 86400000)
+  const activeUntil = end.toISOString().slice(0, 10)
+  const { error } = await supabase
+    .from('wallet_plans')
+    .update({ start_date: startDateIso, active_until: activeUntil })
+    .eq('id', id)
+  return { activeUntil, error: error ? error.message : null }
 }
