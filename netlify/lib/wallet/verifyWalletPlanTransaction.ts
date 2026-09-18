@@ -100,7 +100,7 @@ export async function verifyWalletPlanTransaction(
 
   const { data: plan } = await supabase
     .from('wallet_plans')
-    .select('id, wallet_id, amount_to_pay_cents, bonus_credits_cents, wallet_credit_cents, plan_length, days_per_week, goal, daily_kcal, meal_breakfast, meal_lunch, meal_dinner, meal_snack, services, payment_status, viva_order_code, invoice_type, invoice_name, invoice_vat, voucher_id, voucher_amount_cents')
+    .select('id, wallet_id, amount_to_pay_cents, bonus_credits_cents, wallet_credit_cents, plan_length, days_per_week, goal, daily_kcal, meal_breakfast, meal_lunch, meal_dinner, meal_snack, services, payment_status, viva_order_code, invoice_type, invoice_name, invoice_vat, voucher_id, voucher_amount_cents, start_date, payment_method')
     .eq('id', walletPlanId)
     .maybeSingle()
 
@@ -340,6 +340,10 @@ async function fireSubscriptionPurchasedKlaviyo(
       voucher_code: voucherCode,
       voucher_discount: voucherDiscount,
       payment_status: 'paid',
+      // WEC-797: payment method + chosen start date on the card/link paid email.
+      payment_method: (plan.payment_method as string | null) ?? null,
+      plan_start_date: (plan.start_date as string | null) ?? null,
+      plan_start_date_formatted: plan.start_date ? String(plan.start_date).split('-').reverse().join('/') : null,
       // WEC-693: echo the receipt vs invoice choice + ΑΦΜ in the confirmation.
       invoice_type: plan.invoice_type ?? 'receipt',
       invoice_name: plan.invoice_name ?? null,
@@ -381,6 +385,8 @@ async function fireSubscriptionPurchasedKlaviyo(
       walletPlanId: plan.id,
       paymentStatus: 'paid',
       voucherCode, voucherDiscount, // WEC-703
+      paymentMethod: (plan.payment_method as string | null) ?? null, // WEC-797
+      planStartDate: (plan.start_date as string | null) ?? null,     // WEC-797
     })
   } catch (e) {
     console.warn('[verifyWalletPlanTransaction] Subscription Purchased Klaviyo failed (non-fatal):', e)
