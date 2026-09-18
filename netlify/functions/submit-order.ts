@@ -550,6 +550,34 @@ export default async (request: Request) => {
       ? supabase.from('store_settings').select('key, value, stores!inner(slug)').eq('stores.slug', storeSlug)
       : supabase.from('store_settings').select('key, value, stores!inner(is_default)').eq('stores.is_default', true)
 
+    // ⚠️ WEC-791: PostgREST caps a select at 1000 rows and says NOTHING when it
+    // truncates. Asking for a bigger .limit() does not help — the server clamps
+    // to its own max_rows. The ONLY reliable way to read more than a page is to
+    // page through with .range(), which is what menu-week.ts already does for
+    // dish_variants and dish_ingredients (same cap, same silent failure).
+    //
+    // This bit hard: the menu-availability check below is not scoped to a
+    // store, so a Mon–Fri order pulled ~1310 rows across 10 active storefronts,
+    // received the first 1000, and the whole of FRIDAY fell off the end. Every
+    // Friday item was rejected as "not on the menu" and customers could not
+    // place a full-week order.
+    const fetchAllMenuDays = async (): Promise<{ data: any[] | null; error: { message: string } | null }> => {
+      const PAGE = 1000
+      const rows: any[] = []
+      for (let from = 0; ; from += PAGE) {
+        const { data, error } = await supabase
+          .from('menu_day_dishes')
+          .select('date, dish_id, menu_id, weekly_menus!inner(active)')
+          .in('date', allDates)
+          .eq('weekly_menus.active', true)
+          .range(from, from + PAGE - 1)
+        if (error) return { data: null, error }
+        rows.push(...(data ?? []))
+        if (!data || data.length < PAGE) break
+      }
+      return { data: rows, error: null }
+    }
+
     const [variantsRes, dishesRes, menuDaysRes, zonesRes, settingsRes, storeRes, storeSettingsRes] = await Promise.all([
       // Variant prices + macros
       supabase
@@ -563,27 +591,10 @@ export default async (request: Request) => {
         .select('id, name_el, name_en, active, category_id, discount_pct')
         .in('id', allDishIds),
 
-      // Menu-day assignments (which dishes are on which dates)
-      //
-      // ⚠️ WEC-791: the explicit .limit() is LOAD-BEARING. PostgREST caps an
-      // unbounded select at 1000 rows and says nothing when it truncates.
-      // This query is not scoped to a store, so it pulls every active menu's
-      // assignments for the requested dates: with 10 active storefronts a
-      // Mon–Fri order asks for ~1310 rows, gets the first 1000, and the whole
-      // of FRIDAY falls off the end. Every Friday item then failed validation
-      // with «is not on the menu for <date>» — a dish that was plainly on the
-      // menu. Customers could not order a full week.
-      //
-      // Only restrict this by date, never by row count. The real fix is to
-      // scope it to the order's own store, which also cuts the row count ~10x,
-      // but storeId is resolved in this same Promise.all and isn't available
-      // yet — see WEC-792.
-      supabase
-        .from('menu_day_dishes')
-        .select('date, dish_id, menu_id, weekly_menus!inner(active)')
-        .in('date', allDates)
-        .eq('weekly_menus.active', true)
-        .limit(50000),
+      // Menu-day assignments (which dishes are on which dates).
+      // Paged — see the fetchAllMenuDays comment above. Never make this a
+      // plain .select(): it silently truncates at 1000 rows.
+      fetchAllMenuDays(),
 
       // Delivery zones with postcodes + time slots
       supabase
