@@ -213,6 +213,9 @@ function Drawer({ detail, loading, onClose, onRefunded }: DrawerProps) {
               <Section title="Plan">
                 <KV k="Goal" v={detail.goal ?? '—'} />
                 <KV k="Length" v={`${detail.planLength ?? '?'} (${detail.daysPerWeek ?? '?'} days/wk · ${detail.selectedMeals.join(' + ') || '—'})`} />
+                {/* WEC-794: the start date the customer chose (WEC-783) + derived active-until. */}
+                <KV k="Start date (έναρξη)" v={detail.startDate ? new Date(detail.startDate + 'T00:00:00').toLocaleDateString('el-GR') : '—'} />
+                <KV k="Active until (ενεργή έως)" v={detail.activeUntil ? new Date(detail.activeUntil + 'T00:00:00').toLocaleDateString('el-GR') : '—'} />
                 <KV k="Daily kcal" v={String(detail.dailyKcal ?? '—')} />
                 <KV k="Macro split" v={`P ${detail.macroSplit.p ?? 0}% / C ${detail.macroSplit.c ?? 0}% / F ${detail.macroSplit.f ?? 0}%`} />
                 <KV k="Dietitian-managed" v={detail.services.dieticianManaged ? 'Yes' : 'No'} />

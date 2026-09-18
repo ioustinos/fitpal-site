@@ -31,6 +31,9 @@ export interface AdminWalletPlanRow {
   invoiceType: string | null
   invoiceName: string | null
   invoiceVat: string | null
+  // WEC-794: the start date the customer picked (WEC-783) + derived active-until.
+  startDate: string | null
+  activeUntil: string | null
 }
 
 export interface AdminWalletPlanDetail extends AdminWalletPlanRow {
@@ -90,6 +93,8 @@ function rowToBase(row: Record<string, unknown>): AdminWalletPlanRow {
     invoiceType: (row.invoice_type as string | null) ?? null,
     invoiceName: (row.invoice_name as string | null) ?? null,
     invoiceVat:  (row.invoice_vat  as string | null) ?? null,
+    startDate:  (row.start_date  as string | null) ?? null,
+    activeUntil:(row.active_until as string | null) ?? null,
   }
 }
 

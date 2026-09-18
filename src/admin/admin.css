@@ -1807,6 +1807,34 @@
 @media (max-width: 720px) { .admin-od-addr-grid { grid-template-columns: 1fr 1fr; } }
 .admin-od-addr-edit-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 12px; }
 .admin-od-items { margin-bottom: 8px; }
+
+/* ── WEC-795 ──────────────────────────────────────────────────────────────
+   Maria: «μετά από 2' που θα ανοίξω μια παραγγελία, εξαφανίζονται τα πεδία
+   με σχόλια, ακύρωση, προσθήκη».
+
+   Not a timer — there is no polling on this page. The dish catalogue loads
+   asynchronously; until it arrives the Variant cell is plain text, and the
+   moment it lands the cell becomes a <select>. A <select> takes its minimum
+   width from its LONGEST option, and these run to ~65 characters:
+
+       «Omega 3 salad με καπνιστό σολομό (90γρ), Dressing (20γρ) · 11.50 €»
+
+   .admin-table is width:100% with auto table-layout, so that column simply
+   took the width it wanted. The 7-column table then blew past the drawer's
+   `width: min(1180px, 100vw)`, and Comment / Qty / Unit / Total / × were
+   pushed off the right edge — clipped, with no scrollbar to reach them. The
+   Item column was starved so hard the dish name wrapped one letter per line.
+
+   Cap the closed control. The dropdown still shows every label in full when
+   opened; only the resting width is bounded, so nothing is lost. */
+.admin-od-items select {
+  max-width: 260px;
+  text-overflow: ellipsis;
+}
+
+/* Safety net: if any future cell overflows, it becomes a scrollbar the admin
+   can see and use, instead of controls that quietly vanish. */
+.admin-od-items-scroll { overflow-x: auto; }
 /* WEC-488: per-day macro totals. Visually mirrors the Order Placed email
    template's .day-macros — slim muted single-line under the items table,
    not a card. Same wording + separator the customer sees on email. */

@@ -1501,6 +1501,17 @@ function DayCard({
             />
           )}
 
+          {/* WEC-795: the scroller is a safety net, not the fix. The variant
+              <select> takes its minimum width from its LONGEST option, and on
+              a dish like «Omega 3 salad με καπνιστό σολομό (90γρ), Dressing
+              (20γρ) · 11.50 €» auto table-layout handed that column whatever
+              it asked for. The table then exceeded the drawer's 1180px, and
+              Comment / Qty / Unit / Total / × were clipped off the right edge
+              with no way to reach them — Maria could not edit or remove items
+              at all. The select is now capped in CSS; this wrapper means any
+              future overflow degrades to a scrollbar instead of silently
+              swallowing controls. */}
+          <div className="admin-od-items-scroll">
           <table className="admin-table admin-table-tight admin-od-items">
             <thead>
               <tr>
@@ -1528,6 +1539,7 @@ function DayCard({
               ))}
             </tbody>
           </table>
+          </div>
 
           {/* WEC-488: per-day macro totals. Visual mirrors the Order Placed
               email template (.day-macros class) — one muted single-line
