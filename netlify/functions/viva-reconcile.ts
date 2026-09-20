@@ -303,6 +303,15 @@ export default async (request?: Request) => {
     }
   }
 
+  // WEC-808 (2026-09-20): orphan AUTO-CANCEL DISABLED per Ioustinos.
+  // A payment-link/card timeout is a Viva limit — staff simply resend the
+  // link — so an unpaid order must NEVER be auto-cancelled by this job, and
+  // a stalled subscription purchase must never be auto-failed. Phases 2 & 2b
+  // below are gated off. Phase 1/1b (verify -> mark PAID) stay fully active,
+  // so genuine payments are still rescued. Flip to true to restore the old
+  // orphan-timeout behaviour.
+  const AUTO_CANCEL_ORPHANS = false
+
   // ── 2. Cancel orphan pending card/link orders older than 48h ───────
   //
   // WEC-425 hardening: before flipping any row to 'failed' / 'cancelled',
@@ -315,7 +324,7 @@ export default async (request?: Request) => {
   // check (the per-row check in Phase 1 is gated by created_at < 48h, so
   // Phase 1 NEVER inspected the rows that Phase 2 then cancelled).
   const abandonThreshold = new Date(Date.now() - 48 * 3600 * 1000).toISOString()
-  const { data: orphanCandidates } = await supabase
+  const { data: orphanCandidates } = (AUTO_CANCEL_ORPHANS ? await supabase
     .from('orders')
     .select('id, payment_method, payment_status, viva_order_code:payment_links(viva_order_code)')
     // payment_links join above resolves implicitly; explicit join via
@@ -335,6 +344,7 @@ export default async (request?: Request) => {
     // (This also naturally excludes 'draft' and 'cancelled'.)
     .eq('status', 'pending')
     .lt('created_at', abandonThreshold)
+    : { data: [] as any[] })
   // Build a map of order_id → viva_order_code via payment_links for the
   // verify-before-cancel step.
   const orphanIds = (orphanCandidates ?? []).map((o: { id: string }) => o.id)
@@ -442,12 +452,13 @@ export default async (request?: Request) => {
   // doesn't have a row in admin_change_log (different domain), so the audit
   // trail goes into a note via a follow-up update — see project_viva for
   // the dev-to-prod-checklist item to add a wallet_change_log table later.
-  const { data: orphanPlans } = await supabase
+  const { data: orphanPlans } = (AUTO_CANCEL_ORPHANS ? await supabase
     .from('wallet_plans')
     .select('id, viva_order_code')
     .in('payment_method', ['card', 'link'])
     .eq('payment_status', 'pending')
     .lt('created_at', abandonThreshold)
+    : { data: [] as any[] })
   let cancelledWalletTimeout = 0
   for (const plan of (orphanPlans ?? []) as Array<{ id: string; viva_order_code: string | null }>) {
     let vivaSaidPaid = false
