@@ -2105,14 +2105,12 @@ function PaymentLinkBlock({ order, adminUser, onChanged }: { order: AdminOrder; 
   // WEC-607: also allow generating while «pending_link_sent» so a SECOND link
   // (for the remaining balance) can be sent after the first.
   const collectableStatuses: OrderStatus[] = ['confirmed', 'preparing', 'delivering', 'delivered']
+  // WEC-806: any confirmed & unpaid order can (re)send a payment link — the old
+  // link may be dead/expired and a leftover payment_status='failed' must not
+  // block collecting. paid/refunded already returned null above.
   const canGenerate = collectableStatuses.includes(order.status)
-    && (order.paymentStatus === 'pending' || order.paymentStatus === 'pending_link_sent')
   const blockedByPending = order.status === 'pending'
-  // WEC-806: an expired link is dead — offer a fresh one (decoupled from a
-  // leftover payment_status='failed' from the expired attempt).
   const linkExpired = link?.status === 'expired'
-  // paid/refunded already returned null above, so no payment_status guard needed here.
-  const canRegenerate = linkExpired && collectableStatuses.includes(order.status)
 
   const amountCents = Math.round((parseFloat(amountEuros.replace(',', '.')) || 0) * 100)
   const overAmount = amountCents > remaining
@@ -2246,17 +2244,14 @@ function PaymentLinkBlock({ order, adminUser, onChanged }: { order: AdminOrder; 
               {working ? '…' : 'Μαρκάρισμα ως expired (ο σύνδεσμος έληξε)'}
             </button>
           )}
-          {canRegenerate && (
-            <div style={{ marginTop: 4 }}>
-              <p className="admin-text-muted" style={{ fontSize: 12, marginBottom: 4 }}>Ο σύνδεσμος έληξε — στείλε νέο:</p>
-              {amountControls('Send new link')}
-            </div>
-          )}
-          {/* WEC-607: send ANOTHER link (e.g. for the remaining balance) — links coexist. */}
+          {/* WEC-806/WEC-607: (re)send a link on any confirmed unpaid order —
+              adaptive copy for an expired link vs a remaining-balance top-up. */}
           {canGenerate && (
             <div style={{ marginTop: 4 }}>
-              <p className="admin-text-muted" style={{ fontSize: 12, marginBottom: 4 }}>Send another link (e.g. for the remaining balance):</p>
-              {amountControls('Send another link')}
+              <p className="admin-text-muted" style={{ fontSize: 12, marginBottom: 4 }}>
+                {linkExpired ? 'Ο σύνδεσμος έληξε — στείλε νέο:' : 'Στείλε (νέο) link πληρωμής — π.χ. για το υπόλοιπο:'}
+              </p>
+              {amountControls(linkExpired ? 'Send new link' : 'Send another link')}
             </div>
           )}
           <p className="admin-text-muted" style={{ marginTop: 8, fontSize: 12 }}>
