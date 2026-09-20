@@ -329,7 +329,11 @@ export default async (request?: Request) => {
     // five minutes forever — and since the UPDATE below can never match it
     // (see bug 2), it never leaves the candidate set. That is how two rows
     // produced ~770 "errors" a day and made this job's alarm meaningless.
-    .neq('status', 'cancelled')
+    // WEC-800: only auto-cancel orders still in the default 'pending' status.
+    // An admin who moved the order to 'confirmed' (or further) has taken
+    // ownership — the orphan-timeout must NOT cancel it out from under them.
+    // (This also naturally excludes 'draft' and 'cancelled'.)
+    .eq('status', 'pending')
     .lt('created_at', abandonThreshold)
   // Build a map of order_id → viva_order_code via payment_links for the
   // verify-before-cancel step.
