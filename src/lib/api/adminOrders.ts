@@ -180,7 +180,7 @@ export interface AdminPaymentLink {
   vivaOrderCode: string | null
   transactionId: string | null
   statusId: string | null
-  status: 'pending' | 'success' | 'failure'
+  status: 'pending' | 'success' | 'failure' | 'expired'
   paymentUrl: string | null
   lastVerifiedAt: string | null
   /** WEC-606/607: what this link is for (cents). A paid link = that much collected. */
@@ -416,7 +416,7 @@ export async function getAdminOrder(id: string): Promise<{ data: AdminOrder | nu
       viva_order_code: string | null
       transaction_id: string | null
       status_id: string | null
-      status: 'pending' | 'success' | 'failure'
+      status: 'pending' | 'success' | 'failure' | 'expired'
       payment_url: string | null
       last_verified_at: string | null
       amount: number | null
@@ -1348,3 +1348,21 @@ export async function sendPaymentLinkLogged(
 // needs the whole customer cart UI. V1 ships a shell that redirects admin to
 // the customer site to place the order while signed in as that customer.
 // Tracked as a V2 follow-up.
+
+// WEC-806: mark a stale/dead payment link as 'expired' so the drawer can offer a
+// fresh one. Guarded on the link still being 'pending' (idempotent) and audit-logged.
+export async function markPaymentLinkExpired(orderId: string, adminUser: string): Promise<{ error: string | null }> {
+  const { data, error } = await supabase
+    .from('payment_links')
+    .update({ status: 'expired', last_verified_at: new Date().toISOString() })
+    .eq('order_id', orderId)
+    .eq('status', 'pending')
+    .select('id')
+  if (error) return { error: error.message }
+  if (!data || data.length === 0) return { error: 'No pending payment link to expire.' }
+  await writeChangeLog({
+    orderId, tableName: 'payment_links', fieldName: 'status',
+    oldValue: 'pending', newValue: 'expired', label: 'payment link marked expired', adminUser,
+  })
+  return { error: null }
+}

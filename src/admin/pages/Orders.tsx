@@ -4,7 +4,7 @@ import { useAuthStore } from '../../store/useAuthStore'
 import { useAdminFilters } from '../../lib/useAdminFilters'
 import {
   listAdminOrders, getAdminOrder,
-  setOrderStatus, setOrderPaymentStatus,
+  setOrderStatus, setOrderPaymentStatus, markPaymentLinkExpired,
   updateOrderItemQuantity, updateChildOrderAddress, updateChildOrderTime,
   refundOrder, sendPaymentLinkLogged,
   sendOrderUpdateEmail,
@@ -2108,6 +2108,12 @@ function PaymentLinkBlock({ order, adminUser, onChanged }: { order: AdminOrder; 
   const canGenerate = collectableStatuses.includes(order.status)
     && (order.paymentStatus === 'pending' || order.paymentStatus === 'pending_link_sent')
   const blockedByPending = order.status === 'pending'
+  // WEC-806: an expired link is dead — offer a fresh one (decoupled from a
+  // leftover payment_status='failed' from the expired attempt).
+  const linkExpired = link?.status === 'expired'
+  const canRegenerate = linkExpired
+    && collectableStatuses.includes(order.status)
+    && order.paymentStatus !== 'paid' && order.paymentStatus !== 'refunded'
 
   const amountCents = Math.round((parseFloat(amountEuros.replace(',', '.')) || 0) * 100)
   const overAmount = amountCents > remaining
@@ -2134,6 +2140,15 @@ function PaymentLinkBlock({ order, adminUser, onChanged }: { order: AdminOrder; 
     setWorking(true)
     // firstTime distinguishes "sent" from "regenerated" in the timeline label.
     const { error } = await sendPaymentLinkLogged(order.id, adminUser, !link, amountCents, confirmOver)
+    setWorking(false)
+    if (error) { setErr(error); return }
+    onChanged()
+  }
+
+  // WEC-806: flip a dead 'pending' link to 'expired' so the fresh-link control appears.
+  async function markExpired() {
+    setErr(null); setWorking(true)
+    const { error } = await markPaymentLinkExpired(order.id, adminUser)
     setWorking(false)
     if (error) { setErr(error); return }
     onChanged()
@@ -2223,6 +2238,19 @@ function PaymentLinkBlock({ order, adminUser, onChanged }: { order: AdminOrder; 
               <input className="admin-input" type="text" value={link.paymentUrl} readOnly style={{ flex: 1, fontFamily: 'monospace', fontSize: 12 }} />
               {/* WEC-598 #4: Copy is the PRIMARY action when a link exists. */}
               <button className="admin-btn-primary" onClick={copy}>{copied ? 'Copied! ✓' : 'Copy'}</button>
+            </div>
+          )}
+          {/* WEC-806: a pending link may be dead (Viva orders expire) — let the
+              admin mark it expired, which unlocks sending a fresh link below. */}
+          {link.status === 'pending' && (
+            <button className="admin-btn" disabled={working} onClick={markExpired} style={{ marginBottom: 8 }}>
+              {working ? '…' : 'Μαρκάρισμα ως expired (ο σύνδεσμος έληξε)'}
+            </button>
+          )}
+          {canRegenerate && (
+            <div style={{ marginTop: 4 }}>
+              <p className="admin-text-muted" style={{ fontSize: 12, marginBottom: 4 }}>Ο σύνδεσμος έληξε — στείλε νέο:</p>
+              {amountControls('Send new link')}
             </div>
           )}
           {/* WEC-607: send ANOTHER link (e.g. for the remaining balance) — links coexist. */}
