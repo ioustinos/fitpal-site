@@ -2111,9 +2111,8 @@ function PaymentLinkBlock({ order, adminUser, onChanged }: { order: AdminOrder; 
   // WEC-806: an expired link is dead — offer a fresh one (decoupled from a
   // leftover payment_status='failed' from the expired attempt).
   const linkExpired = link?.status === 'expired'
-  const canRegenerate = linkExpired
-    && collectableStatuses.includes(order.status)
-    && order.paymentStatus !== 'paid' && order.paymentStatus !== 'refunded'
+  // paid/refunded already returned null above, so no payment_status guard needed here.
+  const canRegenerate = linkExpired && collectableStatuses.includes(order.status)
 
   const amountCents = Math.round((parseFloat(amountEuros.replace(',', '.')) || 0) * 100)
   const overAmount = amountCents > remaining
