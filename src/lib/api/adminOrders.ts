@@ -568,7 +568,24 @@ function withDay(base: string, dayTag: string): string {
 
 // ─── Status / payment transitions ─────────────────────────────────────────
 
+const CARD_UNPAID_CONFIRM_MSG =
+  'Δεν μπορείς να επιβεβαιώσεις απλήρωτη παραγγελία με κάρτα. Άλλαξε πρώτα τον τρόπο πληρωμής (π.χ. σύνδεσμος πληρωμής, μετρητά, ή τραπεζική κατάθεση). / Cannot confirm an unpaid card order — change the payment method first.'
+
 export async function setOrderStatus(id: string, current: OrderStatus, next: OrderStatus, adminUser: string, note?: string): Promise<{ error: string | null }> {
+  // WEC-800: a card order that is still unpaid is a suspicious/abandoned
+  // checkout — confirming it would push a never-paid order to ops (and the
+  // reconcile would later cancel it anyway). Block the confirm; the admin must
+  // first switch the payment method (e.g. payment link / cash / transfer).
+  if (next === 'confirmed') {
+    const { data: o } = await supabase
+      .from('orders')
+      .select('payment_method, payment_status')
+      .eq('id', id)
+      .maybeSingle()
+    if (o && o.payment_method === 'card' && o.payment_status !== 'paid') {
+      return { error: CARD_UNPAID_CONFIRM_MSG }
+    }
+  }
   // Allow any transition with force, but warn on invalid ones (called from UI)
   // WEC-526: on cancel, persist the (optional) admin reason on the order.
   const patch: Record<string, unknown> = { status: next, updated_at: new Date().toISOString() }

@@ -643,6 +643,11 @@ function OrderDrawer({
   // the WEC-431 refund-choice variant; everything else a plain confirm.
   function changeStatus(next: OrderStatus) {
     if (!order) return
+    // WEC-800: mirror the API gate — never confirm an unpaid card order.
+    if (next === 'confirmed' && order.paymentMethod === 'card' && order.paymentStatus !== 'paid') {
+      setErr('Δεν μπορείς να επιβεβαιώσεις απλήρωτη παραγγελία με κάρτα. Άλλαξε πρώτα τον τρόπο πληρωμής (π.χ. σύνδεσμος πληρωμής, μετρητά, ή τραπεζική κατάθεση).')
+      return
+    }
     if (next === 'cancelled') {
       const refundableMethods: PaymentMethod[] = ['card', 'link', 'wallet']
       const refundable =
@@ -2197,6 +2202,16 @@ function PaymentLinkBlock({ order, adminUser, onChanged }: { order: AdminOrder; 
               {new Date(link.createdAt).toLocaleString('en-GB', { dateStyle: 'short', timeStyle: 'short' })}
             </span>
           </div>
+          {/* WEC-800: on a card order this link isn't admin-sent — it's the one
+              auto-created by the customer's card checkout. Say so, so ops don't
+              read it as a manually issued payment request. */}
+          {order.paymentMethod === 'card' && (
+            <p className="admin-text-muted" style={{ marginTop: -4, marginBottom: 8, fontSize: 12, lineHeight: 1.4 }}>
+              Αυτόματος σύνδεσμος πληρωμής — ο πελάτης επέλεξε πληρωμή με κάρτα.
+              <br />
+              <span style={{ opacity: 0.75 }}>Auto-generated payment link — the customer chose to pay by card.</span>
+            </p>
+          )}
           <dl className="admin-od-kv" style={{ marginBottom: 8 }}>
             {link.vivaOrderCode && <div><dt>Viva code</dt><dd style={{ fontFamily: 'monospace' }}>{link.vivaOrderCode}</dd></div>}
             <div><dt>Status</dt><dd>
