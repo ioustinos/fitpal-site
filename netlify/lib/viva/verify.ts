@@ -159,7 +159,10 @@ export async function verifyVivaTransaction(transactionId: string): Promise<Veri
       .from('payment_links')
       .update({ status: 'success', updated_at: new Date().toISOString() })
       .eq('viva_order_code', orderCode)
-      .eq('status', 'pending')
+      // WEC-804: also accept a link a PRIOR declined attempt flipped to
+      // 'failure' — the customer can retry the SAME Viva order code and pay.
+      // Still a one-directional guarded single-row win (idempotent).
+      .in('status', ['pending', 'failure'])
       .select('id')
       .maybeSingle()
     if (flipped) await markPaid(orderId, transactionId, amountCents)
