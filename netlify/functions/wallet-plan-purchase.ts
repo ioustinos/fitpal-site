@@ -438,6 +438,10 @@ export default async (request: Request) => {
         // cash never does. Reference + bank list drive the «Στοιχεία τραπεζικής
         // μεταφοράς» block (same shape as the order confirmation email).
         payment_method: body.paymentMethod,
+        // WEC-797: the chosen start date (WEC-783) never reached Klaviyo, so
+        // «Ημερομηνία έναρξης» rendered «—» on every plan-confirmation email.
+        plan_start_date: startDateIso,
+        plan_start_date_formatted: startDateIso ? startDateIso.split('-').reverse().join('/') : null,
         bank_transfer_infos: bankTransferInfos,
         bank_reference: reference,
         // WEC-693: tell the customer their receipt vs invoice choice was registered.
@@ -464,6 +468,7 @@ export default async (request: Request) => {
         goalLabel: subGoalLabel, mealsLabel: subMealsLabel,
         amountPaid: chargeCents / 100, walletPlanId,
         voucherCode, voucherDiscount: voucherDiscountCents / 100, // WEC-703
+        paymentMethod: body.paymentMethod, planStartDate: startDateIso, // WEC-797
       })
 
       // WEC-554: cash (Αντικαταβολή) — no bank details; pay courier on delivery.

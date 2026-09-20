@@ -22,6 +22,9 @@ export interface SubAdminNotifyProps {
   /** WEC-703: voucher applied to the subscription purchase (null when none). */
   voucherCode?: string | null
   voucherDiscount?: number
+  /** WEC-797: so the admin copy shows «Τρόπος πληρωμής» + «Ημερομηνία έναρξης». */
+  paymentMethod?: string | null
+  planStartDate?: string | null
 }
 
 export async function notifySubscriptionAdmins(
@@ -73,6 +76,11 @@ export async function notifySubscriptionAdmins(
           voucher_code: p.voucherCode ?? null,
           voucher_discount: p.voucherDiscount ?? 0,
           payment_status: p.paymentStatus ?? 'pending',
+          // WEC-797: previously missing on admin copies → «Τρόπος πληρωμής» and
+          // «Ημερομηνία έναρξης» rendered «—» on every internal notification.
+          payment_method: p.paymentMethod ?? null,
+          plan_start_date: p.planStartDate ?? null,
+          plan_start_date_formatted: p.planStartDate ? p.planStartDate.split('-').reverse().join('/') : null,
           walletPlanId: p.walletPlanId,
         },
       )

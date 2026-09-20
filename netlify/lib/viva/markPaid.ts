@@ -88,7 +88,10 @@ export async function markPaid(
     // WEC-599: «pending_link_sent» is still unpaid — the guard must accept it or
     // the webhook/return/reconcile paths silently stop flipping link-sent orders
     // to paid. Both values still funnel through the same idempotent single-row win.
-    .in('payment_status', ['pending', 'pending_link_sent'])
+    // WEC-804: also accept 'failed' — a declined-then-retried-success order was
+    // flipped to 'failed' by markFailed on the first attempt; the retry must
+    // still be able to flip it to 'paid'. Idempotent (once 'paid', no re-match).
+    .in('payment_status', ['pending', 'pending_link_sent', 'failed'])
     .select('id')
     .maybeSingle()
 

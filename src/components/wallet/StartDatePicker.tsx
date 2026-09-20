@@ -75,16 +75,29 @@ export function StartDatePicker({ lang, value, onChange, daysCount = 8, minLeadD
       orderable: boolean
       inactive: boolean
     }> = []
+    // WEC-798: the lead-time buffer counts BUSINESS days only — Sat/Sun don't
+    // count toward it. Before, `minLeadDays` was calendar days, so a Friday
+    // visit offered Monday (only 1 business day out) instead of the correct
+    // Tuesday. Advance a cursor forward, counting weekdays, until we've passed
+    // `minLeadDays` business days; the cursor then lands on the earliest
+    // eligible weekday.
+    const cursor = new Date(today)
+    let advanced = 0
+    while (advanced < minLeadDays) {
+      cursor.setDate(cursor.getDate() + 1)
+      const dow = cursor.getDay()
+      if (dow !== 0 && dow !== 6) advanced++
+    }
     // WEC-657: weekends are removed entirely (Fitpal runs Mon–Fri) — skip
     // Sat/Sun rather than render them disabled, so the row shows only weekday
-    // options. Keep scanning forward until we've collected `daysCount`
-    // weekdays; cap the scan so a long closed stretch can't loop forever.
-    let offset = minLeadDays
-    const MAX_SCAN = minLeadDays + daysCount + 14
-    while (out.length < daysCount && offset <= MAX_SCAN) {
-      const d = new Date(today)
-      d.setDate(today.getDate() + offset)
-      offset++
+    // options. Collect `daysCount` weekdays from the cursor onward; cap the
+    // scan so a long closed stretch can't loop forever.
+    let scan = 0
+    const MAX_SCAN = daysCount + 14
+    while (out.length < daysCount && scan <= MAX_SCAN) {
+      const d = new Date(cursor)
+      d.setDate(cursor.getDate() + scan)
+      scan++
       const jsDay = d.getDay()
       if (jsDay === 0 || jsDay === 6) continue // Sun/Sat — gone, not disabled
       const iso = toIso(d)
