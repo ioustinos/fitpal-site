@@ -21,7 +21,7 @@ export function mapPaid(paymentStatus: string): string {
   }
 }
 
-// Orders.Payment Method choices: CASH | BANK_TRANSFER | CARD | Freeba
+// Orders.Payment Method choices: CASH | BANK_TRANSFER | CARD | Payment Link | Wallet | Freeba
 // Orders.Payment Extra choices include: 'Sent Payment Link'
 export function mapPaymentMethod(method: string): { method: string; extra?: string } {
   switch (method) {
@@ -32,7 +32,11 @@ export function mapPaymentMethod(method: string): { method: string; extra?: stri
     case 'card':
       return { method: 'CARD' }
     case 'link':
-      return { method: 'CARD', extra: 'Sent Payment Link' }
+      // WEC-809: dedicated Airtable "Payment Method" option "Payment Link"
+      // (added by Ioustinos 2026-09-20). Previously mirrored as CARD + a
+      // "Sent Payment Link" tag in Payment Extra; now the method itself
+      // carries it. Extra tag kept for continuity.
+      return { method: 'Payment Link', extra: 'Sent Payment Link' }
     case 'wallet':
       return { method: 'Wallet' }
     default:
