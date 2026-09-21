@@ -8,7 +8,11 @@ import { createVivaOrder } from '../lib/viva/createOrder'
 // the order being persisted. Switching to awaited track() — slightly slower
 // per response (~150ms extra) but events actually land.
 // WEC-580: order-confirmation Klaviyo events moved out of the request path into
-// order-events-background (invoked below). No direct Klaviyo import here anymore.
+// order-events-background (invoked below).
+// WEC-808: the ONE exception is «Payment Link Sent». A `link` order creates a
+// Viva link here and the customer must be told about it — see the block after
+// createVivaOrder below for why this cannot live in the background function.
+import { track, subscribeProfileToMarketing, EVT } from '../lib/klaviyo'
 import { corsHeaders } from '../lib/cors'
 import { loadCategoryDiscounts, effectiveDiscountPct, applyDiscountCents } from '../lib/stores/categoryDiscounts'
 import { checkRateLimit, clientIp } from '../lib/rateLimit'
@@ -1484,6 +1488,80 @@ export default async (request: Request) => {
           mode: body.paymentMethod,
         })
         paymentUrl = result.paymentUrl
+
+        // ── WEC-808: send the payment-link email HERE, not only from the
+        // admin's «Generate payment link» button ────────────────────────────
+        //
+        // `link` is an admin-only method (payment_methods_enabled: link.public
+        // = false). Until now submit-order created the Viva link and told
+        // nobody: the «Payment Link Sent» Klaviyo event lived ONLY in
+        // viva-regenerate-link.ts, i.e. only in the admin button. An order
+        // placed with `link` therefore produced a link that sat in the
+        // database while the customer heard nothing at all — no confirmation
+        // either, because emailAtSubmit deliberately skips card/link.
+        //
+        // 13 live orders (~1,160 €) were in exactly that state on 21/09. The
+        // signature is unmistakable: 1 payment_links row + payment_status
+        // 'pending' = auto-created, never sent. 2 rows + 'pending_link_sent'
+        // = someone remembered to press the button.
+        //
+        // Why not order-events-background: that function only knows
+        // 'order_placed' / 'order_paid_confirmation' and re-reads the order
+        // from the DB. The link URL exists only here, in memory, and is not
+        // yet persisted when we need it. Awaited + fail-soft, mirroring
+        // viva-regenerate-link exactly.
+        if (body.paymentMethod === 'link') {
+          // Mirrors WEC-599: guarded on 'pending' so a later regenerate is a
+          // no-op and paid/failed can never be clobbered.
+          try {
+            await svcRpc
+              .from('orders')
+              .update({ payment_status: 'pending_link_sent', updated_at: new Date().toISOString() })
+              .eq('id', orderId)
+              .eq('payment_status', 'pending')
+          } catch (e) {
+            console.error('[submit-order] pending_link_sent flip failed for %s:', orderId, e)
+          }
+
+          try {
+            let linkLang: 'el' | 'en' = body.lang === 'en' ? 'en' : 'el'
+            if (userId) {
+              const { data: pref } = await svcRpc
+                .from('user_prefs').select('lang').eq('user_id', userId).maybeSingle()
+              const l = (pref as { lang?: string } | null)?.lang
+              if (l === 'el' || l === 'en') linkLang = l
+            }
+            const linkFirstName = (body.customerName ?? '').split(' ')[0]
+            // Same prop shape as viva-regenerate-link — the Klaviyo template
+            // reads snake_case; camelCase kept for downstream consumers.
+            const linkProps = {
+              lang: linkLang,
+              first_name: linkFirstName,
+              order_number: orderNumber,
+              payment_url: result.paymentUrl,
+              total: orderTotal / 100,
+              orderNumber,
+              paymentUrl: result.paymentUrl,
+            }
+            const fires = await Promise.all([
+              subscribeProfileToMarketing(body.customerEmail, 'Fitpal payment link sent (auto-subscribe)'),
+              track(EVT.PaymentLinkSent, {
+                email: body.customerEmail,
+                firstName: linkFirstName,
+                externalId: userId ?? undefined,
+              }, linkProps),
+            ])
+            const failed = fires.filter((r) => !r.ok)
+            if (failed.length > 0) {
+              console.warn('[submit-order] payment-link klaviyo: %d/%d failed: %s',
+                failed.length, fires.length, failed.map((r) => r.error).join(' | '))
+            }
+          } catch (e) {
+            // Never block checkout on email delivery. The admin can always
+            // re-send from the drawer.
+            console.warn('[submit-order] payment-link klaviyo threw:', e)
+          }
+        }
       } catch (err) {
         console.error('Viva create-order failed for orderId=%s:', orderId, err)
         paymentSetupFailed = true
