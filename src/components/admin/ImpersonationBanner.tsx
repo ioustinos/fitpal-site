@@ -103,7 +103,7 @@ export function ImpersonationBanner() {
 
         const { data: planRow } = await supabase
           .from('wallet_plans')
-          .select('wallet_credit_cents, bonus_credits_cents, meal_breakfast, meal_lunch, meal_dinner, meal_snack, plan_length_weeks, created_at')
+          .select('wallet_credit_cents, bonus_credits_cents, meal_breakfast, meal_lunch, meal_dinner, meal_snack, plan_length_weeks, created_at, start_date, active_until')
           .eq('id', w.active_plan_id)
           .maybeSingle()
         if (cancelled || !planRow) { setSummary(null); return }
@@ -112,10 +112,14 @@ export function ImpersonationBanner() {
           meal_breakfast: boolean | null; meal_lunch: boolean | null; meal_dinner: boolean | null
           meal_snack: boolean | null
           plan_length_weeks: number | null; created_at: string
+          start_date: string | null; active_until: string | null
         }
 
-        // Prefer meal_services dates for the period; fall back to plan
-        // created_at + plan_length_weeks when no service row is readable.
+        // Period source order (WEC-783): meal_services dates → the customer's
+        // chosen wallet_plans.start_date / active_until → last-ditch
+        // created_at + plan_length_weeks. Purchase date is the fallback of
+        // last resort, never the default — it made €/day run from the buy
+        // date instead of the first delivery.
         const { data: svcRow } = await supabase
           .from('meal_services')
           .select('start_date, end_date')
@@ -126,10 +130,16 @@ export function ImpersonationBanner() {
         if (cancelled) return
         const svc = svcRow as { start_date: string | null; end_date: string | null } | null
 
-        const start = svc?.start_date ? new Date(svc.start_date + 'T00:00:00') : new Date(plan.created_at)
+        const start = svc?.start_date
+          ? new Date(svc.start_date + 'T00:00:00')
+          : plan.start_date
+          ? new Date(plan.start_date + 'T00:00:00')
+          : new Date(plan.created_at)
         const weeks = plan.plan_length_weeks ?? 4
         const end = svc?.end_date
           ? new Date(svc.end_date + 'T00:00:00')
+          : plan.active_until
+          ? new Date(plan.active_until + 'T00:00:00')
           : new Date(start.getTime() + weeks * 7 * 86_400_000)
         const today = new Date()
         const clampedToday = today < end ? today : end
