@@ -73,6 +73,7 @@ function offeredTransitions(status: OrderStatus): OrderStatus[] {
   if (status === 'pending') return ['confirmed', 'cancelled']
   if (status === 'confirmed') return ['pending', 'delivered', 'cancelled']
   if (status === 'delivered') return ['confirmed', 'cancelled']
+  if (status === 'cancelled') return ['pending']   // WEC-805: revert a cancelled order to pending
   return VALID_NEXT_STATUS[status].filter((n) => ENABLED_STATUSES.includes(n) || n === 'cancelled')
 }
 
@@ -646,6 +647,11 @@ function OrderDrawer({
     // WEC-800: mirror the API gate — never confirm an unpaid card order.
     if (next === 'confirmed' && order.paymentMethod === 'card' && order.paymentStatus !== 'paid') {
       setErr('Δεν μπορείς να επιβεβαιώσεις απλήρωτη παραγγελία με κάρτα. Άλλαξε πρώτα τον τρόπο πληρωμής (π.χ. σύνδεσμος πληρωμής, μετρητά, ή τραπεζική κατάθεση).')
+      return
+    }
+    // WEC-805: mirror the API guard — a refunded order can't be revived.
+    if (next === 'pending' && order.status === 'cancelled' && order.paymentStatus === 'refunded') {
+      setErr('Δεν μπορείς να επαναφέρεις μια παραγγελία που έχει επιστραφεί (refunded). Δημιούργησε νέα παραγγελία.')
       return
     }
     if (next === 'cancelled') {
