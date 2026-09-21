@@ -574,7 +574,7 @@ const CARD_UNPAID_CONFIRM_MSG =
 // WEC-805: reverting a cancelled order to pending is blocked once it has been
 // refunded — the money already went back, so reviving it would be inconsistent.
 const REFUNDED_REVERT_MSG =
-  'Δεν μπορείς να επαναφέρεις μια παραγγελία που έχει επιστραφεί (refunded). Δημιούργησε νέα παραγγελία. / Cannot revert a refunded order — create a new order instead.'
+  'Δεν μπορείς να επαναφέρεις μια παραγγελία με επιστροφή χρημάτων (μερική ή ολική). Δημιούργησε νέα παραγγελία. / Cannot revert an order that has a refund (partial or full) — create a new order instead.'
 
 export async function setOrderStatus(id: string, current: OrderStatus, next: OrderStatus, adminUser: string, note?: string): Promise<{ error: string | null }> {
   // WEC-800: a card order that is still unpaid is a suspicious/abandoned
@@ -596,10 +596,11 @@ export async function setOrderStatus(id: string, current: OrderStatus, next: Ord
   if (next === 'pending' && current === 'cancelled') {
     const { data: o } = await supabase
       .from('orders')
-      .select('payment_status')
+      .select('refund_amount')
       .eq('id', id)
       .maybeSingle()
-    if (o && o.payment_status === 'refunded') {
+    // WEC-578: any refund (partial or full) makes a revive money-inconsistent.
+    if (o && (o.refund_amount ?? 0) > 0) {
       return { error: REFUNDED_REVERT_MSG }
     }
   }
