@@ -24,7 +24,7 @@ export const VALID_NEXT_STATUS: Record<OrderStatus, OrderStatus[]> = {
   preparing:  ['delivering', 'cancelled'],
   delivering: ['delivered', 'cancelled'],
   delivered:  [],
-  cancelled:  [],
+  cancelled:  ['pending'],   // WEC-805: admin can revert a cancelled order to pending (guarded in setOrderStatus)
 }
 
 // ─── Types ────────────────────────────────────────────────────────────────
@@ -571,6 +571,11 @@ function withDay(base: string, dayTag: string): string {
 const CARD_UNPAID_CONFIRM_MSG =
   'Δεν μπορείς να επιβεβαιώσεις απλήρωτη παραγγελία με κάρτα. Άλλαξε πρώτα τον τρόπο πληρωμής (π.χ. σύνδεσμος πληρωμής, μετρητά, ή τραπεζική κατάθεση). / Cannot confirm an unpaid card order — change the payment method first.'
 
+// WEC-805: reverting a cancelled order to pending is blocked once it has been
+// refunded — the money already went back, so reviving it would be inconsistent.
+const REFUNDED_REVERT_MSG =
+  'Δεν μπορείς να επαναφέρεις μια παραγγελία που έχει επιστραφεί (refunded). Δημιούργησε νέα παραγγελία. / Cannot revert a refunded order — create a new order instead.'
+
 export async function setOrderStatus(id: string, current: OrderStatus, next: OrderStatus, adminUser: string, note?: string): Promise<{ error: string | null }> {
   // WEC-800: a card order that is still unpaid is a suspicious/abandoned
   // checkout — confirming it would push a never-paid order to ops (and the
@@ -586,10 +591,24 @@ export async function setOrderStatus(id: string, current: OrderStatus, next: Ord
       return { error: CARD_UNPAID_CONFIRM_MSG }
     }
   }
+  // WEC-805: revert a cancelled order back to pending (the one transition out of
+  // 'cancelled'). Blocked if the order was already refunded.
+  if (next === 'pending' && current === 'cancelled') {
+    const { data: o } = await supabase
+      .from('orders')
+      .select('payment_status')
+      .eq('id', id)
+      .maybeSingle()
+    if (o && o.payment_status === 'refunded') {
+      return { error: REFUNDED_REVERT_MSG }
+    }
+  }
   // Allow any transition with force, but warn on invalid ones (called from UI)
   // WEC-526: on cancel, persist the (optional) admin reason on the order.
   const patch: Record<string, unknown> = { status: next, updated_at: new Date().toISOString() }
   if (next === 'cancelled') patch.cancel_reason = note && note.trim() ? note.trim() : null
+  // WEC-805: drop the stale cancellation reason when reviving the order.
+  if (current === 'cancelled' && next !== 'cancelled') patch.cancel_reason = null
   const { error } = await supabase.from('orders').update(patch).eq('id', id)
   if (error) return { error: error.message }
   await writeChangeLog({
