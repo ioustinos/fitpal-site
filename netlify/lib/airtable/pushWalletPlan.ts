@@ -155,12 +155,16 @@ export async function pushWalletPlanToAirtable(
   const services = (plan.services ?? {}) as {
     dieticianManaged?: boolean; bodyFatMeasurement?: boolean; bodyFatFeeCents?: number
   }
+  // «Meals» is a MULTIPLE SELECT, so it takes an array of option names — not a
+  // comma-joined string. The first run sent a string and every one of the 49
+  // plans came back 422 «Cannot parse value for field Meals», which blocked the
+  // whole record: with typecast:false one bad field fails all 31.
   const meals = [
     plan.meal_breakfast && 'Πρωινό',
     plan.meal_lunch && 'Μεσημεριανό',
     plan.meal_dinner && 'Βραδινό',
     plan.meal_snack && 'Σνακ',
-  ].filter(Boolean).join(', ')
+  ].filter(Boolean) as string[]
 
   const fields: Record<string, unknown> = {
     'Plan Id': plan.id,
@@ -170,7 +174,6 @@ export async function pushWalletPlanToAirtable(
     'Customer Email': custEmail ?? '',
     'Customer Phone': custPhone ?? '',
     'Days / Week': plan.days_per_week ?? null,
-    Meals: meals,
     'Daily kcal': plan.daily_kcal ?? null,
     Subtotal: toEuros(plan.subtotal_cents),
     'Discount %': plan.discount_pct != null ? Number(plan.discount_pct) : null,
@@ -210,6 +213,10 @@ export async function pushWalletPlanToAirtable(
   if (ps) fields['Payment Status'] = ps
   const inv = INVOICE_TYPE[String(plan.invoice_type)]
   if (inv) fields['Invoice Type'] = inv
+
+  // Only send the multi-select when there is something to send: an empty array
+  // is a legitimate value, but omitting it leaves any manual edit untouched.
+  if (meals.length > 0) fields.Meals = meals
 
   if (custRecId) fields.Customer = [custRecId]
 
