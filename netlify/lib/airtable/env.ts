@@ -11,6 +11,8 @@ export const TABLES = {
   orderItems: 'tblxu7U6sAI8jAJKK',
   customers: 'tble7O64X0f6Om6Eo',
   menuReference: 'tblQiMnTsaZu5TWCQ',
+  // WEC-810: subscriptions (wallet_plans). Table created by Ioustinos 21/09.
+  subscriptions: 'tblYSHKBjG5ynmUHK',
 } as const
 
 // Retail orders carry this Store Id so the ops views can filter source.
