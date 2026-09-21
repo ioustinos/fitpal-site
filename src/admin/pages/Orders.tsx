@@ -649,9 +649,9 @@ function OrderDrawer({
       setErr('Δεν μπορείς να επιβεβαιώσεις απλήρωτη παραγγελία με κάρτα. Άλλαξε πρώτα τον τρόπο πληρωμής (π.χ. σύνδεσμος πληρωμής, μετρητά, ή τραπεζική κατάθεση).')
       return
     }
-    // WEC-805: mirror the API guard — a refunded order can't be revived.
-    if (next === 'pending' && order.status === 'cancelled' && order.paymentStatus === 'refunded') {
-      setErr('Δεν μπορείς να επαναφέρεις μια παραγγελία που έχει επιστραφεί (refunded). Δημιούργησε νέα παραγγελία.')
+    // WEC-805/578: mirror the API guard — any refund (partial or full) blocks revive.
+    if (next === 'pending' && order.status === 'cancelled' && (order.refundAmount ?? 0) > 0) {
+      setErr('Δεν μπορείς να επαναφέρεις μια παραγγελία με επιστροφή χρημάτων (μερική ή ολική). Δημιούργησε νέα παραγγελία.')
       return
     }
     if (next === 'cancelled') {
