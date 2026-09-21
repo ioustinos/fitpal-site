@@ -7,6 +7,7 @@
 
 import { createClient, SupabaseClient } from '@supabase/supabase-js'
 import { pushOrderToAirtable } from '../lib/airtable/pushOrder'
+import { pushWalletPlanToAirtable } from '../lib/airtable/pushWalletPlan'
 import { airtableConfigured } from '../lib/airtable/env'
 
 const SUPABASE_URL = process.env.VITE_SUPABASE_URL ?? ''
@@ -82,6 +83,45 @@ export default async (): Promise<Response> => {
       errors++
       errorNotes.push(`${r.id}: ${(err as Error).message}`)
       console.error('[airtable-reconcile] push failed for %s:', r.id, err)
+    }
+  }
+
+  // ── WEC-810: subscriptions (wallet_plans) ────────────────────────────────
+  // Same two-flag contract as orders, in the same sweep so there is one
+  // schedule and one run record to watch rather than a second cron nobody
+  // remembers exists. Counted into the same totals; failures are tagged
+  // `plan <id>` in notes so the two sources stay distinguishable.
+  const { data: planRows, error: planErr } = await supabase
+    .from('wallet_plans')
+    .select('id')
+    .eq('airtable_dirty', true)
+    .order('updated_at', { ascending: true })
+    .limit(BATCH_LIMIT)
+  if (planErr) {
+    console.error('[airtable-reconcile] wallet_plans select failed:', planErr)
+    errorNotes.push(`plans select: ${planErr.message}`)
+    errors++
+  }
+
+  for (const r of planRows ?? []) {
+    checked++
+    try {
+      const res = await pushWalletPlanToAirtable(supabase, r.id)
+      if (res.ok && !res.skipped) synced++
+      else {
+        skipped++
+        // A plan that can never be mirrored (only `failed` qualifies today)
+        // must have its flag retired, or the sweep re-checks it every five
+        // minutes forever — the WEC-789 loop, which ran unnoticed from 10 to
+        // 18 September because `errors` stayed 0 the whole time.
+        if (res.skipped === 'not_eligible' || res.skipped === 'not_found') {
+          await supabase.from('wallet_plans').update({ airtable_dirty: false }).eq('id', r.id)
+        }
+      }
+    } catch (err) {
+      errors++
+      errorNotes.push(`plan ${r.id}: ${(err as Error).message}`)
+      console.error('[airtable-reconcile] plan push failed for %s:', r.id, err)
     }
   }
 
