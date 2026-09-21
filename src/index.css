@@ -1210,6 +1210,9 @@ header {
      padding, hide the 'Healthy delivery' decorative subtitle (logo still
      reads as fitpalmeals), shrink pill paddings so they fit in ~360px. */
   header { padding: 0 12px; }
+  /* WEC-810: «Μενού» text link overlapped the language globe on iPhone —
+     hide it on mobile (the logo already links to the menu). */
+  .hdr-menu-link { display: none; }
   .logo { gap: 6px; }
   .logo-sub { display: none; }
   .logo-text { font-size: 17px; }
