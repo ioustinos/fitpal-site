@@ -470,6 +470,42 @@ export async function sendCustomerInvite(email: string, name?: string): Promise<
  *  balance, nothing else. A date in the past changes nothing.
  * ──────────────────────────────────────────────────────────────────────────── */
 
+/**
+ * WEC-811 · Subscription lifecycle status (admin-controlled).
+ * Independent of payment_status. Cancelling deactivates the owning wallet
+ * (wallets.active=false) — a flag only, NO refund and the balance is left as
+ * is. active_plan_id is intentionally kept so the cancelled plan stays visible
+ * and reversible here. Reactivating flips wallets.active back to true.
+ */
+export async function setWalletPlanStatus(
+  planId: string, next: 'active' | 'cancelled', adminEmail: string,
+): Promise<{ error: string | null }> {
+  const { data: before } = await supabase
+    .from('wallet_plans').select('status, wallet_id').eq('id', planId).maybeSingle()
+  const prev = (before ?? {}) as { status?: string; wallet_id?: string | null }
+  if (prev.status === next) return { error: null }
+
+  const { error } = await supabase.from('wallet_plans').update({ status: next }).eq('id', planId)
+  if (error) return { error: error.message }
+
+  // Deactivate / reactivate the owning wallet flag. active_plan_id is NOT
+  // cleared — nulling it would hide the plan from this panel and make it
+  // un-reversible. No balance change, no refund.
+  if (prev.wallet_id) {
+    const { error: wErr } = await supabase.from('wallets')
+      .update({ active: next === 'active' }).eq('id', prev.wallet_id)
+    if (wErr) console.warn('[setWalletPlanStatus] wallet active flag failed:', wErr.message)
+  }
+
+  const { error: logErr } = await supabase.from('admin_change_log').insert({
+    table_name: 'wallet_plans', field_name: 'status',
+    old_value: String(prev.status ?? 'active'), new_value: next,
+    label: `WEC-811 subscription status \u00b7 plan ${planId}`, admin_user: adminEmail,
+  })
+  if (logErr) console.warn('[setWalletPlanStatus] change log failed:', logErr.message)
+  return { error: null }
+}
+
 export async function saveWalletPlanOpsFields(
   planId: string,
   patch: { activeUntil?: string | null; adminNote?: string | null },
