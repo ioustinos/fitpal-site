@@ -3,7 +3,7 @@ import PhoneInput from 'react-phone-number-input'
 import flags from 'react-phone-number-input/flags'
 import 'react-phone-number-input/style.css'
 import { useUIStore } from '../store/useUIStore'
-import { useAuthStore, type Address } from '../store/useAuthStore'
+import { useAuthStore, type Address, type UserWallet } from '../store/useAuthStore'
 import { makeTr } from '../lib/translations'
 import { formatSlots } from '../lib/helpers'
 import { MEAL_KEYS, mealLabel } from '../lib/planMeals'
@@ -14,7 +14,7 @@ import { WALLET_PLANS } from '../data/menu'
 import { PAYMENT_METHODS as PAYMENT_COPY } from '../lib/paymentMethods'
 import { visiblePaymentMethods, paymentCatalogEntry } from '../lib/paymentVisibility'
 import { useImpersonationStore } from '../store/useImpersonationStore'
-import { fetchPastWalletPlans, planReference, type PastWalletPlan } from '../lib/api/wallet'
+import { fetchPastWalletPlans, fetchWallet, planReference, type PastWalletPlan } from '../lib/api/wallet'
 // WEC-702: reuse the shared plan-characteristics panel (same one the staff
 // impersonation strip uses) on the customer's own Συνδρομές tab.
 import { fetchActivePlanDetails, type PlanDetails } from '../lib/api/planDetails'
@@ -58,6 +58,26 @@ export function AccountPage() {
   const accountTab = useUIStore((s) => s.accountTab)
   const { user, logout, updatePrefs, updateGoals, updateAddresses } = useAuthStore()
 
+  // WEC-816: under impersonation `user` is still the ADMIN (session-swap does
+  // not reload the store as the customer — see WEC-495/507). The account page's
+  // identity (name/email) and Συνδρομή & Πορτοφόλι data must reflect the
+  // impersonated CUSTOMER, never the admin. Mirror the WEC-814/815/818 pattern:
+  // read identity from the impersonation target, and fetch the customer's wallet
+  // directly (RLS = customer during impersonation) rather than showing user.wallet.
+  const isImpersonating = useImpersonationStore((s) => s.active)
+  const impTarget = useImpersonationStore((s) => s.target)
+  const [impWallet, setImpWallet] = useState<UserWallet | null>(null)
+  useEffect(() => {
+    if (!isImpersonating || !impTarget) { setImpWallet(null); return }
+    let cancelled = false
+    ;(async () => {
+      const { data } = await fetchWallet(impTarget.userId)
+      if (!cancelled) setImpWallet(data)
+    })()
+    return () => { cancelled = true }
+  }, [isImpersonating, impTarget])
+
+
   // WEC-141: sign out always lands on the menu (same contract as the header).
   const handleSignOut = async () => {
     await logout()
@@ -89,7 +109,15 @@ export function AccountPage() {
 
   if (!user) return null
 
-  const initials = (user.name ?? '')
+  // WEC-816 (post-guard so `user` is non-null): the user whose identity +
+  // subscription the page renders. Only these two concerns are redirected; the
+  // other tabs keep reading `user`. Under impersonation the wallet is the
+  // customer's (null while loading / if none) — deliberately never the admin's.
+  const displayUser = (isImpersonating && impTarget)
+    ? { ...user, id: impTarget.userId, name: impTarget.name, email: impTarget.email, wallet: impWallet ?? undefined }
+    : user
+
+  const initials = (displayUser.name ?? '')
     .split(' ')
     .map((w: string) => w[0]?.toUpperCase() ?? '')
     .join('')
@@ -110,8 +138,8 @@ export function AccountPage() {
       <div className="account-avatar-card">
         <div className="avatar-circle">{initials}</div>
         <div className="avatar-info">
-          <div className="avatar-name">{user.name}</div>
-          <div className="avatar-email">{user.email}</div>
+          <div className="avatar-name">{displayUser.name}</div>
+          <div className="avatar-email">{displayUser.email}</div>
         </div>
       </div>
 
@@ -140,7 +168,7 @@ export function AccountPage() {
         {/* Content */}
         <div className="account-content">
           {tab === 'orders' && <OrdersTab user={user} lang={lang} />}
-          {tab === 'subscription' && <SubscriptionTab user={user} lang={lang} />}
+          {tab === 'subscription' && <SubscriptionTab user={displayUser} lang={lang} />}
           {tab === 'addresses' && <AddressesTab user={user} lang={lang} updateAddresses={updateAddresses} onGoToPrefs={() => setTab('prefs')} />}
           {tab === 'goals' && <GoalsTab user={user} lang={lang} updateGoals={updateGoals} />}
           {tab === 'diet' && <DietTab user={user} lang={lang} />}
