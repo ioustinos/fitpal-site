@@ -267,7 +267,17 @@ export const handler: Handler = async (event) => {
     if (dishIngsRes.error) throw new Error(`dish_ingredients: ${dishIngsRes.error.message}`)
 
     const dishes = (dishesRes.data ?? []) as DbDish[]
-    let variants = (variantsRes.data ?? []) as DbVariant[]
+    // WEC-823: `as unknown as` rather than a direct assertion. The paginated
+    // helper hands back Record<string, unknown>[], which does not overlap
+    // DbVariant, so TypeScript refused the one-step cast. Going through
+    // `unknown` is its own prescribed escape hatch.
+    //
+    // Being honest about what this is: an assertion that the select string
+    // above matches DbVariant, not a proof of it. Nothing checks that pairing
+    // — change the columns without changing the interface and this lies
+    // silently. The row shape is verified at the edges instead (the reseller
+    // filter below re-casts for its own two fields).
+    let variants = (variantsRes.data ?? []) as unknown as DbVariant[]
     if (isResellerMenu) {
       variants = variants
         .filter((v) => {

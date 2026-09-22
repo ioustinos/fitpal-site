@@ -7,7 +7,8 @@
     "dev": "vite",
     "dev:netlify": "CHOKIDAR_USEPOLLING=1 netlify dev",
     "build": "vite build",
-    "typecheck": "tsc -b --noEmit && node scripts/check-i18n.mjs && node scripts/check-sentry-scrub.mjs",
+    "typecheck": "tsc -b --noEmit && npm run typecheck:netlify && node scripts/check-i18n.mjs && node scripts/check-sentry-scrub.mjs",
+    "typecheck:netlify": "tsc -p tsconfig.netlify.json --noEmit",
     "lint": "eslint .",
     "preview": "vite preview",
     "check:i18n": "node scripts/check-i18n.mjs",
@@ -28,6 +29,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^9.39.4",
+    "@netlify/functions": "^6.0.0",
     "@types/node": "^24.12.2",
     "@types/nodemailer": "^6.4.16",
     "@types/react": "^19.2.14",

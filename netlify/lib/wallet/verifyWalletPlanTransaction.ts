@@ -257,6 +257,15 @@ async function fireSubscriptionPurchasedKlaviyo(
     invoice_vat?: string | null
     voucher_id?: string | null
     voucher_amount_cents?: number | null
+    // WEC-823: both of these are read in the body below (payment_method and
+    // start_date, added by WEC-797 for the paid-subscription email) and both
+    // ARE in the caller's select — but this hand-written parameter type was
+    // never updated to match, so every read of them was a type error.
+    //
+    // Nothing surfaced it because netlify/ sat outside `npm run typecheck`
+    // until WEC-823. Runtime was always correct; only the type lied.
+    payment_method?: string | null
+    start_date?: string | null
   },
   amountCents: number,
 ): Promise<void> {

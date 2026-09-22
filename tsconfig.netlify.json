@@ -1,0 +1,50 @@
+// WEC-823 · type-check the Netlify functions.
+//
+// Until 22/09 `npm run typecheck` ran `tsc -b`, which follows tsconfig.json →
+// tsconfig.app.json ("include": ["src"]) and tsconfig.node.json
+// ("include": ["vite.config.ts"]). NOTHING under netlify/ was ever checked.
+//
+// That is the whole server: submit-order, the Viva payment libs, markPaid, the
+// Airtable push, every menu endpoint. A green typecheck said nothing about any
+// of them, and a change to one could be reported as "clean" having never been
+// compiled. tsconfig.airtablecheck.json covered six files by hand; this covers
+// all of them.
+//
+// Not wired into tsconfig.json's "references" on purpose: `tsc -b` wants
+// referenced projects to be composite (declaration emit), which these are not
+// and do not need to be. It runs as its own `tsc -p` step in the script.
+//
+// ── BASELINE, measured 22/09/2026: 29 errors ──────────────────────────────
+// All pre-existing — this config introduced none of them. Use it the way the
+// src side is already used: diff against origin/dev and ship only if no NEW
+// error appears. The count is not zero and should not be treated as a gate.
+//
+// 15 of the 29 come from ONE missing dependency: `@netlify/functions` is
+// imported by 9 functions but is not in package.json at all (9 × TS2307
+// "cannot find module", cascading into 6 × TS7006 implicit-any on `event`).
+// It is a types-only import, erased at runtime, which is why the functions
+// work in production and nobody noticed. Adding it as a devDependency clears
+// those 15 and needs a real `npm install` + lockfile change — deliberately NOT
+// done here so this change stays config-only.
+//
+// The remaining 14 are genuine: Supabase client generic mismatches in
+// admin-import-menu and verifyWalletPlanTransaction, an unsafe cast in
+// menu-week, and a few implicit anys.
+{
+  "compilerOptions": {
+    "noEmit": true,
+    "skipLibCheck": true,
+    "strict": true,
+    "module": "esnext",
+    "moduleResolution": "bundler",
+    "target": "es2022",
+    "lib": ["es2022", "dom"],
+    // vite/client alongside node: functions import from src/ (e.g. the shared
+    // supabase client), and those files read import.meta.env. Without it, three
+    // errors appear in src/ that have nothing to do with the functions.
+    "types": ["node", "vite/client"],
+    "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true
+  },
+  "include": ["netlify/**/*.ts"]
+}
