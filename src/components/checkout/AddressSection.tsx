@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { useCartStore } from '../../store/useCartStore'
 import { useAuthStore, type Address } from '../../store/useAuthStore'
-import { useImpersonationStore } from '../../store/useImpersonationStore'
+import { useImpersonationStore, type ImpersonationTarget } from '../../store/useImpersonationStore'
 import { useUIStore } from '../../store/useUIStore'
 import { useMenuStore } from '../../store/useMenuStore'
 import { makeTr } from '../../lib/translations'
@@ -53,6 +53,13 @@ export function AddressSection({ dayDate }: AddressSectionProps) {
   // customer's saved addresses (from the target) instead.
   const impActive = useImpersonationStore((s) => s.active)
   const impTarget = useImpersonationStore((s) => s.target)
+  const setTargetAddresses = useImpersonationStore((s) => s.setTargetAddresses)
+  // WEC-820: under impersonation, never touch the admin — writes go to the
+  // customer (their id / their target address list).
+  const applyAddresses = (next: Address[]) => {
+    if (impActive) setTargetAddresses(next as ImpersonationTarget['addresses'])
+    else updateAddresses(next)
+  }
   const savedAddresses = ((impActive && impTarget?.addresses ? impTarget.addresses : user?.addresses) ?? []) as Address[]
   // WEC-336: cart is keyed by ISO date string now — drop the Number() cast.
   const activeDayCount = Object.keys(cart).filter((k) => (cart[k]?.length ?? 0) > 0).length
@@ -257,7 +264,7 @@ export function AddressSection({ dayDate }: AddressSectionProps) {
     const newAddresses = savedAddresses.map((a) =>
       a.id === selectedAddr.id ? updatedAddr : a
     )
-    updateAddresses(newAddresses)
+    applyAddresses(newAddresses)
     setDelivery(dayDate, {
       street: form.street,
       area: form.area,
@@ -316,7 +323,8 @@ export function AddressSection({ dayDate }: AddressSectionProps) {
       notes: form.notes,
     }
     const { insertAddress } = await import('../../lib/api/auth')
-    const { data, error } = await insertAddress(user.id, draft)
+    const insertUserId = (impActive && impTarget) ? impTarget.userId : user.id
+    const { data, error } = await insertAddress(insertUserId, draft)
     if (error || !data) {
       toast(
         lang === 'el'
@@ -325,7 +333,7 @@ export function AddressSection({ dayDate }: AddressSectionProps) {
       )
       return
     }
-    updateAddresses([...savedAddresses, data])
+    applyAddresses([...savedAddresses, data])
     // Select the newly saved address (Supabase-issued UUID)
     setDelivery(dayDate, {
       street: form.street,

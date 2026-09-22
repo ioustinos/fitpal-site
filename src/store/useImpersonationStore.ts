@@ -84,6 +84,9 @@ interface ImpersonationState {
   error: string | null
   start: (targetUserId: string) => Promise<{ ok: boolean; error?: string }>
   stop: () => Promise<{ ok: boolean; error?: string }>
+  /** WEC-820: update the impersonated customer's addresses in-place (after the
+   *  admin adds/edits one during impersonated checkout). */
+  setTargetAddresses: (addresses: ImpersonationTarget['addresses']) => void
 }
 
 export const useImpersonationStore = create<ImpersonationState>()(
@@ -93,6 +96,7 @@ export const useImpersonationStore = create<ImpersonationState>()(
       target: null,
       adminUserId: null,
       loading: false,
+      setTargetAddresses: (addresses) => set((s) => (s.target ? { target: { ...s.target, addresses } } : s)),
       error: null,
 
       start: async (targetUserId: string) => {
