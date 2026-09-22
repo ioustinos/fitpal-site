@@ -413,15 +413,6 @@ export function Orders() {
                         <Ico name="tag" size={10} /> change req
                       </span>
                     )}
-                    {/* WEC-814: a marker, not a number. The list says "this one
-                        needs a look"; the drawer and the timeline carry the
-                        figures. Putting money in the row invites decisions from
-                        the list, where the payment ledger isn't even loaded. */}
-                    {o.priceChanged && !o.priceReviewAt && (
-                      <span className="admin-pricechg-tag" title="Total changed after submit — not yet reviewed">
-                        ⚠ price changed
-                      </span>
-                    )}
                     {/* WEC-521: managed order (admin placed it while impersonating
                         the customer). adminOrderId is the audit column. Icon changed
                         star → admin shield (same glyph as the header Admin pill) per
@@ -469,7 +460,19 @@ export function Orders() {
                       {o.childOrders.map((c) => <span key={c.id} className="admin-date-chip">{c.deliveryDate.slice(5)}</span>)}
                     </div>
                   </td>
-                  <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>{(o.total / 100).toFixed(2)} €</td>
+                  <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
+                    {(o.total / 100).toFixed(2)} €
+                    {/* WEC-814: a marker, not a number — it sits under the figure
+                        it qualifies, saying "this total is not what was agreed".
+                        Deliberately no amount: the list never loads the payment
+                        ledger, so any money shown here could disagree with the
+                        drawer. The figures live in the drawer and the timeline. */}
+                    {o.priceChanged && !o.priceReviewAt && (
+                      <div className="admin-pricechg-tag" title="Total changed after submit — not yet reviewed">
+                        ⚠ price changed
+                      </div>
+                    )}
+                  </td>
                   <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
                     {o.discountAmount > 0
                       ? <span className="admin-discount">−{(o.discountAmount / 100).toFixed(2)} €</span>
