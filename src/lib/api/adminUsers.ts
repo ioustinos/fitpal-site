@@ -491,9 +491,23 @@ export async function setWalletPlanStatus(
   // Deactivate / reactivate the owning wallet flag. active_plan_id is NOT
   // cleared — nulling it would hide the plan from this panel and make it
   // un-reversible. No balance change, no refund.
+  //
+  // WEC-812 fix: a wallet can own MULTIPLE plans (e.g. renewals / duplicates).
+  // The shared wallets.active flag must reflect whether ANY plan is still
+  // active — NOT the single plan just toggled. The old `active: next==='active'`
+  // meant cancelling one stale/duplicate plan deactivated a wallet that still
+  // had a live subscription, silently disabling a real customer's wallet
+  // (Μαρία Τσούνη: 3 duplicates cancelled → wallet off despite an active plan).
   if (prev.wallet_id) {
+    const { data: activePlans } = await supabase
+      .from('wallet_plans')
+      .select('id')
+      .eq('wallet_id', prev.wallet_id)
+      .eq('status', 'active')
+      .limit(1)
+    const walletShouldBeActive = (activePlans?.length ?? 0) > 0
     const { error: wErr } = await supabase.from('wallets')
-      .update({ active: next === 'active' }).eq('id', prev.wallet_id)
+      .update({ active: walletShouldBeActive }).eq('id', prev.wallet_id)
     if (wErr) console.warn('[setWalletPlanStatus] wallet active flag failed:', wErr.message)
   }
 
