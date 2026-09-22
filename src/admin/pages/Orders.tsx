@@ -4,7 +4,7 @@ import { useAuthStore } from '../../store/useAuthStore'
 import { useAdminFilters } from '../../lib/useAdminFilters'
 import {
   listAdminOrders, getAdminOrder,
-  setOrderStatus, setOrderPaymentStatus, markPaymentLinkExpired,
+  setOrderStatus, setOrderPaymentStatus, markPaymentLinkExpired, setOrderManualDiscount,
   updateOrderItemQuantity, updateChildOrderAddress, updateChildOrderTime,
   refundOrder, sendPaymentLinkLogged,
   sendOrderUpdateEmail,
@@ -959,6 +959,70 @@ function OrderDrawer({
   )
 }
 
+// WEC-803: admin manual discount — add/edit/remove a euro or % discount on an
+// order, allowed even after confirmation. Stacks on voucher discounts; the
+// server folds it into discount_amount + total via recompute_order_money.
+function ManualDiscountEditor({ order, adminUser, onChanged }: { order: AdminOrder; adminUser: string; onChanged: () => void }) {
+  const blocked = order.status === 'cancelled' || order.paymentStatus === 'refunded'
+  const [open, setOpen] = useState(false)
+  const [mode, setMode] = useState<'amount' | 'pct'>('amount')
+  const [val, setVal] = useState('')
+  const [note, setNote] = useState(order.manualDiscountNote ?? '')
+  const [busy, setBusy] = useState(false)
+  const [err, setErr] = useState<string | null>(null)
+
+  function toCents(): number {
+    const n = parseFloat((val || '').replace(',', '.'))
+    if (!isFinite(n) || n <= 0) return 0
+    if (mode === 'pct') return Math.round((order.subtotal * Math.min(n, 100)) / 100)
+    return Math.round(n * 100)
+  }
+  async function apply(cents: number) {
+    setBusy(true); setErr(null)
+    const { error } = await setOrderManualDiscount(order.id, order.manualDiscount, cents, note, adminUser)
+    setBusy(false)
+    if (error) { setErr(error); return }
+    setOpen(false); setVal(''); onChanged()
+  }
+  if (blocked) return null
+  const preview = toCents()
+  return (
+    <div style={{ marginTop: 8 }}>
+      {order.manualDiscount > 0 && (
+        <div className="admin-od-total-row admin-od-total-disc" style={{ alignItems: 'baseline' }}>
+          <span>Manual discount{order.manualDiscountNote ? ` · ${order.manualDiscountNote}` : ''}</span>
+          <span>−{(order.manualDiscount / 100).toFixed(2)} €{' '}
+            <button type="button" onClick={() => apply(0)} disabled={busy}
+              style={{ border: 'none', background: 'none', color: 'var(--red, #ef4444)', cursor: 'pointer', fontSize: 11, textDecoration: 'underline', padding: 0 }}>remove</button>
+          </span>
+        </div>
+      )}
+      {!open ? (
+        <button type="button" className="admin-btn-ghost" style={{ fontSize: 12, marginTop: 4 }} disabled={busy} onClick={() => { setOpen(true); setVal('') }}>
+          {order.manualDiscount > 0 ? 'Edit manual discount' : '+ Add manual discount'}
+        </button>
+      ) : (
+        <div style={{ marginTop: 6, display: 'flex', flexDirection: 'column', gap: 6 }}>
+          <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+            <select className="admin-input" value={mode} onChange={(e) => setMode(e.target.value as 'amount' | 'pct')} style={{ padding: '2px 6px', fontSize: 13 }}>
+              <option value="amount">€</option>
+              <option value="pct">%</option>
+            </select>
+            <input className="admin-input" type="number" min="0" step="0.01" value={val} onChange={(e) => setVal(e.target.value)} placeholder={mode === 'pct' ? '10' : '5.00'} autoFocus style={{ width: 90, padding: '2px 6px', fontSize: 13 }} />
+            <span className="admin-sub">= −{(preview / 100).toFixed(2)} €</span>
+          </div>
+          <input className="admin-input" value={note} onChange={(e) => setNote(e.target.value)} placeholder="Reason (optional)" style={{ padding: '2px 6px', fontSize: 13 }} />
+          {err && <div className="admin-error-banner">{err}</div>}
+          <div style={{ display: 'flex', gap: 6 }}>
+            <button type="button" className="admin-od-statusbtn" style={{ background: 'var(--green)', color: '#fff' }} disabled={busy || preview <= 0} onClick={() => apply(preview)}>Apply</button>
+            <button type="button" className="admin-btn-ghost" disabled={busy} onClick={() => { setOpen(false); setErr(null) }}>Cancel</button>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
 function OverviewTab({ order, adminUser, onChanged }: { order: AdminOrder; adminUser: string; onChanged: () => void }) {
   const hasDiscount = order.voucherUses.length > 0 || order.discountAmount > 0
   // WEC-668: inline edits on the order (payment method + cutlery), no separate
@@ -1082,6 +1146,7 @@ function OverviewTab({ order, adminUser, onChanged }: { order: AdminOrder; admin
             )}
             <div className="admin-od-total-row admin-od-total-grand"><span>Total</span><span>{(order.total / 100).toFixed(2)} €</span></div>
           </div>
+          <ManualDiscountEditor order={order} adminUser={adminUser} onChanged={onChanged} />
         </div>
 
         {/* Extras — a card in the same row (cutlery + invoice) */}
