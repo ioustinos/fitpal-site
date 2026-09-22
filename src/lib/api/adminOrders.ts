@@ -133,6 +133,9 @@ export interface AdminOrder {
   customerPhone: string
   subtotal: number
   discountAmount: number
+  /** WEC-803: admin-added manual discount in cents (part of discountAmount). */
+  manualDiscount: number
+  manualDiscountNote: string | null
   total: number
   /** WEC-171: cumulative refund amount in cents. */
   refundAmount: number
@@ -484,6 +487,7 @@ function mapOrderRow(r: unknown, childOrders: AdminChildOrder[], voucherUses: Ad
     id: string; order_number: string; user_id: string | null;
     customer_name: string | null; customer_email: string | null; customer_phone: string | null;
     subtotal: number; discount_amount: number | null; total: number; refund_amount: number | null;
+    manual_discount: number | null; manual_discount_note: string | null;
     payment_method: PaymentMethod | null; payment_status: PaymentStatus | null; status: OrderStatus | null;
     cutlery: boolean | null; invoice_type: string | null; invoice_name: string | null; invoice_vat: string | null;
     notes: string | null; admin_order_id: string | null; admin_notes: string | null;
@@ -495,6 +499,7 @@ function mapOrderRow(r: unknown, childOrders: AdminChildOrder[], voucherUses: Ad
     id: row.id, orderNumber: row.order_number, userId: row.user_id,
     customerName: row.customer_name ?? '', customerEmail: row.customer_email ?? '', customerPhone: row.customer_phone ?? '',
     subtotal: row.subtotal, discountAmount: row.discount_amount ?? 0, total: row.total,
+    manualDiscount: row.manual_discount ?? 0, manualDiscountNote: row.manual_discount_note ?? null,
     refundAmount: row.refund_amount ?? 0,
     paymentMethod: row.payment_method, paymentStatus: row.payment_status ?? 'pending',
     status: row.status ?? 'pending',
@@ -705,6 +710,40 @@ export async function sendOrderUpdateEmail(orderId: string): Promise<{ error: st
   } catch (e) {
     return { error: e instanceof Error ? e.message : String(e) }
   }
+}
+
+const MANUAL_DISCOUNT_BLOCKED_MSG =
+  'Δεν μπορείς να προσθέσεις έκπτωση σε ακυρωμένη ή επιστραφείσα παραγγελία. / Cannot add a discount to a cancelled or refunded order.'
+
+/**
+ * WEC-803: set (or clear, with 0) an admin MANUAL discount on an order — allowed
+ * even after confirmation. `amountCents` is the final euro amount (the UI converts
+ * a % to euros against the current subtotal before calling). It stacks on top of
+ * any voucher discount: recompute_order_money folds it into discount_amount and
+ * re-derives total. Blocked on cancelled / refunded orders. `note` is optional.
+ */
+export async function setOrderManualDiscount(
+  orderId: string, currentCents: number, amountCents: number, note: string | null, adminUser: string,
+): Promise<{ error: string | null }> {
+  const next = Math.max(0, Math.round(amountCents || 0))
+  const { data: o } = await supabase
+    .from('orders').select('status, payment_status, subtotal').eq('id', orderId).maybeSingle()
+  if (o && (o.status === 'cancelled' || o.payment_status === 'refunded')) {
+    return { error: MANUAL_DISCOUNT_BLOCKED_MSG }
+  }
+  // Keep the stored manual amount sane; the RPC also caps the COMBINED discount.
+  const capped = typeof o?.subtotal === 'number' ? Math.min(next, o.subtotal) : next
+  const { error } = await supabase.from('orders')
+    .update({ manual_discount: capped, manual_discount_note: note && note.trim() ? note.trim() : null, updated_at: new Date().toISOString() })
+    .eq('id', orderId)
+  if (error) return { error: error.message }
+  await writeChangeLog({
+    orderId, tableName: 'orders', fieldName: 'manual_discount',
+    oldValue: String(currentCents), newValue: String(capped),
+    label: `manual discount: ${(currentCents/100).toFixed(2)}€ → ${(capped/100).toFixed(2)}€${note && note.trim() ? ` · ${note.trim()}` : ''}`,
+    adminUser,
+  })
+  return recomputeOrderTotals(orderId, adminUser)
 }
 
 export async function setOrderPaymentStatus(id: string, current: PaymentStatus, next: PaymentStatus, adminUser: string): Promise<{ error: string | null }> {
