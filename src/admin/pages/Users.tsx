@@ -3,7 +3,7 @@ import {
   fetchAdminUsers, fetchAdminUserDetail, saveAdminUserNotes, setWalletAdminManaged, setWalletActive,
   grantWalletCredit,
   // WEC-770
-  createAdminCustomer, sendCustomerInvite, saveWalletPlanOpsFields, type NewCustomerInput,
+  createAdminCustomer, sendCustomerInvite, saveWalletPlanOpsFields, setWalletPlanStatus, type NewCustomerInput,
   type AdminUserRow, type AdminUserDetail, type WalletGrantType,
 } from '../../lib/api/adminUsers'
 import { fetchAdminZones, type AdminZone } from '../../lib/api/adminZones'
@@ -893,11 +893,15 @@ function SubscriptionOpsFields({ plan }: { plan: PlanDetails }) {
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
   const [err, setErr] = useState<string | null>(null)
+  // WEC-811: subscription lifecycle status.
+  const [status, setStatus] = useState(plan.status ?? 'active')
+  const [statusBusy, setStatusBusy] = useState(false)
 
   useEffect(() => {
     setUntil(plan.activeUntil ?? '')
     setNote(plan.adminNote ?? '')
     setPersisted({ until: plan.activeUntil ?? '', note: plan.adminNote ?? '' })
+    setStatus(plan.status ?? 'active')
     setSaved(false)
   }, [plan.planId, plan.activeUntil, plan.adminNote])
 
@@ -916,6 +920,16 @@ function SubscriptionOpsFields({ plan }: { plan: PlanDetails }) {
     setPersisted({ until, note }); setSaved(true)
   }
 
+  async function changeStatus(nextS: 'active' | 'cancelled') {
+    if (!plan.planId || nextS === status || statusBusy) return
+    if (nextS === 'cancelled' && !window.confirm('Ακύρωση συνδρομής; Θα απενεργοποιηθεί το wallet (χωρίς επιστροφή χρημάτων). Μπορείς να την επαναφέρεις μετά.')) return
+    setStatusBusy(true); setErr(null)
+    const { error } = await setWalletPlanStatus(plan.planId, nextS, adminUser?.email ?? 'admin')
+    setStatusBusy(false)
+    if (error) { setErr(error); return }
+    setStatus(nextS)
+  }
+
   return (
     <div style={{ marginTop: 14, paddingTop: 12, borderTop: '1px solid var(--a-border)' }}>
       <div style={{ fontSize: 12, fontWeight: 700, color: '#6b7280', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 2 }}>
@@ -924,6 +938,28 @@ function SubscriptionOpsFields({ plan }: { plan: PlanDetails }) {
       <div style={{ fontSize: 12, color: '#6b7280', marginBottom: 10, lineHeight: 1.45 }}>
         Μόνο για δική μας εικόνα. <strong>Δεν μπλοκάρει τίποτα</strong> — ο πελάτης μπορεί να
         παραγγείλει και να ξοδέψει το πορτοφόλι του ακόμη κι αν η ημερομηνία έχει περάσει.
+      </div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+        <span style={{ fontSize: 12, color: '#6b7280' }}>Κατάσταση:</span>
+        <button
+          type="button"
+          onClick={() => changeStatus('active')}
+          disabled={statusBusy || !plan.planId}
+          style={{ padding: '4px 12px', borderRadius: 999, fontSize: 12, fontWeight: 700, cursor: 'pointer',
+            border: status === 'active' ? '1.5px solid #10b981' : '1px solid var(--a-border)',
+            background: status === 'active' ? '#10b98122' : 'transparent',
+            color: status === 'active' ? '#047857' : '#6b7280' }}
+        >Ενεργή</button>
+        <button
+          type="button"
+          onClick={() => changeStatus('cancelled')}
+          disabled={statusBusy || !plan.planId}
+          style={{ padding: '4px 12px', borderRadius: 999, fontSize: 12, fontWeight: 700, cursor: 'pointer',
+            border: status === 'cancelled' ? '1.5px solid #ef4444' : '1px solid var(--a-border)',
+            background: status === 'cancelled' ? '#ef444422' : 'transparent',
+            color: status === 'cancelled' ? '#b91c1c' : '#6b7280' }}
+        >Ακυρωμένη</button>
+        {statusBusy && <span style={{ fontSize: 12, color: '#6b7280' }}>…</span>}
       </div>
       <div style={{ display: 'grid', gridTemplateColumns: '180px 1fr', gap: 10, alignItems: 'end' }}>
         <label style={{ display: 'block' }}>

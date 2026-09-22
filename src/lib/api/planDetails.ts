@@ -37,6 +37,8 @@ export interface PlanDetails {
   /** WEC-783 · ops-facing, admin-only. Neither gates anything. */
   activeUntil: string | null
   adminNote: string | null
+  /** WEC-811 · lifecycle status: 'active' | 'cancelled' (admin-controlled). */
+  status: string
 
   // Body metrics, frozen at purchase.
   sex: string | null
@@ -96,7 +98,7 @@ export async function fetchActivePlanDetails(
       .from('wallet_plans')
       .select(
         'id, goal, plan_length, plan_length_weeks, days_per_week, daily_kcal, macro_split, ' +
-        'profile_snapshot, pricing_breakdown, services, created_at, start_date, active_until, admin_note, ' +
+        'profile_snapshot, pricing_breakdown, services, created_at, start_date, active_until, admin_note, status, ' +
         'meal_breakfast, meal_lunch, meal_dinner, meal_snack',
       )
       .eq('id', activePlanId)
@@ -184,6 +186,7 @@ export async function fetchActivePlanDetails(
         createdAt: row.created_at as string,
         activeUntil: ((row as Record<string, unknown>).active_until as string | null) ?? null,
         adminNote: ((row as Record<string, unknown>).admin_note as string | null) ?? null,
+        status: ((row as Record<string, unknown>).status as string | null) ?? 'active',
         sex: snap.sex ?? null,
         age,
         heightCm: snap.height_cm ?? null,

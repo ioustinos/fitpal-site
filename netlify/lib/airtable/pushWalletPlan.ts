@@ -63,6 +63,12 @@ const PAYMENT_STATUS: Record<string, string> = {
   pending_link_sent: 'Pending',
 }
 
+/** WEC-811 Airtable «Status» single-select: subscription lifecycle. */
+const PLAN_STATUS: Record<string, string> = {
+  active: 'Active',
+  cancelled: 'Cancelled',
+}
+
 /** Airtable «Invoice Type» options. */
 const INVOICE_TYPE: Record<string, string> = {
   invoice: 'Τιμολόγιο',
@@ -112,7 +118,7 @@ export async function pushWalletPlanToAirtable(
       'wallet_credit_cents, bonus_pct, bonus_credits_cents, services, ' +
       'payment_method, payment_status, viva_order_code, viva_transaction_id, ' +
       'invoice_type, invoice_name, invoice_vat, refund_amount_cents, ' +
-      'voucher_id, voucher_amount_cents, start_date, active_until, admin_note',
+      'voucher_id, voucher_amount_cents, start_date, active_until, admin_note, status',
     )
     .eq('id', planId)
     .maybeSingle()
@@ -211,6 +217,8 @@ export async function pushWalletPlanToAirtable(
   if (pm) fields['Payment Method'] = pm
   const ps = PAYMENT_STATUS[String(plan.payment_status)]
   if (ps) fields['Payment Status'] = ps
+  const st = PLAN_STATUS[String(plan.status ?? 'active')]
+  if (st) fields['Status'] = st
   const inv = INVOICE_TYPE[String(plan.invoice_type)]
   if (inv) fields['Invoice Type'] = inv
 
