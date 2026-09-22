@@ -493,7 +493,12 @@ export function CheckoutPage() {
     if (custInvoice !== undefined) {
       setPayment({ invoice: custInvoice })
     }
-    if (custPaymentMethod) {
+    // WEC-819 regression fix: under impersonation do NOT apply the customer's
+    // saved payment method. The admin's managed-user checkout exposes a special
+    // "spend the managed wallet" option; forcing the customer's method (e.g.
+    // cash) overrode/hid it. Apply ALL other customer prefs (cutlery, invoice,
+    // addresses, slots) but leave payment method to the admin's own selection.
+    if (custPaymentMethod && !imp) {
       setPayment({ method: custPaymentMethod as 'cash' | 'card' | 'link' | 'transfer' | 'wallet' })
     }
 
