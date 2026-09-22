@@ -224,22 +224,6 @@ export interface OrderFilters {
 
 // ─── Queries ──────────────────────────────────────────────────────────────
 
-// WEC-815: Supabase/Kong rejects a GET whose URI is too long (~8KB). A
-// `.in('col', ids)` with hundreds of UUIDs (200 orders → 600+ child_orders →
-// 600+ item rows) blows that limit and returns a bare 400 "Bad Request" that
-// empties the whole orders list. Split the id list into safe batches.
-async function selectByIdsChunked<T = Record<string, unknown>>(
-  table: string, columns: string, idColumn: string, ids: string[], chunkSize = 100,
-): Promise<{ data: T[]; error: { message: string } | null }> {
-  const out: T[] = []
-  for (let i = 0; i < ids.length; i += chunkSize) {
-    const { data, error } = await supabase.from(table).select(columns).in(idColumn, ids.slice(i, i + chunkSize))
-    if (error) return { data: out, error }
-    out.push(...((data ?? []) as T[]))
-  }
-  return { data: out, error: null }
-}
-
 export async function listAdminOrders(f: OrderFilters): Promise<{ data: AdminOrder[] | null; error: string | null }> {
   // Filtering on child_orders requires joining via IN (...) of order_ids that match
   let orderIdsFromChild: Set<string> | null = null
@@ -254,7 +238,9 @@ export async function listAdminOrders(f: OrderFilters): Promise<{ data: AdminOrd
     if (orderIdsFromChild.size === 0) return { data: [], error: null }
   }
 
-  let q = supabase.from('orders').select('*').order('created_at', { ascending: false })
+  // WEC-815: fetch children + items NESTED in one query — no `.in(id-list)` join
+  // in the client (those URLs grew past the gateway limit as orders scaled).
+  let q = supabase.from('orders').select('*, child_orders(*, order_items(*))').order('created_at', { ascending: false })
   // WEC-419: default view excludes drafts; the Drafts tab opts in by passing
   // ['draft'] in f.status, which then routes through the `in` filter below.
   if (f.status && f.status.length) {
@@ -284,18 +270,21 @@ export async function listAdminOrders(f: OrderFilters): Promise<{ data: AdminOrd
   q = q.limit(200)
   const { data, error } = await q
   if (error) return { data: null, error: error.message }
+  if ((data ?? []).length === 0) return { data: [], error: null }
 
-  const orderIds = (data ?? []).map((r) => r.id as string)
-  if (orderIds.length === 0) return { data: [], error: null }
-
-  // Load child_orders, then items filtered by child_order_id
-  const cosRes = await selectByIdsChunked('child_orders', '*', 'order_id', orderIds)
-  if (cosRes.error) return { data: null, error: cosRes.error.message }
-  const childIds = (cosRes.data ?? []).map((r) => r.id as string)
-  const itemsFinal = childIds.length > 0
-    ? await selectByIdsChunked('order_items', '*', 'child_order_id', childIds)
-    : { data: [] as unknown[], error: null }
-  if (itemsFinal.error) return { data: null, error: (itemsFinal.error as { message: string }).message }
+  // WEC-815: child_orders + order_items came back NESTED in the query above.
+  // The database did the join, so there is no id list in any request URL — the
+  // list can no longer 400 ("Bad Request") once the order count crosses a size.
+  const childRows: Array<Record<string, unknown>> = []
+  const itemRows: Array<Record<string, unknown>> = []
+  for (const o of (data ?? []) as Array<Record<string, unknown>>) {
+    for (const c of ((o.child_orders as Array<Record<string, unknown>> | null) ?? [])) {
+      childRows.push(c)
+      for (const it of ((c.order_items as Array<Record<string, unknown>> | null) ?? [])) itemRows.push(it)
+    }
+  }
+  const cosRes = { data: childRows }
+  const itemsFinal = { data: itemRows }
 
   // WEC-706: resolve catalogue codes for the drawer, one round-trip each.
   const extRows = (itemsFinal.data ?? []) as Array<{ dish_id: string | null; variant_id: string | null }>
