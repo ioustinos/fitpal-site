@@ -29,6 +29,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^9.39.4",
+    "@netlify/functions": "^6.0.0",
     "@types/node": "^24.12.2",
     "@types/nodemailer": "^6.4.16",
     "@types/react": "^19.2.14",
