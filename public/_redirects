@@ -10,31 +10,26 @@
 /robots.txt   /robots.txt   200
 /sitemap.xml  /sitemap.xml  200
 
-# ─── TEMPORARY (2026-09-17) — WEC-790 ────────────────────────────────────
-# A marketing campaign went out with https://dev--fitpal-order.netlify.app
-# instead of orders.fitpal.gr. Real customers placed real orders on the dev
-# deploy, which is wired to the Viva DEMO merchant and to the SAME Supabase
-# database — so sandbox payments wrote "paid" onto live orders and ~108 € was
-# never actually collected.
+# ─── dev-host redirect REMOVED 2026-09-22, per Ioustinos ─────────────────
+# Between 2026-09-17 and today, https://dev--fitpal-order.netlify.app/* was
+# 302'd to production. A marketing campaign had gone out with the dev URL and
+# real customers were ordering on the dev deploy — which is wired to the Viva
+# DEMO merchant but to the SAME Supabase database, so sandbox payments wrote
+# "paid" onto live orders and ~108 € was never collected.
 #
-# Until the campaign goes cold, bounce human traffic on that hostname to
-# production. Domain-level rule: the source is an absolute URL, so it matches
-# ONLY that host. orders.fitpal.gr and localhost are untouched.
+# (The block used to cite "WEC-790". That was wrong — WEC-790 is the reseller
+# zone time-slot half-ship. This guard was never ticketed at all.)
 #
-# Two carve-outs keep dev usable as a dev environment:
-#   · /api/*   — already handled by the rule at the top of this file, which
-#                matches on every host. Viva demo webhooks keep working.
-#   · /order/* — the Viva demo success/failure return URLs registered in the
-#                demo dashboard point here. Redirecting them would break the
-#                dev payment flow.
+# Removed because it also made dev untestable for B2B storefronts (WEC-819,
+# checkout form wiped on tab return on reseller stores).
 #
-# Developers: use the deploy permalink (<deploy-id>--fitpal-order.netlify.app),
-# which is not the `dev--` host and is therefore not redirected.
+# ⚠ The exposure that caused WEC-790 has NOT changed: dev still shares the
+# production database and still points at the Viva demo merchant. If that
+# campaign link is still circulating, orders can land here again. Re-add the
+# two lines below to restore the guard:
 #
-# REMOVE THIS BLOCK once the campaign is cold.
-https://dev--fitpal-order.netlify.app/order/*  /index.html  200
-https://dev--fitpal-order.netlify.app/*  https://orders.fitpal.gr/:splat  302!
-# ─── end temporary block ─────────────────────────────────────────────────
+#   https://dev--fitpal-order.netlify.app/order/*  /index.html  200
+#   https://dev--fitpal-order.netlify.app/*  https://orders.fitpal.gr/:splat  302!
 
 # SPA fallback — catch-all, last.
 /*      /index.html                 200

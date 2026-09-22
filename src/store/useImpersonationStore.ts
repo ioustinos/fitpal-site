@@ -65,6 +65,13 @@ export interface ImpersonationTarget {
   invoice?: boolean
   slots?: Record<number, string>
   dayAddress?: Record<number, string>
+  /** WEC-822: the customer's spendable wallet (balance in EUROS, active flag),
+   *  so the admin's managed-user checkout shows/spends the CUSTOMER's wallet —
+   *  not the admin's. Without this the wallet badge showed the admin's balance
+   *  and the wallet button was disabled when the admin's own wallet was
+   *  inactive/insufficient (Maria: «δειχνει το δικο μου» + «δεν με αφηνει να
+   *  πληρωσει μεσω wallet»). undefined = customer has no wallet. */
+  wallet?: { balance: number; active: boolean }
 }
 
 interface ImpersonationState {

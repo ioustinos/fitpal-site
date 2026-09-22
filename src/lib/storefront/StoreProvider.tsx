@@ -17,7 +17,7 @@
  */
 
 import {
-  createContext, useContext, useEffect, useMemo, useState,
+  createContext, useContext, useEffect, useMemo, useRef, useState,
   type ReactNode, type CSSProperties,
 } from 'react'
 import { useLocation } from 'react-router-dom'
@@ -131,11 +131,28 @@ export function StoreProvider({ children }: { children: ReactNode }) {
    * is also what turns a sign-out back into `needs_login` immediately.
    */
   const [authTick, setAuthTick] = useState(0)
+  /**
+   * WEC-819: bump only when the PERSON changed, not on every auth event.
+   *
+   * Returning to a backgrounded tab makes supabase-js run _recoverAndRefresh(),
+   * which re-emits auth events for the same signed-in user. Re-running the
+   * access check there buys nothing — the membership of a user who has not
+   * changed cannot have changed — and it used to cost the customer their
+   * half-filled checkout form. `undefined` means "not seen yet", so the first
+   * event only records the identity; the mount effect has already resolved.
+   *
+   * Sign-in-from-the-gate (WEC-765) and sign-out still bump, because both move
+   * the id between null and a uuid.
+   */
+  const lastUserId = useRef<string | null | undefined>(undefined)
   useEffect(() => {
-    const { data } = supabase.auth.onAuthStateChange((event) => {
-      if (event === 'SIGNED_IN' || event === 'SIGNED_OUT' || event === 'USER_UPDATED') {
-        setAuthTick((n) => n + 1)
-      }
+    const { data } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event !== 'SIGNED_IN' && event !== 'SIGNED_OUT' && event !== 'USER_UPDATED') return
+      const nextId = session?.user?.id ?? null
+      if (lastUserId.current === undefined) { lastUserId.current = nextId; return }
+      if (lastUserId.current === nextId) return
+      lastUserId.current = nextId
+      setAuthTick((n) => n + 1)
     })
     return () => data.subscription.unsubscribe()
   }, [])
@@ -170,7 +187,22 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       return () => { cancelled = true }
     }
 
-    setState((prev) => ({ ...prev, status: 'resolving' }))
+    // WEC-819: only ever show the boot gate on the FIRST resolve.
+    //
+    // `resolving` renders StoreBootFallback INSTEAD of {children}, so every
+    // re-resolution unmounted the whole customer app — destroying any local
+    // React state, i.e. a half-filled checkout form (invoice, customer name).
+    //
+    // Why it only bit reseller stores: fetchStorefront is memoized per tab, so
+    // on a company store the re-resolve settles inside the same microtask and
+    // React batches `resolving` away before it is ever committed. The reseller
+    // branch then awaits getUser() + store_members — two real network calls —
+    // so the fallback genuinely renders and the children genuinely unmount.
+    // Same latent bug on both; only one was slow enough to show it.
+    //
+    // Keeping a resolved storefront on screen while re-checking in the
+    // background is also just correct: we already know which store this is.
+    setState((prev) => (prev.status === 'ready' ? prev : { ...prev, status: 'resolving' }))
     void fetchStorefront(slug).then((r) => {
       if (cancelled) return
       if (r.status === 'ok') {

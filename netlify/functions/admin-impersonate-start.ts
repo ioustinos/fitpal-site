@@ -137,6 +137,21 @@ export default async (request: Request) => {
       doorbell: r.doorbell ?? undefined, notes: r.notes ?? undefined,
     }))
 
+    // WEC-822: the customer's spendable wallet, so impersonated checkout shows
+    // and debits the CUSTOMER's wallet — not the admin's. balance stored in
+    // cents; the client store uses euros, so convert here to match.
+    const { data: walletRow } = await svc
+      .from('wallets')
+      .select('balance, active')
+      .eq('user_id', body.targetUserId)
+      .maybeSingle()
+    const targetWallet = walletRow
+      ? {
+          balance: +(((walletRow as { balance: number | null }).balance ?? 0) / 100).toFixed(2),
+          active: !!(walletRow as { active: boolean | null }).active,
+        }
+      : undefined
+
     const targetEmail = (profileRow as { email: string | null }).email
     if (!targetEmail) {
       return Response.json({ error: 'Target user has no email' }, { status: 400 })
@@ -200,6 +215,7 @@ export default async (request: Request) => {
         invoice: p2?.invoice ?? undefined,
         slots: Object.keys(targetSlots).length ? targetSlots : undefined,
         dayAddress: Object.keys(targetDayAddress).length ? targetDayAddress : undefined,
+        wallet: targetWallet,
       },
       // Echo admin id back so the client can stash it for the
       // X-Impersonator-Admin-Id attribution header on order submission.

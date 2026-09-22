@@ -21,13 +21,20 @@ export function PaymentSection() {
   // here — we read the full map and pick the right flag below based on
   // whether an admin is impersonating.
   const visibility = useMenuStore((s) => s.settings.paymentMethodVisibility)
-  // With session-swap impersonation, `user` already IS the impersonated
-  // customer (their JWT is active, their profile/wallet were re-loaded by
-  // App.tsx's onAuthStateChange handler). So we just read user.wallet
-  // directly — no special-case swap.
+  // Self-serve: `user.wallet` is the customer's own wallet. Under impersonation
+  // it is the ADMIN's (the session-swap does not cleanly reload the customer
+  // into the store), so we resolve the effective wallet from the impersonation
+  // target below rather than trusting user.wallet.
   const isImpersonating = useImpersonationStore((s) => s.active)
-  const walletBalance = user?.wallet?.balance ?? 0
-  const walletActive = user?.wallet?.active
+  const impTarget = useImpersonationStore((s) => s.target)
+  // WEC-822: under impersonation the wallet shown/spent must be the CUSTOMER's,
+  // not the admin's. `user.wallet` is the admin's during a session-swap, so we
+  // read the customer's wallet from the impersonation target instead. When the
+  // impersonation session predates this field (or the customer has no wallet),
+  // effWallet is null → no wallet shown, never the admin's.
+  const effWallet = isImpersonating ? (impTarget?.wallet ?? null) : (user?.wallet ?? null)
+  const walletBalance = effWallet?.balance ?? 0
+  const walletActive = effWallet?.active
   // WEC-262: scope-aware total — wallet sufficiency check needs to use
   // the same number the customer sees in the order summary.
   const dishMap = useMenuStore((s) => s.dishMap)
@@ -45,7 +52,7 @@ export function PaymentSection() {
   const visibleMethods = visiblePaymentMethods(visibility, {
     isImpersonating,
     applyWalletGating: true,
-    wallet: user?.wallet,
+    wallet: effWallet,
   })
 
   // WEC-260: bank info is now an array of up to 5 entries. Customer sees
