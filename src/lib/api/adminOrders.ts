@@ -224,6 +224,22 @@ export interface OrderFilters {
 
 // ─── Queries ──────────────────────────────────────────────────────────────
 
+// WEC-815: Supabase/Kong rejects a GET whose URI is too long (~8KB). A
+// `.in('col', ids)` with hundreds of UUIDs (200 orders → 600+ child_orders →
+// 600+ item rows) blows that limit and returns a bare 400 "Bad Request" that
+// empties the whole orders list. Split the id list into safe batches.
+async function selectByIdsChunked<T = Record<string, unknown>>(
+  table: string, columns: string, idColumn: string, ids: string[], chunkSize = 100,
+): Promise<{ data: T[]; error: { message: string } | null }> {
+  const out: T[] = []
+  for (let i = 0; i < ids.length; i += chunkSize) {
+    const { data, error } = await supabase.from(table).select(columns).in(idColumn, ids.slice(i, i + chunkSize))
+    if (error) return { data: out, error }
+    out.push(...((data ?? []) as T[]))
+  }
+  return { data: out, error: null }
+}
+
 export async function listAdminOrders(f: OrderFilters): Promise<{ data: AdminOrder[] | null; error: string | null }> {
   // Filtering on child_orders requires joining via IN (...) of order_ids that match
   let orderIdsFromChild: Set<string> | null = null
@@ -273,11 +289,11 @@ export async function listAdminOrders(f: OrderFilters): Promise<{ data: AdminOrd
   if (orderIds.length === 0) return { data: [], error: null }
 
   // Load child_orders, then items filtered by child_order_id
-  const cosRes = await supabase.from('child_orders').select('*').in('order_id', orderIds)
+  const cosRes = await selectByIdsChunked('child_orders', '*', 'order_id', orderIds)
   if (cosRes.error) return { data: null, error: cosRes.error.message }
   const childIds = (cosRes.data ?? []).map((r) => r.id as string)
   const itemsFinal = childIds.length > 0
-    ? await supabase.from('order_items').select('*').in('child_order_id', childIds)
+    ? await selectByIdsChunked('order_items', '*', 'child_order_id', childIds)
     : { data: [] as unknown[], error: null }
   if (itemsFinal.error) return { data: null, error: (itemsFinal.error as { message: string }).message }
 
