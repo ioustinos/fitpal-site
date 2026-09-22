@@ -79,7 +79,7 @@ export default async (request: Request) => {
     // which has been flaky against manually-seeded auth.users rows.
     const { data: profileRow, error: profileLookupErr } = await svc
       .from('profiles')
-      .select('id, email, name')
+      .select('id, email, name, phone')
       .eq('id', body.targetUserId)
       .maybeSingle()
     if (profileLookupErr || !profileRow) {
@@ -145,6 +145,9 @@ export default async (request: Request) => {
         userId: body.targetUserId,
         email: targetEmail,
         name: (profileRow as { name: string | null }).name ?? targetEmail,
+        // WEC-816: carry the customer's profile phone so impersonated checkout
+        // shows THEIR number, not the admin's.
+        phone: (profileRow as { phone: string | null }).phone ?? null,
       },
       // Echo admin id back so the client can stash it for the
       // X-Impersonator-Admin-Id attribution header on order submission.
