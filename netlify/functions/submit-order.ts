@@ -1206,6 +1206,11 @@ export default async (request: Request) => {
       subtotal: orderSubtotal,
       discount_amount: discountAmount,
       total: orderTotal,
+      // WEC-814 note: `original_total` is deliberately NOT set here. It is
+      // frozen by the DB trigger `freeze_original_total` the first time a row
+      // leaves 'draft', which catches every path at once — this legacy INSERT,
+      // the promote_draft_atomic RPC (whose explicit column whitelist would
+      // have silently dropped a field added here), and admin-created orders.
       payment_method: body.paymentMethod,
       payment_status: 'pending',
       status: 'pending',

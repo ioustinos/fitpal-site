@@ -137,6 +137,16 @@ export interface AdminOrder {
   manualDiscount: number
   manualDiscountNote: string | null
   total: number
+  /** WEC-814: the total at submit — what the customer agreed to pay. Null only
+   *  on old rows the backfill could not reconstruct from the audit log. */
+  originalTotal: number | null
+  /** WEC-814: derived in the DB — `total` no longer equals `originalTotal`. */
+  priceChanged: boolean
+  /** WEC-814: set when an admin signed the difference off. Null while
+   *  `priceChanged` is true means it is still in the review queue. */
+  priceReviewAt: string | null
+  priceReviewBy: string | null
+  priceReviewNote: string | null
   /** WEC-171: cumulative refund amount in cents. */
   refundAmount: number
   paymentMethod: PaymentMethod | null
@@ -207,6 +217,9 @@ export interface OrderFilters {
   /** WEC-715: restrict to one storefront. Omitted → every store, which is
    *  what the retail-only world always showed. */
   storeId?: string
+  /** WEC-814: only orders whose total moved after submit and that no admin has
+   *  signed off yet — the review queue. Omitted → no filtering on price at all. */
+  priceNeedsReview?: boolean
 }
 
 // ─── Queries ──────────────────────────────────────────────────────────────
@@ -245,6 +258,9 @@ export async function listAdminOrders(f: OrderFilters): Promise<{ data: AdminOrd
   // WEC-715: Ioustinos asked for company orders to land in the normal orders
   // page with the store visible and filterable — not a separate B2B inbox.
   if (f.storeId) q = q.eq('store_id', f.storeId)
+  // WEC-814: the review queue — price moved AND nobody has signed it off.
+  // Both conditions, or a reviewed order would keep coming back.
+  if (f.priceNeedsReview) q = q.eq('price_changed', true).is('price_review_at', null)
   if (f.search) {
     const s = f.search.trim()
     q = q.or(`order_number.ilike.%${s}%,customer_name.ilike.%${s}%,customer_email.ilike.%${s}%,customer_phone.ilike.%${s}%`)
@@ -322,6 +338,20 @@ export async function listAdminOrders(f: OrderFilters): Promise<{ data: AdminOrd
   return { data: result, error: null }
 }
 
+/**
+ * WEC-813: how many audit rows the drawer's Timeline tab loads.
+ *
+ * Exported so the UI can tell "this is the whole history" apart from "this is
+ * the newest N and there is more" — previously the tab printed «latest N»
+ * whatever N was, which read as a cap even when it was simply the total, and
+ * sent Ioustinos looking for a truncation that wasn't there (2026-09-22).
+ *
+ * 200 comfortably clears the busiest real order (a heavily-edited multi-day
+ * order runs to a few dozen rows); the tab now says so explicitly if it is
+ * ever hit.
+ */
+export const CHANGE_LOG_LIMIT = 200
+
 export async function getAdminOrder(id: string): Promise<{ data: AdminOrder | null; error: string | null }> {
   const orderRes = await supabase.from('orders').select('*').eq('id', id).single()
   if (orderRes.error) return { data: null, error: orderRes.error.message }
@@ -329,7 +359,7 @@ export async function getAdminOrder(id: string): Promise<{ data: AdminOrder | nu
   const [cosRes, vuRes, logRes, plRes, sumRes] = await Promise.all([
     supabase.from('child_orders').select('*').eq('order_id', id).order('delivery_date'),
     supabase.from('voucher_uses').select('*, vouchers(code)').eq('order_id', id),
-    supabase.from('admin_change_log').select('*').eq('order_id', id).order('created_at', { ascending: false }).limit(50),
+    supabase.from('admin_change_log').select('*').eq('order_id', id).order('created_at', { ascending: false }).limit(CHANGE_LOG_LIMIT),
     // WEC-171/176 — most recent payment_links row for this order.
     supabase.from('payment_links').select('*').eq('order_id', id).order('updated_at', { ascending: false }).limit(1).maybeSingle(),
     // WEC-606 — derived payment ledger (paid / remaining / refundable).
@@ -488,6 +518,8 @@ function mapOrderRow(r: unknown, childOrders: AdminChildOrder[], voucherUses: Ad
     customer_name: string | null; customer_email: string | null; customer_phone: string | null;
     subtotal: number; discount_amount: number | null; total: number; refund_amount: number | null;
     manual_discount: number | null; manual_discount_note: string | null;
+    original_total: number | null; price_changed: boolean | null;
+    price_review_at: string | null; price_review_by: string | null; price_review_note: string | null;
     payment_method: PaymentMethod | null; payment_status: PaymentStatus | null; status: OrderStatus | null;
     cutlery: boolean | null; invoice_type: string | null; invoice_name: string | null; invoice_vat: string | null;
     notes: string | null; admin_order_id: string | null; admin_notes: string | null;
@@ -500,6 +532,13 @@ function mapOrderRow(r: unknown, childOrders: AdminChildOrder[], voucherUses: Ad
     customerName: row.customer_name ?? '', customerEmail: row.customer_email ?? '', customerPhone: row.customer_phone ?? '',
     subtotal: row.subtotal, discountAmount: row.discount_amount ?? 0, total: row.total,
     manualDiscount: row.manual_discount ?? 0, manualDiscountNote: row.manual_discount_note ?? null,
+    // WEC-814. priceChanged is DB-generated; default false rather than deriving
+    // it here, so the UI can never show a flag the database disagrees with.
+    originalTotal: row.original_total ?? null,
+    priceChanged: row.price_changed ?? false,
+    priceReviewAt: row.price_review_at ?? null,
+    priceReviewBy: row.price_review_by ?? null,
+    priceReviewNote: row.price_review_note ?? null,
     refundAmount: row.refund_amount ?? 0,
     paymentMethod: row.payment_method, paymentStatus: row.payment_status ?? 'pending',
     status: row.status ?? 'pending',
@@ -661,6 +700,48 @@ export async function updateOrderPaymentMethod(id: string, current: PaymentMetho
     oldValue: current ?? '', newValue: next, label: `payment method: ${current ?? '—'} → ${next}`,
     adminUser,
   })
+  return { error: null }
+}
+
+/**
+ * WEC-814: sign off a price change — "I've seen this difference and dealt with
+ * it." Clears the order out of the review queue without touching a cent.
+ *
+ * Deliberately does NOT adjust money. Whatever the admin decided (charged the
+ * difference, refunded, issued a voucher, wrote it off) is done through the
+ * existing money actions, each of which has its own audit entry. This only
+ * records the judgement, so the two can never be confused in the log.
+ *
+ * If the total moves again afterwards the DB trigger re-opens the review —
+ * a sign-off applies to the number it was given, not forever.
+ */
+export async function markPriceReviewed(
+  id: string,
+  note: string | null,
+  adminUser: string,
+): Promise<{ error: string | null }> {
+  const reviewedAt = new Date().toISOString()
+  const { error } = await supabase
+    .from('orders')
+    .update({
+      price_review_at: reviewedAt,
+      price_review_by: adminUser,
+      price_review_note: note?.trim() || null,
+      updated_at: reviewedAt,
+    })
+    .eq('id', id)
+  if (error) return { error: error.message }
+  const { error: logErr } = await writeChangeLog({
+    orderId: id, tableName: 'orders', fieldName: 'price_review_at',
+    oldValue: null, newValue: reviewedAt,
+    label: note?.trim()
+      ? `price change reviewed — ${note.trim()}`
+      : 'price change reviewed',
+    adminUser,
+  })
+  // The sign-off itself succeeded; surface a failed audit write rather than
+  // swallowing it (WEC-604), but don't pretend the review didn't happen.
+  if (logErr) console.error('[markPriceReviewed] audit write failed:', logErr)
   return { error: null }
 }
 

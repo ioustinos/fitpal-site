@@ -11,6 +11,7 @@ import {
   addOrderItem, fetchOnMenuDishIds,
   updateOrderItemVariant, cancelChildOrder, restoreChildOrder, updateOrderNotes,
   ORDER_STATUS_VALUES, PAYMENT_STATUS_VALUES, VALID_NEXT_STATUS,
+  CHANGE_LOG_LIMIT,
   type AdminOrder, type AdminChildOrder, type AdminOrderItem,
   type OrderFilters, type OrderStatus, type PaymentStatus,
   type PaymentMethod,
@@ -19,6 +20,7 @@ import {
   updateOrderCutlery,
   updateOrderItemComment,
   updateOrderInvoice,
+  markPriceReviewed,
 } from '../../lib/api/adminOrders'
 import { isValidGreekVat, vatDigits } from '../../lib/vat'  // WEC-698
 import { fetchAdminDishes, type AdminDish } from '../../lib/api/adminDishes'
@@ -99,7 +101,9 @@ const CHANGE_REASON_LABEL: Record<OrderChangeReason, string> = {
   other: 'Other',
 }
 
-type Preset = 'all' | 'today' | 'pending-payment' | 'this-week' | 'drafts'
+// WEC-814: 'price-changed' is the review queue — orders whose total moved
+// after the customer agreed to it and that no admin has signed off yet.
+type Preset = 'all' | 'today' | 'pending-payment' | 'this-week' | 'drafts' | 'price-changed'
 
 export function Orders() {
   const user = useAuthStore((s) => s.user)
@@ -193,6 +197,9 @@ export function Orders() {
     }
     // WEC-599: "pending" folds in pending_link_sent — same unpaid bucket.
     if (preset === 'pending-payment') { filters.paymentStatus = ['pending', 'pending_link_sent'] }
+    // WEC-814: no date window — a price change from three weeks ago is still
+    // money owed in one direction or the other until someone signs it off.
+    if (preset === 'price-changed') { filters.priceNeedsReview = true }
     if (storeFilter) filters.storeId = storeFilter
     const { data, error } = await listAdminOrders(filters)
     if (error) setErr(error)
@@ -258,6 +265,9 @@ export function Orders() {
           { k: 'today', label: "Today's deliveries" },
           { k: 'this-week', label: 'This week' },
           { k: 'pending-payment', label: 'Pending payment' },
+          // WEC-814: price-change review queue. Empties as admins sign orders
+          // off, so a non-empty list means there is money to chase or return.
+          { k: 'price-changed', label: 'Price changed ⚠' },
           // WEC-420: Drafts tab — in-progress checkouts that haven't been
           // submitted yet. Excluded from every other view.
           { k: 'drafts', label: 'Drafts' },
@@ -401,6 +411,15 @@ export function Orders() {
                     {pendingReqIds.has(o.id) && (
                       <span className="admin-changereq-pill" title="Pending customer change request">
                         <Ico name="tag" size={10} /> change req
+                      </span>
+                    )}
+                    {/* WEC-814: a marker, not a number. The list says "this one
+                        needs a look"; the drawer and the timeline carry the
+                        figures. Putting money in the row invites decisions from
+                        the list, where the payment ledger isn't even loaded. */}
+                    {o.priceChanged && !o.priceReviewAt && (
+                      <span className="admin-pricechg-tag" title="Total changed after submit — not yet reviewed">
+                        ⚠ price changed
                       </span>
                     )}
                     {/* WEC-521: managed order (admin placed it while impersonating
@@ -1023,6 +1042,106 @@ function ManualDiscountEditor({ order, adminUser, onChanged }: { order: AdminOrd
   )
 }
 
+/**
+ * WEC-814 · the price-change panel.
+ *
+ * Renders nothing at all when the total still equals what the customer agreed
+ * to, which is the overwhelming majority of orders — this must not become one
+ * more box every admin learns to scroll past.
+ *
+ * It answers the only three questions an admin has: what changed, is there
+ * money outstanding either way, and has anyone dealt with it. The money line
+ * compares what was actually COLLECTED (the WEC-606 ledger) against the current
+ * total — not original vs current — because a price drop on an unpaid order
+ * owes nobody anything, while the same drop after payment is a refund due.
+ */
+function PriceChangePanel({ order, adminUser, onChanged }: { order: AdminOrder; adminUser: string; onChanged: () => void }) {
+  const [open, setOpen] = useState(false)
+  const [note, setNote] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [err, setErr] = useState<string | null>(null)
+
+  if (!order.priceChanged || order.originalTotal == null) return null
+
+  const delta = order.total - order.originalTotal          // + = costs more now
+  // WEC-814: do NOT recompute the balance here. `remaining` is the WEC-606
+  // ledger's own answer (total − paid + refunded) — the same number the Refund
+  // tab caps against. Positive = customer still owes; negative = they overpaid
+  // and are owed that much back. Deriving it a second time in the UI is how two
+  // screens end up quoting different figures for the same order.
+  const outstanding = order.payment.remaining
+  const reviewed = !!order.priceReviewAt
+  const eur = (c: number) => `${(Math.abs(c) / 100).toFixed(2)} €`
+
+  async function review() {
+    setBusy(true); setErr(null)
+    const { error } = await markPriceReviewed(order.id, note, adminUser)
+    setBusy(false)
+    if (error) { setErr(error); return }
+    setOpen(false); setNote(''); onChanged()
+  }
+
+  return (
+    <div className={`admin-pricechg${reviewed ? ' reviewed' : ''}`}>
+      <div className="admin-pricechg-head">
+        {reviewed ? '✓ Price change reviewed' : '⚠ Price changed since submit'}
+      </div>
+      <div className="admin-pricechg-line">
+        Submitted at <strong>{(order.originalTotal / 100).toFixed(2)} €</strong> · now{' '}
+        <strong>{(order.total / 100).toFixed(2)} €</strong>{' '}
+        <span style={{ color: delta > 0 ? '#15803d' : '#b91c1c', fontWeight: 700 }}>
+          ({delta > 0 ? '+' : '−'}{eur(delta)})
+        </span>
+      </div>
+      {/* The actionable line — only once money has actually been collected.
+          `remaining` is non-zero on EVERY unpaid order simply because it is
+          unpaid; printing it here would dress "not paid yet" up as a shortfall
+          the edit caused. With nothing collected there is no over- or
+          under-payment to settle: the new total is just what's due. */}
+      <div className="admin-pricechg-line">
+        {order.payment.paid === 0
+          ? <>Nothing collected yet — <strong>{(order.total / 100).toFixed(2)} €</strong> is what's now due.</>
+          : <>Collected {(order.payment.paid / 100).toFixed(2)} € —{' '}
+              {outstanding > 0
+                ? <strong>customer still owes {eur(outstanding)}</strong>
+                : outstanding < 0
+                  ? <strong>{eur(outstanding)} to refund or credit</strong>
+                  : <>balances, nothing outstanding</>}
+            </>}
+      </div>
+      {reviewed && (
+        <div className="admin-pricechg-note">
+          by {order.priceReviewBy ?? '—'} on {new Date(order.priceReviewAt!).toLocaleString('en-GB')}
+          {order.priceReviewNote ? ` — ${order.priceReviewNote}` : ''}
+        </div>
+      )}
+      {err && <div className="admin-error-banner">{err}</div>}
+      {!reviewed && (open ? (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 6 }}>
+          <input
+            className="admin-input"
+            value={note}
+            onChange={(e) => setNote(e.target.value)}
+            placeholder="What did you do? (charged / refunded / voucher / accepted)"
+            autoFocus
+            style={{ padding: '2px 6px', fontSize: 13 }}
+          />
+          <div style={{ display: 'flex', gap: 6 }}>
+            <button type="button" className="admin-od-statusbtn" style={{ background: 'var(--green)', color: '#fff' }} disabled={busy} onClick={review}>
+              {busy ? 'Saving…' : 'Confirm reviewed'}
+            </button>
+            <button type="button" className="admin-btn-ghost" disabled={busy} onClick={() => { setOpen(false); setErr(null) }}>Cancel</button>
+          </div>
+        </div>
+      ) : (
+        <button type="button" className="admin-btn-ghost" style={{ fontSize: 12, marginTop: 4 }} disabled={busy} onClick={() => setOpen(true)}>
+          Mark as reviewed
+        </button>
+      ))}
+    </div>
+  )
+}
+
 function OverviewTab({ order, adminUser, onChanged }: { order: AdminOrder; adminUser: string; onChanged: () => void }) {
   const hasDiscount = order.voucherUses.length > 0 || order.discountAmount > 0
   // WEC-668: inline edits on the order (payment method + cutlery), no separate
@@ -1136,7 +1255,8 @@ function OverviewTab({ order, adminUser, onChanged }: { order: AdminOrder; admin
           })()}
         </div>
 
-        {/* Totals */}
+        {/* WEC-814: Totals — carries the price-change panel when the order's
+            total has moved away from what the customer agreed to. */}
         <div className="admin-od-card admin-od-col-2">
           <span className="admin-od-card-title"><Ico name="receipt" /> Totals</span>
           <div className="admin-od-totals">
@@ -1146,6 +1266,7 @@ function OverviewTab({ order, adminUser, onChanged }: { order: AdminOrder; admin
             )}
             <div className="admin-od-total-row admin-od-total-grand"><span>Total</span><span>{(order.total / 100).toFixed(2)} €</span></div>
           </div>
+          <PriceChangePanel order={order} adminUser={adminUser} onChanged={onChanged} />
           <ManualDiscountEditor order={order} adminUser={adminUser} onChanged={onChanged} />
         </div>
 
@@ -2345,9 +2466,42 @@ function TimelineTab({ order }: { order: AdminOrder }) {
   }
   const fromDraft = !!order.submittedAt && new Date(order.submittedAt).getTime() - new Date(order.createdAt).getTime() > 1000
 
+  // WEC-813: one ACTION, one row.
+  //
+  // admin_change_log is field-level: flipping an order writes a separate row
+  // per column touched. The reconcile auto-cancel wrote `status` AND
+  // `payment_status`, so the tab showed «reconcile-orphan-timeout» twice at
+  // the identical timestamp with no visible difference between the two lines —
+  // unreadable to anyone who doesn't know the table's shape.
+  //
+  // Group by second + label + author: rows written by one action share all
+  // three (they come from a single insert), while two genuinely separate edits
+  // a second apart stay separate. The per-field detail moves to a muted
+  // second line so nothing is lost — it just stops masquerading as history.
+  const events = useMemo(() => {
+    const byKey = new Map<string, AdminOrder['changeLog']>()
+    for (const l of order.changeLog) {
+      const sec = l.createdAt.slice(0, 19)       // ISO to whole seconds
+      const key = `${sec}|${l.label ?? ''}|${l.adminUser ?? ''}`
+      const bucket = byKey.get(key)
+      if (bucket) bucket.push(l)
+      else byKey.set(key, [l])
+    }
+    return [...byKey.values()].sort(
+      (a, b) => new Date(a[0].createdAt).getTime() - new Date(b[0].createdAt).getTime(),
+    )
+  }, [order.changeLog])
+
+  // True only when we actually hit the fetch ceiling — see CHANGE_LOG_LIMIT.
+  const truncated = order.changeLog.length >= CHANGE_LOG_LIMIT
+
   return (
     <div className="admin-timeline">
-      <p className="admin-sub">Order placement + latest {order.changeLog.length} admin change(s):</p>
+      <p className="admin-sub">
+        {truncated
+          ? `Order placement + the most recent ${events.length} changes (older entries not loaded)`
+          : `Order placement + full change history (${events.length} ${events.length === 1 ? 'change' : 'changes'})`}
+      </p>
 
       {/* WEC-404/590: synthetic rows first — draft creation (if any), then placement. */}
       {fromDraft && (
@@ -2363,30 +2517,40 @@ function TimelineTab({ order }: { order: AdminOrder }) {
         <div className="admin-tl-by">customer</div>
       </div>
 
-      {[...order.changeLog]
-        .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime())
-        .map((l) => {
-          const isMoney = l.tableName === 'orders' && (l.fieldName === 'total' || l.fieldName === 'subtotal' || l.fieldName === 'discount_amount')
-          const oldN = Number(l.oldValue)
-          const newN = Number(l.newValue)
-          const deltaColor = isMoney && Number.isFinite(oldN) && Number.isFinite(newN) && newN !== oldN
-            ? (newN > oldN ? '#15803d' : '#b91c1c')
-            : undefined
-          return (
-            <div className="admin-tl-row" key={l.id}>
-              <div className="admin-tl-when">{new Date(l.createdAt).toLocaleString('en-GB')}</div>
-              <div className="admin-tl-what">
-                {l.label || `${l.tableName}.${l.fieldName}`}
-                {isMoney && (
-                  <span className="admin-tl-delta" style={deltaColor ? { color: deltaColor } : undefined}>
-                    {' '}· {eur(l.oldValue)} → {eur(l.newValue)}
-                  </span>
-                )}
-              </div>
-              <div className="admin-tl-by">{l.adminUser}</div>
+      {events.map((group) => {
+        const head = group[0]
+        // A self-describing single-field label ("status: pending → confirmed")
+        // already says everything the detail line would; don't repeat it.
+        const selfDescribing = group.length === 1 && !!head.label && head.label.includes('→')
+        return (
+          <div className="admin-tl-row" key={head.id}>
+            <div className="admin-tl-when">{new Date(head.createdAt).toLocaleString('en-GB')}</div>
+            <div className="admin-tl-what">
+              {head.label || `${head.tableName}.${head.fieldName}`}
+              {!selfDescribing && (
+                <div className="admin-tl-fields">
+                  {group.map((l) => {
+                    const isMoney = l.tableName === 'orders'
+                      && (l.fieldName === 'total' || l.fieldName === 'subtotal' || l.fieldName === 'discount_amount')
+                    const oldN = Number(l.oldValue)
+                    const newN = Number(l.newValue)
+                    const deltaColor = isMoney && Number.isFinite(oldN) && Number.isFinite(newN) && newN !== oldN
+                      ? (newN > oldN ? '#15803d' : '#b91c1c')
+                      : undefined
+                    const fmt = (v: string | null) => (isMoney ? eur(v) : (v || '—'))
+                    return (
+                      <span className="admin-tl-field" key={l.id} style={deltaColor ? { color: deltaColor } : undefined}>
+                        {l.fieldName}: {fmt(l.oldValue)} → {fmt(l.newValue)}
+                      </span>
+                    )
+                  })}
+                </div>
+              )}
             </div>
-          )
-        })}
+            <div className="admin-tl-by">{head.adminUser}</div>
+          </div>
+        )
+      })}
     </div>
   )
 }
