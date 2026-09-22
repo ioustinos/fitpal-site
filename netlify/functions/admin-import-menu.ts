@@ -1,4 +1,15 @@
-import { createClient } from '@supabase/supabase-js'
+// WEC-823: `SupabaseClient` imported as a type because the three chunked
+// helpers below used to declare their client as `ReturnType<typeof
+// createClient>`. That looks equivalent and is not: `createClient` is generic,
+// so ReturnType instantiates its type parameters from their CONSTRAINTS rather
+// than their defaults, producing
+//   SupabaseClient<unknown, { PostgrestVersion: string }, never, never, …>
+// while an actual `createClient(url, key)` call returns
+//   SupabaseClient<any, "public", "public", any, any>.
+// The two are not assignable, so every call into these helpers was a type
+// error — six of them, plus a bogus "no overload matches" on .insert().
+// Naming the class directly is both correct and what the calls already pass.
+import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 import { corsHeaders } from '../lib/cors'
 
 /**
@@ -85,7 +96,7 @@ const IN_BATCH = 50
 const INSERT_BATCH = 500
 
 async function chunkedSelectIn<T>(
-  client: ReturnType<typeof createClient>,
+  client: SupabaseClient,
   table: string,
   cols: string,
   col: string,
@@ -102,7 +113,7 @@ async function chunkedSelectIn<T>(
 }
 
 async function chunkedDeleteIn(
-  client: ReturnType<typeof createClient>,
+  client: SupabaseClient,
   table: string,
   col: string,
   values: string[],
@@ -116,7 +127,7 @@ async function chunkedDeleteIn(
 }
 
 async function chunkedInsert<T>(
-  client: ReturnType<typeof createClient>,
+  client: SupabaseClient,
   table: string,
   rows: T[],
 ): Promise<{ error: { message: string } | null }> {

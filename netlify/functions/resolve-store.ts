@@ -106,7 +106,13 @@ export const handler: Handler = async (event) => {
       }
     }
 
-    const row = store as Record<string, unknown>
+    // WEC-823: via `unknown`. maybeSingle() on a select STRING gives a union
+    // that includes supabase-js's GenericStringError — its type-level signal
+    // that it could not parse the select — and that does not overlap a plain
+    // record, so the direct cast was rejected. The runtime value here is a
+    // real row: the `error` throw and the `!store` 404 above have both already
+    // returned by this point.
+    const row = store as unknown as Record<string, unknown>
 
     if (row.active === false) {
       return {
