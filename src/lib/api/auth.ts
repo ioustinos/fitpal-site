@@ -571,6 +571,19 @@ export async function deleteAddress(addrId: string): Promise<{ error: string | n
 // helper that fired on every header toggle was removed — the header toggle is
 // session-only to avoid surprise cross-device changes.
 
+// WEC-817: save ONLY the invoice fields on a user's prefs. `savePrefs` writes
+// the entire prefs row, which under impersonation would overwrite the
+// customer's other prefs with the admin's — this targeted update never does.
+export async function saveInvoiceDetails(
+  userId: string, name: string, vat: string,
+): Promise<{ error: string | null }> {
+  const { error } = await supabase
+    .from('user_prefs')
+    .update({ invoice_name: name.trim() || null, invoice_vat: vat.trim() || null })
+    .eq('user_id', userId)
+  return { error: error?.message ?? null }
+}
+
 export async function savePrefs(
   userId: string,
   prefs: UserPrefs,

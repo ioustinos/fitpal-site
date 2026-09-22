@@ -51,6 +51,9 @@ export interface ImpersonationTarget {
   /** WEC-816: customer's profile phone (E.164 or null) so impersonated checkout
    *  prefills the customer's number, not the admin's. */
   phone?: string | null
+  /** WEC-817: customer's saved invoice details, for impersonated checkout prefill. */
+  invoiceName?: string | null
+  invoiceVat?: string | null
 }
 
 interface ImpersonationState {
