@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { useCartStore } from '../../store/useCartStore'
 import { useAuthStore, type Address } from '../../store/useAuthStore'
+import { useImpersonationStore } from '../../store/useImpersonationStore'
 import { useUIStore } from '../../store/useUIStore'
 import { useMenuStore } from '../../store/useMenuStore'
 import { makeTr } from '../../lib/translations'
@@ -48,7 +49,11 @@ export function AddressSection({ dayDate }: AddressSectionProps) {
   const zones = useMenuStore((s) => s.zones)
 
   const current = delivery[dayDate]
-  const savedAddresses = (user?.addresses ?? []) as Address[]
+  // WEC-818: under impersonation `user` is the admin — show the impersonated
+  // customer's saved addresses (from the target) instead.
+  const impActive = useImpersonationStore((s) => s.active)
+  const impTarget = useImpersonationStore((s) => s.target)
+  const savedAddresses = ((impActive && impTarget?.addresses ? impTarget.addresses : user?.addresses) ?? []) as Address[]
   // WEC-336: cart is keyed by ISO date string now — drop the Number() cast.
   const activeDayCount = Object.keys(cart).filter((k) => (cart[k]?.length ?? 0) > 0).length
 

@@ -470,6 +470,10 @@ export function CheckoutPage() {
   const prepopulatedFor = useRef<string | null>(null)
   useEffect(() => {
     if (!user) return
+    // WEC-818: never apply saved prefs (address / slot / cutlery / payment) under
+    // impersonation — `user` is the admin, so these are the ADMIN's. The customer's
+    // addresses are shown in the picker (from the target); the admin picks per day.
+    if (isImpersonating) return
     // Only prepopulate once per user (allows re-running when logging in mid-checkout)
     if (prepopulatedFor.current === user.email) return
     prepopulatedFor.current = user.email

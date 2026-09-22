@@ -54,6 +54,11 @@ export interface ImpersonationTarget {
   /** WEC-817: customer's saved invoice details, for impersonated checkout prefill. */
   invoiceName?: string | null
   invoiceVat?: string | null
+  /** WEC-818: customer's saved addresses, for impersonated checkout picker. */
+  addresses?: Array<{
+    id: string; labelEl: string; labelEn: string; street: string; area: string
+    zip?: string; floor?: string; doorbell?: string; notes?: string
+  }>
 }
 
 interface ImpersonationState {
