@@ -2,6 +2,7 @@ import { useEffect } from 'react'
 import { useCartStore } from '../../store/useCartStore'
 import { useUIStore } from '../../store/useUIStore'
 import { useAuthStore } from '../../store/useAuthStore'
+import { useImpersonationStore } from '../../store/useImpersonationStore'
 import { makeTr } from '../../lib/translations'
 import { Toggle } from '../ui/Toggle'
 import { isValidGreekVat, vatDigits } from '../../lib/vat'
@@ -32,8 +33,12 @@ export function ExtrasSection({ attempted = false }: ExtrasSectionProps) {
   // toggle goes on, so the same customer is never asked twice. Only fills
   // EMPTY fields — whatever is already typed always wins, including a one-off
   // invoice to a different company.
-  const savedName = user?.prefs?.invoiceName
-  const savedVat = user?.prefs?.invoiceVat
+  // WEC-817: under impersonation `user` is the admin — read the invoice
+  // details from the impersonated customer's target instead.
+  const impActive = useImpersonationStore((s) => s.active)
+  const impTarget = useImpersonationStore((s) => s.target)
+  const savedName = (impActive && impTarget) ? (impTarget.invoiceName ?? undefined) : user?.prefs?.invoiceName
+  const savedVat = (impActive && impTarget) ? (impTarget.invoiceVat ?? undefined) : user?.prefs?.invoiceVat
   useEffect(() => {
     if (!payment.invoice) return
     const patch: { invoiceName?: string; invoiceVat?: string } = {}

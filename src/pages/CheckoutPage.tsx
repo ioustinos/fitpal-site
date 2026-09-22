@@ -19,7 +19,7 @@ import { dayLabel } from '../lib/datelabels'
 import { isValidPhone } from '../lib/phone'
 import { isValidGreekVat, vatDigits } from '../lib/vat'
 import { isValidEmail } from '../lib/email'
-import { updateProfile, savePrefs } from '../lib/api/auth'
+import { updateProfile, saveInvoiceDetails } from '../lib/api/auth'
 import { useMenuStore } from '../store/useMenuStore'
 import { useToast } from '../components/ui/Toast'
 import { submitOrder } from '../lib/api/orders'
@@ -808,13 +808,13 @@ export function CheckoutPage() {
       const nextName = payment.invoiceName?.trim() ?? ''
       const nextVat = payment.invoiceVat?.trim() ?? ''
       if (nextName || nextVat) {
-        const prefs = useAuthStore.getState().user?.prefs ?? {}
-        if (prefs.invoiceName !== nextName || prefs.invoiceVat !== nextVat) {
-          void savePrefs(user.id, { ...prefs, invoiceName: nextName, invoiceVat: nextVat })
-            .then(({ error: prefErr }) => {
-              if (prefErr) console.warn('[checkout] invoice details not saved to account:', prefErr)
-            })
-        }
+        // WEC-817: save ONLY the invoice fields, to the CUSTOMER's account
+        // (the impersonation target when impersonating — user is the admin).
+        const invoiceTargetId = (isImpersonating && impersonationTarget) ? impersonationTarget.userId : user.id
+        void saveInvoiceDetails(invoiceTargetId, nextName, nextVat)
+          .then(({ error: prefErr }) => {
+            if (prefErr) console.warn('[checkout] invoice details not saved to account:', prefErr)
+          })
       }
     }
 

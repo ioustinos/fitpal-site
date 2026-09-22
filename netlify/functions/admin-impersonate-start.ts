@@ -93,6 +93,14 @@ export default async (request: Request) => {
         targetUserId: body.targetUserId,
       }, { status: 404 })
     }
+    // WEC-817: pull the customer's saved invoice details (in user_prefs, not
+    // profiles) so impersonated checkout can prefill them. Service-role read.
+    const { data: prefsRow } = await svc
+      .from('user_prefs')
+      .select('invoice_name, invoice_vat')
+      .eq('user_id', body.targetUserId)
+      .maybeSingle()
+
     const targetEmail = (profileRow as { email: string | null }).email
     if (!targetEmail) {
       return Response.json({ error: 'Target user has no email' }, { status: 400 })
@@ -148,6 +156,8 @@ export default async (request: Request) => {
         // WEC-816: carry the customer's profile phone so impersonated checkout
         // shows THEIR number, not the admin's.
         phone: (profileRow as { phone: string | null }).phone ?? null,
+        invoiceName: (prefsRow as { invoice_name: string | null } | null)?.invoice_name ?? null,
+        invoiceVat: (prefsRow as { invoice_vat: string | null } | null)?.invoice_vat ?? null,
       },
       // Echo admin id back so the client can stash it for the
       // X-Impersonator-Admin-Id attribution header on order submission.
