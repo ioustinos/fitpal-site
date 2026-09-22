@@ -97,9 +97,30 @@ export default async (request: Request) => {
     // profiles) so impersonated checkout can prefill them. Service-role read.
     const { data: prefsRow } = await svc
       .from('user_prefs')
-      .select('invoice_name, invoice_vat')
+      .select('invoice_name, invoice_vat, payment_method, cutlery, invoice')
       .eq('user_id', body.targetUserId)
       .maybeSingle()
+
+    // WEC-819: the customer's per-weekday delivery prefs (slot + address id),
+    // mapped to the same shapes the checkout prepopulate expects.
+    const { data: dpRows } = await svc
+      .from('user_day_prefs')
+      .select('day_of_week, address_id, time_from, time_to')
+      .eq('user_id', body.targetUserId)
+    const fmtSlot = (from: string | null, to: string | null): string => {
+      if (!from || !to) return ''
+      const f = from.split(':'); const t = to.split(':')
+      return `${parseInt(f[0])}:${f[1]}\u2013${parseInt(t[0])}:${t[1]}`
+    }
+    const targetSlots: Record<number, string> = {}
+    const targetDayAddress: Record<number, string> = {}
+    for (const dp of ((dpRows ?? []) as Array<{ day_of_week: number; address_id: string | null; time_from: string | null; time_to: string | null }>)) {
+      const idx = dp.day_of_week - 1
+      const slot = fmtSlot(dp.time_from, dp.time_to)
+      if (slot) targetSlots[idx] = slot
+      if (dp.address_id) targetDayAddress[idx] = dp.address_id
+    }
+    const p2 = prefsRow as { payment_method: string | null; cutlery: boolean | null; invoice: boolean | null } | null
 
     // WEC-818: the customer's saved addresses, so impersonated checkout shows
     // THEIR addresses in the picker (not the admin's). Service-role read.
@@ -174,6 +195,11 @@ export default async (request: Request) => {
         invoiceName: (prefsRow as { invoice_name: string | null } | null)?.invoice_name ?? null,
         invoiceVat: (prefsRow as { invoice_vat: string | null } | null)?.invoice_vat ?? null,
         addresses: targetAddresses,
+        paymentMethod: p2?.payment_method ?? undefined,
+        cutlery: p2?.cutlery ?? undefined,
+        invoice: p2?.invoice ?? undefined,
+        slots: Object.keys(targetSlots).length ? targetSlots : undefined,
+        dayAddress: Object.keys(targetDayAddress).length ? targetDayAddress : undefined,
       },
       // Echo admin id back so the client can stash it for the
       // X-Impersonator-Admin-Id attribution header on order submission.

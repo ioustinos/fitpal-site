@@ -470,23 +470,31 @@ export function CheckoutPage() {
   const prepopulatedFor = useRef<string | null>(null)
   useEffect(() => {
     if (!user) return
-    // WEC-818: never apply saved prefs (address / slot / cutlery / payment) under
-    // impersonation — `user` is the admin, so these are the ADMIN's. The customer's
-    // addresses are shown in the picker (from the target); the admin picks per day.
-    if (isImpersonating) return
-    // Only prepopulate once per user (allows re-running when logging in mid-checkout)
-    if (prepopulatedFor.current === user.email) return
-    prepopulatedFor.current = user.email
+    // Only prepopulate once per identity (re-runs on login / impersonation flip).
+    const prepKey = (isImpersonating && impersonationTarget) ? `imp:${impersonationTarget.userId}` : user.email
+    if (prepopulatedFor.current === prepKey) return
+    prepopulatedFor.current = prepKey
+
+    // WEC-819: under impersonation `user` is the admin, so pull the CUSTOMER's
+    // saved prefs from the target — Maria gets each customer's preferences
+    // prefilled instead of re-typing them every time.
+    const imp = (isImpersonating && impersonationTarget) ? impersonationTarget : null
+    const custCutlery = imp ? imp.cutlery : user.prefs.cutlery
+    const custInvoice = imp ? imp.invoice : user.prefs.invoice
+    const custPaymentMethod = imp ? imp.paymentMethod : user.prefs.paymentMethod
+    const custAddresses = ((imp && imp.addresses) ? imp.addresses : user.addresses) as typeof user.addresses
+    const custDayAddress = imp ? imp.dayAddress : user.prefs.dayAddress
+    const custSlots = imp ? imp.slots : user.prefs.slots
 
     // Prepopulate payment preferences
-    if (user.prefs.cutlery !== undefined) {
-      setPayment({ cutlery: user.prefs.cutlery })
+    if (custCutlery !== undefined) {
+      setPayment({ cutlery: custCutlery })
     }
-    if (user.prefs.invoice !== undefined) {
-      setPayment({ invoice: user.prefs.invoice })
+    if (custInvoice !== undefined) {
+      setPayment({ invoice: custInvoice })
     }
-    if (user.prefs.paymentMethod) {
-      setPayment({ method: user.prefs.paymentMethod as 'cash' | 'card' | 'link' | 'transfer' | 'wallet' })
+    if (custPaymentMethod) {
+      setPayment({ method: custPaymentMethod as 'cash' | 'card' | 'link' | 'transfer' | 'wallet' })
     }
 
     // Prepopulate delivery preferences (slots and saved addresses).
@@ -507,8 +515,8 @@ export function CheckoutPage() {
       // (grey) — the customer reads it as "available" and is confused. We still
       // pre-fill the address (so they see their saved choice + the zone warning),
       // we just don't pre-select an unselectable slot.
-      const addrPrefId = user.prefs.dayAddress?.[prefIdx]
-      const addrPref = addrPrefId ? user.addresses.find((a) => a.id === addrPrefId) : undefined
+      const addrPrefId = custDayAddress?.[prefIdx]
+      const addrPref = addrPrefId ? custAddresses.find((a) => a.id === addrPrefId) : undefined
       const addressInZone = addrPref?.zip ? zipInZone(addrPref.zip, zones) : true
 
       // WEC-525: on top of the WEC-405 in-zone gate, also require the
@@ -516,7 +524,7 @@ export function CheckoutPage() {
       // zone-unavailable slot painted a disabled button as selected, passed
       // the (presence-only) client validation and got rejected server-side —
       // "Time slot X is not available for this zone" out of nowhere.
-      const prefSlot = user.prefs.slots?.[prefIdx]
+      const prefSlot = custSlots?.[prefIdx]
       let prefSlotOffered = true
       if (prefSlot && addrPref?.zip) {
         const [pFrom, pTo] = prefSlot.split(/[–-]/).map((s) => s.trim())

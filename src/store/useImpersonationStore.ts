@@ -59,6 +59,12 @@ export interface ImpersonationTarget {
     id: string; labelEl: string; labelEn: string; street: string; area: string
     zip?: string; floor?: string; doorbell?: string; notes?: string
   }>
+  /** WEC-819: customer's saved delivery/payment prefs, for impersonated checkout. */
+  paymentMethod?: string
+  cutlery?: boolean
+  invoice?: boolean
+  slots?: Record<number, string>
+  dayAddress?: Record<number, string>
 }
 
 interface ImpersonationState {
