@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
 import {
   fetchAdminWalletPlans, fetchAdminWalletPlanDetail, refundAdminWalletPlan, markAdminWalletPlanPaid,
   updateWalletPlanStartDate,
@@ -361,15 +361,10 @@ function StartDateEditor({ detail, onSaved }: { detail: AdminWalletPlanDetail; o
     setVal(detail.startDate ?? ''); setActiveUntil(detail.activeUntil); setErr(null); setOk(false)
   }, [detail.id, detail.startDate, detail.activeUntil])
 
-  // WEC-798(c): same rule as the wizard StartDatePicker — weekdays only, and the
-  // earliest is today + 2 business days (Sat/Sun never count toward the buffer).
-  const minIso = useMemo(() => {
-    const d = new Date(); d.setHours(0, 0, 0, 0)
-    let adv = 0
-    while (adv < 2) { d.setDate(d.getDate() + 1); const w = d.getDay(); if (w !== 0 && w !== 6) adv++ }
-    const y = d.getFullYear(), m = String(d.getMonth() + 1).padStart(2, '0'), dd = String(d.getDate()).padStart(2, '0')
-    return `${y}-${m}-${dd}`
-  }, [])
+  // WEC-817: this is an ADMIN edit on an EXISTING plan — an admin must be able to
+  // backfill/correct a start date that has already passed. So NO forward minimum
+  // (the wizard's "today + 2 business days" from WEC-798a applies only to a
+  // customer buying a plan today, NOT here). Weekday-only still holds.
 
   const fmt = (iso: string | null) => iso ? new Date(iso + 'T00:00:00').toLocaleDateString('el-GR') : '—'
   const dirty = val !== (detail.startDate ?? '')
@@ -379,7 +374,6 @@ function StartDateEditor({ detail, onSaved }: { detail: AdminWalletPlanDetail; o
     if (!val) { setErr('Διάλεξε ημερομηνία'); return }
     const dow = new Date(val + 'T00:00:00').getDay()
     if (dow === 0 || dow === 6) { setErr('Μόνο εργάσιμες (Δευ–Παρ)'); return }
-    if (val < minIso) { setErr(`Νωρίτερη έναρξη: ${fmt(minIso)}`); return }
     setSaving(true)
     const { activeUntil: newEnd, error } = await updateWalletPlanStartDate(detail.id, val, detail.planLengthWeeks)
     setSaving(false)
@@ -392,7 +386,7 @@ function StartDateEditor({ detail, onSaved }: { detail: AdminWalletPlanDetail; o
       <div className="admin-kv">
         <span className="admin-kv-k">Start date (έναρξη)</span>
         <span className="admin-kv-v" style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-          <input type="date" value={val} min={minIso} onChange={(e) => setVal(e.target.value)} />
+          <input type="date" value={val} onChange={(e) => setVal(e.target.value)} />
           <button type="button" className="admin-btn" disabled={saving || !dirty} onClick={save}>
             {saving ? '…' : 'Save'}
           </button>
