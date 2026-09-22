@@ -48,6 +48,9 @@ export interface ImpersonationTarget {
   userId: string
   name: string
   email: string
+  /** WEC-816: customer's profile phone (E.164 or null) so impersonated checkout
+   *  prefills the customer's number, not the admin's. */
+  phone?: string | null
 }
 
 interface ImpersonationState {

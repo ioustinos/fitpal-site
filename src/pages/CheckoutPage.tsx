@@ -438,14 +438,15 @@ export function CheckoutPage() {
       // WEC-495: `user` is the ADMIN here — seed the contact from the
       // impersonated customer's server-provided identity so the field shows
       // (and stores) the customer, not the admin. Phone isn't part of the
-      // target; keep the admin's for form validation (customer_phone under
-      // impersonation is a smaller, separate gap — the reported bug is the
-      // confirmation email). Submit also hard-overrides name/email from the
-      // target, so the stored customer_email is correct regardless of timing.
+      // target (WEC-816 now also carries phone). Submit hard-overrides
+      // name/email/phone from the target, so the stored customer identity is
+      // correct regardless of prefill timing.
       setContact((prev) => ({
         name: impersonationTarget.name || '',
         email: impersonationTarget.email || '',
-        phone: prev.phone || user?.phone || '',
+        // WEC-816: the customer's phone (never the admin's). Empty if the
+        // customer has none, so the admin fills it in rather than leaking theirs.
+        phone: impersonationTarget.phone || prev.phone || '',
       }))
     } else if (user) {
       // WEC-597: profile WINS over guest-typed values on mid-checkout login,
@@ -709,7 +710,9 @@ export function CheckoutPage() {
       // admin. Belt-and-suspenders with the prefill above.
       customerName: (isImpersonating && impersonationTarget) ? impersonationTarget.name : contactName,
       customerEmail: (isImpersonating && impersonationTarget) ? impersonationTarget.email : contactEmail,
-      customerPhone: contact.phone,  // E.164 from <PhoneInput>
+      // WEC-816: prefer the impersonated customer's profile phone; fall back to
+      // the field (admin-typed) when the customer has none.
+      customerPhone: (isImpersonating && impersonationTarget && impersonationTarget.phone) ? impersonationTarget.phone : contact.phone,
       paymentMethod: payment.method as 'cash' | 'card' | 'link' | 'transfer' | 'wallet',
       cutlery: payment.cutlery ?? false,
       // WEC-403: when the customer ticks "Τιμολόγιο" + fills Επωνυμία/ΑΦΜ
