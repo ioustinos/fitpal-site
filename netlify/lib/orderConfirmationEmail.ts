@@ -133,12 +133,19 @@ export async function fireOrderConfirmationFromDb(
       return
     }
     const customerEmail = order.customer_email
-    // WEC-498 safety: the POST-PAYMENT kind exists to send the confirmation for
-    // card / link orders at payment time. cash / transfer / wallet already
-    // emailed at submit, so if one of those ever reaches markPaid we must NOT
-    // email again. The SUBMIT kind ('order_placed') has no such guard.
-    if (kind === 'order_paid_confirmation'
-      && order.payment_method !== 'card' && order.payment_method !== 'link') {
+    // WEC-821: CARD is the only method whose confirmation is sent at payment
+    // time. Everything else — cash, transfer, wallet and (since WEC-821) link —
+    // already emailed at submit, so a second «Order Placed» here would be the
+    // same email twice.
+    //
+    // This is the other half of the submit-order.ts change. The two together
+    // hold one invariant: EVERY order sends exactly one «Order Placed» — card
+    // at payment, everyone else at submit. Change one without the other and a
+    // method either double-emails or goes silent.
+    //
+    // (The idempotency key is `orderId:kind:email`, so the two kinds do NOT
+    // dedupe against each other in Klaviyo — the guard has to live here.)
+    if (kind === 'order_paid_confirmation' && order.payment_method !== 'card') {
       return
     }
 

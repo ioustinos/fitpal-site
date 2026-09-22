@@ -1642,11 +1642,26 @@ export default async (request: Request) => {
     // AWAIT only the fast 202 invoke (mirrors airtable-push-background); NOT
     // awaiting it would recreate the 2026-06-24 process-reaping event-loss bug.
     //
-    // WEC-498 gating preserved: card / link orders do NOT fire the confirmation
-    // at submit (still pending → would falsely confirm on payment abandonment).
-    // markPaid() fires it post-payment via the same lib (order_paid_confirmation).
+    // WEC-824: `link` no longer waits for payment. CARD is the only method that
+    // does.
+    //
+    // WEC-498 (29/06) added both `card` and `link` here, on the reasoning that
+    // an unpaid order shouldn't be confirmed. That is right for card — a
+    // self-serve checkout the customer can simply abandon — and wrong for link,
+    // because a `link` order is created BY AN ADMIN (payment_methods_enabled:
+    // link.public = false) for a customer who has already ordered, usually by
+    // phone. There is nothing speculative to abandon.
+    //
+    // The cost was three months of silence: a customer ordered and received
+    // nothing at all. Not the confirmation (skipped here), and not a payment
+    // mail either until WEC-808 added one at submit. 29 link orders were
+    // sitting in exactly that state on 22/09.
+    //
+    // A link order now gets: this confirmation + the WEC-808 payment link at
+    // submit, and `order_paid_confirmation` from markPaid() once they pay.
+    // Card still gets only the last of those.
     _perf.writeAndPay = Date.now() // order# + promote + voucher + payment branch done
-    const emailAtSubmit = body.paymentMethod !== 'card' && body.paymentMethod !== 'link'
+    const emailAtSubmit = body.paymentMethod !== 'card'
     if (emailAtSubmit) {
       try {
         const origin = new URL(request.url).origin
