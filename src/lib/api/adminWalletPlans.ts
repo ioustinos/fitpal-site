@@ -20,6 +20,8 @@ export interface AdminWalletPlanRow {
   refundAmountCents: number
   paymentMethod: string | null
   paymentStatus: string
+  /** WEC-811 lifecycle status: 'active' | 'cancelled'. */
+  status: string
   vivaOrderCode: string | null
   vivaTransactionId: string | null
   createdAt: string
@@ -85,6 +87,7 @@ function rowToBase(row: Record<string, unknown>): AdminWalletPlanRow {
     refundAmountCents: (row.refund_amount_cents as number) ?? 0,
     paymentMethod: row.payment_method as string | null,
     paymentStatus: (row.payment_status as string) ?? 'pending',
+    status: (row.status as string) ?? 'active',
     vivaOrderCode: row.viva_order_code as string | null,
     vivaTransactionId: row.viva_transaction_id as string | null,
     createdAt: row.created_at as string,
