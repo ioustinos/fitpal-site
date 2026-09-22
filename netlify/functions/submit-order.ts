@@ -1483,7 +1483,18 @@ export default async (request: Request) => {
     let paymentSetupFailed = false
     let paidStatus: 'paid' | 'pending' = 'pending'
 
-    if (body.paymentMethod === 'card' || body.paymentMethod === 'link') {
+    if (orderTotal === 0) {
+      // WEC-824: the order netted to €0 (100% discount / voucher, or an admin
+      // discount). There is nothing to collect, so auto-mark it paid instead of
+      // parking it in the manual-confirm queue — for ANY nominal payment method,
+      // and with NO Viva order/link created. The `orders.freebie` generated
+      // column (= total = 0) tells these apart from genuinely-paid orders.
+      const { error: freebieErr } = await supabase.from('orders')
+        .update({ payment_status: 'paid', updated_at: new Date().toISOString() })
+        .eq('id', orderId).eq('payment_status', 'pending')
+      if (freebieErr) console.warn('[submit-order] WEC-824 freebie auto-paid update failed:', freebieErr.message)
+      paidStatus = 'paid'
+    } else if (body.paymentMethod === 'card' || body.paymentMethod === 'link') {
       try {
         const result = await createVivaOrder({
           orderId,

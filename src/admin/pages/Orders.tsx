@@ -472,6 +472,12 @@ export function Orders() {
                         ⚠ price changed
                       </div>
                     )}
+                    {o.freebie && (
+                      <div title="Δωρεάν παραγγελία (€0) — auto-marked paid"
+                        style={{ display: 'inline-block', marginTop: 2, fontSize: 10, fontWeight: 700, padding: '1px 6px', borderRadius: 6, background: '#10b98122', color: '#047857' }}>
+                        🎁 δωρεάν
+                      </div>
+                    )}
                   </td>
                   <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
                     {o.discountAmount > 0

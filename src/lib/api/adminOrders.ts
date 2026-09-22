@@ -142,6 +142,8 @@ export interface AdminOrder {
   originalTotal: number | null
   /** WEC-814: derived in the DB — `total` no longer equals `originalTotal`. */
   priceChanged: boolean
+  /** WEC-824: order netted to €0 (freebie) — DB-generated (= total = 0). */
+  freebie: boolean
   /** WEC-814: set when an admin signed the difference off. Null while
    *  `priceChanged` is true means it is still in the review queue. */
   priceReviewAt: string | null
@@ -523,7 +525,7 @@ function mapOrderRow(r: unknown, childOrders: AdminChildOrder[], voucherUses: Ad
     customer_name: string | null; customer_email: string | null; customer_phone: string | null;
     subtotal: number; discount_amount: number | null; total: number; refund_amount: number | null;
     manual_discount: number | null; manual_discount_note: string | null;
-    original_total: number | null; price_changed: boolean | null;
+    original_total: number | null; price_changed: boolean | null; freebie: boolean | null;
     price_review_at: string | null; price_review_by: string | null; price_review_note: string | null;
     payment_method: PaymentMethod | null; payment_status: PaymentStatus | null; status: OrderStatus | null;
     cutlery: boolean | null; invoice_type: string | null; invoice_name: string | null; invoice_vat: string | null;
@@ -541,6 +543,7 @@ function mapOrderRow(r: unknown, childOrders: AdminChildOrder[], voucherUses: Ad
     // it here, so the UI can never show a flag the database disagrees with.
     originalTotal: row.original_total ?? null,
     priceChanged: row.price_changed ?? false,
+    freebie: row.freebie ?? false,
     priceReviewAt: row.price_review_at ?? null,
     priceReviewBy: row.price_review_by ?? null,
     priceReviewNote: row.price_review_note ?? null,
