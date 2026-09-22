@@ -70,7 +70,7 @@ export function WalletPurchases() {
 
       <div className="admin-filter-bar">
         <select className="admin-select" value={status} onChange={(e) => setStatus(e.target.value)}>
-          <option value="">All statuses</option>
+          <option value="">All payment statuses</option>
           <option value="pending">Pending</option>
           <option value="paid">Paid</option>
           <option value="failed">Failed</option>
@@ -104,7 +104,7 @@ export function WalletPurchases() {
               <th>Goal</th>
               <th>Plan</th>
               <th>Method</th>
-              <th>Status</th>
+              <th>Payment Status</th>
               <th>Κατάσταση</th>
               <th>Pay</th>
               <th>Credit</th>
