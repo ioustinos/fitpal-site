@@ -4,6 +4,8 @@ import {
   updateWalletPlanStartDate,
   type AdminWalletPlanRow, type AdminWalletPlanDetail,
 } from '../../lib/api/adminWalletPlans'
+import { setWalletPlanStatus } from '../../lib/api/adminUsers'
+import { useAuthStore } from '../../store/useAuthStore'
 
 const STATUS_LABELS: Record<string, string> = {
   pending:  'Pending',
@@ -26,6 +28,18 @@ export function WalletPurchases() {
   const [openId, setOpenId] = useState<string | null>(null)
   const [detail, setDetail] = useState<AdminWalletPlanDetail | null>(null)
   const [detailLoading, setDetailLoading] = useState(false)
+  const adminUser = useAuthStore((s) => s.user)
+  const [togglingId, setTogglingId] = useState<string | null>(null)
+
+  async function toggleStatus(r: AdminWalletPlanRow) {
+    const next = r.status === 'cancelled' ? 'active' : 'cancelled'
+    if (next === 'cancelled' && !window.confirm('Ακύρωση συνδρομής; Θα απενεργοποιηθεί το wallet (χωρίς επιστροφή χρημάτων). Μπορείς να την επαναφέρεις.')) return
+    setTogglingId(r.id); setErr(null)
+    const { error } = await setWalletPlanStatus(r.id, next, adminUser?.email ?? 'admin')
+    setTogglingId(null)
+    if (error) { setErr(error); return }
+    refresh()
+  }
 
   async function refresh() {
     setLoading(true); setErr(null)
@@ -91,6 +105,7 @@ export function WalletPurchases() {
               <th>Plan</th>
               <th>Method</th>
               <th>Status</th>
+              <th>Κατάσταση</th>
               <th>Pay</th>
               <th>Credit</th>
               <th></th>
@@ -122,6 +137,19 @@ export function WalletPurchases() {
                 <td>
                   <span className={`admin-pill-${r.paymentStatus}`}>{STATUS_LABELS[r.paymentStatus] ?? r.paymentStatus}</span>
                   {abandoned && <div className="admin-text-muted" style={{ fontSize: 10, fontStyle: 'italic' }}>abandoned checkout</div>}
+                </td>
+                <td>
+                  <span
+                    style={{ display: 'inline-block', padding: '2px 8px', borderRadius: 999, fontSize: 11, fontWeight: 800,
+                      background: r.status === 'cancelled' ? '#ef444422' : '#10b98122',
+                      color: r.status === 'cancelled' ? '#b91c1c' : '#047857' }}
+                  >{r.status === 'cancelled' ? 'Ακυρωμένη' : 'Ενεργή'}</span>
+                  <div>
+                    <button className="admin-btn-secondary admin-btn-sm" disabled={togglingId === r.id}
+                      onClick={() => toggleStatus(r)} style={{ marginTop: 4, fontSize: 10 }}>
+                      {togglingId === r.id ? '…' : r.status === 'cancelled' ? 'Ενεργοποίηση' : 'Ακύρωση'}
+                    </button>
+                  </div>
                 </td>
                 <td>{(r.amountToPayCents / 100).toFixed(2)} €</td>
                 <td>{(r.walletCreditCents / 100).toFixed(2)} €</td>
