@@ -101,6 +101,21 @@ export default async (request: Request) => {
       .eq('user_id', body.targetUserId)
       .maybeSingle()
 
+    // WEC-818: the customer's saved addresses, so impersonated checkout shows
+    // THEIR addresses in the picker (not the admin's). Service-role read.
+    const { data: addrRows } = await svc
+      .from('addresses')
+      .select('id, label_el, label_en, street, area, zip, floor, doorbell, notes')
+      .eq('user_id', body.targetUserId)
+      .order('sort_order')
+    const targetAddresses = ((addrRows ?? []) as Array<Record<string, string | null>>).map((r) => ({
+      id: r.id as string,
+      labelEl: r.label_el ?? '', labelEn: r.label_en ?? '',
+      street: r.street ?? '', area: r.area ?? '',
+      zip: r.zip ?? undefined, floor: r.floor ?? undefined,
+      doorbell: r.doorbell ?? undefined, notes: r.notes ?? undefined,
+    }))
+
     const targetEmail = (profileRow as { email: string | null }).email
     if (!targetEmail) {
       return Response.json({ error: 'Target user has no email' }, { status: 400 })
@@ -158,6 +173,7 @@ export default async (request: Request) => {
         phone: (profileRow as { phone: string | null }).phone ?? null,
         invoiceName: (prefsRow as { invoice_name: string | null } | null)?.invoice_name ?? null,
         invoiceVat: (prefsRow as { invoice_vat: string | null } | null)?.invoice_vat ?? null,
+        addresses: targetAddresses,
       },
       // Echo admin id back so the client can stash it for the
       // X-Impersonator-Admin-Id attribution header on order submission.
