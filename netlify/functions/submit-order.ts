@@ -32,6 +32,7 @@ import { CUTOFF_GRACE_MS } from '../../src/lib/helpers'
 // WEC-546: shared voucher identity normalizers (email + phone), kept in sync
 // with the redeem RPC + backfill SQL.
 import { normVoucherEmail, normVoucherPhone } from '../../src/lib/voucherIdentity'
+import { toE164 } from '../../src/lib/phoneNormalize'
 
 // ─── Greek ΑΦΜ checksum (WEC-354) ──────────────────────────────────────────
 // Duplicated from src/lib/vat.ts — cross-folder src/ ⇄ netlify/ imports
@@ -1202,7 +1203,7 @@ export default async (request: Request) => {
       user_id: userId,
       customer_name: body.customerName,
       customer_email: body.customerEmail,
-      customer_phone: body.customerPhone ?? null,
+      customer_phone: toE164(body.customerPhone) ?? null,  // WEC-826: store E.164
       subtotal: orderSubtotal,
       discount_amount: discountAmount,
       total: orderTotal,

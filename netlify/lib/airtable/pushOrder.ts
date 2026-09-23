@@ -1,3 +1,4 @@
+import { toE164 } from '../../../src/lib/phoneNormalize'
 // WEC-477: push one platform order into Airtable (retail order mirror).
 // One-way: platform DB is the master; Airtable mirrors. Idempotent upserts so
 // re-runs (event push + reconcile) converge. Links (Customer, Μenu Reference,
@@ -64,6 +65,7 @@ async function findOrCreateCustomer(
   name: string | null,
   email: string | null,
 ): Promise<string | null> {
+  phone = toE164(phone)  // WEC-826: match/create on E.164, never a raw format
   if (!phone) return null
   const existing = await findRecordId(TABLES.customers, `{Phone Number}='${esc(phone)}'`)
   if (existing) return existing
@@ -170,7 +172,7 @@ export async function pushOrderToAirtable(
     'Order Id': order.id,
     'Admin Order ID': String(order.order_number),
     'Customer Name': order.customer_name ?? '',
-    'Customer Phone': order.customer_phone ?? '',
+    'Customer Phone': toE164(order.customer_phone) ?? '',  // WEC-826
     'Customer Email': order.customer_email ?? '',
     // GonnaOrder parity: Placement = order/draft creation, Submitted = user
     // submit, Updated At = last status change. (Airtable "Created" is internal.)
