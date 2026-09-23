@@ -1,3 +1,4 @@
+import { toE164 } from '../../../src/lib/phoneNormalize'
 // WEC-810: mirror a subscription (wallet_plans row) into Airtable.
 //
 // Mirrors the shape of pushOrder.ts deliberately — same client, same upsert,
@@ -93,6 +94,7 @@ async function findOrCreateCustomer(
   name: string | null,
   email: string | null,
 ): Promise<string | null> {
+  phone = toE164(phone)  // WEC-826: match/create on E.164, never a raw format
   if (!phone) return null
   const existing = await findRecordId(TABLES.customers, `{Phone Number}='${esc(phone)}'`)
   if (existing) return existing
