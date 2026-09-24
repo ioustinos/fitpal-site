@@ -10,6 +10,7 @@ import { MealIcon } from '../components/icons/MealIcon'
 import { GoalCardArt } from '../components/icons/GoalIllustration'
 import type { ActivityLevel, DaysPerWeek, Goal, MealsSelection, PaymentMethod, PlanLength, Sex, MealKey } from '../lib/wallet/types'
 import { purchaseWalletPlan, sendEmailOtp, verifyEmailOtp, savePhoneToProfile } from '../lib/api/walletPlan'
+import { isValidPhone } from '../lib/phone'  // WEC-827
 import { DemoDishesModal } from '../components/wallet/DemoDishesModal'
 import { DietPicker, type DietSelection } from '../components/wallet/DietPicker'
 import { StartDatePicker } from '../components/wallet/StartDatePicker'
@@ -667,6 +668,15 @@ export function WalletPage() {
     setErrMsg(null)
     if (!user) {
       setSignupOpen(true)
+      return
+    }
+    // WEC-827: a logged-in user (or impersonated customer) with an incomplete
+    // profile must have name + phone before purchasing. The server enforces this
+    // too; surface it cleanly here instead of a raw 400.
+    if (!user.name?.trim() || !isValidPhone(user.phone)) {
+      setErrMsg(isEl
+        ? 'Χρειάζονται όνομα και τηλέφωνο πελάτη. Συμπλήρωσέ τα στο προφίλ (Λογαριασμός → Προφίλ) και δοκίμασε ξανά.'
+        : 'A customer name and phone are required. Add them in Account → Profile, then try again.')
       return
     }
     void startPurchase()
