@@ -26,6 +26,7 @@ import { notifySubscriptionAdmins } from '../lib/notifySubscriptionAdmins'
 import { corsHeaders } from '../lib/cors'
 import type { WalletCalcInput, PaymentMethod } from '../../src/lib/wallet/types'
 import { isValidGreekVat } from '../../src/lib/vat'
+import { isValidPhone } from '../../src/lib/phone'  // WEC-827
 import { normVoucherEmail, normVoucherPhone } from '../../src/lib/voucherIdentity' // WEC-703
 
 const SUPABASE_URL = process.env.VITE_SUPABASE_URL ?? ''
@@ -102,6 +103,26 @@ export default async (request: Request) => {
   if (inputErr) return Response.json({ error: inputErr }, { status: 400, headers: cors })
 
   const supabase = serviceClient()
+
+  // WEC-827: a wallet-plan purchase must carry a customer NAME and PHONE,
+  // regardless of channel (self-serve with/without a completed profile, or
+  // admin-placed under impersonation). The wizard collects them for new
+  // signups, but a logged-in user with an empty profile could purchase with
+  // neither — leaving the Wallet Purchases record blank (Maria's report). The
+  // UI can't be trusted to enforce it, so gate it here.
+  {
+    const { data: prof } = await supabase
+      .from('profiles').select('name, phone').eq('id', userId).maybeSingle()
+    const meta = (userData.user.user_metadata ?? {}) as Record<string, unknown>
+    const custName = String((prof as { name?: string | null } | null)?.name ?? meta.name ?? meta.full_name ?? '').trim()
+    const custPhone = String((prof as { phone?: string | null } | null)?.phone ?? meta.phone ?? '').trim()
+    if (!custName) {
+      return Response.json({ error: 'Χρειάζεται όνομα πελάτη για την αγορά συνδρομής. (A customer name is required.)' }, { status: 400, headers: cors })
+    }
+    if (!isValidPhone(custPhone)) {
+      return Response.json({ error: 'Χρειάζεται έγκυρο τηλέφωνο πελάτη για την αγορά συνδρομής. (A valid customer phone is required.)' }, { status: 400, headers: cors })
+    }
+  }
 
   try {
     // 3. Run calculator server-side
