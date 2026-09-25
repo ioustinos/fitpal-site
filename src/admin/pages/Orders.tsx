@@ -6,7 +6,7 @@ import {
   listAdminOrders, getAdminOrder,
   setOrderStatus, setOrderPaymentStatus, markPaymentLinkExpired, setOrderManualDiscount,
   updateOrderItemQuantity, updateChildOrderAddress, updateChildOrderTime,
-  refundOrder, sendPaymentLinkLogged,
+  refundOrder, chargeWalletExtraForOrder, sendPaymentLinkLogged,
   sendOrderUpdateEmail,
   addOrderItem, fetchOnMenuDishIds,
   updateOrderItemVariant, cancelChildOrder, restoreChildOrder, addChildOrder, updateOrderNotes,
@@ -1097,6 +1097,13 @@ function PriceChangePanel({ order, adminUser, onChanged }: { order: AdminOrder; 
   // and are owed that much back. Deriving it a second time in the UI is how two
   // screens end up quoting different figures for the same order.
   const outstanding = order.payment.remaining
+  // WEC-801: for a wallet-paid order, one-click sync the wallet to the new total.
+  // `remaining` is clamped ≥0, so an OVERPAYMENT (paid>total) shows as 0 there —
+  // derive it from refundable (=paid−refunded) vs total instead. shortfall is the
+  // (clamped) remaining. Both are 0 once the order balances.
+  const overpayment = Math.max(0, order.payment.refundable - order.total)
+  const shortfall = outstanding
+  const isWalletOrder = order.paymentMethod === 'wallet' && !!order.userId
   const reviewed = !!order.priceReviewAt
   const eur = (c: number) => `${(Math.abs(c) / 100).toFixed(2)} €`
 
@@ -1106,6 +1113,18 @@ function PriceChangePanel({ order, adminUser, onChanged }: { order: AdminOrder; 
     setBusy(false)
     if (error) { setErr(error); return }
     setOpen(false); setNote(''); onChanged()
+  }
+
+  async function syncWallet(mode: 'refund' | 'charge') {
+    setBusy(true); setErr(null)
+    const amt = mode === 'refund' ? overpayment : shortfall
+    const res = mode === 'refund'
+      ? await refundOrder(order, 'wallet', amt, adminUser, 'order edited — wallet sync')
+      : await chargeWalletExtraForOrder(order, amt, adminUser)
+    if (res.error) { setBusy(false); setErr(res.error); return }
+    // Close the loop: mark the price change reviewed with what we did.
+    await markPriceReviewed(order.id, `wallet ${mode === 'refund' ? 'refund' : 'charge'} ${eur(amt)}`, adminUser)
+    setBusy(false); onChanged()
   }
 
   return (
@@ -1136,6 +1155,22 @@ function PriceChangePanel({ order, adminUser, onChanged }: { order: AdminOrder; 
                   : <>balances, nothing outstanding</>}
             </>}
       </div>
+      {isWalletOrder && !reviewed && order.payment.paid > 0 && (overpayment > 0 || shortfall > 0) && (
+        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 6 }}>
+          {overpayment > 0 && (
+            <button type="button" className="admin-od-statusbtn" style={{ background: 'var(--green)', color: '#fff' }}
+              disabled={busy} onClick={() => syncWallet('refund')}>
+              {busy ? '…' : `Επιστροφή ${eur(overpayment)} στο wallet`}
+            </button>
+          )}
+          {shortfall > 0 && (
+            <button type="button" className="admin-od-statusbtn" style={{ background: '#d97706', color: '#fff' }}
+              disabled={busy} onClick={() => syncWallet('charge')}>
+              {busy ? '…' : `Χρέωση ${eur(shortfall)} από το wallet`}
+            </button>
+          )}
+        </div>
+      )}
       {reviewed && (
         <div className="admin-pricechg-note">
           by {order.priceReviewBy ?? '—'} on {new Date(order.priceReviewAt!).toLocaleString('en-GB')}
