@@ -626,7 +626,28 @@ const CARD_UNPAID_CONFIRM_MSG =
 // WEC-805: reverting a cancelled order to pending is blocked once it has been
 // refunded — the money already went back, so reviving it would be inconsistent.
 const REFUNDED_REVERT_MSG =
-  'Δεν μπορείς να επαναφέρεις μια παραγγελία με επιστροφή χρημάτων (μερική ή ολική). Δημιούργησε νέα παραγγελία. / Cannot revert an order that has a refund (partial or full) — create a new order instead.'
+  'Δεν μπορείς να επαναφέρεις μια πλήρως επιστραφείσα παραγγελία. Δημιούργησε νέα παραγγελία. / Cannot revert a fully refunded order — create a new one instead.'
+
+/**
+ * WEC-825: the second guard from the original WEC-578 spec, which WEC-805 never
+ * implemented. Reviving an order whose every delivery day has already passed
+ * produces a pending order nobody can deliver.
+ */
+const NO_FUTURE_DAY_REVERT_MSG =
+  'Δεν μπορείς να επαναφέρεις αυτή την παραγγελία — όλες οι ημέρες παράδοσης έχουν περάσει. Δημιούργησε νέα παραγγελία. / Cannot revert this order — every delivery day has already passed. Create a new order instead.'
+
+/**
+ * Today's date in Athens as YYYY-MM-DD.
+ *
+ * `child_orders.delivery_date` is a plain calendar date, so it must be compared
+ * against the calendar date in the kitchen's timezone — not UTC. Between
+ * midnight and 03:00 Athens those differ, and a UTC comparison would call today
+ * "yesterday" and wrongly refuse a revert. `en-CA` is the shortest reliable way
+ * to get YYYY-MM-DD out of Intl.
+ */
+function athensToday(): string {
+  return new Date().toLocaleDateString('en-CA', { timeZone: 'Europe/Athens' })
+}
 
 export async function setOrderStatus(id: string, current: OrderStatus, next: OrderStatus, adminUser: string, note?: string): Promise<{ error: string | null }> {
   // WEC-800: a card order that is still unpaid is a suspicious/abandoned
@@ -643,17 +664,53 @@ export async function setOrderStatus(id: string, current: OrderStatus, next: Ord
       return { error: CARD_UNPAID_CONFIRM_MSG }
     }
   }
-  // WEC-805: revert a cancelled order back to pending (the one transition out of
-  // 'cancelled'). Blocked if the order was already refunded.
+  // WEC-805: revert a cancelled order back to pending — the one transition out
+  // of 'cancelled'. Two guards, both also mirrored client-side in Orders.tsx.
   if (next === 'pending' && current === 'cancelled') {
+    // ── Guard 1 — fully refunded only (WEC-825) ───────────────────────────
+    //
+    // This used to be `refund_amount > 0`, i.e. ANY refund. Too broad, and it
+    // cost a real order: FP-260917-00019 was refunded 5.50 € of 153.80 € for
+    // one wrong wrap, then cancelled by mistake — and could not be recovered,
+    // even though the customer had paid and the food was still going out.
+    //
+    // A partial refund is just an order with a discount; order_payment_summary
+    // already accounts for it (collected − refunded). The state that genuinely
+    // cannot be revived is a FULL refund — no money left against the order —
+    // and that is exactly what payment_status = 'refunded' means, since
+    // refund.ts only sets it once cumulative refunds cover what was collected.
+    //
+    // WEC-578 did say "no refund issued (refund_amount = 0)", and WEC-805
+    // shipped this narrower rule first before a follow-up commit widened it to
+    // match that wording. The wording was the thing that was wrong.
     const { data: o } = await supabase
       .from('orders')
-      .select('refund_amount')
+      .select('payment_status')
       .eq('id', id)
       .maybeSingle()
-    // WEC-578: any refund (partial or full) makes a revive money-inconsistent.
-    if (o && (o.refund_amount ?? 0) > 0) {
+    if (o && o.payment_status === 'refunded') {
       return { error: REFUNDED_REVERT_MSG }
+    }
+
+    // ── Guard 2 — at least one delivery day left (WEC-578, finally) ───────
+    //
+    // Deliberately a plain date comparison, NOT cutoff-aware. WEC-578 asked for
+    // cutoff-awareness, but that would block the exact recovery this is for: an
+    // order cancelled by mistake on its own last delivery day is past cutoff by
+    // definition, yet the kitchen can still ship it. "The delivery window has
+    // passed" is a date question; whether the kitchen can still cook is the
+    // admin's call, not a gate's.
+    //
+    // Cancelled days don't count — they are not going to be delivered either.
+    const { data: futureDays } = await supabase
+      .from('child_orders')
+      .select('id')
+      .eq('order_id', id)
+      .is('cancelled_at', null)
+      .gte('delivery_date', athensToday())
+      .limit(1)
+    if (!futureDays || futureDays.length === 0) {
+      return { error: NO_FUTURE_DAY_REVERT_MSG }
     }
   }
   // Allow any transition with force, but warn on invalid ones (called from UI)
