@@ -677,10 +677,28 @@ function OrderDrawer({
       setErr('Δεν μπορείς να επιβεβαιώσεις απλήρωτη παραγγελία με κάρτα. Άλλαξε πρώτα τον τρόπο πληρωμής (π.χ. σύνδεσμος πληρωμής, μετρητά, ή τραπεζική κατάθεση).')
       return
     }
-    // WEC-805/578: mirror the API guard — any refund (partial or full) blocks revive.
-    if (next === 'pending' && order.status === 'cancelled' && (order.refundAmount ?? 0) > 0) {
-      setErr('Δεν μπορείς να επαναφέρεις μια παραγγελία με επιστροφή χρημάτων (μερική ή ολική). Δημιούργησε νέα παραγγελία.')
-      return
+    // WEC-805/825: mirror the two API guards on cancelled → pending.
+    if (next === 'pending' && order.status === 'cancelled') {
+      // 1. Only a FULL refund blocks the revive. A partial one is just a
+      //    discount — FP-260917-00019 (5.50 € back on 153.80 €, then cancelled
+      //    by mistake) was unrecoverable under the old any-refund rule.
+      if (order.paymentStatus === 'refunded') {
+        setErr('Δεν μπορείς να επαναφέρεις μια πλήρως επιστραφείσα παραγγελία. Δημιούργησε νέα παραγγελία.')
+        return
+      }
+      // 2. At least one live delivery day must still be today or later —
+      //    otherwise the revive produces a pending order nobody can deliver.
+      //    Date-only, matching the server: an order cancelled on its own last
+      //    day is past cutoff by definition, and that is precisely the case
+      //    worth recovering.
+      const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Europe/Athens' })
+      const hasFutureDay = order.childOrders.some(
+        (c) => !c.cancelledAt && c.deliveryDate >= today,
+      )
+      if (!hasFutureDay) {
+        setErr('Δεν μπορείς να επαναφέρεις αυτή την παραγγελία — όλες οι ημέρες παράδοσης έχουν περάσει. Δημιούργησε νέα παραγγελία.')
+        return
+      }
     }
     if (next === 'cancelled') {
       const refundableMethods: PaymentMethod[] = ['card', 'link', 'wallet']
