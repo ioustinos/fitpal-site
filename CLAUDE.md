@@ -32,7 +32,8 @@ Parallel chats (registry, dev, tester) CANNOT talk to each other. **Linear is th
 netlify dev   # → http://localhost:8888
 ```
 - Vite hot-reloads on every file save — no deploy needed during iteration
-- **Build command is `vite build`, NOT `tsc -b && vite build`**. `tsc -b` was dropped because WEC-141's 24 TS errors were blocking every dev deploy since Apr 13. Type-checking moved to `npm run typecheck` (tsc -b --noEmit) — available, not gating.
+- **Build command is `vite build`, NOT `tsc -b && vite build`**. `tsc -b` was dropped because WEC-141's 24 TS errors were blocking every dev deploy since Apr 13. Type-checking moved to `npm run typecheck` — available, not gating.
+- **`npm run typecheck` now covers `netlify/` too (WEC-823, 2026-09-22).** Until then it ran `tsc -b` alone, which follows `tsconfig.app.json` (`src`) + `tsconfig.node.json` (`vite.config.ts`) and **never looked at a single Netlify function** — submit-order, the Viva libs, markPaid, the Airtable push were all outside the gate, so "typecheck clean" on a server change meant nothing. `tsconfig.netlify.json` + a `typecheck:netlify` script closed that. Run `npm run typecheck:netlify` on its own when you only touched `netlify/`.
 - **Redirect priority:** Netlify evaluates `_redirects` BEFORE `netlify.toml`. Both `/api/*` (to functions) and `/*` (SPA fallback) now live in `public/_redirects` in that order. `netlify.toml` has no redirects — stripped to avoid the ordering footgun.
 
 ## ⚠️ RULE #0b — THE WORKSPACE FOLDER IS NOT A SOURCE OF TRUTH. VERIFY IT FIRST.
@@ -98,7 +99,11 @@ git fetch -q origin main
 [ "$(git rev-parse origin/main^{tree})" = "$(git rev-parse origin/dev^{tree})" ] && echo "tree match YES"
 ```
 
-Before any promotion to `main`: `npx vite build` (that is what Netlify runs), `node scripts/check-i18n.mjs`, and diff `npm run typecheck` output against `origin/main` — ship only if there are **no NEW** errors (19 are pre-existing on both branches as of 2026-09-17; line numbers shift, so compare the sorted error text, not the count).
+Before any promotion to `main`: `npx vite build` (that is what Netlify runs), `node scripts/check-i18n.mjs`, and diff `npm run typecheck` output against `origin/main` — ship only if there are **no NEW** errors. Line numbers shift, so compare the sorted error text, not the count.
+
+**Baseline as of 2026-09-22 (WEC-823):**
+- `netlify/` — **0 errors.** It is now zero and should stay zero; anything that appears there is yours.
+- `src/` — **21 pre-existing.** (Was quoted as 19 on 2026-09-17, and read as 27 for a while because `@sentry/react` was declared in package.json but never actually installed locally — that also broke every `vite build`. Run `npm install` before trusting either number.)
 
 ## Git Push Rules — CRITICAL
 - **NEVER run git from the workspace folder** — the FUSE mount blocks `unlink`, permanently breaking git lock files
