@@ -193,6 +193,10 @@ export async function pushOrderToAirtable(
     'Μαχαιροπίρουνα': !!order.cutlery,
   }
   if (pm.extra) orderFields['Payment Extra'] = pm.extra
+  // WEC-824: a €0 order is a freebie — surface it distinctly in the ops view
+  // using the existing 'Freeba' Payment Method option (no Airtable schema
+  // change) so the kitchen/reporting tell it apart from a genuinely-paid order.
+  if (Number(order.total) === 0) orderFields['Payment Method'] = 'Freeba'
   const inv = mapInvoice(order.invoice_type)
   if (inv) orderFields['Τιμολόγιο/Απόδειξη'] = inv
   if (order.invoice_vat) orderFields['ΑΦΜ'] = order.invoice_vat

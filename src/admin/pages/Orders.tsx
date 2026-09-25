@@ -9,7 +9,7 @@ import {
   refundOrder, sendPaymentLinkLogged,
   sendOrderUpdateEmail,
   addOrderItem, fetchOnMenuDishIds,
-  updateOrderItemVariant, cancelChildOrder, restoreChildOrder, updateOrderNotes,
+  updateOrderItemVariant, cancelChildOrder, restoreChildOrder, addChildOrder, updateOrderNotes,
   ORDER_STATUS_VALUES, PAYMENT_STATUS_VALUES, VALID_NEXT_STATUS,
   CHANGE_LOG_LIMIT,
   type AdminOrder, type AdminChildOrder, type AdminOrderItem,
@@ -470,6 +470,12 @@ export function Orders() {
                     {o.priceChanged && !o.priceReviewAt && (
                       <div className="admin-pricechg-tag" title="Total changed after submit — not yet reviewed">
                         ⚠ price changed
+                      </div>
+                    )}
+                    {o.freebie && (
+                      <div title="Δωρεάν παραγγελία (€0) — auto-marked paid"
+                        style={{ display: 'inline-block', marginTop: 2, fontSize: 10, fontWeight: 700, padding: '1px 6px', borderRadius: 6, background: '#10b98122', color: '#047857' }}>
+                        🎁 δωρεάν
                       </div>
                     )}
                   </td>
@@ -1564,6 +1570,7 @@ function DaysSection({ order, adminUser, onChanged }: { order: AdminOrder; admin
   // WEC-372: item edits (variant / qty / remove / add / cancel day) only while
   // the order is Pending. Revert a Confirmed order to Pending, then re-confirm.
   const editable = order.status === 'pending'
+  const [addingDay, setAddingDay] = useState(false)
 
   return (
     <div className="admin-od-days">
@@ -1587,6 +1594,18 @@ function DaysSection({ order, adminUser, onChanged }: { order: AdminOrder; admin
           onChanged={onChanged}
         />
       ))}
+      {/* WEC-825: add a brand-new day to this order (Pending only). */}
+      {editable && (
+        addingDay ? (
+          <NewDayPanel order={order} adminUser={adminUser}
+            onDone={() => { setAddingDay(false); onChanged() }}
+            onCancel={() => setAddingDay(false)} />
+        ) : (
+          <button className="admin-btn-ghost admin-od-addday" style={{ marginTop: 8 }} onClick={() => setAddingDay(true)}>
+            + Προσθήκη ημέρας
+          </button>
+        )
+      )}
     </div>
   )
 }
@@ -2156,6 +2175,96 @@ function AddressTimeEditor({ child, orderId, adminUser, onDone, onCancel }: {
       <div className="admin-od-addr-edit-actions">
         <button className="admin-btn-ghost" disabled={working} onClick={onCancel}>Cancel</button>
         <button className="admin-btn-primary" disabled={working} onClick={saveAll}>{working ? 'Saving…' : 'Save address & time'}</button>
+      </div>
+    </div>
+  )
+}
+
+function NewDayPanel({ order, adminUser, onDone, onCancel }: {
+  order: AdminOrder; adminUser: string; onDone: () => void; onCancel: () => void
+}) {
+  // WEC-825: form for a brand-new delivery day. Address defaults to the order's
+  // first existing day for convenience; the delivery window is zone-aware
+  // (resolved from the postcode), matching the customer checkout + AddressTimeEditor.
+  const first = order.childOrders[0]
+  const [date, setDate] = useState('')
+  const [street, setStreet] = useState(first?.addressStreet ?? '')
+  const [area, setArea] = useState(first?.addressArea ?? '')
+  const [zip, setZip] = useState(first?.addressZip ?? '')
+  const [floor, setFloor] = useState(first?.addressFloor ?? '')
+  const [slot, setSlot] = useState('')
+  const [zones, setZones] = useState<ZonesData | null>(null)
+  const [working, setWorking] = useState(false)
+  const [err, setErr] = useState<string | null>(null)
+
+  useEffect(() => { fetchZones().then(({ data }) => setZones(data)) }, [])
+
+  const zoneForZip = zones && zip ? findZoneByPostcode(zones.zones, zip) : undefined
+  const slotOptions = useMemo(() => {
+    if (!zones) return []
+    let opts = zoneForZip ? slotsForZone(zones.slots, zoneForZip.id) : []
+    if (opts.length === 0) opts = Array.from(new Set(zones.slots.map((sl) => `${sl.timeFrom}\u2013${sl.timeTo}`)))
+    if (slot && !opts.includes(slot)) opts = [slot, ...opts]
+    return opts
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [zones, zip, slot])
+
+  const existingDates = new Set(order.childOrders.map((c) => c.deliveryDate))
+
+  async function save() {
+    setErr(null)
+    if (!date) { setErr('Διάλεξε ημερομηνία'); return }
+    if (existingDates.has(date)) { setErr('Υπάρχει ήδη ημέρα για αυτή την ημερομηνία'); return }
+    const dow = new Date(date + 'T00:00:00').getDay()
+    if (dow === 0 || dow === 6) { setErr('Μόνο εργάσιμες (Δευ–Παρ)'); return }
+    if (!zip || !zoneForZip) { setErr('Ο Τ.Κ. δεν αντιστοιχεί σε ζώνη παράδοσης'); return }
+    if (!slot) { setErr('Διάλεξε εύρος παράδοσης'); return }
+    setWorking(true)
+    const [f, tt] = slot.split('\u2013')
+    const { error } = await addChildOrder({
+      orderId: order.id, deliveryDate: date,
+      timeFrom: f ? `${f}:00` : null, timeTo: tt ? `${tt}:00` : null,
+      street, area, zip, floor, adminUser,
+    })
+    setWorking(false)
+    if (error) { setErr(error); return }
+    onDone()
+  }
+
+  return (
+    <div className="admin-od-addr-edit-panel" style={{ marginTop: 8 }}>
+      <div className="admin-od-days-title" style={{ marginBottom: 6 }}>Νέα ημέρα παράδοσης</div>
+      <div className="admin-od-addr-grid">
+        <div><label className="admin-form-label">Ημερομηνία</label><input type="date" className="admin-input" value={date} onChange={(e) => setDate(e.target.value)} /></div>
+        <div>
+          <label className="admin-form-label">Address</label>
+          <PlacesAutocomplete className="admin-input" value={street} onChange={setStreet}
+            onSelect={(pl) => { if (pl.street) setStreet(pl.street); if (pl.area) setArea(pl.area); if (pl.zip) setZip(pl.zip) }}
+            placeholder="Οδός και αριθμός…" />
+        </div>
+        <div><label className="admin-form-label">Post Code</label><input className="admin-input" value={zip} onChange={(e) => setZip(e.target.value)} /></div>
+        <div><label className="admin-form-label">City</label><input className="admin-input" value={area} onChange={(e) => setArea(e.target.value)} /></div>
+        <div><label className="admin-form-label">Floor</label><input className="admin-input" value={floor} onChange={(e) => setFloor(e.target.value)} /></div>
+        <div style={{ gridColumn: '1 / -1' }}>
+          <label className="admin-form-label">Delivery window</label>
+          <select className="admin-input" value={slot} onChange={(e) => setSlot(e.target.value)}>
+            <option value="">— Διάλεξε εύρος —</option>
+            {slotOptions.map((sl) => <option key={sl} value={sl}>{sl}</option>)}
+          </select>
+          {zones && zip && !zoneForZip && (
+            <div className="admin-sub" style={{ fontSize: 11, marginTop: 4, color: '#c2410c' }}>
+              Ο Τ.Κ. δεν αντιστοιχεί σε ζώνη παράδοσης.
+            </div>
+          )}
+        </div>
+      </div>
+      {err && <div className="admin-error-banner" style={{ marginTop: 6 }}>{err}</div>}
+      <div className="admin-od-addr-edit-actions">
+        <button className="admin-btn-ghost" disabled={working} onClick={onCancel}>Άκυρο</button>
+        <button className="admin-btn-primary" disabled={working} onClick={save}>{working ? 'Προσθήκη…' : 'Προσθήκη ημέρας'}</button>
+      </div>
+      <div className="admin-sub" style={{ fontSize: 11, marginTop: 4 }}>
+        Η ημέρα δημιουργείται κενή — πρόσθεσε πιάτα από την κάρτα της. Το σύνολο ενημερώνεται· τυχόν υπόλοιπο ρυθμίζεται με τα υπάρχοντα εργαλεία πληρωμής.
       </div>
     </div>
   )

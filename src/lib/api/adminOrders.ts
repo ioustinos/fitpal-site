@@ -142,6 +142,8 @@ export interface AdminOrder {
   originalTotal: number | null
   /** WEC-814: derived in the DB — `total` no longer equals `originalTotal`. */
   priceChanged: boolean
+  /** WEC-824: order netted to €0 (freebie) — DB-generated (= total = 0). */
+  freebie: boolean
   /** WEC-814: set when an admin signed the difference off. Null while
    *  `priceChanged` is true means it is still in the review queue. */
   priceReviewAt: string | null
@@ -523,7 +525,7 @@ function mapOrderRow(r: unknown, childOrders: AdminChildOrder[], voucherUses: Ad
     customer_name: string | null; customer_email: string | null; customer_phone: string | null;
     subtotal: number; discount_amount: number | null; total: number; refund_amount: number | null;
     manual_discount: number | null; manual_discount_note: string | null;
-    original_total: number | null; price_changed: boolean | null;
+    original_total: number | null; price_changed: boolean | null; freebie: boolean | null;
     price_review_at: string | null; price_review_by: string | null; price_review_note: string | null;
     payment_method: PaymentMethod | null; payment_status: PaymentStatus | null; status: OrderStatus | null;
     cutlery: boolean | null; invoice_type: string | null; invoice_name: string | null; invoice_vat: string | null;
@@ -541,6 +543,7 @@ function mapOrderRow(r: unknown, childOrders: AdminChildOrder[], voucherUses: Ad
     // it here, so the UI can never show a flag the database disagrees with.
     originalTotal: row.original_total ?? null,
     priceChanged: row.price_changed ?? false,
+    freebie: row.freebie ?? false,
     priceReviewAt: row.price_review_at ?? null,
     priceReviewBy: row.price_review_by ?? null,
     priceReviewNote: row.price_review_note ?? null,
@@ -1045,6 +1048,73 @@ export async function restoreChildOrder(childOrderId: string, orderId: string, a
     })
   }
   return recomputeOrderTotals(orderId, adminUser)
+}
+
+// WEC-825: add a brand-new delivery day (child order) to an existing order —
+// e.g. a customer phones to extend a multi-day order by a day rather than
+// placing a fresh order. Starts empty; the admin then adds dishes via the
+// normal per-day add-item picker. The new day just adds to the order total
+// (recompute) — no separate payment step; any resulting balance is handled with
+// the existing payment tools. Zone/time-window are validated in the UI before
+// calling this. Only allowed while the order is Pending (UI-gated).
+export async function addChildOrder(params: {
+  orderId: string
+  deliveryDate: string
+  timeFrom: string | null
+  timeTo: string | null
+  street: string | null
+  area: string | null
+  zip: string | null
+  floor: string | null
+  adminUser: string
+}): Promise<{ id: string | null; error: string | null }> {
+  // Guard against a duplicate active day for the same date.
+  const { data: existing } = await supabase
+    .from('child_orders')
+    .select('id')
+    .eq('order_id', params.orderId)
+    .eq('delivery_date', params.deliveryDate)
+    .is('cancelled_at', null)
+  if ((existing ?? []).length > 0) {
+    return { id: null, error: 'Υπάρχει ήδη ημέρα για αυτή την ημερομηνία' }
+  }
+  const { data, error } = await supabase
+    .from('child_orders')
+    .insert({
+      order_id: params.orderId,
+      delivery_date: params.deliveryDate,
+      time_from: params.timeFrom,
+      time_to: params.timeTo,
+      address_street: params.street ?? null,
+      address_area: params.area ?? null,
+      address_zip: params.zip ?? null,
+      address_floor: params.floor ?? null,
+      fulfillment_type: 'delivery',
+      company_benefit_amount: 0,
+    })
+    .select('id')
+    .single()
+  if (error) return { id: null, error: error.message }
+  const newId = (data as { id: string }).id
+  await writeChangeLog({
+    orderId: params.orderId, childOrderId: newId,
+    tableName: 'child_orders', fieldName: 'delivery_date',
+    oldValue: null, newValue: params.deliveryDate,
+    label: 'delivery day added', adminUser: params.adminUser,
+  })
+  // If the order had been auto-cancelled (all days previously cancelled), adding
+  // a live day re-opens it to pending.
+  const { data: ord } = await supabase.from('orders').select('status').eq('id', params.orderId).single()
+  if ((ord as { status: string } | null)?.status === 'cancelled') {
+    await supabase.from('orders').update({ status: 'pending', updated_at: new Date().toISOString() }).eq('id', params.orderId)
+    await writeChangeLog({
+      orderId: params.orderId, tableName: 'orders', fieldName: 'status',
+      oldValue: 'cancelled', newValue: 'pending',
+      label: 'day added → order re-opened (pending)', adminUser: params.adminUser,
+    })
+  }
+  const { error: rErr } = await recomputeOrderTotals(params.orderId, params.adminUser)
+  return { id: newId, error: rErr }
 }
 
 export async function deleteOrderItem(itemId: string, orderId: string, childOrderId: string, adminUser: string): Promise<{ error: string | null }> {

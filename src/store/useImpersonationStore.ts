@@ -179,6 +179,16 @@ export const useImpersonationStore = create<ImpersonationState>()(
             loading: false,
             error: null,
           })
+          // WEC-828: wipe any leftover checkout state (invoice ΑΦΜ/επωνυμία,
+          // cart, delivery, voucher) left in the persisted cart store by the
+          // admin's own session or a PREVIOUS impersonated customer, so this
+          // customer's checkout starts clean. Without this the fill-only-if-empty
+          // invoice prefill can't overwrite a stale non-empty value, and one
+          // customer's invoice details show up on the next customer's order.
+          try {
+            const { useCartStore } = await import('./useCartStore')
+            useCartStore.getState().clearAll()
+          } catch { /* non-fatal */ }
           return { ok: true }
         } catch (err) {
           const message = err instanceof Error ? err.message : 'Unknown error'
@@ -191,6 +201,12 @@ export const useImpersonationStore = create<ImpersonationState>()(
         set({ loading: true, error: null })
         try {
           set({ active: false, target: null, adminUserId: null, loading: false, error: null })
+          // WEC-828: also clear on exit, so returning to the admin — and the
+          // next impersonation — never inherits this customer's checkout state.
+          try {
+            const { useCartStore } = await import('./useCartStore')
+            useCartStore.getState().clearAll()
+          } catch { /* non-fatal */ }
           await supabase.auth.signOut()
           return { ok: true }
         } catch (err) {
