@@ -1556,6 +1556,46 @@ export async function refundOrder(
   return { error: null }
 }
 
+// WEC-801: charge the difference FROM the customer's wallet when an admin edit
+// RAISED a wallet-paid order's total (customer now owes more). Mirrors the wallet
+// refund path above (direct admin client + audit) but as a debit; it does NOT
+// touch payment_status (the order is already paid) — order_payment_summary counts
+// the new type='debit' row toward `paid`, so the ledger re-balances. Balance-gated.
+export async function chargeWalletExtraForOrder(
+  order: AdminOrder, amountCents: number, adminUser: string,
+): Promise<{ error: string | null }> {
+  if (amountCents <= 0) return { error: 'Nothing to charge.' }
+  if (!order.userId) return { error: 'Cannot charge wallet — order has no linked customer.' }
+  const { data: walletRow, error: wErr } = await supabase
+    .from('wallets').select('id, balance').eq('user_id', order.userId).maybeSingle()
+  if (wErr) return { error: wErr.message }
+  if (!walletRow) return { error: 'No wallet found for this customer.' }
+  const walletId = (walletRow as { id: string }).id
+  const balance = (walletRow as { balance: number }).balance
+  if (balance < amountCents) {
+    return { error: `Insufficient wallet balance (${(balance / 100).toFixed(2)} € available, ${(amountCents / 100).toFixed(2)} € needed).` }
+  }
+  const { error: txErr } = await supabase.from('wallet_transactions').insert({
+    wallet_id: walletId,
+    type: 'debit',
+    amount: amountCents,
+    description_el: `Χρέωση διαφοράς — επεξεργασία παραγγελίας ${order.orderNumber}`,
+    description_en: `Charge for edited order difference — ${order.orderNumber}`,
+    order_id: order.id,
+  })
+  if (txErr) return { error: txErr.message }
+  const { error: balErr } = await supabase
+    .from('wallets').update({ balance: balance - amountCents }).eq('id', walletId)
+  if (balErr) return { error: balErr.message }
+  await writeChangeLog({
+    orderId: order.id,
+    tableName: 'wallets', fieldName: 'balance',
+    oldValue: String(balance), newValue: String(balance - amountCents),
+    label: `wallet charge ${(amountCents / 100).toFixed(2)} € — order edited (sync)`, adminUser,
+  })
+  return { error: null }
+}
+
 // ─── Payment link (WEC-176) ──────────────────────────────────────────────
 
 export async function regenerateVivaPaymentLink(orderId: string, amountCents?: number, allowOverAmount?: boolean): Promise<{ data: { orderCode: string; paymentUrl: string } | null; error: string | null }> {
