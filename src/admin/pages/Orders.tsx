@@ -1761,6 +1761,7 @@ function DayCard({
               <div><span className="admin-od-addr-k">Post Code</span><span>{child.addressZip || '—'}</span></div>
               <div><span className="admin-od-addr-k">City</span><span>{child.addressArea || '—'}</span></div>
               <div><span className="admin-od-addr-k">Floor</span><span>{child.addressFloor || '—'}</span></div>
+              <div><span className="admin-od-addr-k">Κουδούνι / Doorbell</span><span>{child.addressDoorbell || '—'}</span></div>
               {!cancelled && <button className="admin-row-btn admin-od-addr-edit" onClick={() => setEditingAddr(true)}>Edit address &amp; time</button>}
             </div>
           ) : (
@@ -2159,6 +2160,7 @@ function AddressTimeEditor({ child, orderId, adminUser, onDone, onCancel }: {
   const [area, setArea] = useState(child.addressArea ?? '')
   const [zip, setZip] = useState(child.addressZip ?? '')
   const [floor, setFloor] = useState(child.addressFloor ?? '')
+  const [doorbell, setDoorbell] = useState(child.addressDoorbell ?? '')
   // WEC-668: one clickable 2-hour window instead of two raw time fields.
   // Value shape "HH:MM–HH:MM" (en dash), matching slotsForZone().
   const initialSlot = child.timeFrom && child.timeTo
@@ -2185,7 +2187,7 @@ function AddressTimeEditor({ child, orderId, adminUser, onDone, onCancel }: {
 
   async function saveAll() {
     setWorking(true)
-    await updateChildOrderAddress(child.id, orderId, { street, area, zip, floor }, adminUser)
+    await updateChildOrderAddress(child.id, orderId, { street, area, zip, floor, doorbell }, adminUser)
     const [f, tt] = slot ? slot.split('–') : [null, null]
     await updateChildOrderTime(child.id, orderId, f ? `${f}:00` : null, tt ? `${tt}:00` : null, adminUser)
     setWorking(false)
@@ -2212,6 +2214,7 @@ function AddressTimeEditor({ child, orderId, adminUser, onDone, onCancel }: {
         <div><label className="admin-form-label">Post Code</label><input className="admin-input" value={zip} onChange={(e) => setZip(e.target.value)} /></div>
         <div><label className="admin-form-label">City</label><input className="admin-input" value={area} onChange={(e) => setArea(e.target.value)} /></div>
         <div><label className="admin-form-label">Floor</label><input className="admin-input" value={floor} onChange={(e) => setFloor(e.target.value)} /></div>
+        <div><label className="admin-form-label">Κουδούνι / Doorbell</label><input className="admin-input" value={doorbell} onChange={(e) => setDoorbell(e.target.value)} /></div>
         <div style={{ gridColumn: '1 / -1' }}>
           <label className="admin-form-label">Delivery window</label>
           <select className="admin-input" value={slot} onChange={(e) => setSlot(e.target.value)}>
