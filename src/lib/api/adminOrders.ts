@@ -100,6 +100,7 @@ export interface AdminChildOrder {
   addressArea: string | null
   addressZip: string | null
   addressFloor: string | null
+  addressDoorbell: string | null
   /** WEC-389: set when this delivery day has been soft-cancelled. */
   cancelledAt: string | null
   items: AdminOrderItem[]
@@ -326,6 +327,7 @@ export async function listAdminOrders(f: OrderFilters): Promise<{ data: AdminOrd
       id: string; order_id: string; delivery_date: string;
       time_from: string | null; time_to: string | null;
       address_street: string | null; address_area: string | null; address_zip: string | null; address_floor: string | null;
+      address_doorbell: string | null;
       cancelled_at: string | null;
     }
     const arr = childrenByOrder.get(row.order_id) ?? []
@@ -334,6 +336,7 @@ export async function listAdminOrders(f: OrderFilters): Promise<{ data: AdminOrd
       timeFrom: row.time_from, timeTo: row.time_to,
       addressStreet: row.address_street, addressArea: row.address_area,
       addressZip: row.address_zip, addressFloor: row.address_floor,
+      addressDoorbell: row.address_doorbell,
       cancelledAt: row.cancelled_at,
       items: itemsByChild.get(row.id) ?? [],
     })
@@ -416,6 +419,7 @@ export async function getAdminOrder(id: string): Promise<{ data: AdminOrder | nu
       id: string; order_id: string; delivery_date: string;
       time_from: string | null; time_to: string | null;
       address_street: string | null; address_area: string | null; address_zip: string | null; address_floor: string | null;
+      address_doorbell: string | null;
       cancelled_at: string | null;
     }
     return {
@@ -423,6 +427,7 @@ export async function getAdminOrder(id: string): Promise<{ data: AdminOrder | nu
       timeFrom: row.time_from, timeTo: row.time_to,
       addressStreet: row.address_street, addressArea: row.address_area,
       addressZip: row.address_zip, addressFloor: row.address_floor,
+      addressDoorbell: row.address_doorbell,
       cancelledAt: row.cancelled_at,
       items: itemsByChild.get(row.id) ?? [],
     }
@@ -1330,7 +1335,7 @@ async function recomputeOrderTotals(orderId: string, adminUser: string = 'system
 
 // ─── Child-order edits (address + time) ───────────────────────────────────
 
-export async function updateChildOrderAddress(childId: string, orderId: string, patch: { street?: string; area?: string; zip?: string; floor?: string }, adminUser: string): Promise<{ error: string | null }> {
+export async function updateChildOrderAddress(childId: string, orderId: string, patch: { street?: string; area?: string; zip?: string; floor?: string; doorbell?: string }, adminUser: string): Promise<{ error: string | null }> {
   // WEC-604: capture the OLD address + delivery day so the timeline shows a
   // real before → after with the day, not «address updated» + raw JSON.
   const { data: bRow } = await supabase.from('child_orders').select('address_street, address_area, delivery_date').eq('id', childId).maybeSingle()
@@ -1340,6 +1345,7 @@ export async function updateChildOrderAddress(childId: string, orderId: string, 
   if (patch.area !== undefined) update.address_area = patch.area || null
   if (patch.zip !== undefined) update.address_zip = patch.zip || null
   if (patch.floor !== undefined) update.address_floor = patch.floor || null
+  if (patch.doorbell !== undefined) update.address_doorbell = patch.doorbell || null
   const { error } = await supabase.from('child_orders').update(update).eq('id', childId)
   if (error) return { error: error.message }
   const fmtAddr = (s?: string | null, a?: string | null) => [s, a].filter(Boolean).join(', ') || '—'
