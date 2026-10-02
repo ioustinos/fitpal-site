@@ -285,10 +285,37 @@ export async function pushOrderToAirtable(
   const deletions = await reconcileDeletes(order.id, currentChildKeys, currentItemUuids, readsOk)
 
   // 9. Stamp synced (clears dirty without re-flagging via the trigger guard)
-  await supabase
+  //
+  // WEC-833: the clear is GUARDED on updated_at being unchanged since step 1.
+  // Without that guard this was a lost update: an admin editing the order while
+  // the push was mid-flight would set airtable_dirty = true, and this line —
+  // which the trigger explicitly lets through ("a deliberate clear by the push
+  // wins", WEC-789b) — wiped the flag again. The edit then never re-pushed and
+  // Airtable kept the pre-edit value forever.
+  //
+  // Not theoretical and not a millisecond window: this push writes child
+  // orders, items and runs reconcileDeletes, so it stays in flight for 5-55
+  // seconds. FP-260929-00009 was confirmed by cd@fitpal.gr at 09:30:22.188,
+  // one second after the push read the row; the clear landed at 09:30:23.214
+  // and Airtable still read "Pending" a day later.
+  //
+  // On mismatch the row keeps airtable_dirty = true and the 5-min reconcile
+  // picks it up — one extra push, never a lost change. `order.updated_at` is
+  // the value read in step 1, before any Airtable call.
+  const { data: stamped } = await supabase
     .from('orders')
     .update({ airtable_dirty: false, airtable_synced_at: new Date().toISOString() })
     .eq('id', orderId)
+    .eq('updated_at', order.updated_at ?? '')
+    .select('id')
+
+  if (!stamped || stamped.length === 0) {
+    // Someone changed the order while we were pushing. Leave it dirty.
+    console.log(
+      '[airtable] order %s changed mid-push — left dirty for the next run (WEC-833)',
+      orderId,
+    )
+  }
 
   return { ok: true, orderId, deletions }
 }

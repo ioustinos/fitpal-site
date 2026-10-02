@@ -120,7 +120,8 @@ export async function pushWalletPlanToAirtable(
       'wallet_credit_cents, bonus_pct, bonus_credits_cents, services, ' +
       'payment_method, payment_status, viva_order_code, viva_transaction_id, ' +
       'invoice_type, invoice_name, invoice_vat, refund_amount_cents, ' +
-      'voucher_id, voucher_amount_cents, start_date, active_until, admin_note, status',
+      // updated_at: WEC-833 optimistic-concurrency guard on the sync stamp below.
+      'voucher_id, voucher_amount_cents, start_date, active_until, admin_note, status, updated_at',
     )
     .eq('id', planId)
     .maybeSingle()
@@ -241,10 +242,22 @@ export async function pushWalletPlanToAirtable(
   // 4. Upsert on Plan Id, then stamp the sync.
   await upsertRecords(TABLES.subscriptions, ['Plan Id'], [{ fields }])
 
-  await supabase
+  // WEC-833: guarded on updated_at, same lost-update fix as pushOrder.ts.
+  // An unconditional clear here wipes an airtable_dirty that an admin edit set
+  // while this push was mid-flight, and the edit then never reaches Airtable.
+  const { data: stamped } = await supabase
     .from('wallet_plans')
     .update({ airtable_dirty: false, airtable_synced_at: new Date().toISOString() })
     .eq('id', planId)
+    .eq('updated_at', (plan.updated_at as string | null) ?? '')
+    .select('id')
+
+  if (!stamped || stamped.length === 0) {
+    console.log(
+      '[airtable] wallet_plan %s changed mid-push — left dirty for the next run (WEC-833)',
+      planId,
+    )
+  }
 
   return { ok: true, planId }
 }

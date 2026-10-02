@@ -481,6 +481,7 @@ export default async (request: Request) => {
     // service-role branch above) and send body.userId = "<victim>" to attribute
     // the order to another user. Guests legitimately resolve to userId = null.
     let userId: string | null = null
+    let authEmail: string | null = null
     if (token) {
       // WEC-511: pass the token EXPLICITLY. No-arg getUser() resolves from the
       // client's stored session, but this per-request client has
@@ -490,6 +491,18 @@ export default async (request: Request) => {
       // validates the passed JWT directly against Supabase.
       const { data: { user } } = await supabase.auth.getUser(token)
       userId = user?.id ?? null
+      authEmail = user?.email ?? null
+    }
+
+    // WEC-835: a logged-in user's session IS the real customer — including under
+    // session-swap impersonation, where the client may have lost its
+    // impersonation state and prefilled the contact form with the ADMIN's email
+    // (useAuthStore.user stays the admin). Trust the authenticated ACCOUNT email
+    // over the client body so an admin's email can never be saved as
+    // customer_email (recurrence of WEC-495, which only guarded client-side).
+    // Guests (no userId) keep whatever they typed.
+    if (userId && authEmail) {
+      body.customerEmail = authEmail
     }
 
     // ─── Impersonation attribution via X-Impersonator-Admin-Id ─────────
