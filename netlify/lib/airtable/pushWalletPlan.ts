@@ -12,7 +12,7 @@ import { toE164 } from '../../../src/lib/phoneNormalize'
 
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { TABLES } from './env'
-import { upsertRecords, findRecordId, createRecord } from './client'
+import { upsertRecords, findRecordId, createRecord, deleteRecords } from './client'
 import { toEuros, esc } from './maps'
 
 /**
@@ -28,6 +28,8 @@ export interface PlanPushResult {
   ok: boolean
   planId: string
   skipped?: 'not_found' | 'not_eligible'
+  /** WEC-837: the plan became ineligible and its stale Airtable row was removed. */
+  deletedFromAirtable?: boolean
 }
 
 /** Airtable «Plan Length» options. */
@@ -130,7 +132,20 @@ export async function pushWalletPlanToAirtable(
 
   const plan = planRow as Record<string, any>
   if (!isPlanMirrorEligible({ payment_status: String(plan.payment_status) })) {
-    return { ok: true, planId, skipped: 'not_eligible' }
+    // WEC-837: a plan that became ineligible (payment failed) but was already
+    // mirrored must be REMOVED from Airtable, not left frozen at its last-synced
+    // state (e.g. a failed+cancelled sub stuck showing "Active"). Delete the row
+    // if one exists, then clear the dirty flag so we don't retry forever. The
+    // delete is idempotent, so the WEC-833 updated_at guard on the stamp is safe
+    // here too: if the row changed mid-flight the next run just re-deletes.
+    const existingId = await findRecordId(TABLES.subscriptions, `{Plan Id}='${esc(String(plan.id))}'`)
+    if (existingId) await deleteRecords(TABLES.subscriptions, [existingId])
+    await supabase
+      .from('wallet_plans')
+      .update({ airtable_dirty: false, airtable_synced_at: new Date().toISOString() })
+      .eq('id', planId)
+      .eq('updated_at', (plan.updated_at as string | null) ?? '')
+    return { ok: true, planId, skipped: 'not_eligible', deletedFromAirtable: !!existingId }
   }
 
   // 2. Resolve the customer. wallet → user → profile. A plan always has a

@@ -54,9 +54,17 @@ interface OrderRow {
 // Mirror an order once it is "confirmed enough": never a draft, and for online
 // card the payment must have landed (avoids phantom abandoned-checkout rows).
 // cash / transfer / link (pay-later) / wallet are valid at submit.
+//
+// WEC-837: `refunded` is allowed through too. A refunded card order was paid
+// at some point, so it was already mirrored; blocking it (as `!== 'paid'` did)
+// froze the row at its pre-refund/pre-cancellation state forever — Airtable
+// kept showing a cancelled+refunded order as live. Letting it through means the
+// normal upsert re-pushes it with Order Status = cancelled (+ reason). This
+// still blocks never-paid card orders (pending / failed / link-awaiting), which
+// were never mirrored, so no phantom cancelled rows get created.
 export function isMirrorEligible(o: { status: string; payment_method: string; payment_status: string }): boolean {
   if (o.status === 'draft') return false
-  if (o.payment_method === 'card' && o.payment_status !== 'paid') return false
+  if (o.payment_method === 'card' && o.payment_status !== 'paid' && o.payment_status !== 'refunded') return false
   return true
 }
 
