@@ -51,7 +51,7 @@ If either check fails, **do not read the workspace** — clone `origin/dev` to a
 
 This is not theoretical. On **2026-09-17** the folder was found sitting at an old commit with **278 dirty files**, missing `src/lib/i18n/`, `src/lib/monitoring/`, `src/lib/api/adminCopy.ts` and `src/admin/pages/Copy.tsx` — weeks of shipped work. A chat read `netlify/functions/wallet-plan-purchase.ts` from it and concluded, wrongly and confidently, that WEC-783 had never shipped. It had been on `origin/dev` the whole time.
 
-**Why it drifts:** the push recipe below sets `GIT_WORK_TREE=<workspace>` with a `/tmp` clone's `.git`. That writes files into the folder while the folder's **own** `.git` stays where it was, so its `git log` and `git status` become fiction. FUSE then refuses `unlink`, so nothing can clean it up in place.
+**Why it drifts (historical):** the OLD push recipe set `GIT_WORK_TREE=<workspace>` with a `/tmp` clone's `.git`. That wrote files into the folder while the folder's **own** `.git` stayed where it was, so its `git log` and `git status` became fiction. FUSE then refuses `unlink`, so nothing can clean it up in place. **This is fixed going forward by RULE #0d — git now only ever runs inside a standalone `/tmp` clone, never pointed at the folder — so new drift should stop. The folder is only ever updated FROM origin via the resync recipe below.**
 
 **Resync recipe** (safe — it never deletes his untracked notes and reports at the repo root):
 
@@ -115,12 +115,16 @@ Before any promotion to `main`: `npx vite build` (that is what Netlify runs), `n
     || source /sessions/<session>/mnt/.auto-memory/github_credentials.sh
   ```
 - `/tmp/fitpal-push` from old sessions has stale ownership and can't be deleted/modified. Use a fresh path (e.g. `/tmp/fitpal-push2`, `/tmp/fitpal-push3`) per new session.
-- When a push IS requested, use this pattern:
+
+### ⚠️ RULE #0d — COMMIT INSIDE A STANDALONE CLONE. NEVER point git at the workspace folder. (2026-10-03)
+
+The old push pattern set `GIT_WORK_TREE=<workspace>` with a `/tmp` clone's `.git`. That is the **root cause of the recurring drift in RULE #0b**: it writes committed files INTO the folder while the folder's own `.git` never advances, so its `git log`/`git status` become fiction and FUSE then blocks cleanup. Every session that pushed this way left the folder a little more wrong.
+
+**The fix: treat the workspace folder as a read-only working copy. Do ALL git in a standalone `/tmp` clone — clone, copy your edited files into the clone, commit there, push from there. `GIT_WORK_TREE` is never set to the folder.** This session (WEC-836/833/837) pushed this way and created zero drift. After pushing, resync the folder FROM origin with the RULE #0b recipe if it needs to reflect the new tip.
 
 ```bash
 source "/sessions/<session>/mnt/Fitpal New Site/.auto-memory/github_credentials.sh" \
   || source /sessions/<session>/mnt/.auto-memory/github_credentials.sh
-git config --global --add safe.directory "/sessions/<session>/mnt/Fitpal New Site"
 
 # Fresh clone to a NEW path (old /tmp/fitpal-push* may have stale ownership)
 PUSH_DIR=/tmp/fitpal-pushN
@@ -129,14 +133,19 @@ git clone --depth 50 -b dev \
   "https://${GITHUB_USER}:${GITHUB_TOKEN}@github.com/${GITHUB_USER}/${FITPAL_REPO}.git" "$PUSH_DIR"
 cd "$PUSH_DIR"
 git config user.email "ioustinos.sarris@gmail.com" && git config user.name "ioustinos"
-git config --global --add safe.directory "$PUSH_DIR"
 
-export GIT_DIR="$PUSH_DIR/.git"
-export GIT_WORK_TREE="/sessions/<session>/mnt/Fitpal New Site"
-
-git add src/specific/file.tsx   # specific files only — never git add -A
+# Copy ONLY the files you changed from the workspace INTO the clone, then commit
+# IN the clone. No GIT_DIR / GIT_WORK_TREE games — git only ever touches $PUSH_DIR.
+W="/sessions/<session>/mnt/Fitpal New Site"
+for f in src/specific/file.tsx netlify/lib/whatever.ts; do
+  mkdir -p "$PUSH_DIR/$(dirname "$f")"; cp "$W/$f" "$PUSH_DIR/$f"
+done
+git add src/specific/file.tsx netlify/lib/whatever.ts   # specific files only — never git add -A
 git commit -m "description"
 git push origin dev
+
+# strip the token before leaving the clone around; never resync a tokened remote onto his disk
+git remote set-url origin "https://github.com/${GITHUB_USER}/${FITPAL_REPO}.git"
 ```
 
 Branches:
