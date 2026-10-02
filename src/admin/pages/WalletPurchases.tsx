@@ -5,6 +5,7 @@ import {
   type AdminWalletPlanRow, type AdminWalletPlanDetail,
 } from '../../lib/api/adminWalletPlans'
 import { setWalletPlanStatus } from '../../lib/api/adminUsers'
+import { fetchPlanConsumption, planTotalDays, type PlanConsumption } from '../../lib/api/planConsumption'
 import { useAuthStore } from '../../store/useAuthStore'
 
 const STATUS_LABELS: Record<string, string> = {
@@ -132,7 +133,15 @@ export function WalletPurchases() {
                   <div className="admin-text-muted">{r.customerEmail ?? '—'}</div>
                 </td>
                 <td>{r.goal ?? '—'}</td>
-                <td>{r.planLength ?? '—'} · {r.daysPerWeek ?? '?'}d/wk · {r.selectedMeals.length} meals</td>
+                <td>
+                  {r.planLength ?? '—'} · {r.daysPerWeek ?? '?'}d/wk · {r.selectedMeals.length} meals
+                  {/* WEC-836: total delivery-days the plan covers (round(weeks × days/wk)). */}
+                  {planTotalDays(r.planLengthWeeks, r.daysPerWeek) != null && (
+                    <div className="admin-text-muted" style={{ fontSize: 11 }}>
+                      {planTotalDays(r.planLengthWeeks, r.daysPerWeek)} ημέρες σύνολο
+                    </div>
+                  )}
+                </td>
                 <td>{r.paymentMethod ?? '—'}</td>
                 <td>
                   <span className={`admin-pill-${r.paymentStatus}`}>{STATUS_LABELS[r.paymentStatus] ?? r.paymentStatus}</span>
@@ -187,6 +196,24 @@ function Drawer({ detail, loading, onClose, onRefunded }: DrawerProps) {
   // WEC-509: manual "mark bank-transfer paid".
   const [marking, setMarking] = useState(false)
   const [markErr, setMarkErr] = useState<string | null>(null)
+  // WEC-836: delivery-days consumed under this subscription (one live count).
+  const [consumption, setConsumption] = useState<PlanConsumption | null>(null)
+  useEffect(() => {
+    setConsumption(null)
+    if (!detail?.userId) return
+    let cancelled = false
+    ;(async () => {
+      const { data } = await fetchPlanConsumption(detail.userId!, {
+        planLengthWeeks: detail.planLengthWeeks,
+        daysPerWeek: detail.daysPerWeek,
+        startDate: detail.startDate,
+        activeUntil: detail.activeUntil,
+        createdAt: detail.createdAt,
+      })
+      if (!cancelled) setConsumption(data)
+    })()
+    return () => { cancelled = true }
+  }, [detail?.id, detail?.userId, detail?.startDate, detail?.activeUntil, detail?.planLengthWeeks, detail?.daysPerWeek, detail?.createdAt])
 
   async function doMarkPaid() {
     if (!detail) return
@@ -244,6 +271,17 @@ function Drawer({ detail, loading, onClose, onRefunded }: DrawerProps) {
                 <KV k="Length" v={`${detail.planLength ?? '?'} (${detail.daysPerWeek ?? '?'} days/wk · ${detail.selectedMeals.join(' + ') || '—'})`} />
                 {/* WEC-794 + WEC-798(c): chosen start date, editable — changing it recalculates «Ενεργή έως». */}
                 <StartDateEditor detail={detail} onSaved={onRefunded} />
+                {/* WEC-836: delivery-days ordered on the wallet within the plan window / plan total. */}
+                <KV
+                  k="Ημέρες (χρήση / σύνολο)"
+                  v={
+                    consumption
+                      ? `${consumption.usedDays} / ${consumption.totalDays ?? '?'}${
+                          consumption.daysLeft != null ? ` · ${consumption.daysLeft} απομένουν` : ''
+                        }`
+                      : '…'
+                  }
+                />
                 <KV k="Daily kcal" v={String(detail.dailyKcal ?? '—')} />
                 <KV k="Macro split" v={`P ${detail.macroSplit.p ?? 0}% / C ${detail.macroSplit.c ?? 0}% / F ${detail.macroSplit.f ?? 0}%`} />
                 <KV k="Dietitian-managed" v={detail.services.dieticianManaged ? 'Yes' : 'No'} />

@@ -18,6 +18,7 @@ import { fetchPastWalletPlans, fetchWallet, planReference, type PastWalletPlan }
 // WEC-702: reuse the shared plan-characteristics panel (same one the staff
 // impersonation strip uses) on the customer's own Συνδρομές tab.
 import { fetchActivePlanDetails, type PlanDetails } from '../lib/api/planDetails'
+import { fetchPlanConsumption, type PlanConsumption } from '../lib/api/planConsumption'
 import { PlanDetailsPanel } from '../components/shared/PlanDetailsPanel'
 import { COUNTRIES, DEFAULT_COUNTRY, isValidPhone, phoneLabels } from '../lib/phone'
 import { showGoalProgress, goalStatus, goalPct } from '../lib/goals'
@@ -1740,12 +1741,25 @@ function SubscriptionTab({ user, lang }: any) {
   // WEC-702: the customer's plan characteristics (same shared panel as the
   // staff strip). Fetched once when the tab mounts with an active plan.
   const [planDetails, setPlanDetails] = useState<PlanDetails | null>(null)
+  // WEC-836: delivery-days this subscription has consumed vs its total.
+  const [consumption, setConsumption] = useState<PlanConsumption | null>(null)
   useEffect(() => {
     if (!user?.id || !wallet?.active) return
     let cancelled = false
     ;(async () => {
       const { data } = await fetchActivePlanDetails(user.id)
-      if (!cancelled) setPlanDetails(data)
+      if (cancelled) return
+      setPlanDetails(data)
+      if (data) {
+        const { data: cons } = await fetchPlanConsumption(user.id, {
+          planLengthWeeks: data.planLengthWeeks,
+          daysPerWeek: data.daysPerWeek,
+          startDate: data.startDate,
+          activeUntil: data.activeUntil,
+          createdAt: data.createdAt,
+        })
+        if (!cancelled) setConsumption(cons)
+      }
     })()
     return () => { cancelled = true }
   }, [user?.id, wallet?.active])
@@ -1940,6 +1954,18 @@ function SubscriptionTab({ user, lang }: any) {
               <span className="subs-row-val">{selectedMeals.length > 0 ? `${selectedMeals.length} (${selectedMeals.map((m) => m.label).join(', ')})` : TODO_DASH}</span>
             </div>
             <div className="subs-row"><span className="subs-row-key">{isEl ? 'Ημέρες εβδομάδας' : 'Days per week'}</span><span className="subs-row-val">{wallet.daysPerWeek ?? TODO_DASH}</span></div>
+            {/* WEC-836: delivery-days ordered on the subscription so far vs its total. */}
+            {consumption && consumption.totalDays != null && (
+              <div className="subs-row">
+                <span className="subs-row-key">{isEl ? 'Ημέρες που χρησιμοποιήθηκαν' : 'Days used'}</span>
+                <span className="subs-row-val">
+                  {consumption.usedDays} / {consumption.totalDays}
+                  {consumption.daysLeft != null
+                    ? ` · ${consumption.daysLeft} ${isEl ? 'απομένουν' : 'left'}`
+                    : ''}
+                </span>
+              </div>
+            )}
             <div className="subs-row"><span className="subs-row-key">{isEl ? 'Τύπος πλάνου' : 'Plan type'}</span><span className="subs-row-val">{goalLabel}</span></div>
             <div className="subs-row"><span className="subs-row-key">{isEl ? 'Λιπομέτρηση' : 'Body-fat measurement'}</span><span className="subs-row-val">{wallet.bodyFatMeasurement ? (isEl ? 'Ναι' : 'Yes') : (isEl ? 'Όχι' : 'No')}</span></div>
           </div>

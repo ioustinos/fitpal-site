@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { useImpersonationStore } from '../../store/useImpersonationStore'
 import { supabase } from '../../lib/supabase'
 import { fetchActivePlanDetails, type PlanDetails } from '../../lib/api/planDetails'
+import { fetchPlanConsumption, planTotalDays } from '../../lib/api/planConsumption'
 import { PlanDetailsPanel } from '../shared/PlanDetailsPanel'
 import { planMealsLabel } from '../../lib/planMeals'
 
@@ -26,26 +27,15 @@ interface PlanSummary {
   baseEur: number
   bonusEur: number
   endStr: string
-  workingDaysLeft: number
+  /** Delivery-days consumed vs the plan total (WEC-836). */
+  usedDays: number
+  totalDays: number | null
+  daysLeft: number | null
   dailyLimitEur: number
   spentEur: number
   remainingEur: number
   overPace: boolean
   meals: string
-}
-
-/** Count Mon–Fri days in [from, to] inclusive (the delivery-days model). */
-function countWeekdays(from: Date, to: Date): number {
-  const d = new Date(from); d.setHours(0, 0, 0, 0)
-  const end = new Date(to); end.setHours(0, 0, 0, 0)
-  if (end < d) return 0
-  let n = 0
-  while (d <= end) {
-    const wd = d.getDay()
-    if (wd >= 1 && wd <= 5) n++
-    d.setDate(d.getDate() + 1)
-  }
-  return n
 }
 
 function fmtDayMonth(d: Date): string {
@@ -103,7 +93,7 @@ export function ImpersonationBanner() {
 
         const { data: planRow } = await supabase
           .from('wallet_plans')
-          .select('wallet_credit_cents, bonus_credits_cents, meal_breakfast, meal_lunch, meal_dinner, meal_snack, plan_length_weeks, created_at, start_date, active_until')
+          .select('wallet_credit_cents, bonus_credits_cents, meal_breakfast, meal_lunch, meal_dinner, meal_snack, plan_length_weeks, days_per_week, created_at, start_date, active_until')
           .eq('id', w.active_plan_id)
           .maybeSingle()
         if (cancelled || !planRow) { setSummary(null); return }
@@ -111,7 +101,7 @@ export function ImpersonationBanner() {
           wallet_credit_cents: number | null; bonus_credits_cents: number | null
           meal_breakfast: boolean | null; meal_lunch: boolean | null; meal_dinner: boolean | null
           meal_snack: boolean | null
-          plan_length_weeks: number | null; created_at: string
+          plan_length_weeks: number | null; days_per_week: number | null; created_at: string
           start_date: string | null; active_until: string | null
         }
 
@@ -141,9 +131,6 @@ export function ImpersonationBanner() {
           : plan.active_until
           ? new Date(plan.active_until + 'T00:00:00')
           : new Date(start.getTime() + weeks * 7 * 86_400_000)
-        const today = new Date()
-        const clampedToday = today < end ? today : end
-
         const creditedTotal = (plan.wallet_credit_cents ?? 0) / 100
         const bonus = (plan.bonus_credits_cents ?? 0) / 100
         // Base = credited total minus the bonus portion, so base + bonus always
@@ -152,13 +139,30 @@ export function ImpersonationBanner() {
         const remaining = (w.balance ?? 0) / 100
         const spent = Math.max(0, creditedTotal - remaining)
 
-        const totalWD = countWeekdays(start, end)
-        const elapsedWD = countWeekdays(start, clampedToday)
-        const remainingWD = Math.max(0, totalWD - elapsedWD)
+        // WEC-836: €/day and "days left" now come from ACTUAL consumption —
+        // delivery-days ordered on the wallet vs the plan total — not from
+        // calendar weekdays to the end date. Maria's 2-week × 5-day plan with
+        // next week's 5 days ordered and €202 left now reads 5/10, 5 days left,
+        // €40/day — instead of a figure based on how many Mon–Fri remain on the
+        // calendar, which ignored what she had actually booked.
+        const totalDays = planTotalDays(plan.plan_length_weeks, plan.days_per_week)
+        let usedDays = 0
+        const { data: cons } = await fetchPlanConsumption(targetUserId, {
+          planLengthWeeks: plan.plan_length_weeks,
+          daysPerWeek: plan.days_per_week,
+          startDate: plan.start_date,
+          activeUntil: plan.active_until,
+          createdAt: plan.created_at,
+        })
+        if (cancelled) return
+        if (cons) usedDays = cons.usedDays
+        const daysLeft = cons?.daysLeft ?? (totalDays == null ? null : Math.max(0, totalDays - usedDays))
 
-        const evenPace = totalWD > 0 ? creditedTotal / totalWD : 0
-        const actualPace = elapsedWD > 0 ? spent / elapsedWD : 0
-        const dailyLimit = remainingWD > 0 ? remaining / remainingWD : remaining
+        const dailyLimit = daysLeft && daysLeft > 0 ? remaining / daysLeft : remaining
+        // Over-pace: has the customer burned more per ordered day than an even
+        // split of the plan's whole credit across all its days would allow?
+        const evenPace = totalDays && totalDays > 0 ? creditedTotal / totalDays : 0
+        const actualPace = usedDays > 0 ? spent / usedDays : 0
         const overPace = evenPace > 0 && actualPace > evenPace * 1.10
 
         // WEC-686: was a hand-rolled three-item list that predated
@@ -169,7 +173,9 @@ export function ImpersonationBanner() {
           baseEur: base,
           bonusEur: bonus,
           endStr: fmtDayMonth(end),
-          workingDaysLeft: remainingWD,
+          usedDays,
+          totalDays,
+          daysLeft,
           dailyLimitEur: dailyLimit,
           spentEur: spent,
           remainingEur: remaining,
@@ -240,14 +246,18 @@ export function ImpersonationBanner() {
             Plan {eur(summary.baseEur)}{summary.bonusEur > 0 ? ` + ${eur(summary.bonusEur)} bonus` : ''}
           </span>
           <span style={chip}>Left {eur(summary.remainingEur)} · Spent {eur(summary.spentEur)}</span>
-          <span style={chip}>Ends {summary.endStr} · {summary.workingDaysLeft}d left</span>
+          {/* WEC-836: delivery-days ordered on the wallet vs the plan total. */}
+          <span style={chip} title="Delivery-days ordered on the wallet / plan total days">
+            {summary.usedDays}/{summary.totalDays ?? '?'} ημέρες
+          </span>
+          <span style={chip}>Ends {summary.endStr}{summary.daysLeft != null ? ` · ${summary.daysLeft}d left` : ''}</span>
           <span
             style={{
               ...chip,
               background: summary.overPace ? '#dc2626' : 'rgba(255,255,255,0.18)',
               color: '#fff',
             }}
-            title={summary.overPace ? 'Spending above the even Mon–Fri pace (>10% over)' : 'Average allowed spend per remaining working day'}
+            title={summary.overPace ? 'Spending above the even per-day pace (>10% over)' : 'Remaining balance ÷ delivery-days left on the plan'}
           >
             {eur(summary.dailyLimitEur)}/day{summary.overPace ? ' ⚠' : ''}
           </span>
