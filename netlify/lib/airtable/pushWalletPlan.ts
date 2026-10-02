@@ -11,7 +11,7 @@ import { toE164 } from '../../../src/lib/phoneNormalize'
 // add the option in Airtable FIRST.
 
 import type { SupabaseClient } from '@supabase/supabase-js'
-import { TABLES } from './env'
+import { TABLES, airtableDeleteEnabled } from './env'
 import { upsertRecords, findRecordId, createRecord, deleteRecords } from './client'
 import { toEuros, esc } from './maps'
 
@@ -139,13 +139,27 @@ export async function pushWalletPlanToAirtable(
     // delete is idempotent, so the WEC-833 updated_at guard on the stamp is safe
     // here too: if the row changed mid-flight the next run just re-deletes.
     const existingId = await findRecordId(TABLES.subscriptions, `{Plan Id}='${esc(String(plan.id))}'`)
-    if (existingId) await deleteRecords(TABLES.subscriptions, [existingId])
+    let deleted = false
+    if (existingId) {
+      // Respect the same dry-run gate as the order delete-reconcile (WEC-697):
+      // hard-deleting from the live Airtable base only happens once
+      // AIRTABLE_DELETE_ENABLED=true. Until then, log what we WOULD remove.
+      if (airtableDeleteEnabled()) {
+        await deleteRecords(TABLES.subscriptions, [existingId])
+        deleted = true
+      } else {
+        console.log(
+          '[airtable] WEC-837 DRY-RUN: would delete ineligible sub %s (Airtable rec %s)',
+          planId, existingId,
+        )
+      }
+    }
     await supabase
       .from('wallet_plans')
       .update({ airtable_dirty: false, airtable_synced_at: new Date().toISOString() })
       .eq('id', planId)
       .eq('updated_at', (plan.updated_at as string | null) ?? '')
-    return { ok: true, planId, skipped: 'not_eligible', deletedFromAirtable: !!existingId }
+    return { ok: true, planId, skipped: 'not_eligible', deletedFromAirtable: deleted }
   }
 
   // 2. Resolve the customer. wallet → user → profile. A plan always has a
