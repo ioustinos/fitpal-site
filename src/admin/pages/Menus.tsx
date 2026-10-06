@@ -94,6 +94,10 @@ export function Menus() {
   // is what the screen used to imply while quietly showing everyone's weeks.
   const [stores, setStores] = useState<AdminStore[]>([])
   const [storeFilter, setStoreFilter] = useState<string | null>(null)   // null until stores load
+  // WEC-839: the storefront-move control is hidden behind an explicit button so
+  // it can never be changed by reflex (it was mistaken for the view filter and
+  // silently moved a published retail week to another storefront — 2026-10-06).
+  const [showMover, setShowMover] = useState(false)
   // WEC-754: "copy from another storefront / week" panel.
   const [copyOpen, setCopyOpen] = useState(false)
   const [copySourceStore, setCopySourceStore] = useState<string | null>(null)
@@ -690,7 +694,7 @@ export function Menus() {
         <select
           className="admin-select"
           value={storeFilter ?? ''}
-          onChange={(e) => { setStoreFilter(e.target.value); setSelectedMenuId(null); setAssignments([]) }}
+          onChange={(e) => { setStoreFilter(e.target.value); setSelectedMenuId(null); setAssignments([]); setShowMover(false) }}
         >
           {stores.map((st) => (
             <option key={st.id} value={st.id}>
@@ -714,6 +718,7 @@ export function Menus() {
             <select className="admin-select" value={selectedMenuId ?? ''} onChange={(e) => {
               const id = e.target.value
               setSelectedMenuId(id)
+              setShowMover(false)   // WEC-839: never carry the move control across menus
               const m = menusInWeek.find((x) => x.id === id)
               setEditingName(m?.name ?? '')
               if (id) fetchMenuDayDishes(id).then(({ data }) => setAssignments(data ?? []))
@@ -738,35 +743,56 @@ export function Menus() {
             />
           </div>
         )}
-        {/* WEC-752: move a week to another storefront. This is the repair tool
-            as much as the feature — until now a misfiled week could only be
-            moved with SQL. */}
+        {/* WEC-752: move a week to another storefront. WEC-839: this is a
+            DESTRUCTIVE action (it relocates a published menu and customers see
+            it instantly), so it is NOT an always-live dropdown anymore — it was
+            being mistaken for the "Storefront" view filter above and silently
+            moved a retail week to another store. The current store is shown
+            read-only; moving requires clicking "Move…" first, then confirming. */}
         {selectedMenu && (
           <div className="admin-menu-select-wrap">
-            <label className="admin-form-label">Belongs to</label>
-            <select
-              className="admin-select"
-              value={selectedMenu.storeId ?? ''}
-              onChange={async (e) => {
-                const target = stores.find((st) => st.id === e.target.value)
-                if (!target || target.id === selectedMenu.storeId) return
-                if (!confirm(
-                  `Move «${selectedMenu.name ?? selectedMenu.fromDate}» to ${target.nameEl}?\n\n` +
-                  `It will disappear from ${selectedStore?.nameEl ?? 'this storefront'} and appear on ${target.nameEl}` +
-                  `${selectedMenu.active ? ' — and it is PUBLISHED, so customers see the change immediately.' : '.'}`,
-                )) return
-                const { error: mvErr } = await setMenuStore(selectedMenu.id, target.id)
-                if (mvErr) { setError(mvErr); return }
-                setSelectedMenuId(null); setAssignments([])
-                await loadWeek()
-              }}
-            >
-              {stores.map((st) => (
-                <option key={st.id} value={st.id}>
-                  {st.nameEl}{st.isDefault ? ' — retail' : ` /${st.slug}`}
-                </option>
-              ))}
-            </select>
+            <label className="admin-form-label">Storefront of this menu</label>
+            {!showMover ? (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span className="admin-pill" style={{ fontWeight: 600 }}>
+                  {selectedStore ? `${selectedStore.nameEl}${selectedStore.isDefault ? ' — retail' : ` /${selectedStore.slug}`}` : '—'}
+                </span>
+                <button type="button" className="admin-btn-secondary admin-btn-sm" onClick={() => setShowMover(true)}>
+                  Move…
+                </button>
+              </div>
+            ) : (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                <select
+                  className="admin-select"
+                  defaultValue=""
+                  onChange={async (e) => {
+                    const target = stores.find((st) => st.id === e.target.value)
+                    if (!target || target.id === selectedMenu.storeId) { setShowMover(false); return }
+                    if (!confirm(
+                      `⚠ MOVE «${selectedMenu.name ?? selectedMenu.fromDate}» to ${target.nameEl}?\n\n` +
+                      `This is NOT the view filter. It RELOCATES this menu: it will disappear from ` +
+                      `${selectedStore?.nameEl ?? 'this storefront'} and appear on ${target.nameEl}` +
+                      `${selectedMenu.active ? ' — and it is PUBLISHED, so customers see the change IMMEDIATELY.' : '.'}\n\nContinue?`,
+                    )) { setShowMover(false); return }
+                    const { error: mvErr } = await setMenuStore(selectedMenu.id, target.id)
+                    if (mvErr) { setError(mvErr); setShowMover(false); return }
+                    setShowMover(false); setSelectedMenuId(null); setAssignments([])
+                    await loadWeek()
+                  }}
+                >
+                  <option value="" disabled>Move to…</option>
+                  {stores.filter((st) => st.id !== selectedMenu.storeId).map((st) => (
+                    <option key={st.id} value={st.id}>
+                      {st.nameEl}{st.isDefault ? ' — retail' : ` /${st.slug}`}
+                    </option>
+                  ))}
+                </select>
+                <button type="button" className="admin-btn-secondary admin-btn-sm" onClick={() => setShowMover(false)}>
+                  Cancel
+                </button>
+              </div>
+            )}
           </div>
         )}
         <div className="admin-menu-actions">
