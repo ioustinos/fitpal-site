@@ -24,6 +24,12 @@ export const RESERVED_SEGMENTS: ReadonlySet<string> = new Set([
   'admin', 'account', 'api', 'assets', 'auth', 'callback', 'cart', 'checkout',
   'login', 'logout', 'menu', 'order', 'orders', 'pay', 'payment', 'privacy',
   'profile', 'signup', 'static', 'subscription', 'terms', 'wallet',
+  // WEC-841 (dietitian portal) + WEC-852 (dietitian referral links).
+  // ⚠️ Layer 1 (DB stores_slug_safe) does NOT list these yet — changing that
+  // constraint needs a DROP, which the overnight tooling could not run. Until
+  // it is updated, the admin store form (layer 3, which reads this set) is the
+  // guard. Follow-up noted on WEC-841.
+  'partner', 'ref',
 ])
 
 /** Same shape the DB constraint enforces. */

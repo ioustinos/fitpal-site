@@ -544,6 +544,40 @@ export default async (request: Request) => {
       // a normal customer submission. No leak risk.
     }
 
+    // ─── WEC-844: a DIETITIAN partner impersonating one of their clients ──
+    // Same session-swap as admin impersonation (admin-impersonate-start also
+    // serves partners). The header carries the partner user's id; we only
+    // trust it if that user really belongs to an active partner AND that
+    // partner may act for this customer (active link, or an internal partner).
+    // It never sets admin_order_id — it only records «placed by» = partner.
+    let partnerPlacerId: string | null = null
+    if (claimedAdminId && !isImpersonating && userId && SUPABASE_SERVICE_KEY) {
+      const svcP = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY, {
+        auth: { persistSession: false, autoRefreshToken: false },
+      })
+      const { data: pu } = await svcP
+        .from('partner_users')
+        .select('partner_id, partners!inner(active, is_internal)')
+        .eq('user_id', claimedAdminId)
+        .maybeSingle()
+      const pRow = pu as { partner_id: string; partners: { active: boolean; is_internal: boolean } | { active: boolean; is_internal: boolean }[] } | null
+      const pInfo = pRow ? (Array.isArray(pRow.partners) ? pRow.partners[0] : pRow.partners) : null
+      if (pRow && pInfo?.active) {
+        let allowed = !!pInfo.is_internal
+        if (!allowed) {
+          const { data: link } = await svcP
+            .from('partner_clients')
+            .select('id')
+            .eq('partner_id', pRow.partner_id)
+            .eq('client_user_id', userId)
+            .eq('status', 'active')
+            .maybeSingle()
+          allowed = !!link
+        }
+        if (allowed) partnerPlacerId = claimedAdminId
+      }
+    }
+
     // ─── Phase 2: Fetch all reference data in parallel ──────────────────
 
     const allVariantIds = [...new Set(body.days.flatMap((d) => d.items.map((it) => it.variantId)))]
@@ -1183,7 +1217,52 @@ export default async (request: Request) => {
       : discountAmount
     discountAmount = effectiveDiscount
 
-    const orderTotal = Math.max(0, orderSubtotal - discountAmount - benefitTotal)
+    // ─── WEC-845: dietitian-partner discount ─────────────────────────────
+    // If the (logged-in) customer is an ACTIVE client of an active partner,
+    // they get the per-client discount on the items subtotal. It stacks with
+    // vouchers (🟢 Ioustinos: refund vouchers / one-off promos must still
+    // work); if voucher + partner would exceed what is left after the company
+    // benefit, the VOUCHER gives way. Rates are frozen onto the order here —
+    // later term changes never touch past orders; recompute_order_money reads
+    // the frozen bps. Fail-OPEN: if the lookup fails the order goes through
+    // at full price rather than failing (logged loudly).
+    let partnerId: string | null = null
+    let partnerDiscountBps: number | null = null
+    let partnerCommissionBps: number | null = null
+    let partnerDiscountAmount = 0
+    if (userId && SUPABASE_SERVICE_KEY) {
+      try {
+        const svcPd = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY, {
+          auth: { persistSession: false, autoRefreshToken: false },
+        })
+        const { data: link, error: linkErr } = await svcPd
+          .from('partner_clients')
+          .select('partner_id, discount_bps, commission_bps, partners!inner(active)')
+          .eq('client_user_id', userId)
+          .eq('status', 'active')
+          .maybeSingle()
+        if (linkErr) {
+          console.error('[submit-order] partner link lookup failed — no partner discount applied:', linkErr.message)
+        } else if (link) {
+          const l = link as { partner_id: string; discount_bps: number; commission_bps: number; partners: { active: boolean } | { active: boolean }[] }
+          const pActive = Array.isArray(l.partners) ? l.partners[0]?.active : l.partners?.active
+          if (pActive) {
+            partnerId = l.partner_id
+            partnerDiscountBps = l.discount_bps
+            partnerCommissionBps = l.commission_bps
+            const room = Math.max(0, orderSubtotal - benefitTotal)
+            partnerDiscountAmount = Math.min(room, Math.round(orderSubtotal * l.discount_bps / 10000))
+            if (discountAmount + partnerDiscountAmount > room) {
+              discountAmount = Math.max(0, room - partnerDiscountAmount)
+            }
+          }
+        }
+      } catch (e) {
+        console.error('[submit-order] partner discount step threw — no partner discount applied:', e)
+      }
+    }
+
+    const orderTotal = Math.max(0, orderSubtotal - discountAmount - benefitTotal - partnerDiscountAmount)
 
     // ─── Phase 5: Insert order ──────────────────────────────────────────
 
@@ -1243,6 +1322,15 @@ export default async (request: Request) => {
       // On the promote-from-draft path this flows through the RPC's
       // p_order_patch (migration wec712_promote_draft_atomic_store_columns).
       store_id: storeId,
+      // WEC-845: dietitian partner snapshot (frozen) + 🟢 «placed by».
+      // NOTE: promote_draft_atomic ignores these keys (explicit column list),
+      // so the promote path writes them with a follow-up UPDATE below.
+      partner_id: partnerId,
+      partner_discount_bps: partnerDiscountBps,
+      partner_commission_bps: partnerCommissionBps,
+      partner_discount_amount: partnerDiscountAmount,
+      placed_by_role: adminUserId ? 'admin' : partnerPlacerId ? 'partner' : 'customer',
+      placed_by_user: adminUserId ?? partnerPlacerId ?? userId,
       updated_at: new Date().toISOString(),
     }
 
@@ -1353,6 +1441,28 @@ export default async (request: Request) => {
       }
       orderId = row.promoted_order_id as string
       childrenAlreadyInserted = true
+
+      // WEC-845: promote_draft_atomic's column list doesn't know the partner
+      // columns, so write them here. Only on a fresh promote — a retry that
+      // found the order already promoted must not overwrite anything.
+      if (!row.was_already_promoted) {
+        const { error: pErr } = await svcRpc
+          .from('orders')
+          .update({
+            partner_id: orderRecord.partner_id,
+            partner_discount_bps: orderRecord.partner_discount_bps,
+            partner_commission_bps: orderRecord.partner_commission_bps,
+            partner_discount_amount: orderRecord.partner_discount_amount,
+            placed_by_role: orderRecord.placed_by_role,
+            placed_by_user: orderRecord.placed_by_user,
+          })
+          .eq('id', orderId)
+        if (pErr) {
+          // The total already includes the discount; losing the snapshot only
+          // affects reporting/commission, so log loudly rather than fail the order.
+          console.error('[submit-order] WEC-845 partner snapshot UPDATE failed for orderId=%s:', orderId, pErr)
+        }
+      }
     } else {
       const { data: orderRow, error: oErr } = await supabase
         .from('orders')

@@ -49,6 +49,8 @@ export function ImpersonationBanner() {
   const target = useImpersonationStore((s) => s.target)
   const loading = useImpersonationStore((s) => s.loading)
   const stop = useImpersonationStore((s) => s.stop)
+  // WEC-844: a dietitian returns to /partner, an admin to /admin.
+  const impersonatorRole = useImpersonationStore((s) => s.impersonatorRole)
   const navigate = useNavigate()
 
   const [summary, setSummary] = useState<PlanSummary | null>(null)
@@ -221,8 +223,9 @@ export function ImpersonationBanner() {
     // lands on the customer site as a guest, then navigates to /admin to
     // sign back in. This is the deliberate convention — no session
     // restoration, no stale-token edge cases.
+    const backTo = impersonatorRole === 'partner' ? '/partner' : '/admin'
     await stop()
-    navigate('/admin')
+    navigate(backTo)
   }
 
   const chip: React.CSSProperties = {

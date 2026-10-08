@@ -3,7 +3,8 @@ import { useUIStore } from '../../store/useUIStore'
 import { useAuthStore } from '../../store/useAuthStore'
 import { useMenuStore } from '../../store/useMenuStore'
 import { useImpersonationStore } from '../../store/useImpersonationStore'
-import { subTotal } from '../../lib/helpers'
+import { subTotal, activeDays, dayAmt } from '../../lib/helpers'
+import { usePartnerDiscount } from '../../lib/partner/usePartnerLink'
 import { makeTr } from '../../lib/translations'
 import { visiblePaymentMethods } from '../../lib/paymentVisibility'
 import { CopyButton } from '../ui/CopyButton'
@@ -40,7 +41,10 @@ export function PaymentSection() {
   const dishMap = useMenuStore((s) => s.dishMap)
   const catLookup = (id: string) => dishMap[id]?.catId
 
-  const total = subTotal(cart, voucher, catLookup)
+  // WEC-845: the dietitian-client discount lowers what the wallet must cover.
+  const rawTotal = activeDays(cart).reduce((sum, d) => sum + dayAmt(cart, d), 0)
+  const partnerDisc = usePartnerDiscount(rawTotal)
+  const total = Math.max(0, subTotal(cart, voucher, catLookup) - partnerDisc.amount)
   const walletSufficient = walletBalance >= total
 
   // WEC-255/588: filter by the admin visibility map via the shared helper

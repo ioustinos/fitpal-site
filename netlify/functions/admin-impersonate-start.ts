@@ -61,17 +61,28 @@ export default async (request: Request) => {
     if (!caller) {
       return Response.json({ error: 'Invalid session' }, { status: 401 })
     }
-    const { data: isAdmin, error: adminCheckErr } = await callerClient.rpc('is_admin')
-    if (adminCheckErr || !isAdmin) {
-      return Response.json({ error: 'Not authorised' }, { status: 403 })
-    }
-
     if (!SUPABASE_SERVICE_KEY) {
       return Response.json({ error: 'Server not configured for impersonation' }, { status: 500 })
     }
     const svc = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY, {
       auth: { persistSession: false, autoRefreshToken: false },
     })
+
+    // Admins may impersonate anyone. WEC-844: a dietitian PARTNER may
+    // impersonate only their own active clients (internal partners: anyone),
+    // checked server-side with the caller's own JWT via partner_can_access.
+    const { data: isAdmin, error: adminCheckErr } = await callerClient.rpc('is_admin')
+    let impersonatorRole: 'admin' | 'partner' = 'admin'
+    if (adminCheckErr || !isAdmin) {
+      const { data: canAccess, error: pErr } = await callerClient.rpc('partner_can_access', { p_client: body.targetUserId })
+      if (pErr || !canAccess) {
+        return Response.json({
+          error: 'Not authorised',
+          detail: pErr ? pErr.message : 'Ο πελάτης δεν είναι ενεργός πελάτης σας. · This customer is not one of your active clients.',
+        }, { status: 403, headers: cors })
+      }
+      impersonatorRole = 'partner'
+    }
 
     // ── Look up target user ────────────────────────────────────────────
     // We read from `profiles` (which mirrors auth.users.email via the
@@ -220,6 +231,9 @@ export default async (request: Request) => {
       // Echo admin id back so the client can stash it for the
       // X-Impersonator-Admin-Id attribution header on order submission.
       adminUserId: caller.id,
+      // WEC-844: who is impersonating — the client uses it to send the
+      // partner back to /partner (not /admin) on exit.
+      impersonatorRole,
     }, {
       headers: cors,
     })

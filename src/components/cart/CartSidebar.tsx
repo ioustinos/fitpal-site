@@ -7,6 +7,8 @@ import { makeTr } from '../../lib/translations'
 import { subTotal, activeDays, dayAmt, fmt } from '../../lib/helpers'
 import { useMenuStore } from '../../store/useMenuStore'
 import { useCompanyBenefit } from '../../lib/storefront/useCompanyBenefit'
+import { usePartnerDiscount } from '../../lib/partner/usePartnerLink'
+import { PartnerDiscountRow } from '../partner/PartnerDiscountRow'
 
 export function CartSidebar() {
   const lang = useUIStore((s) => s.lang)
@@ -30,7 +32,9 @@ export function CartSidebar() {
   const rawTotal = dates.reduce((sum, d) => sum + dayAmt(cart, d), 0)
   // WEC-713: the employer's per-day contribution. Zero on retail.
   const benefit = useCompanyBenefit()
-  const grandTotal = Math.max(0, total - benefit.total)
+  // WEC-845: dietitian-client discount on the items subtotal (stacks with vouchers).
+  const partnerDisc = usePartnerDiscount(rawTotal)
+  const grandTotal = Math.max(0, total - benefit.total - partnerDisc.amount)
   const hasItems = dates.length > 0
   const canCheckout = dates.every((d) => {
     const amt = (cart[d] ?? []).reduce((s, i) => s + i.price * i.qty, 0)
@@ -132,6 +136,8 @@ export function CartSidebar() {
                   <span className="cart-benefit-amt">−{fmt(benefit.total)}</span>
                 </div>
               )}
+
+              <PartnerDiscountRow lang={lang} pct={partnerDisc.pct} amount={partnerDisc.amount} partnerName={partnerDisc.partnerName} />
 
               <div className="cart-total-row">
                 <span className="cart-total-lbl">{t('total')}</span>

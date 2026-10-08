@@ -24,6 +24,8 @@ import { Zones } from './pages/Zones'
 // WEC-715: company + reseller storefronts (epic WEC-649).
 import { Stores } from './pages/Stores'
 import { Vouchers } from './pages/Vouchers'
+// WEC-840: dietitian partners (epic WEC-838).
+import { Partners } from './pages/Partners'
 import { Users } from './pages/Users'
 import { WalletPurchases } from './pages/WalletPurchases'
 import { WalletSettings } from './pages/WalletSettings'
@@ -51,6 +53,7 @@ export default function AdminApp() {
           <Route path="dish-images" element={<ImportImages />} />
           <Route path="orders" element={<Orders />} />
           <Route path="users" element={<Users />} />
+          <Route path="partners" element={<Partners />} />
           <Route path="vouchers" element={<Vouchers />} />
           <Route path="wallet-purchases" element={<WalletPurchases />} />
           <Route path="wallet-settings"  element={<WalletSettings />} />

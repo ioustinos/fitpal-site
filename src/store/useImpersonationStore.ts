@@ -85,6 +85,10 @@ interface ImpersonationState {
    * trusting.
    */
   adminUserId: string | null
+  /** WEC-844: who started the impersonation — 'partner' = a dietitian acting
+   *  for one of their clients. Decides where exit lands (/partner vs /admin)
+   *  and the banner wording. The SERVER re-validates the role on submit. */
+  impersonatorRole: 'admin' | 'partner' | null
   /** True while the start/stop API calls are in-flight. */
   loading: boolean
   /** Last error from start/stop, surfaced to the UI. */
@@ -102,6 +106,7 @@ export const useImpersonationStore = create<ImpersonationState>()(
       active: false,
       target: null,
       adminUserId: null,
+      impersonatorRole: null,
       loading: false,
       setTargetAddresses: (addresses) => set((s) => (s.target ? { target: { ...s.target, addresses } } : s)),
       error: null,
@@ -176,6 +181,7 @@ export const useImpersonationStore = create<ImpersonationState>()(
             active: true,
             target: json.target as ImpersonationTarget,
             adminUserId: json.adminUserId ?? null,
+            impersonatorRole: json.impersonatorRole === 'partner' ? 'partner' : 'admin',
             loading: false,
             error: null,
           })
@@ -200,7 +206,7 @@ export const useImpersonationStore = create<ImpersonationState>()(
       stop: async () => {
         set({ loading: true, error: null })
         try {
-          set({ active: false, target: null, adminUserId: null, loading: false, error: null })
+          set({ active: false, target: null, adminUserId: null, impersonatorRole: null, loading: false, error: null })
           // WEC-828: also clear on exit, so returning to the admin — and the
           // next impersonation — never inherits this customer's checkout state.
           try {
@@ -211,7 +217,7 @@ export const useImpersonationStore = create<ImpersonationState>()(
           return { ok: true }
         } catch (err) {
           const message = err instanceof Error ? err.message : 'Unknown error'
-          set({ active: false, target: null, adminUserId: null, loading: false, error: message })
+          set({ active: false, target: null, adminUserId: null, impersonatorRole: null, loading: false, error: message })
           return { ok: false, error: message }
         }
       },
@@ -226,6 +232,7 @@ export const useImpersonationStore = create<ImpersonationState>()(
         active: false,
         target: null,
         adminUserId: null,
+        impersonatorRole: null,
         loading: false,
         error: null,
         start: async () => ({ ok: false, error: 'rehydrating' }),
@@ -237,6 +244,7 @@ export const useImpersonationStore = create<ImpersonationState>()(
         active: state.active,
         target: state.target,
         adminUserId: state.adminUserId,
+        impersonatorRole: state.impersonatorRole,
       }),
     },
   ),

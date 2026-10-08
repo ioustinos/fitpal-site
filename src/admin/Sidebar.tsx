@@ -74,6 +74,8 @@ const NAV: NavEntry[] = [
     icon: 'customers',
     items: [
       { path: '/admin/users', label: 'Users', icon: 'users' },
+      // WEC-840: dietitian partners (epic WEC-838).
+      { path: '/admin/partners', label: 'Dietitians', icon: 'users' },
     ],
   },
 
