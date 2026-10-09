@@ -172,6 +172,12 @@ Branches:
 - Known leftovers on dev only: `user_prefs.vegetarian/gluten_free/low_carb` (unused, nullable) and
   policy "Public read wallet plans" neutralised to `using (false)`.
 - Auth on the branch: Site URL = dev URL; Brevo SMTP + code-only Magic Link template inherited.
+- **Airtable stays ON for dev** (Ioustinos: "airtable integration matters") and writes to the SAME
+  live base. Dev rows are tagged in code, keyed off `VITE_FITPAL_ENV=dev` (branch-deploy) and never
+  when `CONTEXT=production`: Orders «Store Id» = 900000 + real id (dev retail **909999**, dev company
+  6423 → 906423); Subscriptions «Admin Note» starts with `[DEV] `. See `airtableStoreId()` in
+  `netlify/lib/airtable/env.ts`. Upserts key on the order/plan UUID, so dev can never overwrite a
+  production row — only the visible «Admin Order ID» (FP-YYMMDD-NNNNN) can repeat across envs.
 
 ## Demo Account
 - Email: `demo@fitpal.gr` / Password: `1234`

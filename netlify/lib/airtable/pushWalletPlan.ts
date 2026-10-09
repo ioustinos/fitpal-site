@@ -11,7 +11,7 @@ import { toE164 } from '../../../src/lib/phoneNormalize'
 // add the option in Airtable FIRST.
 
 import type { SupabaseClient } from '@supabase/supabase-js'
-import { TABLES, airtableDeleteEnabled } from './env'
+import { TABLES, airtableDeleteEnabled, isDevAirtableTarget, DEV_NOTE_PREFIX } from './env'
 import { upsertRecords, findRecordId, createRecord, deleteRecords } from './client'
 import { toEuros, esc } from './maps'
 
@@ -230,7 +230,8 @@ export async function pushWalletPlanToAirtable(
     // calendar days the customer picked, not instants.
     'Start Date': plan.start_date ?? null,
     'Valid Until': plan.active_until ?? null,
-    'Admin Note': plan.admin_note ?? '',
+    // Dev deploys share the live base: mark the plan so ops can tell it apart.
+    'Admin Note': (isDevAirtableTarget() ? DEV_NOTE_PREFIX : '') + (plan.admin_note ?? ''),
     'Viva Order Code': plan.viva_order_code ?? '',
     'Viva Transaction Id': plan.viva_transaction_id ?? '',
     Επωνυμία: plan.invoice_name ?? '',
