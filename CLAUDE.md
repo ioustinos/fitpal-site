@@ -152,6 +152,27 @@ Branches:
 - `dev` → https://dev--fitpal-order.netlify.app
 - `main` → https://fitpal-order.netlify.app (production)
 
+## ⚠️ DEV HAS ITS OWN DATABASE (since 2026-10-10)
+
+`dev` deploys (Netlify **branch-deploy** context) talk to the Supabase **branch** `dev`, ref
+**`jrxxsixhxgawucorfyjt`** (persistent), NOT production `rhwetztxwjxfstffalwl`.
+- Netlify: `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY` and `SUPABASE_SERVICE_ROLE_KEY` have a separate
+  branch-deploy value pointing at the branch. Production values untouched.
+- Every DB change must now be applied to **both** projects (dev first, test, then prod) — the MCP
+  `execute_sql` takes the ref as `project_id`.
+- How it was built: Supabase branching replays migration history only, and ours fails at #40
+  (a May data migration), so the branch was brought to parity by hand on 2026-10-10 — structure
+  fingerprinted equal to prod (columns, functions, constraints, indexes, policies, triggers, grants).
+  `supabase/dev_branch_catchup.sql` holds the DELETE/DROP-bearing part the MCP refuses.
+- Data: reference data only (dishes, variants, menus, zones, settings, stores, public vouchers),
+  pulled through prod's public REST API by `devsync.fetch()` / `devsync.rows()` (schema `devsync`,
+  dev only, uses pg_net). Re-sync: `select devsync.fetch('<table>','<order cols>',<pages>)`, wait, then
+  `insert … from jsonb_populate_recordset(null::public.<table>, devsync.rows('<table>'))`.
+  No customers, orders or wallets — create test users on dev.
+- Known leftovers on dev only: `user_prefs.vegetarian/gluten_free/low_carb` (unused, nullable) and
+  policy "Public read wallet plans" neutralised to `using (false)`.
+- Auth on the branch: Site URL = dev URL; Brevo SMTP + code-only Magic Link template inherited.
+
 ## Demo Account
 - Email: `demo@fitpal.gr` / Password: `1234`
 - Pre-confirmed in Supabase, no email verification needed
