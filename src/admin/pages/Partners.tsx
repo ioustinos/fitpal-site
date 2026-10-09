@@ -95,6 +95,10 @@ function PartnerEditor({ partner, onChanged }: { partner: AdminPartner; onChange
         <button className={`admin-tab${tab === 'money' ? ' active' : ''}`} onClick={() => setTab('money')}>Commission & payouts</button>
         <button className={`admin-tab${tab === 'details' ? ' active' : ''}`} onClick={() => setTab('details')}>Details & add-ons</button>
       </div>
+      <button className="admin-btn-secondary admin-btn-sm" style={{ marginLeft: 10 }}
+        onClick={() => { try { sessionStorage.setItem('fitpal_partner_view_as', partner.id) } catch { /* ignore */ } window.location.href = '/partner' }}>
+        Open portal as {partner.name} →
+      </button>
       {tab === 'details' && <PartnerForm partner={partner} onSaved={() => onChanged()} />}
       {tab === 'clients' && <ClientsTab partner={partner} onChanged={onChanged} />}
       {tab === 'money' && <MoneyTab partner={partner} onChanged={onChanged} />}

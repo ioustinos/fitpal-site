@@ -413,3 +413,24 @@ begin
     execute format('grant execute on function %s to authenticated', f);
   end loop;
 end $$;
+
+-- ── 2026-10-09 03:30 — admins can view the portal AS any partner ───────────
+-- 🟢 Ioustinos: «as an admin i should be able to see every partner page».
+-- The client sends `x-partner-view: <partner uuid>`; honoured ONLY for admins.
+create or replace function public.current_partner_id()
+returns uuid language plpgsql stable security definer set search_path = public as $$
+declare v_hdr text; v_id uuid;
+begin
+  begin
+    v_hdr := nullif(current_setting('request.headers', true), '')::json ->> 'x-partner-view';
+  exception when others then v_hdr := null;
+  end;
+  if v_hdr is not null and coalesce(public.is_admin(), false) then
+    select id into v_id from partners where id = v_hdr::uuid;
+    if v_id is not null then return v_id; end if;
+  end if;
+  select pu.partner_id into v_id from partner_users pu
+    join partners p on p.id = pu.partner_id and p.active
+   where pu.user_id = auth.uid() limit 1;
+  return v_id;
+end $$;

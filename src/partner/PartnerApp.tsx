@@ -12,7 +12,7 @@ import { useAuthStore } from '../store/useAuthStore'
 import { useImpersonationStore } from '../store/useImpersonationStore'
 import { useUIStore } from '../store/useUIStore'
 import { LogoIcon } from '../components/ui/LogoIcon'
-import { fetchMyPartner, type MyPartner } from './api'
+import { fetchMyPartner, fetchAllPartnersForAdmin, getViewAs, setViewAs, type MyPartner } from './api'
 import { PartnerContext } from './context'
 import { Clients } from './pages/Clients'
 import { ClientDetailPage } from './pages/ClientDetail'
@@ -31,6 +31,18 @@ export default function PartnerApp() {
   const [partner, setPartner] = useState<MyPartner | null>(null)
   const [state, setState] = useState<'loading' | 'ok' | 'none' | 'error'>('loading')
   const [err, setErr] = useState<string | null>(null)
+  // Admins: view the portal AS any partner (x-partner-view header, admin-only on the DB side).
+  const [viewAs, setViewAsState] = useState<string | null>(getViewAs())
+  const [allPartners, setAllPartners] = useState<Array<{ id: string; name: string; is_internal: boolean; active: boolean }>>([])
+  const isAdmin = !!user?.isAdmin
+  useEffect(() => {
+    if (!isAdmin) return
+    void fetchAllPartnersForAdmin().then(({ data }) => setAllPartners(data))
+  }, [isAdmin])
+  function chooseView(id: string | null) {
+    setViewAs(id); setViewAsState(id)
+    navigate('/partner')
+  }
 
   useEffect(() => {
     const previous = document.title
@@ -49,7 +61,7 @@ export default function PartnerApp() {
       setState(data ? 'ok' : 'none')
     })
     return () => { cancelled = true }
-  }, [sessionChecked, user?.id, impersonating]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [sessionChecked, user?.id, impersonating, viewAs]) // eslint-disable-line react-hooks/exhaustive-deps
 
   if (!sessionChecked) return <div className="admin-boot"><div className="admin-spinner" /></div>
 
@@ -82,6 +94,25 @@ export default function PartnerApp() {
   if (state === 'error') {
     return <Gate title="Κάτι πήγε στραβά" eyebrow="Σφάλμα"><p>{err}</p></Gate>
   }
+  if ((state === 'none' || !partner) && isAdmin) {
+    return (
+      <Gate title="Προβολή ως διαιτολόγος" eyebrow="Admin">
+        <p>Ως admin μπορείτε να ανοίξετε το portal οποιουδήποτε διαιτολόγου.</p>
+        {allPartners.length === 0
+          ? <p>Δεν υπάρχουν διαιτολόγοι ακόμα — δημιουργήστε από <a href="/admin/partners">Admin → Dietitians</a>.</p>
+          : (
+            <div className="admin-403-actions" style={{ flexDirection: 'column', alignItems: 'stretch' }}>
+              {allPartners.map((p) => (
+                <button key={p.id} className="btn-ghost" onClick={() => chooseView(p.id)}>
+                  {p.name}{p.is_internal ? ' · Fitpal' : ''}{p.active ? '' : ' (ανενεργός)'}
+                </button>
+              ))}
+            </div>
+          )}
+      </Gate>
+    )
+  }
+
   if (state === 'none' || !partner) {
     return (
       <Gate title="Δεν είστε συνεργάτης διαιτολόγος" eyebrow="403">
@@ -104,7 +135,13 @@ export default function PartnerApp() {
             </Link>
           </div>
           <div className="admin-topbar-right">
-            <span className="admin-role-badge">{partner.is_internal ? 'Fitpal' : partner.name}</span>
+            {isAdmin && allPartners.length > 0 ? (
+              <select className="admin-select" value={partner.id} onChange={(e) => chooseView(e.target.value)} title="Admin: προβολή ως">
+                {allPartners.map((p) => <option key={p.id} value={p.id}>Προβολή ως: {p.name}</option>)}
+              </select>
+            ) : (
+              <span className="admin-role-badge">{partner.is_internal ? 'Fitpal' : partner.name}</span>
+            )}
             <span className="admin-user-email">{user.email}</span>
             <button className="admin-topbar-link" onClick={() => navigate('/')}>Site</button>
             <button className="admin-logout" onClick={async () => { await useAuthStore.getState().logout(); navigate('/partner') }}>Αποσύνδεση</button>

@@ -51,9 +51,12 @@ export default async (request: Request): Promise<Response> => {
   const authHeader = request.headers.get('Authorization') ?? ''
   const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : ''
   if (!token) return Response.json({ error: 'Authentication required' }, { status: 401, headers: cors })
+  // An admin viewing the portal as a partner sends x-partner-view; the DB
+  // honours it only for admins (current_partner_id), so it is safe to forward.
+  const viewAs = request.headers.get('x-partner-view')
   const callerClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
     auth: { persistSession: false, autoRefreshToken: false },
-    global: { headers: { Authorization: `Bearer ${token}` } },
+    global: { headers: { Authorization: `Bearer ${token}`, ...(viewAs ? { 'x-partner-view': viewAs } : {}) } },
   })
   const { data: { user: caller } } = await callerClient.auth.getUser(token)
   if (!caller) return Response.json({ error: 'Invalid session' }, { status: 401, headers: cors })

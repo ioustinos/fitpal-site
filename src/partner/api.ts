@@ -6,6 +6,29 @@
  */
 import { supabase } from '../lib/supabase'
 
+/**
+ * Admins can open the portal AS any partner. The chosen partner id travels as
+ * the `x-partner-view` request header; the DB (current_partner_id) honours it
+ * ONLY when the caller is an admin, and ignores it for everyone else.
+ */
+const VIEW_KEY = 'fitpal_partner_view_as'
+export function getViewAs(): string | null {
+  try { return sessionStorage.getItem(VIEW_KEY) } catch { return null }
+}
+export function setViewAs(id: string | null) {
+  try { if (id) sessionStorage.setItem(VIEW_KEY, id); else sessionStorage.removeItem(VIEW_KEY) } catch { /* ignore */ }
+}
+function rpc(fn: string, args?: Record<string, unknown>) {
+  const q = supabase.rpc(fn, args)
+  const v = getViewAs()
+  return v ? q.setHeader('x-partner-view', v) : q
+}
+
+export async function fetchAllPartnersForAdmin() {
+  const { data, error } = await supabase.from('partners').select('id, name, is_internal, active').order('name')
+  return { data: (data ?? []) as Array<{ id: string; name: string; is_internal: boolean; active: boolean }>, error: error?.message ?? null }
+}
+
 export interface MyPartner {
   id: string
   name: string
@@ -83,31 +106,31 @@ export interface CommissionLine {
 function msg(e: { message: string } | null): string | null { return e ? e.message : null }
 
 export async function fetchMyPartner() {
-  const { data, error } = await supabase.rpc('my_partner')
+  const { data, error } = await rpc('my_partner')
   return { data: (data as MyPartner | null) ?? null, error: msg(error) }
 }
 export async function fetchClients(search?: string) {
-  const { data, error } = await supabase.rpc('partner_list_clients', { p_search: search ?? null })
+  const { data, error } = await rpc('partner_list_clients', { p_search: search ?? null })
   return { data: (data as ClientRow[] | null) ?? [], error: msg(error) }
 }
 export async function fetchClientDetail(userId: string) {
-  const { data, error } = await supabase.rpc('partner_client_detail', { p_client: userId })
+  const { data, error } = await rpc('partner_client_detail', { p_client: userId })
   return { data: (data as ClientDetail | null) ?? null, error: msg(error) }
 }
 export async function saveClient(userId: string, patch: { profile?: Record<string, unknown>; targets?: Record<string, unknown> }) {
-  const { error } = await supabase.rpc('partner_update_client', { p_client: userId, p: patch })
+  const { error } = await rpc('partner_update_client', { p_client: userId, p: patch })
   return { error: msg(error) }
 }
 export async function addMeasurement(userId: string, m: Record<string, unknown>) {
-  const { error } = await supabase.rpc('partner_add_measurement', { p_client: userId, p: m })
+  const { error } = await rpc('partner_add_measurement', { p_client: userId, p: m })
   return { error: msg(error) }
 }
 export async function fetchOrders(clientId: string | null, from?: string | null, to?: string | null) {
-  const { data, error } = await supabase.rpc('partner_orders', { p_client: clientId, p_from: from ?? null, p_to: to ?? null })
+  const { data, error } = await rpc('partner_orders', { p_client: clientId, p_from: from ?? null, p_to: to ?? null })
   return { data: (data as PartnerOrder[] | null) ?? [], error: msg(error) }
 }
 export async function fetchFinance(from?: string | null, to?: string | null) {
-  const { data, error } = await supabase.rpc('partner_finance', { p_from: from ?? null, p_to: to ?? null })
+  const { data, error } = await rpc('partner_finance', { p_from: from ?? null, p_to: to ?? null })
   return { data: (data as CommissionLine[] | null) ?? [], error: msg(error) }
 }
 
@@ -119,7 +142,11 @@ export async function createClientAccount(input: {
   if (!session?.access_token) return { error: 'Not signed in' }
   const res = await fetch('/.netlify/functions/partner-create-client', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${session.access_token}`,
+      ...(getViewAs() ? { 'x-partner-view': getViewAs()! } : {}),
+    },
     body: JSON.stringify(input),
   })
   let json: Record<string, unknown> = {}
