@@ -31,6 +31,14 @@ import { WalletPurchases } from './pages/WalletPurchases'
 import { WalletSettings } from './pages/WalletSettings'
 import { DemoDishes } from './pages/DemoDishes'
 import { DesignSystem } from './pages/DesignSystem'
+// Costing (epic WEC-857)
+import { CostingHome } from './pages/costing/CostingHome'
+import { CostItems } from './pages/costing/CostItems'
+import { CostSuppliers } from './pages/costing/CostSuppliers'
+import { CostPurchases } from './pages/costing/CostPurchases'
+import { CostComponents } from './pages/costing/CostComponents'
+import { CostLinks } from './pages/costing/CostLinks'
+import { CostDishes } from './pages/costing/CostDishes'
 import './admin.css'
 
 /**
@@ -75,6 +83,14 @@ export default function AdminApp() {
 
           <Route path="zones" element={<Zones />} />
           <Route path="stores" element={<Stores />} />
+          {/* Costing (epic WEC-857) */}
+          <Route path="costing" element={<CostingHome />} />
+          <Route path="costing/dishes" element={<CostDishes />} />
+          <Route path="costing/components" element={<CostComponents />} />
+          <Route path="costing/items" element={<CostItems />} />
+          <Route path="costing/purchases" element={<CostPurchases />} />
+          <Route path="costing/suppliers" element={<CostSuppliers />} />
+          <Route path="costing/links" element={<CostLinks />} />
         </Route>
       </Routes>
     </AdminGuard>

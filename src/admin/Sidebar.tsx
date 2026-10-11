@@ -25,7 +25,7 @@ type IconName =
   | 'dashboard' | 'menus' | 'dishes' | 'categories' | 'tags' | 'ingredients'
   | 'allergies' | 'images' | 'import' | 'orders' | 'settings' | 'zones'
   | 'users' | 'vouchers' | 'wallet' | 'walletSettings'
-  | 'catalogue' | 'promotions' | 'customers'
+  | 'catalogue' | 'promotions' | 'customers' | 'costing'
   | 'chevron'
 
 interface NavLeaf {
@@ -93,6 +93,22 @@ const NAV: NavEntry[] = [
       { path: '/admin/allergies',    label: 'Allergies',    icon: 'allergies' },
       { path: '/admin/dish-images',  label: 'Dish images',  icon: 'images' },
       { path: '/admin/import-menu',  label: 'Import menu',  icon: 'import' },
+    ],
+  },
+
+  // Costing (epic WEC-857): cost items, purchases, components, dish product cost
+  {
+    id: 'costing',
+    label: 'Costing',
+    icon: 'costing',
+    items: [
+      { path: '/admin/costing',            label: 'Overview',     icon: 'costing', end: true },
+      { path: '/admin/costing/dishes',     label: 'Dish costs',   icon: 'dishes' },
+      { path: '/admin/costing/components', label: 'Components',   icon: 'ingredients' },
+      { path: '/admin/costing/items',      label: 'Cost items',   icon: 'categories' },
+      { path: '/admin/costing/purchases',  label: 'Purchases',    icon: 'import' },
+      { path: '/admin/costing/suppliers',  label: 'Suppliers',    icon: 'users' },
+      { path: '/admin/costing/links',      label: 'Dish links',   icon: 'tags' },
     ],
   },
 
@@ -363,6 +379,15 @@ function Icon({ name }: { name: IconName }) {
           <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
           <circle cx="8.5" cy="7" r="4" />
           <path d="M20 8v6M23 11h-6" />
+        </svg>
+      )
+    case 'costing':
+      return (
+        <svg {...p}>
+          <path d="M4 19h16" />
+          <path d="M7 16V9" />
+          <path d="M12 16V5" />
+          <path d="M17 16v-4" />
         </svg>
       )
     case 'chevron':
