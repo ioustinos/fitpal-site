@@ -177,7 +177,10 @@ Branches:
   pulled through prod's public REST API by `devsync.fetch()` / `devsync.rows()` (schema `devsync`,
   dev only, uses pg_net). Re-sync: `select devsync.fetch('<table>','<order cols>',<pages>)`, wait, then
   `insert … from jsonb_populate_recordset(null::public.<table>, devsync.rows('<table>'))`.
-  No customers, orders or wallets — create test users on dev.
+  Plus an anonymized production sample (2026-10-11, `supabase/dev_seed_loader.sql`, payload in
+  `devsync.seed_parts`): 25 customers «Πελάτης Δοκιμής N» / ioustinos.sarris+devNN@gmail.com /
+  phones 6900000NNN (no password — sign in with the email code), real streets, 103 orders numbered
+  `SD-…` (21 days), 310 days, 1014 items, 10 wallets, 8 plans. All left airtable_dirty=false.
 - Known leftovers on dev only: `user_prefs.vegetarian/gluten_free/low_carb` (unused, nullable) and
   policy "Public read wallet plans" neutralised to `using (false)`.
 - Auth on the branch: Site URL = dev URL; code-only Magic Link template + Brevo host/username
