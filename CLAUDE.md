@@ -164,6 +164,15 @@ Branches:
   (a May data migration), so the branch was brought to parity by hand on 2026-10-10 — structure
   fingerprinted equal to prod (columns, functions, constraints, indexes, policies, triggers, grants).
   `supabase/dev_branch_catchup.sql` holds the DELETE/DROP-bearing part the MCP refuses.
+  **Table GRANTS were missing** at first (new Supabase DBs give anon/authenticated/service_role
+  only `Dxtm`, not `arwd`) → every API call 403'd, menu failed to load. Fixed 2026-10-11 by
+  `supabase/dev_branch_grants.sql`. Any future branch/project: compare `pg_class.relacl` +
+  `pg_default_acl` with prod, not just functions/policies.
+- Dev-only trigger `devsync_bootstrap_owner` on auth.users: when ioustinos.sarris@gmail.com signs
+  up on dev he becomes admin owner + owner of the TEST dietitian (b8317e66…) automatically.
+- Auth email on the branch needs the **Brevo SMTP key re-entered** in the branch's
+  Authentication → Emails → SMTP (prod's is encrypted and doesn't copy). Until then OTP login
+  fails with «Error sending confirmation email» (Brevo 535).
 - Data: reference data only (dishes, variants, menus, zones, settings, stores, public vouchers),
   pulled through prod's public REST API by `devsync.fetch()` / `devsync.rows()` (schema `devsync`,
   dev only, uses pg_net). Re-sync: `select devsync.fetch('<table>','<order cols>',<pages>)`, wait, then
@@ -171,7 +180,8 @@ Branches:
   No customers, orders or wallets — create test users on dev.
 - Known leftovers on dev only: `user_prefs.vegetarian/gluten_free/low_carb` (unused, nullable) and
   policy "Public read wallet plans" neutralised to `using (false)`.
-- Auth on the branch: Site URL = dev URL; Brevo SMTP + code-only Magic Link template inherited.
+- Auth on the branch: Site URL = dev URL; code-only Magic Link template + Brevo host/username
+  inherited, but NOT the SMTP password (see below).
 - **Airtable stays ON for dev** (Ioustinos: "airtable integration matters") and writes to the SAME
   live base. Dev rows are tagged in code, keyed off `VITE_FITPAL_ENV=dev` (branch-deploy) and never
   when `CONTEXT=production`: Orders «Store Id» = 900000 + real id (dev retail **909999**, dev company
