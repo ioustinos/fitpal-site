@@ -43,8 +43,11 @@ export function ClientDetailPage() {
   const [loading, setLoading] = useState(true)
   const [acting, setActing] = useState<string | null>(null)
 
-  async function load() {
-    setLoading(true); setErr(null)
+  // silent=true refreshes after a save without unmounting the cards, so the
+  // card's «✓ Αποθηκεύτηκε» message stays visible.
+  async function load(silent = false) {
+    if (!silent) setLoading(true)
+    setErr(null)
     const { data, error } = await fetchClientDetail(userId)
     if (error) setErr(error)
     setD(data); setLoading(false)
@@ -97,11 +100,11 @@ export function ClientDetailPage() {
       {err && <div className="admin-error-banner">{err}</div>}
 
       <div className="partner-grid">
-        <BodyCard d={d} userId={userId} onSaved={load} />
-        <TargetsCard d={d} userId={userId} onSaved={load} />
+        <BodyCard d={d} userId={userId} onSaved={() => load(true)} />
+        <TargetsCard d={d} userId={userId} onSaved={() => load(true)} />
         <PlanCard d={d} />
         <AddressesCard d={d} />
-        {d.progressEnabled && <ProgressCard d={d} userId={userId} onSaved={load} />}
+        {d.progressEnabled && <ProgressCard d={d} userId={userId} onSaved={() => load(true)} />}
       </div>
 
       <h2 className="partner-h2">Παραγγελίες</h2>

@@ -16,6 +16,7 @@
 // The login email ("set a password if you want") is sent by the portal with
 // the normal OTP email, like admin «Στείλε πρόσκληση».
 
+import { toE164 } from '../../src/lib/phoneNormalize'
 import { createClient } from '@supabase/supabase-js'
 import { corsHeaders } from '../lib/cors'
 
@@ -43,7 +44,9 @@ export default async (request: Request): Promise<Response> => {
 
   const email = (body.email ?? '').trim().toLowerCase()
   const name = (body.name ?? '').trim()
-  const phone = (body.phone ?? '').trim()
+  // E.164 like every other write path (WEC-826); a bare 69… number otherwise
+  // shows up at checkout as «+69…» and fails phone validation.
+  const phone = toE164(body.phone) ?? ''
   if (!EMAIL_RE.test(email)) {
     return Response.json({ error: 'Δώσε ένα έγκυρο email. · A valid email is required.' }, { status: 400, headers: cors })
   }

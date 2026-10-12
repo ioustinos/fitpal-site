@@ -56,7 +56,7 @@ export function Clients() {
           <p className="admin-page-sub">
             {partner.is_internal
               ? 'Ομάδα διαιτολόγων Fitpal — αναζήτηση σε όλους τους πελάτες'
-              : `${active} ενεργοί${pending ? ` · ${pending} σε αναμονή` : ''}`}
+              : `${active} ${active === 1 ? 'ενεργός' : 'ενεργοί'}${pending ? ` · ${pending} σε αναμονή` : ''}`}
           </p>
         </div>
         <button className="admin-btn-primary" onClick={() => setAdding(true)}>+ Νέος πελάτης</button>

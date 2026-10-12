@@ -71,7 +71,9 @@ export function PartnerLinkPrompt() {
 
   return (
     <div role="dialog" aria-live="polite" style={{
-      position: 'fixed', left: 16, right: 16, bottom: 16, zIndex: 900, maxWidth: 520, margin: '0 auto',
+      // Top of the screen, above the cookie banner (z 1000, fixed at the bottom),
+      // which otherwise covered the Accept/Consent buttons on a first visit.
+      position: 'fixed', left: 16, right: 16, top: 'calc(env(safe-area-inset-top, 0px) + 76px)', zIndex: 1001, maxWidth: 520, margin: '0 auto',
       background: 'var(--surface, #fff)', color: 'var(--text, #1a1a1a)', borderRadius: 14,
       boxShadow: '0 12px 40px rgba(0,0,0,.18)', padding: '18px 18px 14px', border: '1px solid rgba(0,0,0,.06)',
     }}>

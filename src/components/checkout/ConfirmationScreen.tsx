@@ -30,7 +30,7 @@ function formatDate(iso: string, lang: 'el' | 'en') {
  *    everything we need into local state FIRST, then clear, so the
  *    summary still renders after cart is reset.
  */
-export function ConfirmationScreen({ orderNumber }: { orderNumber?: string }) {
+export function ConfirmationScreen({ orderNumber, serverTotal }: { orderNumber?: string; serverTotal?: number }) {
   const lang = useUIStore((s) => s.lang)
   const t = makeTr(lang)
   const closeCheckout = useUIStore((s) => s.closeCheckout)
@@ -173,7 +173,9 @@ export function ConfirmationScreen({ orderNumber }: { orderNumber?: string }) {
 
         <div className="conf-total">
           <span>{t('total')}</span>
-          <span>{fmt(snapshot.total)}</span>
+          {/* The server total is what was charged (voucher, company benefit and
+              dietitian discount applied); the cart estimate is only a fallback. */}
+          <span>{fmt(serverTotal ?? snapshot.total)}</span>
         </div>
       </div>
 

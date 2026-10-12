@@ -509,6 +509,8 @@ export async function submitOrder(payload: SubmitOrderPayload): Promise<{
     paymentUrl?: string | null
     /** True if we created the order row but the Viva call failed. Admin must regenerate. */
     paymentSetupFailed?: boolean
+    /** Charged total in euros, after voucher, company benefit and dietitian discount. */
+    total?: number
   } | null
   error: string | null
   validationErrors?: Record<string, string[]>
