@@ -188,18 +188,32 @@
 
 <div class="block">
   <h3>What this pass covers</h3>
-  <p>The dietitian partner feature (WEC-838 — Dietitian Partners epic: dietitians resell plans and order for their clients) on the dev site, from three seats: <strong>admin</strong>, <strong>dietitian</strong> and <strong>client</strong>. It walks every screen that shipped: admin dietitian management, the /partner portal, the client's accept and consent prompts, the dietitian discount at checkout, commission and payouts, and the two paid add-ons. The dev database holds 25 anonymized customers «Πελάτης Δοκιμής N» with real-looking orders; none is linked to a dietitian yet.</p>
+  <p>The dietitian partner feature (WEC-838 — Dietitian Partners epic: dietitians resell plans and order for their clients) on the dev site, from three browser windows: <strong>admin</strong>, <strong>dietitian</strong> and <strong>client</strong>. It walks every screen that shipped: admin dietitian management, the /partner portal, the client's accept and consent prompts, the dietitian discount at checkout, commission and payouts, and the two paid add-ons. The dev database holds 25 anonymized customers «Πελάτης Δοκιμής N» with real-looking orders; none is linked to a dietitian yet.</p>
 </div>
 
 <div class="block">
-  <h3>Sign-ins — three seats, three browser sessions</h3>
+  <h3>The three browser windows</h3>
+  <p>You play three people at once, so you need three windows that don't share a sign-in. Every step starts with <strong>SIGNED IN AS</strong>: it names the window and the account. Keep all three open side by side for the whole pass.</p>
   <div class="scroller"><table>
-    <tr><th>Seat</th><th>Where</th><th>Login</th></tr>
-    <tr><td><strong>A · Admin</strong></td><td>Your normal browser window</td><td><span class="inline">ioustinos.sarris@gmail.com</span> — admin, and also an owner of the TEST dietitian</td></tr>
-    <tr><td><strong>B · Dietitian</strong></td><td>A second browser or Chrome profile</td><td><span class="inline">ioustinos.sarris+diet@gmail.com</span> — created in step 1.2, no admin rights</td></tr>
-    <tr><td><strong>C · Client</strong></td><td>An incognito window; sign out between clients</td><td><span class="inline">ioustinos.sarris+devNN@gmail.com</span> and new aliases named in the steps</td></tr>
+    <tr><th>Window</th><th>How to open it</th><th>Signed in as</th></tr>
+    <tr><td><strong>ADMIN window</strong></td><td>Your normal Chrome window</td><td><span class="inline">ioustinos.sarris@gmail.com</span>: you. You're an admin and also an owner of the TEST dietitian.</td></tr>
+    <tr><td><strong>DIETITIAN window</strong></td><td>A second Chrome profile: click your profile picture at the top right of Chrome → «Add» → «Continue without an account». It opens a new window with its own sign-ins.</td><td><span class="inline">ioustinos.sarris+diet@gmail.com</span>: plays the dietitian and has no admin rights.</td></tr>
+    <tr><td><strong>CLIENT window</strong></td><td>An incognito window from your normal Chrome: ⌘ + Shift + N</td><td>The customer named in each step, e.g. <span class="inline">ioustinos.sarris+dev23@gmail.com</span>. Only one customer at a time: sign out before you sign in as the next one.</td></tr>
   </table></div>
-  <p>Every login is by email code. All codes land in your own Gmail because every account is a +alias.</p>
+</div>
+
+<div class="block">
+  <h3>How to sign in (the same in every window)</h3>
+  <ol>
+    <li>Open <span class="inline">https://dev--fitpal-order.netlify.app</span> in that window.</li>
+    <li>Click «Σύνδεση» at the top right.</li>
+    <li>Click «Στείλε μου κωδικό στο email».</li>
+    <li>Type the account's email and click «Στείλε μου κωδικό».</li>
+    <li>Open your own Gmail (<span class="inline">ioustinos.sarris@gmail.com</span>). The code arrives there for every account, because they are all +aliases of your address.</li>
+    <li>Type the code and click «Επαλήθευση &amp; σύνδεση».</li>
+  </ol>
+  <p><strong>To check who is signed in:</strong> your name or email shows at the top right. <strong>To sign out:</strong> click it, then «Αποσύνδεση».</p>
+  <p>A step that says «SIGNED OUT» means: sign out in that window before you start.</p>
 </div>
 
 <div class="block">
@@ -219,7 +233,7 @@
     <li>Leaving «ως πελάτης» mode signs you out; the portal says so in its own note. Signing in again is expected.</li>
     <li>Wallet-paid orders always show 0 commission. The commission was earned when the plan was bought.</li>
     <li>Cash and transfer orders show 0 commission until they're marked paid. Commission counts collected money only.</li>
-    <li>Ordering for a client from <em>your own</em> account records the order as placed by admin, not by the dietitian, because you're an admin. Part 5 uses the +diet login for that reason.</li>
+    <li>Ordering for a client from <em>your own</em> account records the order as placed by admin, not by the dietitian, because you're an admin. Part 5 uses the DIETITIAN window for that reason.</li>
   </ul>
 </div>
 
@@ -247,7 +261,8 @@
 
 <div class="step" data-id="1.1">
   <div class="step__hd"><span class="step__n">1.1</span><p class="step__t">The dev site loads and you are admin</p><div class="verdict"></div></div>
-  <p class="seg where"><span class="lab">WHERE</span>Seat A · <span class="inline">https://dev--fitpal-order.netlify.app</span></p>
+  <div class="seg"><span class="lab">SIGNED IN AS</span><ul><li><strong>ADMIN window</strong>: <span class="inline">ioustinos.sarris@gmail.com</span> (you)</li></ul></div>
+  <p class="seg where"><span class="lab">WHERE</span>ADMIN window · <span class="inline">https://dev--fitpal-order.netlify.app</span></p>
   <div class="seg"><span class="lab">DO</span><ol><li>Open the site signed in as yourself.</li></ol></div>
   <div class="seg expect"><span class="lab">EXPECT</span><ul><li>The weekly menu loads.</li><li>The Admin entry is available.</li></ul></div>
   <div class="warn"><span class="lab">FAIL IF</span><ul><li>The menu shows an error or no dishes.</li><li>No Admin entry.</li></ul></div>
@@ -255,15 +270,17 @@
 
 <div class="step" data-id="1.2">
   <div class="step__hd"><span class="step__n">1.2</span><p class="step__t">A plain dietitian login exists</p><div class="verdict"></div></div>
-  <p class="seg where"><span class="lab">WHERE</span>Seat B · <span class="inline">https://dev--fitpal-order.netlify.app</span></p>
-  <div class="seg"><span class="lab">DO</span><ol><li>Sign in with <span class="inline">ioustinos.sarris+diet@gmail.com</span> by email code.</li></ol></div>
+  <div class="seg"><span class="lab">SIGNED IN AS</span><ul><li><strong>DIETITIAN window</strong>: <span class="inline">ioustinos.sarris+diet@gmail.com</span></li></ul></div>
+  <p class="seg where"><span class="lab">WHERE</span>DIETITIAN window · <span class="inline">https://dev--fitpal-order.netlify.app</span></p>
+  <div class="seg"><span class="lab">DO</span><ol><li>In a SECOND browser or Chrome profile (not the admin one), sign in with <span class="inline">ioustinos.sarris+diet@gmail.com</span> by email code. This is the dietitian's own account, not admin.</li><li>If this account already signed in during an earlier run, just confirm it is signed in and move on.</li></ol></div>
   <div class="seg expect"><span class="lab">EXPECT</span><ul><li>The code arrives in your Gmail.</li><li>You are signed in as an ordinary customer, with no Admin entry.</li></ul></div>
   <div class="warn"><span class="lab">FAIL IF</span><ul><li>No code email within 2 minutes.</li><li>«Error sending confirmation email».</li></ul></div>
 </div>
 
 <div class="step" data-id="1.3">
   <div class="step__hd"><span class="step__n">1.3</span><p class="step__t">The dietitian login is attached to TEST</p><div class="verdict"></div></div>
-  <p class="seg where"><span class="lab">WHERE</span>Seat A · <span class="inline">/admin/partners</span> → «TEST Διαιτολόγος (E2E)» → tab «Details &amp; add-ons»</p>
+  <div class="seg"><span class="lab">SIGNED IN AS</span><ul><li><strong>ADMIN window</strong>: <span class="inline">ioustinos.sarris@gmail.com</span> (you)</li></ul></div>
+  <p class="seg where"><span class="lab">WHERE</span>ADMIN window · <span class="inline">/admin/partners</span> → «TEST Διαιτολόγος (E2E)» → tab «Details &amp; add-ons»</p>
   <div class="seg"><span class="lab">DO</span><ol><li>Under «Portal logins», enter the +diet email and press «Link login».</li><li>Check the defaults: client discount, commission, «Progress tracking» and «Referral link + QR» ticked, referral code «test-e2e-diet».</li><li>Change the percentages if you want spec-like numbers, press «Save», reload.</li></ol></div>
   <div class="seg expect"><span class="lab">EXPECT</span><ul><li>The +diet email is listed under Portal logins.</li><li>Every value you saved is still there after reload.</li></ul></div>
   <div class="warn"><span class="lab">FAIL IF</span><ul><li>«Δεν υπάρχει λογαριασμός με αυτό το email» although 1.2 passed.</li><li>Values revert after reload.</li></ul></div>
@@ -273,7 +290,8 @@
 
 <div class="step" data-id="2.1">
   <div class="step__hd"><span class="step__n">2.1</span><p class="step__t">A second dietitian can be created</p><div class="verdict"></div></div>
-  <p class="seg where"><span class="lab">WHERE</span>Seat A · <span class="inline">/admin/partners</span></p>
+  <div class="seg"><span class="lab">SIGNED IN AS</span><ul><li><strong>ADMIN window</strong>: <span class="inline">ioustinos.sarris@gmail.com</span> (you)</li></ul></div>
+  <p class="seg where"><span class="lab">WHERE</span>ADMIN window · <span class="inline">/admin/partners</span></p>
   <div class="seg"><span class="lab">DO</span><ol><li>Press «+ New dietitian».</li><li>Name «Δοκιμή Β», commission 12, client discount 10, no add-ons ticked. Press «Save».</li><li>Reload the page.</li></ol></div>
   <div class="seg expect"><span class="lab">EXPECT</span><ul><li>«Δοκιμή Β» is in the list with 12 / 10 after reload.</li></ul></div>
   <div class="warn"><span class="lab">FAIL IF</span><ul><li>Save error, or the values change after reload.</li></ul></div>
@@ -281,7 +299,8 @@
 
 <div class="step" data-id="2.2">
   <div class="step__hd"><span class="step__n">2.2</span><p class="step__t">Admin can open any dietitian's portal</p><div class="verdict"></div></div>
-  <p class="seg where"><span class="lab">WHERE</span>Seat A · «Δοκιμή Β» → button «Open portal as Δοκιμή Β →»</p>
+  <div class="seg"><span class="lab">SIGNED IN AS</span><ul><li><strong>ADMIN window</strong>: <span class="inline">ioustinos.sarris@gmail.com</span> (you)</li></ul></div>
+  <p class="seg where"><span class="lab">WHERE</span>ADMIN window · «Δοκιμή Β» → button «Open portal as Δοκιμή Β →»</p>
   <div class="seg"><span class="lab">DO</span><ol><li>Press the button.</li><li>Then switch the top-bar selector «Προβολή ως» to «TEST Διαιτολόγος (E2E)».</li></ol></div>
   <div class="seg expect"><span class="lab">EXPECT</span><ul><li><span class="inline">/partner</span> opens as Δοκιμή Β: no clients, no referral banner.</li><li>After switching, the portal shows TEST with its referral banner.</li></ul></div>
   <div class="warn"><span class="lab">FAIL IF</span><ul><li>«Δεν είστε συνεργάτης διαιτολόγος».</li><li>The selector switches but the data stays the same.</li></ul></div>
@@ -289,7 +308,8 @@
 
 <div class="step" data-id="2.3">
   <div class="step__hd"><span class="step__n">2.3</span><p class="step__t">Admin links an existing customer directly</p><div class="verdict"></div></div>
-  <p class="seg where"><span class="lab">WHERE</span>Seat A · <span class="inline">/admin/partners</span> → TEST → tab «Clients &amp; terms»</p>
+  <div class="seg"><span class="lab">SIGNED IN AS</span><ul><li><strong>ADMIN window</strong>: <span class="inline">ioustinos.sarris@gmail.com</span> (you)</li></ul></div>
+  <p class="seg where"><span class="lab">WHERE</span>ADMIN window · <span class="inline">/admin/partners</span> → TEST → tab «Clients &amp; terms»</p>
   <div class="seg"><span class="lab">DO</span><ol><li>Type <span class="inline">ioustinos.sarris+dev23@gmail.com</span> in «link an existing customer by email» and press «Link».</li></ol></div>
   <div class="seg expect"><span class="lab">EXPECT</span><ul><li>A row «Πελάτης Δοκιμής 23», status active, discount and commission equal to TEST's defaults, consent «—».</li></ul></div>
   <div class="warn"><span class="lab">FAIL IF</span><ul><li>Status pending, or percentages not equal to the defaults.</li></ul></div>
@@ -297,7 +317,8 @@
 
 <div class="step" data-id="2.4">
   <div class="step__hd"><span class="step__n">2.4</span><p class="step__t">One client cannot have two dietitians</p><div class="verdict"></div></div>
-  <p class="seg where"><span class="lab">WHERE</span>Seat A · «Δοκιμή Β» → «Clients &amp; terms»</p>
+  <div class="seg"><span class="lab">SIGNED IN AS</span><ul><li><strong>ADMIN window</strong>: <span class="inline">ioustinos.sarris@gmail.com</span> (you)</li></ul></div>
+  <p class="seg where"><span class="lab">WHERE</span>ADMIN window · «Δοκιμή Β» → «Clients &amp; terms»</p>
   <div class="seg"><span class="lab">DO</span><ol><li>Try to link the same +dev23 email.</li></ol></div>
   <div class="seg expect"><span class="lab">EXPECT</span><ul><li>Refused with «Ο πελάτης είναι ήδη συνδεδεμένος με διαιτολόγο.»</li></ul></div>
   <div class="warn"><span class="lab">FAIL IF</span><ul><li>A second link is created.</li></ul></div>
@@ -309,7 +330,8 @@
 
 <div class="step" data-id="3.1">
   <div class="step__hd"><span class="step__n">3.1</span><p class="step__t">The dietitian sees only their own portal</p><div class="verdict"></div></div>
-  <p class="seg where"><span class="lab">WHERE</span>Seat B · <span class="inline">/partner</span></p>
+  <div class="seg"><span class="lab">SIGNED IN AS</span><ul><li><strong>DIETITIAN window</strong>: <span class="inline">ioustinos.sarris+diet@gmail.com</span></li></ul></div>
+  <p class="seg where"><span class="lab">WHERE</span>DIETITIAN window · <span class="inline">/partner</span></p>
   <div class="seg"><span class="lab">DO</span><ol><li>Open the portal.</li></ol></div>
   <div class="seg expect"><span class="lab">EXPECT</span><ul><li>Menu «Πελάτες · Παραγγελίες · Οικονομικά».</li><li>Top bar shows the TEST name badge, the +diet email and «Αποσύνδεση». No «Προβολή ως» selector.</li></ul></div>
   <div class="warn"><span class="lab">FAIL IF</span><ul><li>Any admin screen or selector is visible.</li><li>«Δεν είστε συνεργάτης διαιτολόγος».</li></ul></div>
@@ -317,7 +339,8 @@
 
 <div class="step" data-id="3.2">
   <div class="step__hd"><span class="step__n">3.2</span><p class="step__t">The client list shows the linked client</p><div class="verdict"></div></div>
-  <p class="seg where"><span class="lab">WHERE</span>Seat B · «Πελάτες»</p>
+  <div class="seg"><span class="lab">SIGNED IN AS</span><ul><li><strong>DIETITIAN window</strong>: <span class="inline">ioustinos.sarris+diet@gmail.com</span></li></ul></div>
+  <p class="seg where"><span class="lab">WHERE</span>DIETITIAN window · «Πελάτες»</p>
   <div class="seg"><span class="lab">DO</span><ol><li>Read the row for Πελάτης Δοκιμής 23.</li></ol></div>
   <div class="seg expect"><span class="lab">EXPECT</span><ul><li>«Ενεργός» plus «Χωρίς συγκατάθεση».</li><li>6% / 6%.</li><li>Wallet 1.186,78 €.</li><li>«Πλάνο έως» 23/12/2026.</li></ul></div>
   <div class="warn"><span class="lab">FAIL IF</span><ul><li>Other customers are listed.</li><li>Wallet or plan date differ.</li></ul></div>
@@ -325,7 +348,8 @@
 
 <div class="step" data-id="3.3">
   <div class="step__hd"><span class="step__n">3.3</span><p class="step__t">Referral link copies and the QR scans</p><div class="verdict"></div></div>
-  <p class="seg where"><span class="lab">WHERE</span>Seat B · «Πελάτες», the referral banner</p>
+  <div class="seg"><span class="lab">SIGNED IN AS</span><ul><li><strong>DIETITIAN window</strong>: <span class="inline">ioustinos.sarris+diet@gmail.com</span></li></ul></div>
+  <p class="seg where"><span class="lab">WHERE</span>DIETITIAN window · «Πελάτες», the referral banner</p>
   <div class="seg"><span class="lab">DO</span><ol><li>Press «Αντιγραφή» and paste somewhere.</li><li>Press «QR» and scan it with your phone.</li></ol></div>
   <div class="seg expect"><span class="lab">EXPECT</span><ul><li>The pasted text is <span class="inline">https://dev--fitpal-order.netlify.app/ref/test-e2e-diet</span>.</li><li>The QR opens the same link.</li></ul></div>
   <div class="warn"><span class="lab">FAIL IF</span><ul><li>The copy does nothing.</li><li>The QR points elsewhere.</li></ul></div>
@@ -333,7 +357,8 @@
 
 <div class="step" data-id="3.4">
   <div class="step__hd"><span class="step__n">3.4</span><p class="step__t">The client card shows plan, wallet and address but hides body data</p><div class="verdict"></div></div>
-  <p class="seg where"><span class="lab">WHERE</span>Seat B · click Πελάτης Δοκιμής 23</p>
+  <div class="seg"><span class="lab">SIGNED IN AS</span><ul><li><strong>DIETITIAN window</strong>: <span class="inline">ioustinos.sarris+diet@gmail.com</span></li></ul></div>
+  <p class="seg where"><span class="lab">WHERE</span>DIETITIAN window · click Πελάτης Δοκιμής 23</p>
   <div class="seg"><span class="lab">DO</span><ol><li>Read every card on the page.</li></ol></div>
   <div class="seg expect"><span class="lab">EXPECT</span><ul><li>«Στοιχεία πελάτη» shows name and phone, then the consent warning instead of body fields.</li><li>«Πλάνο &amp; πορτοφόλι»: 3 μήνες · 5 ημέρες/εβδ., 1454 kcal, 21/09/2026 → 23/12/2026, 1.513,67 € · Πληρωμένο.</li><li>«Διευθύνσεις»: Αγίας Θέκλας 34.</li><li>«Παραγγελίες» lists SD- orders.</li></ul></div>
   <div class="warn"><span class="lab">FAIL IF</span><ul><li>Height, weight or sex are visible before consent.</li><li>Any figure differs from the above.</li></ul></div>
@@ -341,7 +366,8 @@
 
 <div class="step" data-id="3.5">
   <div class="step__hd"><span class="step__n">3.5</span><p class="step__t">Daily and per-meal targets save</p><div class="verdict"></div></div>
-  <p class="seg where"><span class="lab">WHERE</span>Seat B · client 23 → card «Στόχοι (ίδιοι κάθε μέρα)»</p>
+  <div class="seg"><span class="lab">SIGNED IN AS</span><ul><li><strong>DIETITIAN window</strong>: <span class="inline">ioustinos.sarris+diet@gmail.com</span></li></ul></div>
+  <p class="seg where"><span class="lab">WHERE</span>DIETITIAN window · client 23 → card «Στόχοι (ίδιοι κάθε μέρα)»</p>
   <div class="seg"><span class="lab">DO</span><ol><li>Press «Θερμίδες από το πλάνο (1454)».</li><li>Enter protein 90, carbs 180, fat 48 for the day.</li><li>Fill Πρωινό / Μεσημεριανό / Βραδινό so the meal kcal add up to about 1000 (deliberately low).</li><li>Press «Αποθήκευση στόχων», then reload.</li></ol></div>
   <div class="seg expect"><span class="lab">EXPECT</span><ul><li>«✓ Αποθηκεύτηκε».</li><li>After reload every value is still there.</li><li>«Σύνολο γευμάτων» kcal is red, since it's more than 5% off the day.</li></ul></div>
   <div class="warn"><span class="lab">FAIL IF</span><ul><li>An error on save.</li><li>Values lost after reload.</li><li>The meal total isn't flagged.</li></ul></div>
@@ -349,7 +375,8 @@
 
 <div class="step" data-id="3.6">
   <div class="step__hd"><span class="step__n">3.6</span><p class="step__t">Orders compare against the target per day</p><div class="verdict"></div></div>
-  <p class="seg where"><span class="lab">WHERE</span>Seat B · client 23 → «Παραγγελίες» at the bottom</p>
+  <div class="seg"><span class="lab">SIGNED IN AS</span><ul><li><strong>DIETITIAN window</strong>: <span class="inline">ioustinos.sarris+diet@gmail.com</span></li></ul></div>
+  <p class="seg where"><span class="lab">WHERE</span>DIETITIAN window · client 23 → «Παραγγελίες» at the bottom</p>
   <div class="seg"><span class="lab">DO</span><ol><li>Read the day rows and the week boxes above them.</li></ol></div>
   <div class="seg expect"><span class="lab">EXPECT</span><ul><li>Each day's kcal/P/C/F is green within ±10% of target, red otherwise, with the +/− difference.</li><li>A weekly box per week: days, average kcal, «στόχος 1454», days within ±10%.</li><li>The weekday on each row matches its date.</li></ul></div>
   <div class="warn"><span class="lab">FAIL IF</span><ul><li>Wrong weekday for a date.</li><li>Colours inverted, or no comparison.</li></ul></div>
@@ -357,7 +384,8 @@
 
 <div class="step" data-id="3.7">
   <div class="step__hd"><span class="step__n">3.7</span><p class="step__t">Dish detail adds up</p><div class="verdict"></div></div>
-  <p class="seg where"><span class="lab">WHERE</span>Seat B · any day row → «Πιάτα»</p>
+  <div class="seg"><span class="lab">SIGNED IN AS</span><ul><li><strong>DIETITIAN window</strong>: <span class="inline">ioustinos.sarris+diet@gmail.com</span></li></ul></div>
+  <p class="seg where"><span class="lab">WHERE</span>DIETITIAN window · any day row → «Πιάτα»</p>
   <div class="seg"><span class="lab">DO</span><ol><li>Open one day and add up the dish kcal.</li></ol></div>
   <div class="seg expect"><span class="lab">EXPECT</span><ul><li>Rows read qty × name — variant, macros already multiplied by quantity.</li><li>The sum equals the day's kcal.</li></ul></div>
   <div class="warn"><span class="lab">FAIL IF</span><ul><li>Sum differs from the day row.</li></ul></div>
@@ -365,7 +393,8 @@
 
 <div class="step" data-id="3.8">
   <div class="step__hd"><span class="step__n">3.8</span><p class="step__t">«Παραγγελίες» shows only own clients</p><div class="verdict"></div></div>
-  <p class="seg where"><span class="lab">WHERE</span>Seat B · «Παραγγελίες», selector «Όλοι οι πελάτες»</p>
+  <div class="seg"><span class="lab">SIGNED IN AS</span><ul><li><strong>DIETITIAN window</strong>: <span class="inline">ioustinos.sarris+diet@gmail.com</span></li></ul></div>
+  <p class="seg where"><span class="lab">WHERE</span>DIETITIAN window · «Παραγγελίες», selector «Όλοι οι πελάτες»</p>
   <div class="seg"><span class="lab">DO</span><ol><li>Read the list.</li></ol></div>
   <div class="seg expect"><span class="lab">EXPECT</span><ul><li>Only Πελάτης Δοκιμής 23's orders.</li></ul></div>
   <div class="warn"><span class="lab">FAIL IF</span><ul><li>Any other customer's order.</li></ul></div>
@@ -373,7 +402,8 @@
 
 <div class="step" data-id="3.9">
   <div class="step__hd"><span class="step__n">3.9</span><p class="step__t">Finance is empty before any linked order</p><div class="verdict"></div></div>
-  <p class="seg where"><span class="lab">WHERE</span>Seat B · «Οικονομικά»</p>
+  <div class="seg"><span class="lab">SIGNED IN AS</span><ul><li><strong>DIETITIAN window</strong>: <span class="inline">ioustinos.sarris+diet@gmail.com</span></li></ul></div>
+  <p class="seg where"><span class="lab">WHERE</span>DIETITIAN window · «Οικονομικά»</p>
   <div class="seg"><span class="lab">DO</span><ol><li>Look at this month, then tick «Όλα».</li></ol></div>
   <div class="seg expect"><span class="lab">EXPECT</span><ul><li>«Καμία κίνηση» and 0,00 € on all four tiles.</li></ul></div>
   <div class="warn"><span class="lab">FAIL IF</span><ul><li>Any line from a seeded order.</li></ul></div>
@@ -384,7 +414,8 @@
 
 <div class="step" data-id="4.1">
   <div class="step__hd"><span class="step__n">4.1</span><p class="step__t">The linked client is asked for consent</p><div class="verdict"></div></div>
-  <p class="seg where"><span class="lab">WHERE</span>Seat C · <span class="inline">https://dev--fitpal-order.netlify.app</span></p>
+  <div class="seg"><span class="lab">SIGNED IN AS</span><ul><li><strong>CLIENT window</strong>: <span class="inline">ioustinos.sarris+dev23@gmail.com</span></li></ul></div>
+  <p class="seg where"><span class="lab">WHERE</span>CLIENT window · <span class="inline">https://dev--fitpal-order.netlify.app</span></p>
   <div class="seg"><span class="lab">DO</span><ol><li>Sign in as <span class="inline">ioustinos.sarris+dev23@gmail.com</span>.</li><li>Switch the site to English and read the prompt, then back to Greek.</li></ol></div>
   <div class="seg expect"><span class="lab">EXPECT</span><ul><li>A prompt at the bottom: «Συγκατάθεση για τον/την διαιτολόγο TEST Διαιτολόγος (E2E)», a ticked checkbox, «Αργότερα» and «Συμφωνώ».</li><li>The English version reads correctly.</li></ul></div>
   <div class="warn"><span class="lab">FAIL IF</span><ul><li>No prompt.</li><li>The prompt shows commission or anything financial.</li></ul></div>
@@ -392,15 +423,17 @@
 
 <div class="step" data-id="4.2">
   <div class="step__hd"><span class="step__n">4.2</span><p class="step__t">Consent sticks and unlocks body data</p><div class="verdict"></div></div>
-  <p class="seg where"><span class="lab">WHERE</span>Seat C, then seat B · client 23's card</p>
-  <div class="seg"><span class="lab">DO</span><ol><li>In C press «Συμφωνώ» and reload.</li><li>In B reload client 23's card and the client list.</li></ol></div>
-  <div class="seg expect"><span class="lab">EXPECT</span><ul><li>In C the prompt is gone for good.</li><li>In B body data shows: Γυναίκα, 1983, 166 cm, 55 kg, and the «Πρόοδος &amp; μετρήσεις» card appears.</li><li>The list no longer says «Χωρίς συγκατάθεση».</li></ul></div>
-  <div class="warn"><span class="lab">FAIL IF</span><ul><li>The prompt returns after reload.</li><li>B still hides body data.</li></ul></div>
+  <div class="seg"><span class="lab">SIGNED IN AS</span><ul><li><strong>CLIENT window</strong>: still <span class="inline">ioustinos.sarris+dev23@gmail.com</span> from the previous step</li><li><strong>DIETITIAN window</strong>: <span class="inline">ioustinos.sarris+diet@gmail.com</span></li></ul></div>
+  <p class="seg where"><span class="lab">WHERE</span>CLIENT window, then DIETITIAN window · client 23's card</p>
+  <div class="seg"><span class="lab">DO</span><ol><li>In the CLIENT window press «Συμφωνώ» and reload.</li><li>In the DIETITIAN window reload client 23's card and the client list.</li></ol></div>
+  <div class="seg expect"><span class="lab">EXPECT</span><ul><li>In the CLIENT window the prompt is gone for good.</li><li>In the DIETITIAN window body data shows: Γυναίκα, 1983, 166 cm, 55 kg, and the «Πρόοδος &amp; μετρήσεις» card appears.</li><li>The list no longer says «Χωρίς συγκατάθεση».</li></ul></div>
+  <div class="warn"><span class="lab">FAIL IF</span><ul><li>The prompt returns after reload.</li><li>the DIETITIAN window still hides body data.</li></ul></div>
 </div>
 
 <div class="step" data-id="4.3">
   <div class="step__hd"><span class="step__n">4.3</span><p class="step__t">The client sees the dietitian discount as its own line</p><div class="verdict"></div></div>
-  <p class="seg where"><span class="lab">WHERE</span>Seat C · menu, cart, checkout</p>
+  <div class="seg"><span class="lab">SIGNED IN AS</span><ul><li><strong>CLIENT window</strong>: still <span class="inline">ioustinos.sarris+dev23@gmail.com</span> from the previous step</li></ul></div>
+  <p class="seg where"><span class="lab">WHERE</span>CLIENT window · menu, cart, checkout</p>
   <div class="seg"><span class="lab">DO</span><ol><li>As +dev23 add dishes on two days.</li><li>Open the cart, then checkout.</li></ol></div>
   <div class="seg expect"><span class="lab">EXPECT</span><ul><li>A line «Έκπτωση διαιτολόγου 6%» equal to 6% of the items subtotal, in the cart and at checkout.</li><li>No commission is shown anywhere.</li></ul></div>
   <div class="warn"><span class="lab">FAIL IF</span><ul><li>No discount line.</li><li>Discount computed on something other than the items subtotal.</li><li>Commission visible to the client.</li></ul></div>
@@ -408,7 +441,8 @@
 
 <div class="step" data-id="4.4">
   <div class="step__hd"><span class="step__n">4.4</span><p class="step__t">The discount stacks with a voucher</p><div class="verdict"></div></div>
-  <p class="seg where"><span class="lab">WHERE</span>Seat C · checkout</p>
+  <div class="seg"><span class="lab">SIGNED IN AS</span><ul><li><strong>CLIENT window</strong>: still <span class="inline">ioustinos.sarris+dev23@gmail.com</span> from the previous step</li></ul></div>
+  <p class="seg where"><span class="lab">WHERE</span>CLIENT window · checkout</p>
   <div class="seg"><span class="lab">DO</span><ol><li>Apply a public voucher, if you have one handy. Note the totals.</li><li>Remove it again.</li></ol></div>
   <div class="seg expect"><span class="lab">EXPECT</span><ul><li>Both discounts show and the total never goes below zero.</li></ul></div>
   <div class="warn"><span class="lab">FAIL IF</span><ul><li>The voucher removes the dietitian discount or the other way round.</li></ul></div>
@@ -417,7 +451,8 @@
 
 <div class="step" data-id="4.5">
   <div class="step__hd"><span class="step__n">4.5</span><p class="step__t">A cash order keeps the discount</p><div class="verdict"></div></div>
-  <p class="seg where"><span class="lab">WHERE</span>Seat C · checkout → place order</p>
+  <div class="seg"><span class="lab">SIGNED IN AS</span><ul><li><strong>CLIENT window</strong>: still <span class="inline">ioustinos.sarris+dev23@gmail.com</span> from the previous step</li></ul></div>
+  <p class="seg where"><span class="lab">WHERE</span>CLIENT window · checkout → place order</p>
   <div class="seg"><span class="lab">DO</span><ol><li>Pay with cash and place the order.</li></ol></div>
   <div class="seg expect"><span class="lab">EXPECT</span><ul><li>The confirmation total equals subtotal minus 6%.</li></ul></div>
   <div class="warn"><span class="lab">FAIL IF</span><ul><li>The total on the confirmation differs from the checkout total.</li></ul></div>
@@ -425,7 +460,8 @@
 
 <div class="step" data-id="4.6">
   <div class="step__hd"><span class="step__n">4.6</span><p class="step__t">The dietitian sees the order, with no commission yet</p><div class="verdict"></div></div>
-  <p class="seg where"><span class="lab">WHERE</span>Seat B · «Παραγγελίες» and «Οικονομικά»</p>
+  <div class="seg"><span class="lab">SIGNED IN AS</span><ul><li><strong>DIETITIAN window</strong>: <span class="inline">ioustinos.sarris+diet@gmail.com</span></li></ul></div>
+  <p class="seg where"><span class="lab">WHERE</span>DIETITIAN window · «Παραγγελίες» and «Οικονομικά»</p>
   <div class="seg"><span class="lab">DO</span><ol><li>Find the new FP- order.</li></ol></div>
   <div class="seg expect"><span class="lab">EXPECT</span><ul><li>The order card shows «(έκπτωση X €)» and «Μετρητά».</li><li>Finance has one line: «Πληρώθηκε» 0,00 €, commission 0,00 €.</li></ul></div>
   <div class="warn"><span class="lab">FAIL IF</span><ul><li>Commission accrues before payment.</li></ul></div>
@@ -433,8 +469,9 @@
 
 <div class="step" data-id="4.7">
   <div class="step__hd"><span class="step__n">4.7</span><p class="step__t">Commission accrues once the cash is marked paid</p><div class="verdict"></div></div>
-  <p class="seg where"><span class="lab">WHERE</span>Seat A · the order in admin, then seat B · «Οικονομικά»</p>
-  <div class="seg"><span class="lab">DO</span><ol><li>Mark that order paid in admin the way you normally do.</li><li>Reload Finance in B.</li></ol></div>
+  <div class="seg"><span class="lab">SIGNED IN AS</span><ul><li><strong>ADMIN window</strong>: <span class="inline">ioustinos.sarris@gmail.com</span> (you)</li><li><strong>DIETITIAN window</strong>: <span class="inline">ioustinos.sarris+diet@gmail.com</span></li></ul></div>
+  <p class="seg where"><span class="lab">WHERE</span>ADMIN window · the order in admin, then DIETITIAN window · «Οικονομικά»</p>
+  <div class="seg"><span class="lab">DO</span><ol><li>Mark that order paid in admin the way you normally do.</li><li>Reload Finance in the DIETITIAN window.</li></ol></div>
   <div class="seg expect"><span class="lab">EXPECT</span><ul><li>The line shows the collected amount and a 6% commission, status «Οφείλεται».</li></ul></div>
   <div class="warn"><span class="lab">FAIL IF</span><ul><li>Commission still 0 after the order is paid.</li></ul></div>
 </div>
@@ -443,7 +480,8 @@
 
 <div class="step" data-id="5.1">
   <div class="step__hd"><span class="step__n">5.1</span><p class="step__t">A brand-new client is active at once</p><div class="verdict"></div></div>
-  <p class="seg where"><span class="lab">WHERE</span>Seat B · «Πελάτες» → «+ Νέος πελάτης»</p>
+  <div class="seg"><span class="lab">SIGNED IN AS</span><ul><li><strong>DIETITIAN window</strong>: <span class="inline">ioustinos.sarris+diet@gmail.com</span></li></ul></div>
+  <p class="seg where"><span class="lab">WHERE</span>DIETITIAN window · «Πελάτες» → «+ Νέος πελάτης»</p>
   <div class="seg"><span class="lab">DO</span><ol><li>Name «Νέος Δοκιμής», email <span class="inline">ioustinos.sarris+dnew1@gmail.com</span>, any phone.</li><li>Address Λεωφόρος Πεντέλης 64, Βριλήσσια, Τ.Κ. 15238.</li><li>Keep «Αποστολή email σύνδεσης στον πελάτη» ticked. Press «Προσθήκη».</li></ol></div>
   <div class="seg expect"><span class="lab">EXPECT</span><ul><li>The client card opens; the list shows «Ενεργός».</li><li>A sign-in code email arrives for +dnew1.</li></ul></div>
   <div class="warn"><span class="lab">FAIL IF</span><ul><li>Any error.</li><li>Status pending.</li><li>No email.</li></ul></div>
@@ -451,7 +489,8 @@
 
 <div class="step" data-id="5.2">
   <div class="step__hd"><span class="step__n">5.2</span><p class="step__t">«Ως πελάτης» other tabs stay as they were</p><div class="verdict"></div></div>
-  <p class="seg where"><span class="lab">WHERE</span>Seat B · open a second tab on /partner first</p>
+  <div class="seg"><span class="lab">SIGNED IN AS</span><ul><li><strong>DIETITIAN window</strong>: <span class="inline">ioustinos.sarris+diet@gmail.com</span></li></ul></div>
+  <p class="seg where"><span class="lab">WHERE</span>DIETITIAN window · open a second tab on /partner first</p>
   <div class="seg"><span class="lab">DO</span><ol><li>With two /partner tabs open, press «Παραγγελία ως πελάτης» in one.</li><li>Then look at the other tab and reload it.</li></ol></div>
   <div class="seg expect"><span class="lab">EXPECT</span><ul><li>Tab 1 is the normal site as Νέος Δοκιμής, with the impersonation banner and «Έκπτωση διαιτολόγου 6%» in the cart.</li><li>Tab 2 is still your dietitian portal (WEC-844, impersonation for own clients: «without killing other tabs»).</li></ul></div>
   <div class="warn"><span class="lab">FAIL IF</span><ul><li>Tab 2 turns into the client or shows «Είστε συνδεδεμένοι ως πελάτης».</li></ul></div>
@@ -460,7 +499,8 @@
 
 <div class="step" data-id="5.3">
   <div class="step__hd"><span class="step__n">5.3</span><p class="step__t">A card order placed by the dietitian completes</p><div class="verdict"></div></div>
-  <p class="seg where"><span class="lab">WHERE</span>Seat B, client mode · checkout</p>
+  <div class="seg"><span class="lab">SIGNED IN AS</span><ul><li><strong>DIETITIAN window</strong>: <span class="inline">ioustinos.sarris+diet@gmail.com</span></li></ul></div>
+  <p class="seg where"><span class="lab">WHERE</span>DIETITIAN window, client mode · checkout</p>
   <div class="seg"><span class="lab">DO</span><ol><li>Order 2 days to the saved address.</li><li>Pay by card with the sandbox card and 3DS code 111111.</li></ol></div>
   <div class="seg expect"><span class="lab">EXPECT</span><ul><li>The saved address is preselected.</li><li>Payment completes and lands on the success page.</li></ul></div>
   <div class="warn"><span class="lab">FAIL IF</span><ul><li>Payment hangs or the order stays pending.</li></ul></div>
@@ -469,7 +509,8 @@
 
 <div class="step" data-id="5.4">
   <div class="step__hd"><span class="step__n">5.4</span><p class="step__t">Leaving client mode returns to the portal</p><div class="verdict"></div></div>
-  <p class="seg where"><span class="lab">WHERE</span>Seat B · the impersonation banner</p>
+  <div class="seg"><span class="lab">SIGNED IN AS</span><ul><li><strong>DIETITIAN window</strong>: <span class="inline">ioustinos.sarris+diet@gmail.com</span></li></ul></div>
+  <p class="seg where"><span class="lab">WHERE</span>DIETITIAN window · the impersonation banner</p>
   <div class="seg"><span class="lab">DO</span><ol><li>Exit client mode.</li></ol></div>
   <div class="seg expect"><span class="lab">EXPECT</span><ul><li>You land on <span class="inline">/partner</span>, after signing in again if asked.</li></ul></div>
   <div class="warn"><span class="lab">FAIL IF</span><ul><li>You land on /admin or on the site as the client.</li></ul></div>
@@ -477,7 +518,8 @@
 
 <div class="step" data-id="5.5">
   <div class="step__hd"><span class="step__n">5.5</span><p class="step__t">The order is marked «από εσάς» and earns commission</p><div class="verdict"></div></div>
-  <p class="seg where"><span class="lab">WHERE</span>Seat B · Νέος Δοκιμής's card and «Οικονομικά»</p>
+  <div class="seg"><span class="lab">SIGNED IN AS</span><ul><li><strong>DIETITIAN window</strong>: <span class="inline">ioustinos.sarris+diet@gmail.com</span></li></ul></div>
+  <p class="seg where"><span class="lab">WHERE</span>DIETITIAN window · Νέος Δοκιμής's card and «Οικονομικά»</p>
   <div class="seg"><span class="lab">DO</span><ol><li>Find the card order.</li></ol></div>
   <div class="seg expect"><span class="lab">EXPECT</span><ul><li>The pill «από εσάς».</li><li>Finance: amount and «Πληρώθηκε» both equal the order total, commission 6% of it.</li></ul></div>
   <div class="warn"><span class="lab">FAIL IF</span><ul><li>No pill.</li><li>Commission 0 on a paid card order.</li></ul></div>
@@ -485,7 +527,8 @@
 
 <div class="step" data-id="5.6">
   <div class="step__hd"><span class="step__n">5.6</span><p class="step__t">A plan bought through the dietitian</p><div class="verdict"></div></div>
-  <p class="seg where"><span class="lab">WHERE</span>Seat B · Νέος Δοκιμής → «Νέο πλάνο / συνδρομή»</p>
+  <div class="seg"><span class="lab">SIGNED IN AS</span><ul><li><strong>DIETITIAN window</strong>: <span class="inline">ioustinos.sarris+diet@gmail.com</span></li></ul></div>
+  <p class="seg where"><span class="lab">WHERE</span>DIETITIAN window · Νέος Δοκιμής → «Νέο πλάνο / συνδρομή»</p>
   <div class="seg"><span class="lab">DO</span><ol><li>Build a plan in the wizard and pay by payment link (or cash).</li><li>Exit client mode, open the client card and «Οικονομικά».</li></ol></div>
   <div class="seg expect"><span class="lab">EXPECT</span><ul><li>The «Πλάνο &amp; πορτοφόλι» card shows the plan with «Στάλθηκε link» or «Εκκρεμεί πληρωμή».</li><li>Finance has a «Πλάνο …» line with commission 0.</li></ul></div>
   <div class="warn"><span class="lab">FAIL IF</span><ul><li>The plan isn't shown.</li><li>Commission before payment.</li></ul></div>
@@ -494,7 +537,8 @@
 
 <div class="step" data-id="5.7">
   <div class="step__hd"><span class="step__n">5.7</span><p class="step__t">Plan commission accrues once paid</p><div class="verdict"></div></div>
-  <p class="seg where"><span class="lab">WHERE</span>Seat A · confirm the plan as paid where you normally do; then seat B · «Οικονομικά»</p>
+  <div class="seg"><span class="lab">SIGNED IN AS</span><ul><li><strong>ADMIN window</strong>: <span class="inline">ioustinos.sarris@gmail.com</span> (you)</li><li><strong>DIETITIAN window</strong>: <span class="inline">ioustinos.sarris+diet@gmail.com</span></li></ul></div>
+  <p class="seg where"><span class="lab">WHERE</span>ADMIN window · confirm the plan as paid where you normally do; then DIETITIAN window · «Οικονομικά»</p>
   <div class="seg"><span class="lab">DO</span><ol><li>Confirm the plan paid.</li><li>Reload Finance.</li></ol></div>
   <div class="seg expect"><span class="lab">EXPECT</span><ul><li>The plan line now carries 6% of the plan amount.</li></ul></div>
   <div class="warn"><span class="lab">FAIL IF</span><ul><li>Still 0 after payment.</li></ul></div>
@@ -506,7 +550,8 @@
 
 <div class="step" data-id="6.1">
   <div class="step__hd"><span class="step__n">6.1</span><p class="step__t">Adding an existing customer creates a pending link</p><div class="verdict"></div></div>
-  <p class="seg where"><span class="lab">WHERE</span>Seat B · «+ Νέος πελάτης»</p>
+  <div class="seg"><span class="lab">SIGNED IN AS</span><ul><li><strong>DIETITIAN window</strong>: <span class="inline">ioustinos.sarris+diet@gmail.com</span></li></ul></div>
+  <p class="seg where"><span class="lab">WHERE</span>DIETITIAN window · «+ Νέος πελάτης»</p>
   <div class="seg"><span class="lab">DO</span><ol><li>Email <span class="inline">ioustinos.sarris+dev04@gmail.com</span>, press «Προσθήκη».</li></ol></div>
   <div class="seg expect"><span class="lab">EXPECT</span><ul><li>A message that the customer already exists and activates after they accept and Fitpal approves.</li><li>The row reads «Αναμονή αποδοχής πελάτη» and can't be opened.</li></ul></div>
   <div class="warn"><span class="lab">FAIL IF</span><ul><li>The client is active immediately.</li><li>The row opens the client card.</li></ul></div>
@@ -514,7 +559,8 @@
 
 <div class="step" data-id="6.2">
   <div class="step__hd"><span class="step__n">6.2</span><p class="step__t">Approval alone does not activate</p><div class="verdict"></div></div>
-  <p class="seg where"><span class="lab">WHERE</span>Seat A · TEST → «Clients &amp; terms»</p>
+  <div class="seg"><span class="lab">SIGNED IN AS</span><ul><li><strong>ADMIN window</strong>: <span class="inline">ioustinos.sarris@gmail.com</span> (you)</li></ul></div>
+  <p class="seg where"><span class="lab">WHERE</span>ADMIN window · TEST → «Clients &amp; terms»</p>
   <div class="seg"><span class="lab">DO</span><ol><li>Press «Approve» on Πελάτης Δοκιμής 4.</li></ol></div>
   <div class="seg expect"><span class="lab">EXPECT</span><ul><li>«Approve» disappears; the pill reads «pending · client ✗ · Fitpal ✓».</li></ul></div>
   <div class="warn"><span class="lab">FAIL IF</span><ul><li>The link turns active before the client accepted.</li></ul></div>
@@ -522,25 +568,28 @@
 
 <div class="step" data-id="6.3">
   <div class="step__hd"><span class="step__n">6.3</span><p class="step__t">The client accepts and the link activates</p><div class="verdict"></div></div>
-  <p class="seg where"><span class="lab">WHERE</span>Seat C · sign out, sign in as +dev04</p>
+  <div class="seg"><span class="lab">SIGNED IN AS</span><ul><li><strong>CLIENT window</strong>: sign out of the previous client first («Αποσύνδεση» under your name, top right), then sign in as <span class="inline">ioustinos.sarris+dev04@gmail.com</span></li><li><strong>ADMIN window</strong>: <span class="inline">ioustinos.sarris@gmail.com</span> (you)</li><li><strong>DIETITIAN window</strong>: <span class="inline">ioustinos.sarris+diet@gmail.com</span></li></ul></div>
+  <p class="seg where"><span class="lab">WHERE</span>CLIENT window · sign out, sign in as +dev04</p>
   <div class="seg"><span class="lab">DO</span><ol><li>Read the prompt, keep consent ticked, press «Αποδοχή».</li></ol></div>
-  <div class="seg expect"><span class="lab">EXPECT</span><ul><li>The prompt «Ο/Η διαιτολόγος TEST Διαιτολόγος (E2E) σας πρόσθεσε στους πελάτες του/της» with «Απόρριψη» and «Αποδοχή».</li><li>Afterwards: «active» in A, «Ενεργός» and clickable in B with body data; +dev04's cart shows the dietitian discount.</li></ul></div>
+  <div class="seg expect"><span class="lab">EXPECT</span><ul><li>The prompt «Ο/Η διαιτολόγος TEST Διαιτολόγος (E2E) σας πρόσθεσε στους πελάτες του/της» with «Απόρριψη» and «Αποδοχή».</li><li>Afterwards: «active» in the ADMIN window, «Ενεργός» and clickable in the DIETITIAN window with body data; +dev04's cart shows the dietitian discount.</li></ul></div>
   <div class="warn"><span class="lab">FAIL IF</span><ul><li>No prompt.</li><li>Still pending after accepting.</li></ul></div>
 </div>
 
 <div class="step" data-id="6.4">
   <div class="step__hd"><span class="step__n">6.4</span><p class="step__t">Client accepts first, Fitpal approves second</p><div class="verdict"></div></div>
-  <p class="seg where"><span class="lab">WHERE</span>Seat B adds <span class="inline">ioustinos.sarris+dev13@gmail.com</span>; seat C signs in as +dev13; then seat A</p>
-  <div class="seg"><span class="lab">DO</span><ol><li>In C accept.</li><li>Check B and +dev13's cart.</li><li>In A press «Approve».</li></ol></div>
-  <div class="seg expect"><span class="lab">EXPECT</span><ul><li>Before approval B reads «Αναμονή έγκρισης Fitpal» and the cart has no dietitian discount.</li><li>After approval it is active and the discount appears.</li></ul></div>
+  <div class="seg"><span class="lab">SIGNED IN AS</span><ul><li><strong>DIETITIAN window</strong>: <span class="inline">ioustinos.sarris+diet@gmail.com</span></li><li><strong>CLIENT window</strong>: sign out of the previous client first («Αποσύνδεση» under your name, top right), then sign in as <span class="inline">ioustinos.sarris+dev13@gmail.com</span></li><li><strong>ADMIN window</strong>: <span class="inline">ioustinos.sarris@gmail.com</span> (you)</li></ul></div>
+  <p class="seg where"><span class="lab">WHERE</span>DIETITIAN window adds <span class="inline">ioustinos.sarris+dev13@gmail.com</span>; CLIENT window signs in as +dev13; then ADMIN window</p>
+  <div class="seg"><span class="lab">DO</span><ol><li>In the CLIENT window accept.</li><li>Check B and +dev13's cart.</li><li>In the ADMIN window press «Approve».</li></ol></div>
+  <div class="seg expect"><span class="lab">EXPECT</span><ul><li>Before approval the DIETITIAN window reads «Αναμονή έγκρισης Fitpal» and the cart has no dietitian discount.</li><li>After approval it is active and the discount appears.</li></ul></div>
   <div class="warn"><span class="lab">FAIL IF</span><ul><li>Discount before approval.</li><li>Still pending after approval.</li></ul></div>
 </div>
 
 <div class="step" data-id="6.5">
   <div class="step__hd"><span class="step__n">6.5</span><p class="step__t">The client can decline</p><div class="verdict"></div></div>
-  <p class="seg where"><span class="lab">WHERE</span>Seat B adds <span class="inline">ioustinos.sarris+dev06@gmail.com</span>; seat C signs in as +dev06</p>
+  <div class="seg"><span class="lab">SIGNED IN AS</span><ul><li><strong>DIETITIAN window</strong>: <span class="inline">ioustinos.sarris+diet@gmail.com</span></li><li><strong>CLIENT window</strong>: sign out of the previous client first («Αποσύνδεση» under your name, top right), then sign in as <span class="inline">ioustinos.sarris+dev06@gmail.com</span></li><li><strong>ADMIN window</strong>: <span class="inline">ioustinos.sarris@gmail.com</span> (you)</li></ul></div>
+  <p class="seg where"><span class="lab">WHERE</span>DIETITIAN window adds <span class="inline">ioustinos.sarris+dev06@gmail.com</span>; CLIENT window signs in as +dev06</p>
   <div class="seg"><span class="lab">DO</span><ol><li>Press «Απόρριψη».</li></ol></div>
-  <div class="seg expect"><span class="lab">EXPECT</span><ul><li>The prompt closes and doesn't return.</li><li>The link ends: B no longer lists +dev06, and in A it only shows with «show ended links» ticked, as «ended».</li></ul></div>
+  <div class="seg expect"><span class="lab">EXPECT</span><ul><li>The prompt closes and doesn't return.</li><li>The link ends: the DIETITIAN window no longer lists +dev06, and in the ADMIN window it only shows with «show ended links» ticked, as «ended».</li></ul></div>
   <div class="warn"><span class="lab">FAIL IF</span><ul><li>The prompt returns.</li><li>The dietitian still sees +dev06 as pending.</li></ul></div>
 </div>
 
@@ -548,25 +597,28 @@
 
 <div class="step" data-id="7.1">
   <div class="step__hd"><span class="step__n">7.1</span><p class="step__t">A new sign-up through the link becomes a client</p><div class="verdict"></div></div>
-  <p class="seg where"><span class="lab">WHERE</span>Seat C, signed out · <span class="inline">/ref/test-e2e-diet</span></p>
+  <div class="seg"><span class="lab">SIGNED IN AS</span><ul><li><strong>CLIENT window</strong>: SIGNED OUT. You create <span class="inline">ioustinos.sarris+ref1@gmail.com</span> in this step, with the «Εγγραφή» tab instead of «Σύνδεση»</li><li><strong>DIETITIAN window</strong>: <span class="inline">ioustinos.sarris+diet@gmail.com</span></li></ul></div>
+  <p class="seg where"><span class="lab">WHERE</span>CLIENT window, signed out · <span class="inline">/ref/test-e2e-diet</span></p>
   <div class="seg"><span class="lab">DO</span><ol><li>Open the link, then sign up as <span class="inline">ioustinos.sarris+ref1@gmail.com</span>.</li></ol></div>
-  <div class="seg expect"><span class="lab">EXPECT</span><ul><li>The link lands on the menu.</li><li>After sign-up +ref1 is an active TEST client in B and the consent prompt appears in C.</li></ul></div>
+  <div class="seg expect"><span class="lab">EXPECT</span><ul><li>The link lands on the menu.</li><li>After sign-up +ref1 is an active TEST client in the DIETITIAN window and the consent prompt appears in the CLIENT window.</li></ul></div>
   <div class="warn"><span class="lab">FAIL IF</span><ul><li>Not linked.</li><li>Linked as pending.</li></ul></div>
 </div>
 
 <div class="step" data-id="7.2">
   <div class="step__hd"><span class="step__n">7.2</span><p class="step__t">An existing customer through the link goes to approval</p><div class="verdict"></div></div>
-  <p class="seg where"><span class="lab">WHERE</span>Seat C, signed out · <span class="inline">/ref/test-e2e-diet</span></p>
+  <div class="seg"><span class="lab">SIGNED IN AS</span><ul><li><strong>CLIENT window</strong>: SIGNED OUT first; you sign in as <span class="inline">ioustinos.sarris+dev05@gmail.com</span> after opening the link</li><li><strong>ADMIN window</strong>: <span class="inline">ioustinos.sarris@gmail.com</span> (you)</li></ul></div>
+  <p class="seg where"><span class="lab">WHERE</span>CLIENT window, signed out · <span class="inline">/ref/test-e2e-diet</span></p>
   <div class="seg"><span class="lab">DO</span><ol><li>Open the link, then sign in as existing customer <span class="inline">ioustinos.sarris+dev05@gmail.com</span>.</li></ol></div>
-  <div class="seg expect"><span class="lab">EXPECT</span><ul><li>A pending link awaiting Fitpal.</li><li>A shows +dev05 with «Approve».</li></ul></div>
+  <div class="seg expect"><span class="lab">EXPECT</span><ul><li>A pending link awaiting Fitpal.</li><li>the ADMIN window shows +dev05 with «Approve».</li></ul></div>
   <div class="warn"><span class="lab">FAIL IF</span><ul><li>Active straight away.</li><li>Not linked at all.</li></ul></div>
 </div>
 
 <div class="step" data-id="7.3">
   <div class="step__hd"><span class="step__n">7.3</span><p class="step__t">With the add-on off, the link does nothing</p><div class="verdict"></div></div>
-  <p class="seg where"><span class="lab">WHERE</span>Seat A · TEST → «Details &amp; add-ons»</p>
-  <div class="seg"><span class="lab">DO</span><ol><li>Untick «Referral link + QR», save.</li><li>In C sign out, open the referral link, sign up as <span class="inline">ioustinos.sarris+ref2@gmail.com</span>.</li><li>Tick the add-on back on afterwards.</li></ol></div>
-  <div class="seg expect"><span class="lab">EXPECT</span><ul><li>+ref2 belongs to no dietitian.</li><li>While off, B's referral banner is gone.</li></ul></div>
+  <div class="seg"><span class="lab">SIGNED IN AS</span><ul><li><strong>ADMIN window</strong>: <span class="inline">ioustinos.sarris@gmail.com</span> (you)</li><li><strong>CLIENT window</strong>: SIGNED OUT. You create <span class="inline">ioustinos.sarris+ref2@gmail.com</span> in this step, with the «Εγγραφή» tab instead of «Σύνδεση»</li><li><strong>DIETITIAN window</strong>: <span class="inline">ioustinos.sarris+diet@gmail.com</span></li></ul></div>
+  <p class="seg where"><span class="lab">WHERE</span>ADMIN window · TEST → «Details &amp; add-ons»</p>
+  <div class="seg"><span class="lab">DO</span><ol><li>Untick «Referral link + QR», save.</li><li>In the CLIENT window sign out, open the referral link, sign up as <span class="inline">ioustinos.sarris+ref2@gmail.com</span>.</li><li>Tick the add-on back on afterwards.</li></ol></div>
+  <div class="seg expect"><span class="lab">EXPECT</span><ul><li>+ref2 belongs to no dietitian.</li><li>While off, the DIETITIAN window's referral banner is gone.</li></ul></div>
   <div class="warn"><span class="lab">FAIL IF</span><ul><li>+ref2 is linked.</li><li>The banner stays visible while off.</li></ul></div>
 </div>
 
@@ -574,7 +626,8 @@
 
 <div class="step" data-id="8.1">
   <div class="step__hd"><span class="step__n">8.1</span><p class="step__t">Measurements draw a weight chart</p><div class="verdict"></div></div>
-  <p class="seg where"><span class="lab">WHERE</span>Seat B · client 23 → «Πρόοδος &amp; μετρήσεις»</p>
+  <div class="seg"><span class="lab">SIGNED IN AS</span><ul><li><strong>DIETITIAN window</strong>: <span class="inline">ioustinos.sarris+diet@gmail.com</span></li></ul></div>
+  <p class="seg where"><span class="lab">WHERE</span>DIETITIAN window · client 23 → «Πρόοδος &amp; μετρήσεις»</p>
   <div class="seg"><span class="lab">DO</span><ol><li>Add a measurement dated a week ago (weight 56).</li><li>Add one for today (weight 55).</li></ol></div>
   <div class="seg expect"><span class="lab">EXPECT</span><ul><li>After the second, a weight chart appears with both dates.</li><li>The table lists newest first.</li></ul></div>
   <div class="warn"><span class="lab">FAIL IF</span><ul><li>No chart after two points.</li><li>Dates or values wrong.</li></ul></div>
@@ -582,8 +635,9 @@
 
 <div class="step" data-id="8.2">
   <div class="step__hd"><span class="step__n">8.2</span><p class="step__t">Switching the add-on off hides the card</p><div class="verdict"></div></div>
-  <p class="seg where"><span class="lab">WHERE</span>Seat A · TEST → untick «Progress tracking»; seat B reload; tick it back</p>
-  <div class="seg"><span class="lab">DO</span><ol><li>Untick, reload B.</li><li>Tick it back on, reload B.</li></ol></div>
+  <div class="seg"><span class="lab">SIGNED IN AS</span><ul><li><strong>ADMIN window</strong>: <span class="inline">ioustinos.sarris@gmail.com</span> (you)</li><li><strong>DIETITIAN window</strong>: <span class="inline">ioustinos.sarris+diet@gmail.com</span></li></ul></div>
+  <p class="seg where"><span class="lab">WHERE</span>ADMIN window · TEST → untick «Progress tracking»; DIETITIAN window reload; tick it back</p>
+  <div class="seg"><span class="lab">DO</span><ol><li>Untick, then reload the DIETITIAN window.</li><li>Tick it back on, then reload the DIETITIAN window again.</li></ol></div>
   <div class="seg expect"><span class="lab">EXPECT</span><ul><li>The card disappears while off and returns with both measurements.</li></ul></div>
   <div class="warn"><span class="lab">FAIL IF</span><ul><li>The card stays while off.</li><li>Measurements lost.</li></ul></div>
 </div>
@@ -592,7 +646,8 @@
 
 <div class="step" data-id="9.1">
   <div class="step__hd"><span class="step__n">9.1</span><p class="step__t">Fitpal marks commission paid</p><div class="verdict"></div></div>
-  <p class="seg where"><span class="lab">WHERE</span>Seat A · TEST → «Commission &amp; payouts»</p>
+  <div class="seg"><span class="lab">SIGNED IN AS</span><ul><li><strong>ADMIN window</strong>: <span class="inline">ioustinos.sarris@gmail.com</span> (you)</li></ul></div>
+  <p class="seg where"><span class="lab">WHERE</span>ADMIN window · TEST → «Commission &amp; payouts»</p>
   <div class="seg"><span class="lab">DO</span><ol><li>Tick the lines from 4.7 and 5.5.</li><li>Type a reference, press «Mark selected paid (…)».</li></ol></div>
   <div class="seg expect"><span class="lab">EXPECT</span><ul><li>A row under «Payouts» with the total and your reference.</li><li>Those lines show 0 outstanding.</li></ul></div>
   <div class="warn"><span class="lab">FAIL IF</span><ul><li>Payout total differs from the ticked commissions.</li></ul></div>
@@ -600,7 +655,8 @@
 
 <div class="step" data-id="9.2">
   <div class="step__hd"><span class="step__n">9.2</span><p class="step__t">The dietitian sees the payout</p><div class="verdict"></div></div>
-  <p class="seg where"><span class="lab">WHERE</span>Seat B · «Οικονομικά» → tick «Όλα»</p>
+  <div class="seg"><span class="lab">SIGNED IN AS</span><ul><li><strong>DIETITIAN window</strong>: <span class="inline">ioustinos.sarris+diet@gmail.com</span></li></ul></div>
+  <p class="seg where"><span class="lab">WHERE</span>DIETITIAN window · «Οικονομικά» → tick «Όλα»</p>
   <div class="seg"><span class="lab">DO</span><ol><li>Read the tiles and the lines.</li></ol></div>
   <div class="seg expect"><span class="lab">EXPECT</span><ul><li>Those lines read «Εξοφλήθηκε».</li><li>«Εξοφλημένο» went up and «Οφειλόμενο» down by the payout.</li></ul></div>
   <div class="warn"><span class="lab">FAIL IF</span><ul><li>Tiles don't move.</li><li>The dietitian can mark anything paid.</li></ul></div>
@@ -608,7 +664,8 @@
 
 <div class="step" data-id="9.3">
   <div class="step__hd"><span class="step__n">9.3</span><p class="step__t">The monthly statement exports</p><div class="verdict"></div></div>
-  <p class="seg where"><span class="lab">WHERE</span>Seat B · «Οικονομικά» → «Statement (CSV)»</p>
+  <div class="seg"><span class="lab">SIGNED IN AS</span><ul><li><strong>DIETITIAN window</strong>: <span class="inline">ioustinos.sarris+diet@gmail.com</span></li></ul></div>
+  <p class="seg where"><span class="lab">WHERE</span>DIETITIAN window · «Οικονομικά» → «Statement (CSV)»</p>
   <div class="seg"><span class="lab">DO</span><ol><li>Download and open in Excel or Numbers.</li></ol></div>
   <div class="seg expect"><span class="lab">EXPECT</span><ul><li>Greek characters render.</li><li>Columns split on «;».</li><li>Amounts match the screen.</li></ul></div>
   <div class="warn"><span class="lab">FAIL IF</span><ul><li>Garbled Greek.</li><li>Everything in one column.</li></ul></div>
@@ -620,7 +677,8 @@
 
 <div class="step" data-id="10.1">
   <div class="step__hd"><span class="step__n">10.1</span><p class="step__t">A customer cannot open the portal</p><div class="verdict"></div></div>
-  <p class="seg where"><span class="lab">WHERE</span>Seat C · as <span class="inline">ioustinos.sarris+dev10@gmail.com</span> → <span class="inline">/partner</span></p>
+  <div class="seg"><span class="lab">SIGNED IN AS</span><ul><li><strong>CLIENT window</strong>: sign out of the previous client first («Αποσύνδεση» under your name, top right), then sign in as <span class="inline">ioustinos.sarris+dev10@gmail.com</span></li></ul></div>
+  <p class="seg where"><span class="lab">WHERE</span>CLIENT window · as <span class="inline">ioustinos.sarris+dev10@gmail.com</span> → <span class="inline">/partner</span></p>
   <div class="seg"><span class="lab">DO</span><ol><li>Open the portal URL.</li></ol></div>
   <div class="seg expect"><span class="lab">EXPECT</span><ul><li>«Δεν είστε συνεργάτης διαιτολόγος» and nothing else.</li></ul></div>
   <div class="warn"><span class="lab">FAIL IF</span><ul><li>Any client data.</li></ul></div>
@@ -628,15 +686,17 @@
 
 <div class="step" data-id="10.2">
   <div class="step__hd"><span class="step__n">10.2</span><p class="step__t">A dietitian cannot open someone else's client</p><div class="verdict"></div></div>
-  <p class="seg where"><span class="lab">WHERE</span>Seat A · admin customer page, then seat B</p>
-  <div class="seg"><span class="lab">DO</span><ol><li>Copy the id of an unlinked customer (e.g. Πελάτης Δοκιμής 10) from the admin customer page URL.</li><li>In B open <span class="inline">/partner/clients/&lt;that id&gt;</span>.</li></ol></div>
+  <div class="seg"><span class="lab">SIGNED IN AS</span><ul><li><strong>ADMIN window</strong>: <span class="inline">ioustinos.sarris@gmail.com</span> (you)</li><li><strong>DIETITIAN window</strong>: <span class="inline">ioustinos.sarris+diet@gmail.com</span></li></ul></div>
+  <p class="seg where"><span class="lab">WHERE</span>ADMIN window · admin customer page, then DIETITIAN window</p>
+  <div class="seg"><span class="lab">DO</span><ol><li>Copy the id of an unlinked customer (e.g. Πελάτης Δοκιμής 10) from the admin customer page URL.</li><li>In the DIETITIAN window open <span class="inline">/partner/clients/&lt;that id&gt;</span>.</li></ol></div>
   <div class="seg expect"><span class="lab">EXPECT</span><ul><li>An error. No name, address, order or body data shows.</li></ul></div>
   <div class="warn"><span class="lab">FAIL IF</span><ul><li>Any of that person's data.</li></ul></div>
 </div>
 
 <div class="step" data-id="10.3">
   <div class="step__hd"><span class="step__n">10.3</span><p class="step__t">The dietitian cannot accept for a client</p><div class="verdict"></div></div>
-  <p class="seg where"><span class="lab">WHERE</span>Seat B</p>
+  <div class="seg"><span class="lab">SIGNED IN AS</span><ul><li><strong>DIETITIAN window</strong>: <span class="inline">ioustinos.sarris+diet@gmail.com</span></li></ul></div>
+  <p class="seg where"><span class="lab">WHERE</span>DIETITIAN window</p>
   <div class="seg"><span class="lab">DO</span><ol><li>Add +dev10 so it's pending.</li><li>Then «Παραγγελία ως πελάτης» on any active client and browse the site.</li></ol></div>
   <div class="seg expect"><span class="lab">EXPECT</span><ul><li>No accept or consent prompt appears while in client mode.</li><li>The pending +dev10 row can't be opened or used for client mode.</li></ul></div>
   <div class="warn"><span class="lab">FAIL IF</span><ul><li>A prompt shows in client mode.</li><li>You can act as a pending client.</li></ul></div>
@@ -644,15 +704,17 @@
 
 <div class="step" data-id="10.4">
   <div class="step__hd"><span class="step__n">10.4</span><p class="step__t">Ending a link removes access and discount</p><div class="verdict"></div></div>
-  <p class="seg where"><span class="lab">WHERE</span>Seat A · TEST → «Clients &amp; terms» → +dev13 row → «End»</p>
-  <div class="seg"><span class="lab">DO</span><ol><li>End the link, confirm.</li><li>Check B's list and +dev13's cart in C.</li></ol></div>
-  <div class="seg expect"><span class="lab">EXPECT</span><ul><li>B no longer lists or opens +dev13.</li><li>+dev13's cart has no dietitian discount.</li></ul></div>
+  <div class="seg"><span class="lab">SIGNED IN AS</span><ul><li><strong>ADMIN window</strong>: <span class="inline">ioustinos.sarris@gmail.com</span> (you)</li><li><strong>DIETITIAN window</strong>: <span class="inline">ioustinos.sarris+diet@gmail.com</span></li><li><strong>CLIENT window</strong>: sign out of the previous client first («Αποσύνδεση» under your name, top right), then sign in as <span class="inline">ioustinos.sarris+dev13@gmail.com</span></li></ul></div>
+  <p class="seg where"><span class="lab">WHERE</span>ADMIN window · TEST → «Clients &amp; terms» → +dev13 row → «End»</p>
+  <div class="seg"><span class="lab">DO</span><ol><li>End the link, confirm.</li><li>Check the DIETITIAN window's list and +dev13's cart in the CLIENT window.</li></ol></div>
+  <div class="seg expect"><span class="lab">EXPECT</span><ul><li>the DIETITIAN window no longer lists or opens +dev13.</li><li>+dev13's cart has no dietitian discount.</li></ul></div>
   <div class="warn"><span class="lab">FAIL IF</span><ul><li>Either still present.</li></ul></div>
 </div>
 
 <div class="step" data-id="10.5">
   <div class="step__hd"><span class="step__n">10.5</span><p class="step__t">The in-house dietitian view</p><div class="verdict"></div></div>
-  <p class="seg where"><span class="lab">WHERE</span>Seat A · /partner → «Προβολή ως» → «Fitpal (εσωτερικοί διαιτολόγοι)»</p>
+  <div class="seg"><span class="lab">SIGNED IN AS</span><ul><li><strong>ADMIN window</strong>: <span class="inline">ioustinos.sarris@gmail.com</span> (you)</li></ul></div>
+  <p class="seg where"><span class="lab">WHERE</span>ADMIN window · /partner → «Προβολή ως» → «Fitpal (εσωτερικοί διαιτολόγοι)»</p>
   <div class="seg"><span class="lab">DO</span><ol><li>Search «Δοκιμής».</li></ol></div>
   <div class="seg expect"><span class="lab">EXPECT</span><ul><li>Customers from all of Fitpal are found.</li><li>No discount / commission column.</li><li>No «Παραγγελίες» or «Οικονομικά» menu.</li></ul></div>
   <div class="warn"><span class="lab">FAIL IF</span><ul><li>Search returns nothing.</li><li>Commission columns shown.</li></ul></div>

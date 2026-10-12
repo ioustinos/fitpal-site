@@ -10,6 +10,7 @@ import { useEffect, useState, type ReactNode } from 'react'
 import { Routes, Route, NavLink, Navigate, useNavigate, Link } from 'react-router-dom'
 import { useAuthStore } from '../store/useAuthStore'
 import { useImpersonationStore } from '../store/useImpersonationStore'
+import { IS_CLIENT_TAB, closeClientTab } from '../lib/clientTab'
 import { useUIStore } from '../store/useUIStore'
 import { LogoIcon } from '../components/ui/LogoIcon'
 import { fetchMyPartner, fetchAllPartnersForAdmin, getViewAs, setViewAs, type MyPartner } from './api'
@@ -24,9 +25,8 @@ import './partner.css'
 export default function PartnerApp() {
   const user = useAuthStore((s) => s.user)
   const sessionChecked = useAuthStore((s) => s.sessionChecked)
-  const impersonating = useImpersonationStore((s) => s.active)
+  const impersonating = IS_CLIENT_TAB // WEC-868: client tabs never open the portal
   const target = useImpersonationStore((s) => s.target)
-  const stop = useImpersonationStore((s) => s.stop)
   const navigate = useNavigate()
   const [partner, setPartner] = useState<MyPartner | null>(null)
   const [state, setState] = useState<'loading' | 'ok' | 'none' | 'error'>('loading')
@@ -65,15 +65,16 @@ export default function PartnerApp() {
 
   if (!sessionChecked) return <div className="admin-boot"><div className="admin-spinner" /></div>
 
-  // While acting as a client, the active session IS the client's — the portal
-  // must not open. Offer the way back.
-  if (impersonating && target) {
+  // WEC-868: a client tab holds the CUSTOMER's session — the portal never
+  // opens in it. The dietitian's portal lives in their other tab.
+  if (impersonating) {
+    const who = target?.name || target?.email
     return (
-      <Gate title="Είστε συνδεδεμένοι ως πελάτης" eyebrow="Παραγγελία ως πελάτης">
-        <p>Αυτή τη στιγμή κάνετε παραγγελία για <strong>{target.name || target.email}</strong>. Βγείτε από τη λειτουργία πελάτη για να επιστρέψετε στο portal.</p>
+      <Gate title="Αυτή η καρτέλα είναι καρτέλα πελάτη" eyebrow="Λειτουργία πελάτη">
+        <p>{who ? <>Εδώ ενεργείτε ως <strong>{who}</strong>. </> : null}Το portal δεν ανοίγει σε καρτέλα πελάτη. Το portal σας είναι ανοιχτό στην άλλη σας καρτέλα.</p>
         <div className="admin-403-actions">
-          <button className="btn-primary" onClick={async () => { await stop(); navigate('/partner') }}>Έξοδος &amp; σύνδεση ξανά</button>
-          <button className="btn-ghost" onClick={() => navigate('/')}>Συνέχεια ως {target.name?.split(' ')[0] || 'πελάτης'}</button>
+          <button className="btn-primary" onClick={() => void closeClientTab('closed')}>Κλείσιμο καρτέλας πελάτη</button>
+          {who && <button className="btn-ghost" onClick={() => navigate('/')}>Συνέχεια ως {target?.name?.split(' ')[0] || 'πελάτης'}</button>}
         </div>
       </Gate>
     )

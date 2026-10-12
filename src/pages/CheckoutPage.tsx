@@ -882,14 +882,9 @@ export function CheckoutPage() {
       toast(t('coPaymentSetupFailed'))
     }
 
-    // If we placed this order via impersonation, exit impersonation now —
-    // restores the admin's session so their next click takes them back to
-    // their own admin context. The store handles setSession + cleanup.
-    if (isImpersonating) {
-      // Fire and forget — the confirmation screen still renders for the
-      // customer-side eyes the admin is showing the result to.
-      void useImpersonationStore.getState().stop()
-    }
+    // WEC-868: client mode is NOT left automatically after an order any more.
+    // The client tab stays open (same customer, clean cart) so the operator can
+    // place another order or close the tab from the banner when they're done.
 
     // WEC-397: Purchase conversion (browser Pixel + server CAPI, deduped by the
     // order number). INERT unless VITE_TRACKING_ENABLED. Card orders redirect to

@@ -1,5 +1,4 @@
 import { useEffect, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
 import { useImpersonationStore } from '../../store/useImpersonationStore'
 import { useUIStore } from '../../store/useUIStore'
 import { supabase } from '../../lib/supabase'
@@ -7,6 +6,7 @@ import { fetchActivePlanDetails, type PlanDetails } from '../../lib/api/planDeta
 import { fetchPlanConsumption, planTotalDays } from '../../lib/api/planConsumption'
 import { PlanDetailsPanel } from '../shared/PlanDetailsPanel'
 import { planMealsLabel } from '../../lib/planMeals'
+import { closeClientTab } from '../../lib/clientTab'
 
 /**
  * Persistent banner shown at the top of every page while an admin is
@@ -49,11 +49,19 @@ export function ImpersonationBanner() {
   const active = useImpersonationStore((s) => s.active)
   const target = useImpersonationStore((s) => s.target)
   const loading = useImpersonationStore((s) => s.loading)
-  const stop = useImpersonationStore((s) => s.stop)
   const lang = useUIStore((s) => s.lang)
-  // WEC-844: a dietitian returns to /partner, an admin to /admin.
-  const impersonatorRole = useImpersonationStore((s) => s.impersonatorRole)
-  const navigate = useNavigate()
+  const expiresAt = useImpersonationStore((s) => s.expiresAt)
+  const locked = useImpersonationStore((s) => s.locked)
+  const [closing, setClosing] = useState(false)
+  // WEC-868: minutes left before the 2h hard expiry, shown in the last 15.
+  const [minsLeft, setMinsLeft] = useState<number | null>(null)
+  useEffect(() => {
+    if (!expiresAt) { setMinsLeft(null); return }
+    const tick = () => setMinsLeft(Math.max(0, Math.ceil((new Date(expiresAt).getTime() - Date.now()) / 60_000)))
+    tick()
+    const t = window.setInterval(tick, 30_000)
+    return () => window.clearInterval(t)
+  }, [expiresAt])
 
   const [summary, setSummary] = useState<PlanSummary | null>(null)
 
@@ -68,7 +76,7 @@ export function ImpersonationBanner() {
   // Only flip the body class when we'd actually render the banner. Without
   // the `target` guard we can end up with the page padded down 36px while
   // the banner is invisible — the symptom of stale persisted state.
-  const shouldShow = active && !!target
+  const shouldShow = active && !!target && !locked
   const targetUserId = target?.userId
 
   useEffect(() => {
@@ -221,24 +229,23 @@ export function ImpersonationBanner() {
   }
 
   async function handleExit() {
-    // stop() signs the customer out via supabase.auth.signOut(). The admin
-    // lands on the customer site as a guest, then navigates to /admin to
-    // sign back in. This is the deliberate convention — no session
-    // restoration, no stale-token edge cases.
-    const backTo = impersonatorRole === 'partner' ? '/partner' : '/admin'
-    await stop()
-    navigate(backTo)
+    // WEC-868: close THIS tab only. Ends the server session, drops this tab's
+    // copy of the customer's session (the customer's own devices stay signed
+    // in) and closes the tab. The operator's other tabs never changed.
+    setClosing(true)
+    await closeClientTab('closed')
+    setClosing(false)
   }
 
   // Follows the site's ΕΛ/EN toggle — dietitians use the portal in Greek.
   const el = lang === 'el'
   const L = el
     ? { acting: 'Ενεργείτε ως', plan: 'Πλάνο', bonus: 'μπόνους', left: 'Υπόλοιπο', spent: 'Ξοδεύτηκαν', days: 'ημέρες',
-        ends: 'Λήξη', daysLeft: 'ημ. ακόμα', perDay: '/ημέρα', exiting: 'Έξοδος…', exit: 'Έξοδος & νέα σύνδεση',
+        ends: 'Λήξη', daysLeft: 'ημ. ακόμα', perDay: '/ημέρα', exiting: 'Κλείσιμο…', exit: 'Κλείσιμο καρτέλας πελάτη', minsLeft: 'λεπτά ακόμα',
         tPlan: 'Βασικό υπόλοιπο πλάνου + μπόνους', tDays: 'Ημέρες παράδοσης με πορτοφόλι / σύνολο ημερών πλάνου',
         tOver: 'Ξοδεύει πάνω από τον ομαλό ημερήσιο ρυθμό (>10%)', tPace: 'Υπόλοιπο ÷ ημέρες παράδοσης που απομένουν' }
     : { acting: 'Acting as', plan: 'Plan', bonus: 'bonus', left: 'Left', spent: 'Spent', days: 'days',
-        ends: 'Ends', daysLeft: 'd left', perDay: '/day', exiting: 'Exiting…', exit: 'Exit & sign back in',
+        ends: 'Ends', daysLeft: 'd left', perDay: '/day', exiting: 'Closing…', exit: 'Close client tab', minsLeft: 'min left',
         tPlan: 'Plan base credit + bonus credit', tDays: 'Delivery-days ordered on the wallet / plan total days',
         tOver: 'Spending above the even per-day pace (>10% over)', tPace: 'Remaining balance ÷ delivery-days left on the plan' }
 
@@ -255,6 +262,11 @@ export function ImpersonationBanner() {
       <span>
         {L.acting} <strong>{target.name || target.email}</strong>
       </span>
+      {minsLeft != null && minsLeft <= 15 && (
+        <span style={{ ...chip, background: '#dc2626' }} title="Client mode ends 2 hours after it was opened">
+          ⏱ {minsLeft} {L.minsLeft}
+        </span>
+      )}
 
       {/* WEC-507: plan budget summary (only when the customer has an active plan) */}
       {summary && (
@@ -296,8 +308,8 @@ export function ImpersonationBanner() {
         </button>
       )}
 
-      <button onClick={handleExit} disabled={loading}>
-        {loading ? L.exiting : L.exit}
+      <button onClick={handleExit} disabled={loading || closing}>
+        {closing ? L.exiting : L.exit}
       </button>
 
       {planOpen && (

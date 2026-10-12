@@ -516,26 +516,25 @@ export async function submitOrder(payload: SubmitOrderPayload): Promise<{
   validationErrors?: Record<string, string[]>
 }> {
   try {
-    // Get auth token if logged in. During admin impersonation the active
-    // session IS the customer's (we session-swapped on impersonate-start),
-    // so this is the customer's token — submit-order files the order
-    // under them via auth.uid(). For audit (admin_order_id), we send the
-    // admin's user_id (captured at impersonate-start) in X-Impersonator-Admin-Id.
-    // The server validates that id corresponds to a real admin before
-    // trusting it.
+    // Logged-in token. In a client-mode tab (WEC-868) this is the CUSTOMER's
+    // own session (kept private to that tab); the tab also sends its
+    // server-side client-session id, from which the server — not this
+    // browser — decides whether the order is attributed to an admin or a
+    // dietitian. A locked tab never submits.
     const { data: session } = await supabase.auth.getSession()
     const token = session?.session?.access_token
 
-    // Lazy import to avoid pulling the impersonation store into non-cart code.
     const { useImpersonationStore } = await import('../../store/useImpersonationStore')
     const impersonation = useImpersonationStore.getState()
-    const adminUserId = impersonation.active ? impersonation.adminUserId : null
+    if (impersonation.locked) {
+      return { data: null, error: impersonation.lockMessage ?? 'Η λειτουργία πελάτη έχει κλείσει. · Client mode has ended.' }
+    }
 
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
     }
     if (token) headers.Authorization = `Bearer ${token}`
-    if (adminUserId) headers['X-Impersonator-Admin-Id'] = adminUserId
+    if (impersonation.active && impersonation.clientSessionId) headers['X-Client-Session-Id'] = impersonation.clientSessionId
 
     // WEC-712: stamp the storefront from the URL. Done here, at the single
     // exit point, so no caller can forget it — and so retail (slug null)
@@ -560,6 +559,14 @@ export async function submitOrder(payload: SubmitOrderPayload): Promise<{
     const json = await res.json()
 
     if (!res.ok) {
+      // WEC-868: the server refused this client tab's session — lock the tab.
+      if (typeof json.code === 'string' && json.code.startsWith('client_session_') && impersonation.active) {
+        const reason = json.code.slice('client_session_'.length)
+        useImpersonationStore.getState().lock(
+          (['replaced', 'expired', 'stale', 'wrong_client', 'missing'].includes(reason) ? reason : 'ended') as 'ended',
+          json.error ?? null,
+        )
+      }
       return {
         data: null,
         error: json.error ?? `Order failed (${res.status})`,

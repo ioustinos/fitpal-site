@@ -18,6 +18,7 @@ import { IndicativeAddressGate, type IndicativeAddress } from '../components/wal
 import { saveProfileAllergies, saveProfileAvoidedIngredients } from '../lib/api/diet'
 import { useMenuStore } from '../store/useMenuStore'
 import { supabase } from '../lib/supabase'
+import { tabStorage } from '../lib/clientTab' // WEC-868
 import { MacroIcon } from '../components/ui/MacroDots'
 import { DiscountPill } from '../components/ui/DiscountPill'
 import { isValidGreekVat, vatDigits } from '../lib/vat'
@@ -380,7 +381,7 @@ export function WalletPage() {
   const WIZARD_KEY = 'fitpal_wizard_plan_v1'
   useEffect(() => {
     try {
-      const raw = localStorage.getItem(WIZARD_KEY)
+      const raw = tabStorage.getItem(WIZARD_KEY)
       if (!raw) return
       const s = JSON.parse(raw) as Record<string, unknown>
       if (s.goal) setGoal(s.goal as Goal)
@@ -399,7 +400,7 @@ export function WalletPage() {
   }, [])
   useEffect(() => {
     try {
-      localStorage.setItem(WIZARD_KEY, JSON.stringify({
+      tabStorage.setItem(WIZARD_KEY, JSON.stringify({
         goal, sex, age, heightCm, weightKg, activity, meals, planLength, daysPerWeek, indAddr, startDate,
       }))
     } catch { /* quota / private mode — non-fatal */ }

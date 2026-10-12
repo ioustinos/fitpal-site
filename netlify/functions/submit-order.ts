@@ -14,6 +14,7 @@ import { createVivaOrder } from '../lib/viva/createOrder'
 // createVivaOrder below for why this cannot live in the background function.
 import { track, subscribeProfileToMarketing, EVT } from '../lib/klaviyo'
 import { corsHeaders } from '../lib/cors'
+import { checkClientSession, sessionReasonText } from '../lib/clientSession'
 import { loadCategoryDiscounts, effectiveDiscountPct, applyDiscountCents } from '../lib/stores/categoryDiscounts'
 import { checkRateLimit, clientIp } from '../lib/rateLimit'
 import { isMirrorEligible } from '../lib/airtable/pushOrder'
@@ -505,77 +506,73 @@ export default async (request: Request) => {
       body.customerEmail = authEmail
     }
 
-    // ─── Impersonation attribution via X-Impersonator-Admin-Id ─────────
+    // ─── WEC-868: client mode (admin or dietitian acting for a customer) ──
     //
-    // Session-swap impersonation: the admin's session was swapped to the
-    // customer's on impersonate-start, so the Authorization header is the
-    // customer's token — `userId` is correctly the customer. For audit
-    // trail purposes we capture WHICH admin placed this order in
-    // `admin_order_id`. The client sends the admin's user_id in
-    // X-Impersonator-Admin-Id; we validate it corresponds to a real admin
-    // (row in `public.admin_users`) before trusting it.
+    // Client mode runs in its own browser tab holding the CUSTOMER's session,
+    // so the Authorization header is the customer's JWT and `userId` is the
+    // customer. The tab also sends X-Client-Session-Id: the server-side
+    // session opened by admin-impersonate-start. We attribute the order to the
+    // operator ONLY when that session is open, unexpired, still heartbeating,
+    // and belongs to this very customer. Anything else is refused (409), never
+    // silently placed as a plain customer order, so an operator can't believe
+    // they acted for one customer while the order lands as another's.
     //
-    // Why a header with just an id (not a token):
-    //   - The convention is "admin signs out at exit" — there's no admin
-    //     token still alive once the customer's session is in play.
-    //   - Worst case forgery: someone fakes another admin's id as the
-    //     attribution. The order is still legitimately the customer's
-    //     (their JWT is the active session); only the audit column is
-    //     wrong, not the order data. We also verify the id is a real
-    //     admin so non-admin ids can't be smuggled in as attribution.
+    // The old X-Impersonator-Admin-Id header (an unauthenticated id) is no
+    // longer trusted; a stale client still sending it is asked to reload.
     let adminUserId: string | null = null
-    let isImpersonating = false
-    const claimedAdminId = request.headers.get('X-Impersonator-Admin-Id')
-    if (claimedAdminId && SUPABASE_SERVICE_KEY) {
-      const svc = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY)
-      const { data: adminRow } = await svc
-        .from('admin_users')
-        .select('user_id')
-        .eq('user_id', claimedAdminId)
-        .maybeSingle()
-      if (adminRow) {
-        adminUserId = claimedAdminId
-        isImpersonating = true
-        // Use service-role for the rest so admin_order_id can be written
-        // without RLS edge cases on cross-user audit columns.
-        supabase = svc
-      }
-      // If the id wasn't a real admin we silently drop it and proceed as
-      // a normal customer submission. No leak risk.
-    }
-
-    // ─── WEC-844: a DIETITIAN partner impersonating one of their clients ──
-    // Same session-swap as admin impersonation (admin-impersonate-start also
-    // serves partners). The header carries the partner user's id; we only
-    // trust it if that user really belongs to an active partner AND that
-    // partner may act for this customer (active link, or an internal partner).
-    // It never sets admin_order_id — it only records «placed by» = partner.
     let partnerPlacerId: string | null = null
-    if (claimedAdminId && !isImpersonating && userId && SUPABASE_SERVICE_KEY) {
-      const svcP = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY, {
+    const claimedSessionId = request.headers.get('X-Client-Session-Id')
+    const legacyAdminHeader = request.headers.get('X-Impersonator-Admin-Id')
+    if (legacyAdminHeader && !claimedSessionId) {
+      return Response.json({
+        error: 'Η σελίδα είναι παλιά έκδοση. Ανανεώστε και ανοίξτε ξανά τη λειτουργία πελάτη. · This page is out of date. Reload and open client mode again.',
+        code: 'client_session_outdated',
+      }, { status: 409 })
+    }
+    if (claimedSessionId) {
+      if (!userId || !SUPABASE_SERVICE_KEY) {
+        return Response.json({ error: sessionReasonText('missing'), code: 'client_session_invalid' }, { status: 409 })
+      }
+      const svcS = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY, {
         auth: { persistSession: false, autoRefreshToken: false },
       })
-      const { data: pu } = await svcP
-        .from('partner_users')
-        .select('partner_id, partners!inner(active, is_internal)')
-        .eq('user_id', claimedAdminId)
-        .maybeSingle()
-      const pRow = pu as { partner_id: string; partners: { active: boolean; is_internal: boolean } | { active: boolean; is_internal: boolean }[] } | null
-      const pInfo = pRow ? (Array.isArray(pRow.partners) ? pRow.partners[0] : pRow.partners) : null
-      if (pRow && pInfo?.active) {
-        let allowed = !!pInfo.is_internal
-        if (!allowed) {
-          const { data: link } = await svcP
-            .from('partner_clients')
-            .select('id')
-            .eq('partner_id', pRow.partner_id)
-            .eq('client_user_id', userId)
-            .eq('status', 'active')
-            .maybeSingle()
+      const st = await checkClientSession(svcS, claimedSessionId, userId)
+      if (!st.ok) {
+        return Response.json({ error: sessionReasonText(st.reason), code: 'client_session_' + st.reason }, { status: 409 })
+      }
+      const sess = st.row
+      if (sess.operator_role === 'admin') {
+        const { data: adminRow } = await svcS.from('admin_users').select('user_id')
+          .eq('user_id', sess.operator_user_id).maybeSingle()
+        if (!adminRow) {
+          return Response.json({ error: 'Ο χειριστής δεν είναι πλέον διαχειριστής. · The operator is no longer an admin.', code: 'client_session_operator' }, { status: 403 })
+        }
+        adminUserId = sess.operator_user_id
+        // Service-role for the rest so admin_order_id can be written without
+        // RLS edge cases on cross-user audit columns (unchanged behaviour).
+        supabase = svcS
+      } else {
+        // Dietitian: their partner must still be active and still linked to
+        // this customer (internal partners may act for anyone).
+        const { data: pu } = await svcS
+          .from('partner_users')
+          .select('partner_id, partners!inner(active, is_internal)')
+          .eq('user_id', sess.operator_user_id)
+          .maybeSingle()
+        const pRow = pu as { partner_id: string; partners: { active: boolean; is_internal: boolean } | { active: boolean; is_internal: boolean }[] } | null
+        const pInfo = pRow ? (Array.isArray(pRow.partners) ? pRow.partners[0] : pRow.partners) : null
+        let allowed = !!(pRow && pInfo?.active && pInfo.is_internal)
+        if (pRow && pInfo?.active && !allowed) {
+          const { data: link } = await svcS.from('partner_clients').select('id')
+            .eq('partner_id', pRow.partner_id).eq('client_user_id', userId).eq('status', 'active').maybeSingle()
           allowed = !!link
         }
-        if (allowed) partnerPlacerId = claimedAdminId
+        if (!allowed) {
+          return Response.json({ error: 'Ο πελάτης δεν είναι πλέον ενεργός πελάτης σας. · This customer is no longer one of your active clients.', code: 'client_session_link' }, { status: 403 })
+        }
+        partnerPlacerId = sess.operator_user_id
       }
+      await svcS.from('impersonation_sessions').update({ last_seen_at: new Date().toISOString() }).eq('id', sess.id)
     }
 
     // ─── Phase 2: Fetch all reference data in parallel ──────────────────

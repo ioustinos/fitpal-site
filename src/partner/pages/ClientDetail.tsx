@@ -3,14 +3,13 @@
  * WEC-851 progress tracking (hidden add-on) — for one client.
  */
 import { useEffect, useState } from 'react'
-import { useNavigate, useParams, Link } from 'react-router-dom'
+import { useParams, Link } from 'react-router-dom'
 import {
   fetchClientDetail, saveClient, addMeasurement,
   type ClientDetail, type MealKey, eur, pct, fmtDate,
 } from '../api'
 import { usePartner } from '../context'
 import { useImpersonationStore } from '../../store/useImpersonationStore'
-import { useUIStore } from '../../store/useUIStore'
 import { OrdersList } from './Orders'
 import { Field } from './Clients'
 
@@ -37,7 +36,6 @@ const s = (v: unknown) => (v == null ? '' : String(v))
 export function ClientDetailPage() {
   const { userId = '' } = useParams()
   const partner = usePartner()
-  const navigate = useNavigate()
   const [d, setD] = useState<ClientDetail | null>(null)
   const [err, setErr] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
@@ -54,16 +52,13 @@ export function ClientDetailPage() {
   }
   useEffect(() => { void load() }, [userId]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // WEC-844: act as the client on the normal customer site (session swap,
-  // validated server-side). Exit lands back on /partner.
+  // WEC-844 / WEC-868: act as the client in a NEW tab (validated server-side).
+  // This portal tab stays exactly as it is.
   async function actAs(where: 'order' | 'plan' | 'account') {
     setActing(where); setErr(null)
-    const res = await useImpersonationStore.getState().start(userId)
+    const res = await useImpersonationStore.getState().openClientTab(userId, where)
     setActing(null)
-    if (!res.ok) { setErr(res.error ?? 'Δεν ξεκίνησε η λειτουργία πελάτη'); return }
-    navigate('/')
-    if (where === 'account') { useUIStore.getState().goToAccount('profile'); return }
-    if (where === 'plan') useUIStore.getState().goToWalletPage()
+    if (!res.ok) setErr(res.error ?? 'Δεν ξεκίνησε η λειτουργία πελάτη')
   }
 
   if (loading) return <div className="admin-page"><div className="admin-loading">Φόρτωση…</div></div>
@@ -94,8 +89,8 @@ export function ClientDetailPage() {
         </div>
       </div>
       <p className="admin-text-muted" style={{ fontSize: 12, marginTop: -6 }}>
-        «Ως πελάτης» ανοίγει το κανονικό site στον λογαριασμό του πελάτη (διευθύνσεις, αλλεργίες, προτιμήσεις, παραγγελία, πλάνο με payment link).
-        Με την έξοδο θα χρειαστεί να συνδεθείτε ξανά.
+        «Ως πελάτης» ανοίγει <strong>νέα καρτέλα</strong> με το κανονικό site στον λογαριασμό του πελάτη (διευθύνσεις, αλλεργίες, προτιμήσεις, παραγγελία, πλάνο με payment link).
+        Αυτή η καρτέλα μένει ως έχει. Μία καρτέλα πελάτη τη φορά: αν ανοίξετε άλλον πελάτη, η προηγούμενη καρτέλα κλειδώνει. Λήγει σε 2 ώρες.
       </p>
       {err && <div className="admin-error-banner">{err}</div>}
 

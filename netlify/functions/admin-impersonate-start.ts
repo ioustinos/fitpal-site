@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js'
 import { corsHeaders } from '../lib/cors'
+import { openClientSession } from '../lib/clientSession'
 
 /**
  * Mint a magic-link token for an arbitrary customer, callable only by admins.
@@ -209,7 +210,26 @@ export default async (request: Request) => {
       }, { status: 500 })
     }
 
+    // WEC-868: register the client-mode session. Ends any other client tab this
+    // operator still has open ('replaced'), so one operator = one client tab.
+    let partnerId: string | null = null
+    if (impersonatorRole === 'partner') {
+      const { data: pu } = await svc.from('partner_users').select('partner_id').eq('user_id', caller.id).maybeSingle()
+      partnerId = (pu as { partner_id: string } | null)?.partner_id ?? null
+    }
+    let clientSession
+    try {
+      clientSession = await openClientSession(svc, {
+        operatorUserId: caller.id, operatorRole: impersonatorRole,
+        clientUserId: body.targetUserId, partnerId,
+      })
+    } catch (e) {
+      return Response.json({ error: 'Could not open client session', detail: (e as Error).message }, { status: 500, headers: cors })
+    }
+
     return Response.json({
+      clientSessionId: clientSession.id,
+      expiresAt: clientSession.expires_at,
       hashedToken,
       target: {
         userId: body.targetUserId,

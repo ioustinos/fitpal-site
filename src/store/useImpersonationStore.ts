@@ -1,47 +1,36 @@
 import { create } from 'zustand'
-import { persist } from 'zustand/middleware'
+import { persist, createJSONStorage } from 'zustand/middleware'
 import { supabase } from '../lib/supabase'
+import {
+  IS_CLIENT_TAB, tabStorage, CLIENT_TAB_READY, CLIENT_TAB_HANDOFF, type ClientTabHandoff,
+} from '../lib/clientTab'
 
 /**
- * Admin impersonation — session swap with re-login convention.
+ * Client mode — an admin or a dietitian acting as one customer.
  *
- * The mental model: as if the customer gave the admin their username and
- * password. The admin's Supabase session is dropped, the customer's session
- * becomes the active one, and every Supabase query (including reactive
- * useAuthStore reload via onAuthStateChange) naturally pulls the customer's
- * data. On exit, the customer is signed out and the admin must sign in again.
+ * WEC-868 (client mode in its own tab — one identity per tab): client mode no
+ * longer swaps the browser's session. It opens a NEW TAB that holds the
+ * customer's session privately (sessionStorage, see lib/clientTab.ts). The
+ * operator's own tabs — admin, portal, their own shopping — are untouched,
+ * and leaving client mode never signs anyone out anywhere else.
  *
- * Why session-swap over a data overlay: zero refactoring across the customer
- * site. Every existing component that reads `user` from useAuthStore "just
- * works" because the user IS the impersonated customer during impersonation.
+ *   operator tab                         client tab (?client_tab=1)
+ *   ────────────                         ──────────────────────────
+ *   openClientTab(userId, where)
+ *     window.open (sync, on the click)  → boots, posts CLIENT_TAB_READY
+ *     POST admin-impersonate-start         to window.opener
+ *       → server ends the operator's
+ *         previous client session and
+ *         opens a new one (2h)
+ *     ← waits for READY, sends HANDOFF →  acceptHandoff(): verifyOtp into its
+ *                                         own storage, sets this store, drops
+ *                                         window.opener
  *
- * Why re-login on exit (the convention): we initially stashed the admin's
- * tokens to restore. That created edge cases — stale token expiry, cross-tab
- * session leaks (a second admin tab unknowingly running as the customer),
- * admin-impersonating-admin confusion. The fix is to drop the stash entirely
- * and force a fresh login after each impersonation session. One extra login
- * per session (~5 sec) buys us robustness across every edge case the
- * reviewer flagged. Acceptable trade for an admin-only feature.
- *
- * Flow:
- *   start(targetUserId)
- *     1. POST /api/admin-impersonate-start { targetUserId }
- *        → returns { hashedToken, target, adminUserId }
- *     2. supabase.auth.verifyOtp({ token_hash, type: 'magiclink' })
- *        → swaps active session to the customer
- *        → onAuthStateChange in App.tsx fires SIGNED_IN → refreshUser(customerId)
- *        → customer site renders with customer's data
- *     3. Banner becomes visible (driven by `active` flag in this store)
- *
- *   stop()
- *     1. supabase.auth.signOut() — drops the customer's session entirely
- *     2. onAuthStateChange fires SIGNED_OUT → user cleared in App.tsx
- *     3. Banner disappears (this store cleared by SIGNED_OUT handler too)
- *     4. Admin lands at the login page; signs back in to resume admin work.
- *
- * Persistence: minimal — only `active` and `target` so the banner survives
- * a tab refresh mid-impersonation. We deliberately do NOT persist any admin
- * tokens; if the admin's tokens are ever needed again, they sign in fresh.
+ * Every order from a client tab carries X-Client-Session-Id; the server only
+ * attributes it to the operator while that session is open, unexpired, still
+ * heartbeating and for this very customer. The tab heartbeats every minute and
+ * locks itself as soon as the server says the session is over (replaced by a
+ * newer client tab, expired, closed).
  */
 
 export interface ImpersonationTarget {
@@ -74,178 +63,182 @@ export interface ImpersonationTarget {
   wallet?: { balance: number; active: boolean }
 }
 
+export type ClientWhere = 'order' | 'plan' | 'account'
+export type LockReason = 'closed' | 'ended' | 'replaced' | 'expired' | 'stale' | 'wrong_client' | 'missing' | 'failed'
+
 interface ImpersonationState {
+  /** True only inside a live client tab. Always false in operator tabs. */
   active: boolean
   target: ImpersonationTarget | null
-  /**
-   * The admin's user_id at the moment impersonation started. Captured so
-   * orders submitted during this session can carry admin_order_id for the
-   * audit trail. NOT a token, NOT useful for re-authentication — just an
-   * identifier the server validates against `public.admin_users` before
-   * trusting.
-   */
+  /** The operator's user id (admin or dietitian) — display/audit only; the
+   *  server derives attribution from the session, never from this. */
   adminUserId: string | null
-  /** WEC-844: who started the impersonation — 'partner' = a dietitian acting
-   *  for one of their clients. Decides where exit lands (/partner vs /admin)
-   *  and the banner wording. The SERVER re-validates the role on submit. */
   impersonatorRole: 'admin' | 'partner' | null
-  /** True while the start/stop API calls are in-flight. */
+  /** WEC-868: server-side session this tab acts under. */
+  clientSessionId: string | null
+  expiresAt: string | null
+  /** WEC-868: set when this client tab may no longer act. The UI shows a lock
+   *  screen; nothing can be ordered from a locked tab. */
+  locked: LockReason | null
+  lockMessage: string | null
   loading: boolean
-  /** Last error from start/stop, surfaced to the UI. */
   error: string | null
-  start: (targetUserId: string) => Promise<{ ok: boolean; error?: string }>
-  stop: () => Promise<{ ok: boolean; error?: string }>
+  /** Operator side: open a new client tab for this customer. */
+  openClientTab: (targetUserId: string, where?: ClientWhere) => Promise<{ ok: boolean; error?: string }>
+  /** Client-tab side: take the handoff from the opener and sign in. */
+  acceptHandoff: (h: ClientTabHandoff) => Promise<{ ok: boolean; error?: string }>
+  lock: (reason: LockReason, message?: string | null) => void
   /** WEC-820: update the impersonated customer's addresses in-place (after the
    *  admin adds/edits one during impersonated checkout). */
   setTargetAddresses: (addresses: ImpersonationTarget['addresses']) => void
 }
 
+const HANDOFF_TIMEOUT_MS = 30_000
+
+/** Runs BEFORE the store hydrates (persist would otherwise overwrite the
+ *  old record first).
+ *  WEC-868 cleanup for tabs still holding an OLD session-swap impersonation
+ *  (pre-WEC-868 build): that tab is signed in as the customer with no banner.
+ *  Drop the customer session from this browser (local only — never the
+ *  customer's other devices) so the operator signs back in as themselves. */
+if (typeof window !== 'undefined' && !IS_CLIENT_TAB) {
+  try {
+    const raw = window.localStorage.getItem('fitpal-impersonation')
+    if (raw) {
+      const old = JSON.parse(raw) as { state?: { active?: boolean }; version?: number }
+      window.localStorage.removeItem('fitpal-impersonation')
+      if (old?.state?.active && (old.version ?? 0) < 4) {
+        void supabase.auth.signOut({ scope: 'local' })
+      }
+    }
+  } catch { /* ignore */ }
+}
+
 export const useImpersonationStore = create<ImpersonationState>()(
   persist(
-    (set, get) => ({
+    (set) => ({
       active: false,
       target: null,
       adminUserId: null,
       impersonatorRole: null,
+      clientSessionId: null,
+      expiresAt: null,
+      locked: null,
+      lockMessage: null,
       loading: false,
-      setTargetAddresses: (addresses) => set((s) => (s.target ? { target: { ...s.target, addresses } } : s)),
       error: null,
+      setTargetAddresses: (addresses) => set((s) => (s.target ? { target: { ...s.target, addresses } } : s)),
 
-      start: async (targetUserId: string) => {
-        // Refuse to nest impersonation. Admin must exit first.
-        // (`active` is a boolean now; no shape-mismatch self-heal needed
-        // because the persist version bump discards old-shape state.)
-        if (get().active) {
-          return { ok: false, error: 'Already impersonating — exit first' }
+      lock: (reason, message = null) => set({ locked: reason, lockMessage: message, loading: false }),
+
+      openClientTab: async (targetUserId, where = 'order') => {
+        if (IS_CLIENT_TAB) {
+          return { ok: false, error: 'Αυτή η καρτέλα είναι ήδη σε λειτουργία πελάτη. · This tab is already in client mode.' }
+        }
+        // 1. Open the tab NOW, inside the click, or the popup blocker eats it.
+        const win = window.open(`/?client_tab=1&where=${encodeURIComponent(where)}`, '_blank')
+        if (!win) {
+          const msg = 'Ο browser μπλόκαρε τη νέα καρτέλα. Επιτρέψτε τα pop-ups για αυτό το site. · The browser blocked the new tab. Allow pop-ups for this site.'
+          set({ error: msg })
+          return { ok: false, error: msg }
         }
         set({ loading: true, error: null })
-        try {
-          // 1. Need an admin session to call the impersonate-start function.
-          const { data: { session: adminSession } } = await supabase.auth.getSession()
-          if (!adminSession?.access_token) {
-            set({ loading: false, error: 'Not signed in' })
-            return { ok: false, error: 'Not signed in' }
-          }
-
-          // 2. Mint a magic-link hash for the target via the admin function.
-          //
-          // We hit the direct `/.netlify/functions/...` path rather than the
-          // `/api/...` rewrite. Reason: in `netlify dev --offline`, Vite's
-          // SPA fallback intercepts `/api/*` before Netlify's redirect rules
-          // get a chance, so `/api/admin-impersonate-start` returns the
-          // index.html shell. The direct path bypasses Vite's middleware
-          // and goes straight to the function. Production unaffected (the
-          // rewrite still works there).
-          const res = await fetch('/.netlify/functions/admin-impersonate-start', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              Authorization: `Bearer ${adminSession.access_token}`,
-            },
-            body: JSON.stringify({ targetUserId }),
-          })
-          const json = await res.json()
-          if (!res.ok || !json?.hashedToken || !json?.target) {
-            // Compose a useful error: top-level error + any detail the
-            // server included. Without this, the UI says "Failed to start
-            // impersonation" with no clue why.
-            const composed = [
-              json?.error,
-              json?.detail,
-              json?.status ? `(status ${json.status})` : null,
-            ].filter(Boolean).join(' — ')
-            const message = composed || 'Failed to start impersonation'
-            // eslint-disable-next-line no-console
-            console.warn('[impersonation.start] server returned:', json)
-            set({ loading: false, error: message })
-            return { ok: false, error: message }
-          }
-
-          // 3. Verify the magic-link hash → swaps active Supabase session
-          //    to the customer. onAuthStateChange in App.tsx fires SIGNED_IN
-          //    → refreshUser(customerId) → customer site renders.
-          const { error: verifyErr } = await supabase.auth.verifyOtp({
-            token_hash: json.hashedToken,
-            type: 'magiclink',
-          })
-          if (verifyErr) {
-            set({ loading: false, error: verifyErr.message })
-            return { ok: false, error: verifyErr.message }
-          }
-
-          // 4. Mark active. We capture only the admin's user_id (not any
-          //    tokens) so submit-order can write admin_order_id for the
-          //    audit trail. The server validates this id corresponds to a
-          //    real admin before trusting it.
-          set({
-            active: true,
-            target: json.target as ImpersonationTarget,
-            adminUserId: json.adminUserId ?? null,
-            impersonatorRole: json.impersonatorRole === 'partner' ? 'partner' : 'admin',
-            loading: false,
-            error: null,
-          })
-          // WEC-828: wipe any leftover checkout state (invoice ΑΦΜ/επωνυμία,
-          // cart, delivery, voucher) left in the persisted cart store by the
-          // admin's own session or a PREVIOUS impersonated customer, so this
-          // customer's checkout starts clean. Without this the fill-only-if-empty
-          // invoice prefill can't overwrite a stale non-empty value, and one
-          // customer's invoice details show up on the next customer's order.
-          try {
-            const { useCartStore } = await import('./useCartStore')
-            useCartStore.getState().clearAll()
-          } catch { /* non-fatal */ }
-          return { ok: true }
-        } catch (err) {
-          const message = err instanceof Error ? err.message : 'Unknown error'
+        const fail = (message: string) => {
+          try { win.close() } catch { /* ignore */ }
           set({ loading: false, error: message })
           return { ok: false, error: message }
         }
-      },
-
-      stop: async () => {
-        set({ loading: true, error: null })
         try {
-          set({ active: false, target: null, adminUserId: null, impersonatorRole: null, loading: false, error: null })
-          // WEC-828: also clear on exit, so returning to the admin — and the
-          // next impersonation — never inherits this customer's checkout state.
-          try {
-            const { useCartStore } = await import('./useCartStore')
-            useCartStore.getState().clearAll()
-          } catch { /* non-fatal */ }
-          await supabase.auth.signOut()
+          const { data: { session } } = await supabase.auth.getSession()
+          if (!session?.access_token) return fail('Not signed in')
+          const res = await fetch('/.netlify/functions/admin-impersonate-start', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+            body: JSON.stringify({ targetUserId }),
+          })
+          const json = await res.json().catch(() => ({}))
+          if (!res.ok || !json?.hashedToken || !json?.target || !json?.clientSessionId) {
+            const composed = [json?.error, json?.detail].filter(Boolean).join(' — ')
+            return fail(composed || 'Failed to start client mode')
+          }
+          const handoff: ClientTabHandoff = {
+            type: CLIENT_TAB_HANDOFF,
+            hashedToken: json.hashedToken,
+            target: json.target,
+            clientSessionId: json.clientSessionId,
+            expiresAt: json.expiresAt,
+            impersonatorRole: json.impersonatorRole === 'partner' ? 'partner' : 'admin',
+            adminUserId: json.adminUserId,
+            where,
+          }
+          // 2. Hand the token over once the new tab says it is ready. Only to
+          //    that exact window, only on our own origin.
+          await new Promise<void>((resolve, reject) => {
+            const timer = window.setTimeout(() => { cleanup(); reject(new Error('timeout')) }, HANDOFF_TIMEOUT_MS)
+            function onMsg(ev: MessageEvent) {
+              if (ev.source !== win || ev.origin !== window.location.origin) return
+              if (ev.data?.type !== CLIENT_TAB_READY) return
+              win!.postMessage(handoff, window.location.origin)
+              cleanup(); resolve()
+            }
+            function cleanup() { window.clearTimeout(timer); window.removeEventListener('message', onMsg) }
+            window.addEventListener('message', onMsg)
+            // The tab may have announced READY before we started listening.
+            try { win.postMessage({ type: 'fitpal-client-tab-ping' }, window.location.origin) } catch { /* ignore */ }
+          })
+          set({ loading: false, error: null })
           return { ok: true }
         } catch (err) {
-          const message = err instanceof Error ? err.message : 'Unknown error'
-          set({ active: false, target: null, adminUserId: null, impersonatorRole: null, loading: false, error: message })
-          return { ok: false, error: message }
+          const m = err instanceof Error && err.message === 'timeout'
+            ? 'Η νέα καρτέλα δεν απάντησε. Δοκιμάστε ξανά. · The new tab did not respond. Try again.'
+            : err instanceof Error ? err.message : 'Unknown error'
+          return fail(m)
         }
+      },
+
+      acceptHandoff: async (h) => {
+        if (!IS_CLIENT_TAB) return { ok: false, error: 'not a client tab' }
+        set({ loading: true, error: null })
+        const { error } = await supabase.auth.verifyOtp({ token_hash: h.hashedToken, type: 'magiclink' })
+        if (error) {
+          set({ loading: false, error: error.message, locked: 'failed', lockMessage: error.message })
+          return { ok: false, error: error.message }
+        }
+        set({
+          active: true,
+          target: h.target as ImpersonationTarget,
+          adminUserId: h.adminUserId ?? null,
+          impersonatorRole: h.impersonatorRole,
+          clientSessionId: h.clientSessionId,
+          expiresAt: h.expiresAt,
+          locked: null, lockMessage: null,
+          loading: false, error: null,
+        })
+        // The tab never needs to talk back to the operator's tab again.
+        try { (window as unknown as { opener: Window | null }).opener = null } catch { /* ignore */ }
+        return { ok: true }
       },
     }),
     {
       name: 'fitpal-impersonation',
-      // v3: dropped the adminSession stash entirely (we sign-out on exit
-      // now and re-login). v2 had adminSession + boolean active; v1 had
-      // active as an object. Discard anything from older versions.
-      version: 3,
+      // v4 (WEC-868): state lives in the client tab's sessionStorage. Anything
+      // older (a session-swap impersonation from before) is discarded.
+      version: 4,
+      storage: createJSONStorage(() => tabStorage),
       migrate: () => ({
-        active: false,
-        target: null,
-        adminUserId: null,
-        impersonatorRole: null,
-        loading: false,
-        error: null,
-        start: async () => ({ ok: false, error: 'rehydrating' }),
-        stop: async () => ({ ok: true }),
-      }),
-      // Persist `active`, `target`, `adminUserId` so impersonation survives
-      // a tab refresh. NEVER persist tokens.
-      partialize: (state) => ({
+        active: false, target: null, adminUserId: null, impersonatorRole: null,
+        clientSessionId: null, expiresAt: null, locked: null, lockMessage: null,
+      }) as unknown as ImpersonationState,
+      partialize: (state) => (IS_CLIENT_TAB ? {
         active: state.active,
         target: state.target,
         adminUserId: state.adminUserId,
         impersonatorRole: state.impersonatorRole,
-      }),
+        clientSessionId: state.clientSessionId,
+        expiresAt: state.expiresAt,
+        locked: state.locked,
+        lockMessage: state.lockMessage,
+      } : {}) as Partial<ImpersonationState>,
     },
   ),
 )
