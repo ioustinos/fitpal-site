@@ -93,8 +93,8 @@ begin
     raise exception 'Η έκπτωση ορίζεται μόνο από διαιτολόγους-συνεργάτες.' using errcode = '22023';
   end if;
   if p_discount_bps is null or p_discount_bps < 0 or p_discount_bps > v_p.envelope_bps then
-    raise exception 'Η έκπτωση πρέπει να είναι από 0%% έως %%%.', trim_scale(v_p.envelope_bps / 100.0)
-      using errcode = '22023';
+    raise exception using errcode = '22023',
+      message = 'Η έκπτωση πρέπει να είναι από 0% έως ' || trim_scale(v_p.envelope_bps / 100.0) || '%.';
   end if;
   update partner_clients set discount_bps = p_discount_bps
    where partner_id = v_pid and client_user_id = p_client and status in ('active','pending')
