@@ -1,3 +1,4 @@
+import { useEffect } from 'react'
 import { useCartStore } from '../../store/useCartStore'
 import { useUIStore } from '../../store/useUIStore'
 import { useAuthStore } from '../../store/useAuthStore'
@@ -53,11 +54,20 @@ export function PaymentSection() {
   // impersonation; non-impersonating customers without an active/positive wallet
   // don't see the option. During impersonation the wallet always shows (WEC-362),
   // rendering greyed + disabled below when it can't cover the order.
-  const visibleMethods = visiblePaymentMethods(visibility, {
+  const allMethods = visiblePaymentMethods(visibility, {
     isImpersonating,
     applyWalletGating: true,
     wallet: effWallet,
   })
+  // WEC-869 (🟢 Ioustinos 13/10): a dietitian ordering for a client never pays
+  // by card — the client pays, so a payment link is sent instead. The server
+  // refuses the combination too (submit-order).
+  const impersonatorRole = useImpersonationStore((s) => s.impersonatorRole)
+  const cardBlocked = isImpersonating && impersonatorRole === 'partner'
+  const visibleMethods = cardBlocked ? allMethods.filter((m) => m.id !== 'card') : allMethods
+  useEffect(() => {
+    if (cardBlocked && payment.method === 'card') setPayment({ ...payment, method: '' as typeof payment.method })
+  }, [cardBlocked, payment.method]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // WEC-260: bank info is now an array of up to 5 entries. Customer sees
   // all configured IBANs stacked when they pick the bank-transfer method.

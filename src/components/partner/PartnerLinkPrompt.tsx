@@ -27,6 +27,7 @@ import { useUIStore } from '../../store/useUIStore'
 import { supabase } from '../../lib/supabase'
 
 export const REF_STORAGE_KEY = 'fitpal_partner_ref'
+export const REF_AT_STORAGE_KEY = 'fitpal_partner_ref_at'
 
 export function PartnerLinkPrompt() {
   const link = usePartnerLink()
@@ -43,13 +44,14 @@ export function PartnerLinkPrompt() {
   useEffect(() => {
     if (!user || impersonating) return
     let code: string | null = null
-    try { code = localStorage.getItem(REF_STORAGE_KEY) } catch { /* private mode */ }
+    let at: string | null = null
+    try { code = localStorage.getItem(REF_STORAGE_KEY); at = localStorage.getItem(REF_AT_STORAGE_KEY) } catch { /* private mode */ }
     if (!code) return
     void (async () => {
-      const { data, error } = await supabase.rpc('claim_partner_referral', { p_code: code })
-      // Whatever the answer (claimed, unknown code, already linked) the code
-      // has been used up — don't retry on every page.
-      try { localStorage.removeItem(REF_STORAGE_KEY) } catch { /* ignore */ }
+      const { data, error } = await supabase.rpc('claim_partner_referral', { p_code: code, p_clicked_at: at })
+      // Whatever the answer (claimed, unknown code, already linked, staff) the
+      // code has been used up — don't retry on every page.
+      try { localStorage.removeItem(REF_STORAGE_KEY); localStorage.removeItem(REF_AT_STORAGE_KEY) } catch { /* ignore */ }
       if (!error && (data as { ok?: boolean } | null)?.ok) {
         await usePartnerLinkStore.getState().load(true)
       }

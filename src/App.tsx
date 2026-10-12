@@ -21,6 +21,7 @@ import { DemoDishesModal } from './components/wallet/DemoDishesModal'
 import SiteFooter from './components/layout/SiteFooter'
 import { ImpersonationBanner } from './components/admin/ImpersonationBanner'
 import { ClientTabController } from './components/admin/ClientTabController'
+import { UpdateNotice } from './components/layout/UpdateNotice'
 import { PartnerLinkPrompt } from './components/partner/PartnerLinkPrompt'
 import { ReferralLanding } from './pages/ReferralLanding'
 import { ConsentBanner } from './components/consent/ConsentBanner'
@@ -315,6 +316,8 @@ export default function App() {
       <ImpersonationBanner />
       {/* WEC-868: handshake, heartbeat, title and lock screen of a client tab. */}
       <ClientTabController />
+      {/* WEC-869: offer a reload when a newer deploy is live. */}
+      <UpdateNotice />
       <ConsentBanner />
       {/* WEC-710 — resolves which storefront the URL points at (path-based:
           orders.fitpal.gr/acme) and exposes it via useStorefront(). On every

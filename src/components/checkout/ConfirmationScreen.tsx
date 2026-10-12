@@ -30,7 +30,11 @@ function formatDate(iso: string, lang: 'el' | 'en') {
  *    everything we need into local state FIRST, then clear, so the
  *    summary still renders after cart is reset.
  */
-export function ConfirmationScreen({ orderNumber, serverTotal }: { orderNumber?: string; serverTotal?: number }) {
+export function ConfirmationScreen({ orderNumber, serverTotal, serverDiscounts }: {
+  orderNumber?: string; serverTotal?: number
+  /** WEC-869 (4.5): discounts applied by the server, shown as their own lines. */
+  serverDiscounts?: { voucher?: number; partner?: number; partnerPct?: number }
+}) {
   const lang = useUIStore((s) => s.lang)
   const t = makeTr(lang)
   const closeCheckout = useUIStore((s) => s.closeCheckout)
@@ -171,6 +175,20 @@ export function ConfirmationScreen({ orderNumber, serverTotal }: { orderNumber?:
           </div>
         )}
 
+        {/* WEC-869 (4.5): show the discounts, not only a lower total — the
+            customer could not tell the dietitian discount had been applied. */}
+        {!!serverDiscounts?.voucher && serverDiscounts.voucher > 0 && (
+          <div className="conf-total" style={{ fontSize: '0.92em', fontWeight: 500 }}>
+            <span>{lang === 'el' ? 'Κουπόνι' : 'Voucher'}</span>
+            <span>−{fmt(serverDiscounts.voucher)}</span>
+          </div>
+        )}
+        {!!serverDiscounts?.partner && serverDiscounts.partner > 0 && (
+          <div className="conf-total" style={{ fontSize: '0.92em', fontWeight: 500 }}>
+            <span>{lang === 'el' ? 'Έκπτωση διαιτολόγου' : 'Dietitian discount'}{serverDiscounts.partnerPct ? ` ${serverDiscounts.partnerPct}%` : ''}</span>
+            <span>−{fmt(serverDiscounts.partner)}</span>
+          </div>
+        )}
         <div className="conf-total">
           <span>{t('total')}</span>
           {/* The server total is what was charged (voucher, company benefit and

@@ -80,8 +80,11 @@ export function ClientDetailPage() {
           <button className="admin-btn-primary" disabled={!!acting} onClick={() => actAs('order')}>
             {acting === 'order' ? '…' : 'Παραγγελία ως πελάτης'}
           </button>
-          <button className="admin-btn-secondary" disabled={!!acting} onClick={() => actAs('plan')}>
-            {acting === 'plan' ? '…' : 'Νέο πλάνο / συνδρομή'}
+          {/* WEC-869 (🟢 Ioustinos 13/10): Fitpal doesn't want plans through the
+              dietitian yet — the button stays visible (so nobody forgets it
+              exists) but disabled. */}
+          <button className="admin-btn-secondary" disabled title="Σύντομα — δεν είναι ακόμα διαθέσιμο">
+            Νέο πλάνο / συνδρομή <span style={{ fontSize: 11, opacity: .75 }}>(σύντομα)</span>
           </button>
           <button className="admin-btn-ghost" disabled={!!acting} onClick={() => actAs('account')}>
             {acting === 'account' ? '…' : 'Λογαριασμός πελάτη'}
@@ -89,7 +92,7 @@ export function ClientDetailPage() {
         </div>
       </div>
       <p className="admin-text-muted" style={{ fontSize: 12, marginTop: -6 }}>
-        «Ως πελάτης» ανοίγει <strong>νέα καρτέλα</strong> με το κανονικό site στον λογαριασμό του πελάτη (διευθύνσεις, αλλεργίες, προτιμήσεις, παραγγελία, πλάνο με payment link).
+        «Ως πελάτης» ανοίγει <strong>νέα καρτέλα</strong> με το κανονικό site στον λογαριασμό του πελάτη (διευθύνσεις, αλλεργίες, προτιμήσεις, παραγγελία). Πληρωμή με κάρτα δεν γίνεται από εσάς — επιλέξτε «Link πληρωμής» για να πληρώσει ο πελάτης.
         Αυτή η καρτέλα μένει ως έχει. Μία καρτέλα πελάτη τη φορά: αν ανοίξετε άλλον πελάτη, η προηγούμενη καρτέλα κλειδώνει. Λήγει σε 2 ώρες.
       </p>
       {err && <div className="admin-error-banner">{err}</div>}
@@ -148,6 +151,14 @@ function BodyCard({ d, userId, onSaved }: { d: ClientDetail; userId: string; onS
         </div>
       ) : (
         <>
+
+          {/* WEC-869 (🟢 4.2): these come from the plan wizard. A client who
+              never bought a plan has them empty — the dietitian fills them in. */}
+          {!f.sex && !f.birthYear && !f.heightCm && !f.weightKg && (
+            <div className="admin-text-muted" style={{ fontSize: 12, marginTop: 10 }}>
+              Ο πελάτης δεν έχει συμπληρώσει σωματικά στοιχεία (συμπληρώνονται όταν αγοράζει πλάνο). Μπορείτε να τα συμπληρώσετε εσείς.
+            </div>
+          )}
           <div className="partner-form-3" style={{ marginTop: 10 }}>
             <Select label="Φύλο" value={f.sex} onChange={upd('sex')} options={SEX} />
             <Field label="Έτος γέννησης" value={f.birthYear} onChange={upd('birthYear')} type="number" />
@@ -163,7 +174,7 @@ function BodyCard({ d, userId, onSaved }: { d: ClientDetail; userId: string; onS
         </>
       )}
       <div className="admin-form-actions">
-        {msg && <span className="admin-text-muted">{msg}</span>}
+        {msg && <span style={{ color: msg.startsWith('✗') ? '#b91c1c' : '#15803d', fontWeight: 600, fontSize: 13 }}>{msg}</span>}
         <button className="admin-btn-primary" onClick={save} disabled={busy}>{busy ? 'Αποθήκευση…' : 'Αποθήκευση'}</button>
       </div>
     </Card>

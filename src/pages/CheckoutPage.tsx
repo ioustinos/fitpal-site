@@ -154,6 +154,8 @@ export function CheckoutPage() {
   // The server's charged total (euros) — includes voucher, company benefit and
   // dietitian discount, which the cart-side subTotal() does not all know about.
   const [serverTotal, setServerTotal] = useState<number | undefined>(undefined)
+  // WEC-869: discount lines for the confirmation screen.
+  const [serverDiscounts, setServerDiscounts] = useState<{ voucher?: number; partner?: number; partnerPct?: number }>({})
   const [submitting, setSubmitting] = useState(false)
   // Errors returned from the server-side submit (validationErrors object),
   // flattened into strings and rendered in the red validation block below
@@ -822,6 +824,7 @@ export function CheckoutPage() {
 
     setOrderNumber(data?.orderNumber ?? '')
     setServerTotal(typeof data?.total === 'number' ? data.total : undefined)
+    setServerDiscounts({ voucher: data?.voucherDiscount, partner: data?.partnerDiscount, partnerPct: data?.partnerDiscountPct })
 
     // WEC-771: the order is placed — now remember the invoice details on the
     // account so the next one prefills. AFTER success on purpose: a failed
@@ -913,7 +916,7 @@ export function CheckoutPage() {
     setConfirmed(true)
   }
 
-  if (confirmed) return <ConfirmationScreen orderNumber={orderNumber} serverTotal={serverTotal} />
+  if (confirmed) return <ConfirmationScreen orderNumber={orderNumber} serverTotal={serverTotal} serverDiscounts={serverDiscounts} />
 
   const sections = [
     {

@@ -6,7 +6,7 @@
  */
 import { useEffect } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { REF_STORAGE_KEY } from '../components/partner/PartnerLinkPrompt'
+import { REF_STORAGE_KEY, REF_AT_STORAGE_KEY } from '../components/partner/PartnerLinkPrompt'
 
 export function ReferralLanding() {
   const { code } = useParams()
@@ -14,7 +14,12 @@ export function ReferralLanding() {
   useEffect(() => {
     const c = (code ?? '').trim()
     if (/^[A-Za-z0-9_-]{2,40}$/.test(c)) {
-      try { localStorage.setItem(REF_STORAGE_KEY, c) } catch { /* private mode */ }
+      try {
+        localStorage.setItem(REF_STORAGE_KEY, c)
+        // WEC-869: when the link was opened — an account created before this
+        // moment is an existing customer and goes to Fitpal approval.
+        localStorage.setItem(REF_AT_STORAGE_KEY, new Date().toISOString())
+      } catch { /* private mode */ }
     }
     navigate('/', { replace: true })
   }, [code, navigate])

@@ -8,6 +8,9 @@ import { useNavigate } from 'react-router-dom'
 import { fetchClients, createClientAccount, type ClientRow, eur, pct, fmtDate } from '../api'
 import { usePartner } from '../context'
 import { sendEmailOtp } from '../../lib/api/auth'
+import { PlacesAutocomplete } from '../../components/ui/PlacesAutocomplete'
+import { googleMapsAvailable } from '../../lib/googleMaps'
+import { supabase } from '../../lib/supabase'
 
 export function Clients() {
   const partner = usePartner()
@@ -159,14 +162,31 @@ function AddClientModal({ onClose, onDone }: { onClose: () => void; onDone: (use
   const [sendInvite, setSendInvite] = useState(true)
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState<string | null>(null)
+  // WEC-869: an existing customer is a WARNING (yellow) that stays until the
+  // dietitian closes it — it used to flash green and auto-close after 2.5 s.
+  const [warn, setWarn] = useState<{ text: string; userId: string } | null>(null)
   const [info, setInfo] = useState<string | null>(null)
+  // WEC-869 (6.4): tell the dietitian while typing that the email already has
+  // a Fitpal account. We never prefill that customer's details — that would
+  // hand anyone's name/phone/address to whoever types their email.
+  const [emailExists, setEmailExists] = useState(false)
   const set = (k: keyof typeof f) => (e: React.ChangeEvent<HTMLInputElement>) => setF((s) => ({ ...s, [k]: e.target.value }))
 
+  useEffect(() => {
+    const email = f.email.trim().toLowerCase()
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) { setEmailExists(false); return }
+    const t = window.setTimeout(async () => {
+      const { data } = await supabase.rpc('partner_email_exists', { p_email: email })
+      setEmailExists(data === true)
+    }, 400)
+    return () => window.clearTimeout(t)
+  }, [f.email])
+
   async function submit() {
-    setBusy(true); setErr(null); setInfo(null)
+    setBusy(true); setErr(null); setInfo(null); setWarn(null)
     const res = await createClientAccount({
-      email: f.email, name: f.name, phone: f.phone,
-      address: { street: f.street, area: f.area, zip: f.zip, floor: f.floor, doorbell: f.doorbell },
+      email: f.email, name: emailExists ? '' : f.name, phone: emailExists ? '' : f.phone,
+      address: emailExists ? {} : { street: f.street, area: f.area, zip: f.zip, floor: f.floor, doorbell: f.doorbell },
     })
     if (res.error || !res.userId) { setBusy(false); setErr(res.error ?? 'Απέτυχε'); return }
     // 🟢 «Ο πελάτης λαμβάνει email για να βάλει κωδικό, αν θέλει» — the
@@ -177,8 +197,7 @@ function AddClientModal({ onClose, onDone }: { onClose: () => void; onDone: (use
     }
     setBusy(false)
     if (res.existing && res.status === 'pending') {
-      setInfo(res.message ?? 'Σε αναμονή αποδοχής.')
-      window.setTimeout(() => onDone(res.userId!, 'pending'), 2500)
+      setWarn({ text: res.message ?? 'Ο πελάτης έχει ήδη λογαριασμό. Θα ενεργοποιηθεί όταν αποδεχτεί ο ίδιος και εγκρίνει η Fitpal.', userId: res.userId })
       return
     }
     onDone(res.userId, res.status ?? 'active')
@@ -186,31 +205,67 @@ function AddClientModal({ onClose, onDone }: { onClose: () => void; onDone: (use
 
   return (
     <div className="admin-modal-overlay" onClick={onClose}>
-      <div className="admin-modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 520 }}>
-        <h2 style={{ marginTop: 0 }}>Νέος πελάτης</h2>
-        <div className="admin-form-grid partner-form-2">
-          <Field label="Ονοματεπώνυμο" value={f.name} onChange={set('name')} />
+      <div className="admin-modal" onClick={(e) => e.stopPropagation()}
+        style={{ maxWidth: 560, padding: '20px 22px', overflowY: 'auto' }}>
+        <h2 style={{ margin: '0 0 14px' }}>Νέος πελάτης</h2>
+        <div style={{ display: 'grid', gap: 12 }}>
           <Field label="Email *" value={f.email} onChange={set('email')} type="email" />
-          <Field label="Τηλέφωνο" value={f.phone} onChange={set('phone')} />
-          <Field label="Οδός & αριθμός" value={f.street} onChange={set('street')} />
-          <Field label="Περιοχή" value={f.area} onChange={set('area')} />
-          <Field label="Τ.Κ." value={f.zip} onChange={set('zip')} />
-          <Field label="Όροφος" value={f.floor} onChange={set('floor')} />
-          <Field label="Κουδούνι" value={f.doorbell} onChange={set('doorbell')} />
+          {emailExists && (
+            <div style={{ background: '#fffbeb', border: '1px solid #f59e0b', color: '#92400e', borderRadius: 8, padding: '8px 10px', fontSize: 13 }}>
+              Αυτό το email έχει ήδη λογαριασμό στη Fitpal. Θα κρατηθούν τα στοιχεία του πελάτη (όνομα, τηλέφωνο, διευθύνσεις)
+              και θα γίνει ενεργός όταν αποδεχτεί ο ίδιος και εγκρίνει η Fitpal.
+            </div>
+          )}
+          {!emailExists && (
+            <>
+              <div className="partner-form-2" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 12 }}>
+                <Field label="Ονοματεπώνυμο" value={f.name} onChange={set('name')} />
+                <Field label="Τηλέφωνο" value={f.phone} onChange={set('phone')} />
+              </div>
+              <label style={{ display: 'block' }}>
+                <span className="admin-form-label" style={{ display: 'block', fontSize: 12, marginBottom: 3 }}>Οδός & αριθμός</span>
+                {googleMapsAvailable() ? (
+                  <PlacesAutocomplete className="admin-input" value={f.street}
+                    onChange={(v) => setF((s) => ({ ...s, street: v }))}
+                    onSelect={(pl) => setF((s) => ({ ...s, street: pl.street || s.street, area: pl.area || s.area, zip: pl.zip || s.zip }))}
+                    placeholder="Ξεκινήστε να γράφετε τη διεύθυνση" country="gr" />
+                ) : (
+                  <input className="admin-input" style={{ width: '100%' }} value={f.street} onChange={set('street')} />
+                )}
+              </label>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', gap: 12 }}>
+                <Field label="Περιοχή" value={f.area} onChange={set('area')} />
+                <Field label="Τ.Κ." value={f.zip} onChange={set('zip')} />
+                <Field label="Όροφος" value={f.floor} onChange={set('floor')} />
+                <Field label="Κουδούνι" value={f.doorbell} onChange={set('doorbell')} />
+              </div>
+              <label className="admin-form-checkbox" style={{ display: 'flex', gap: 8 }}>
+                <input type="checkbox" checked={sendInvite} onChange={(e) => setSendInvite(e.target.checked)} />
+                <span>Αποστολή email σύνδεσης στον πελάτη (για να μπαίνει και μόνος του)</span>
+              </label>
+            </>
+          )}
+          <p className="admin-text-muted" style={{ fontSize: 12, margin: 0 }}>
+            Η έκπτωση του πελάτη και το commission σας είναι αυτά της συμφωνίας σας με τη Fitpal και μπαίνουν αυτόματα.
+            Για αλλαγή σε συγκεκριμένο πελάτη, επικοινωνήστε με τη Fitpal.
+          </p>
+          {err && <div className="admin-error-banner">{err}</div>}
+          {warn && (
+            <div style={{ background: '#fffbeb', border: '1px solid #f59e0b', color: '#92400e', borderRadius: 8, padding: '10px 12px', fontSize: 14 }}>
+              {warn.text}
+            </div>
+          )}
+          {info && <div className="admin-ok-banner">{info}</div>}
         </div>
-        <label className="admin-form-checkbox" style={{ display: 'flex', gap: 8, margin: '10px 0' }}>
-          <input type="checkbox" checked={sendInvite} onChange={(e) => setSendInvite(e.target.checked)} />
-          <span>Αποστολή email σύνδεσης στον πελάτη (για να μπαίνει και μόνος του)</span>
-        </label>
-        <p className="admin-text-muted" style={{ fontSize: 12 }}>
-          Η έκπτωση και το commission για τον πελάτη ορίζονται από τη Fitpal. Αν ο πελάτης έχει ήδη λογαριασμό στη Fitpal,
-          θα ενεργοποιηθεί αφού αποδεχτεί ο ίδιος και εγκρίνει η Fitpal.
-        </p>
-        {err && <div className="admin-error-banner">{err}</div>}
-        {info && <div className="admin-ok-banner">{info}</div>}
-        <div className="admin-form-actions">
-          <button className="admin-btn-ghost" onClick={onClose} disabled={busy}>Άκυρο</button>
-          <button className="admin-btn-primary" onClick={submit} disabled={busy || !f.email.trim()}>{busy ? 'Αποθήκευση…' : 'Προσθήκη'}</button>
+        <div className="admin-form-actions" style={{ marginTop: 16 }}>
+          {warn ? (
+            <button className="admin-btn-primary" onClick={() => onDone(warn.userId, 'pending')}>Εντάξει</button>
+          ) : (
+            <>
+              <button className="admin-btn-ghost" onClick={onClose} disabled={busy}>Άκυρο</button>
+              <button className="admin-btn-primary" onClick={submit} disabled={busy || !f.email.trim()}>{busy ? 'Αποθήκευση…' : 'Προσθήκη'}</button>
+            </>
+          )}
         </div>
       </div>
     </div>

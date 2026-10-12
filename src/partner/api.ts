@@ -87,12 +87,16 @@ export interface OrderDay {
   area: string | null; zip: string | null; street: string | null; timeFrom: string | null; timeTo: string | null
   zoneName: string | null
   totals: { kcal: number; protein: number; carbs: number; fat: number }
-  items: Array<{ name: string; variant: string | null; qty: number; kcal: number | null; protein: number | null; carbs: number | null; fat: number | null; comment: string | null }> | null
+  items: Array<{ name: string; variant: string | null; qty: number; kcal: number | null; protein: number | null; carbs: number | null; fat: number | null; comment: string | null; price?: number | null; desc?: string | null }> | null
+  /** WEC-869: Σ dish prices of the day, in cents. */
+  amount?: number
 }
 export interface PartnerOrder {
   id: string; orderNumber: string; userId: string; clientName: string; status: string
   paymentMethod: string; paymentStatus: string; subtotal: number; total: number; partnerDiscount: number
   placedBy: string | null; firstDate: string | null
+  /** WEC-869: expected commission (cents) — own orders only; null otherwise. */
+  commissionExpected?: number | null; commissionBps?: number | null
   target: Macro | null
   days: OrderDay[] | null
 }

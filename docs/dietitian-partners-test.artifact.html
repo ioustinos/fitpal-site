@@ -684,9 +684,9 @@
 
 <div class="step" data-id="10.2">
   <div class="step__hd"><span class="step__n">10.2</span><p class="step__t">A dietitian cannot open someone else's client</p><div class="verdict"></div></div>
-  <div class="seg"><span class="lab">SIGNED IN AS</span><ul><li><strong>ADMIN window</strong>: <span class="inline">ioustinos.sarris@gmail.com</span> (you)</li><li><strong>DIETITIAN window</strong>: <span class="inline">ioustinos.sarris+diet@gmail.com</span></li></ul></div>
-  <p class="seg where"><span class="lab">WHERE</span>ADMIN window · admin customer page, then DIETITIAN window</p>
-  <div class="seg"><span class="lab">DO</span><ol><li>Copy the id of an unlinked customer (e.g. Πελάτης Δοκιμής 10) from the admin customer page URL.</li><li>In the DIETITIAN window open <span class="inline">/partner/clients/&lt;that id&gt;</span>.</li></ol></div>
+  <div class="seg"><span class="lab">SIGNED IN AS</span><ul><li><strong>DIETITIAN window</strong>: <span class="inline">ioustinos.sarris+diet@gmail.com</span></li></ul></div>
+  <p class="seg where"><span class="lab">WHERE</span>DIETITIAN window · the address bar</p>
+  <div class="seg"><span class="lab">DO</span><ol><li>Open <span class="inline">https://dev--fitpal-order.netlify.app/partner/clients/c94ec180-5550-4eda-92ab-95555e9243c1</span>. That is Πελάτης Δοκιμής 10, who is not your client.</li></ol></div>
   <div class="seg expect"><span class="lab">EXPECT</span><ul><li>An error. No name, address, order or body data shows.</li></ul></div>
   <div class="warn"><span class="lab">FAIL IF</span><ul><li>Any of that person's data.</li></ul></div>
 </div>
@@ -695,7 +695,7 @@
   <div class="step__hd"><span class="step__n">10.3</span><p class="step__t">The dietitian cannot accept for a client</p><div class="verdict"></div></div>
   <div class="seg"><span class="lab">SIGNED IN AS</span><ul><li><strong>DIETITIAN window</strong>: <span class="inline">ioustinos.sarris+diet@gmail.com</span></li></ul></div>
   <p class="seg where"><span class="lab">WHERE</span>DIETITIAN window</p>
-  <div class="seg"><span class="lab">DO</span><ol><li>Add +dev10 so it's pending.</li><li>Then «Παραγγελία ως πελάτης» on any active client and browse the site.</li></ol></div>
+  <div class="seg"><span class="lab">DO</span><ol><li>In «Πελάτες» press «+ Νέος πελάτης», type <span class="inline">ioustinos.sarris+dev10@gmail.com</span> and press «Προσθήκη». Because +dev10 already has an account, the link stays pending (waiting for the customer and Fitpal).</li><li>Try to open the +dev10 row in the list.</li><li>Then press «Παραγγελία ως πελάτης» on any ACTIVE client and browse the site in the new client tab.</li></ol></div>
   <div class="seg expect"><span class="lab">EXPECT</span><ul><li>No accept or consent prompt appears while in client mode.</li><li>The pending +dev10 row can't be opened or used for client mode.</li></ul></div>
   <div class="warn"><span class="lab">FAIL IF</span><ul><li>A prompt shows in client mode.</li><li>You can act as a pending client.</li></ul></div>
 </div>
@@ -811,6 +811,110 @@
   <div class="seg expect"><span class="lab">EXPECT</span><ul><li>Nothing breaks: a new client tab opens normally.</li><li>The admin tab is still you.</li></ul></div>
   <div class="warn"><span class="lab">FAIL IF</span><ul><li>An error, or the admin tab changes.</li></ul></div>
   <div class="aside"><span class="lab">KNOWN, DO NOT RE-FILE</span>The 2-hour expiry and the «inactive for 5 minutes» rule are tested from the database by Claude, not by hand.</div>
+</div>
+
+<h2 class="part">12 · Re-check after the fixes (WEC-869)</h2>
+
+<p class="partnote">WEC-869 (dietitian test run 1 — fixes and decisions). Each step re-checks one finding from run 1; the run-1 step it comes from is in the title.</p>
+
+<div class="step" data-id="12.1">
+  <div class="step__hd"><span class="step__n">12.1</span><p class="step__t">A dietitian's own login never becomes a client (3.3)</p><div class="verdict"></div></div>
+  <div class="seg"><span class="lab">SIGNED IN AS</span><ul><li><strong>ADMIN window</strong>: <span class="inline">ioustinos.sarris@gmail.com</span> (you)</li><li><strong>DIETITIAN window</strong>: <span class="inline">ioustinos.sarris+diet@gmail.com</span></li></ul></div>
+  <p class="seg where"><span class="lab">WHERE</span>DIETITIAN window · <span class="inline">https://dev--fitpal-order.netlify.app/ref/test-e2e-diet</span>, then <span class="inline">/partner</span></p>
+  <div class="seg"><span class="lab">DO</span><ol><li>Open the referral link while signed in as +diet.</li><li>Go to «Πελάτες» and reload.</li></ol></div>
+  <div class="seg expect"><span class="lab">EXPECT</span><ul><li>You land on the menu, not on /admin.</li><li>+diet does NOT appear as a client of TEST.</li></ul></div>
+  <div class="warn"><span class="lab">FAIL IF</span><ul><li>+diet is listed as a client.</li><li>You are sent to /admin.</li></ul></div>
+</div>
+
+<div class="step" data-id="12.2">
+  <div class="step__hd"><span class="step__n">12.2</span><p class="step__t">An existing customer through the link waits for approval (7.2)</p><div class="verdict"></div></div>
+  <div class="seg"><span class="lab">SIGNED IN AS</span><ul><li><strong>CLIENT window</strong>: SIGNED OUT. You sign in as <span class="inline">ioustinos.sarris+dev12@gmail.com</span> in this step, after opening the link</li><li><strong>ADMIN window</strong>: <span class="inline">ioustinos.sarris@gmail.com</span> (you)</li></ul></div>
+  <p class="seg where"><span class="lab">WHERE</span>CLIENT window, signed out · <span class="inline">https://dev--fitpal-order.netlify.app/ref/test-e2e-diet</span></p>
+  <div class="seg"><span class="lab">DO</span><ol><li>Open the link, then sign in as <span class="inline">ioustinos.sarris+dev12@gmail.com</span>.</li><li>In the ADMIN window open TEST → «Clients &amp; terms».</li></ol></div>
+  <div class="seg expect"><span class="lab">EXPECT</span><ul><li>+dev12 is listed as «pending · client ✓ · Fitpal ✗» with an «Approve» button.</li><li>+dev12's cart shows NO dietitian discount yet.</li></ul></div>
+  <div class="warn"><span class="lab">FAIL IF</span><ul><li>+dev12 is active straight away.</li></ul></div>
+</div>
+
+<div class="step" data-id="12.3">
+  <div class="step__hd"><span class="step__n">12.3</span><p class="step__t">Admins see how many links wait for approval (6.2)</p><div class="verdict"></div></div>
+  <div class="seg"><span class="lab">SIGNED IN AS</span><ul><li><strong>ADMIN window</strong>: <span class="inline">ioustinos.sarris@gmail.com</span> (you)</li><li><strong>DIETITIAN window</strong>: <span class="inline">ioustinos.sarris+diet@gmail.com</span></li></ul></div>
+  <p class="seg where"><span class="lab">WHERE</span>ADMIN window · any /admin page, left sidebar</p>
+  <div class="seg"><span class="lab">DO</span><ol><li>Look at «Dietitians» in the sidebar (it refreshes every minute).</li><li>Approve +dev12 from 12.2, wait a minute or reload.</li></ol></div>
+  <div class="seg expect"><span class="lab">EXPECT</span><ul><li>An orange number next to «Dietitians» while links wait for approval.</li><li>The number drops after approving.</li></ul></div>
+  <div class="warn"><span class="lab">FAIL IF</span><ul><li>No number, or it doesn't change.</li></ul></div>
+</div>
+
+<div class="step" data-id="12.4">
+  <div class="step__hd"><span class="step__n">12.4</span><p class="step__t">A dietitian cannot pay by card for a client (5.3)</p><div class="verdict"></div></div>
+  <div class="seg"><span class="lab">SIGNED IN AS</span><ul><li><strong>ADMIN window</strong>: <span class="inline">ioustinos.sarris@gmail.com</span> (you)</li><li><strong>DIETITIAN window</strong>: <span class="inline">ioustinos.sarris+diet@gmail.com</span></li></ul></div>
+  <p class="seg where"><span class="lab">WHERE</span>DIETITIAN window · any active client → «Παραγγελία ως πελάτης» → new client tab → checkout</p>
+  <div class="seg"><span class="lab">DO</span><ol><li>Add a dish and go to checkout.</li><li>Look at the payment options.</li></ol></div>
+  <div class="seg expect"><span class="lab">EXPECT</span><ul><li>No «Κάρτα» option. «Link πληρωμής» (and the other methods) are there.</li></ul></div>
+  <div class="warn"><span class="lab">FAIL IF</span><ul><li>Card can be chosen.</li></ul></div>
+</div>
+
+<div class="step" data-id="12.5">
+  <div class="step__hd"><span class="step__n">12.5</span><p class="step__t">«Νέο πλάνο / συνδρομή» is visible but disabled (5.6)</p><div class="verdict"></div></div>
+  <div class="seg"><span class="lab">SIGNED IN AS</span><ul><li><strong>ADMIN window</strong>: <span class="inline">ioustinos.sarris@gmail.com</span> (you)</li><li><strong>DIETITIAN window</strong>: <span class="inline">ioustinos.sarris+diet@gmail.com</span></li></ul></div>
+  <p class="seg where"><span class="lab">WHERE</span>DIETITIAN window · any client card</p>
+  <div class="seg"><span class="lab">DO</span><ol><li>Look at the three buttons at the top.</li></ol></div>
+  <div class="seg expect"><span class="lab">EXPECT</span><ul><li>«Νέο πλάνο / συνδρομή (σύντομα)» is greyed out and does nothing.</li></ul></div>
+  <div class="warn"><span class="lab">FAIL IF</span><ul><li>The button opens the plan wizard.</li><li>The button is gone.</li></ul></div>
+</div>
+
+<div class="step" data-id="12.6">
+  <div class="step__hd"><span class="step__n">12.6</span><p class="step__t">The dietitian can fill in body data (4.2)</p><div class="verdict"></div></div>
+  <div class="seg"><span class="lab">SIGNED IN AS</span><ul><li><strong>ADMIN window</strong>: <span class="inline">ioustinos.sarris@gmail.com</span> (you)</li><li><strong>DIETITIAN window</strong>: <span class="inline">ioustinos.sarris+diet@gmail.com</span></li></ul></div>
+  <p class="seg where"><span class="lab">WHERE</span>DIETITIAN window · a client who gave consent and has no plan (e.g. the one you created in 5.1)</p>
+  <div class="seg"><span class="lab">DO</span><ol><li>Fill in sex, birth year, height, weight; press «Αποθήκευση»; reload.</li></ol></div>
+  <div class="seg expect"><span class="lab">EXPECT</span><ul><li>A note says the data comes from the plan wizard and can be filled in here.</li><li>«✓ Αποθηκεύτηκε» in green, and the values stay after reload.</li></ul></div>
+  <div class="warn"><span class="lab">FAIL IF</span><ul><li>Save error, or values lost.</li></ul></div>
+</div>
+
+<div class="step" data-id="12.7">
+  <div class="step__hd"><span class="step__n">12.7</span><p class="step__t">Orders show prices, dish descriptions and commission (3.7, 3.8, 5.5)</p><div class="verdict"></div></div>
+  <div class="seg"><span class="lab">SIGNED IN AS</span><ul><li><strong>ADMIN window</strong>: <span class="inline">ioustinos.sarris@gmail.com</span> (you)</li><li><strong>DIETITIAN window</strong>: <span class="inline">ioustinos.sarris+diet@gmail.com</span></li></ul></div>
+  <p class="seg where"><span class="lab">WHERE</span>DIETITIAN window · «Παραγγελίες», and a client card → «Παραγγελίες»</p>
+  <div class="seg"><span class="lab">DO</span><ol><li>Open «Πιάτα» on a day of an order you placed for a client.</li></ol></div>
+  <div class="seg expect"><span class="lab">EXPECT</span><ul><li>A «€» column with the day's amount and each dish's price.</li><li>Each dish name in bold with its description on the line below.</li><li>Your own orders show «commission X €» next to the discount, and the «από εσάς» pill is yellow.</li></ul></div>
+  <div class="warn"><span class="lab">FAIL IF</span><ul><li>Prices missing.</li><li>Commission shown on another dietitian's or a seeded order.</li></ul></div>
+</div>
+
+<div class="step" data-id="12.8">
+  <div class="step__hd"><span class="step__n">12.8</span><p class="step__t">The confirmation shows the dietitian discount (4.5)</p><div class="verdict"></div></div>
+  <div class="seg"><span class="lab">SIGNED IN AS</span><ul><li><strong>CLIENT window</strong>: sign out of the previous client first («Αποσύνδεση» under your name, top right), then sign in as <span class="inline">ioustinos.sarris+dev23@gmail.com</span></li></ul></div>
+  <p class="seg where"><span class="lab">WHERE</span>CLIENT window · +dev23 → checkout → cash order</p>
+  <div class="seg"><span class="lab">DO</span><ol><li>Place a small cash order.</li></ol></div>
+  <div class="seg expect"><span class="lab">EXPECT</span><ul><li>On the confirmation, above «Σύνολο», a line «Έκπτωση διαιτολόγου 7%» with the amount taken off.</li></ul></div>
+  <div class="warn"><span class="lab">FAIL IF</span><ul><li>Only the total is shown.</li></ul></div>
+</div>
+
+<div class="step" data-id="12.9">
+  <div class="step__hd"><span class="step__n">12.9</span><p class="step__t">New-client popup: spacing, address search, existing email (5.1, 6.1, 6.4)</p><div class="verdict"></div></div>
+  <div class="seg"><span class="lab">SIGNED IN AS</span><ul><li><strong>ADMIN window</strong>: <span class="inline">ioustinos.sarris@gmail.com</span> (you)</li><li><strong>DIETITIAN window</strong>: <span class="inline">ioustinos.sarris+diet@gmail.com</span></li></ul></div>
+  <p class="seg where"><span class="lab">WHERE</span>DIETITIAN window · «Πελάτες» → «+ Νέος πελάτης»</p>
+  <div class="seg"><span class="lab">DO</span><ol><li>Check the spacing.</li><li>Type an address in «Οδός & αριθμός» and pick a suggestion.</li><li>Clear it, then type the email <span class="inline">ioustinos.sarris+dev14@gmail.com</span> and press «Προσθήκη».</li></ol></div>
+  <div class="seg expect"><span class="lab">EXPECT</span><ul><li>Proper margins around the form.</li><li>Google suggestions appear; picking one fills street, area and Τ.Κ.</li><li>As soon as the +dev14 email is typed, a YELLOW note says the account exists and its own details will be kept; the other fields disappear.</li><li>After «Προσθήκη», a yellow message stays until you press «Εντάξει».</li></ul></div>
+  <div class="warn"><span class="lab">FAIL IF</span><ul><li>The popup closes by itself.</li><li>The message is green.</li><li>Another customer's details are filled in.</li></ul></div>
+</div>
+
+<div class="step" data-id="12.10">
+  <div class="step__hd"><span class="step__n">12.10</span><p class="step__t">Admin messages and the Active switch (2.1, 2.4)</p><div class="verdict"></div></div>
+  <div class="seg"><span class="lab">SIGNED IN AS</span><ul><li><strong>ADMIN window</strong>: <span class="inline">ioustinos.sarris@gmail.com</span> (you)</li><li><strong>DIETITIAN window</strong>: <span class="inline">ioustinos.sarris+diet@gmail.com</span></li></ul></div>
+  <p class="seg where"><span class="lab">WHERE</span>ADMIN window · /admin/partners</p>
+  <div class="seg"><span class="lab">DO</span><ol><li>Press «+ New dietitian» and look at the top of the form.</li><li>Cancel. In «Δοκιμή Β» → «Clients &amp; terms», try to link +dev23 again.</li></ol></div>
+  <div class="seg expect"><span class="lab">EXPECT</span><ul><li>The first thing in the form is a green «Active» switch, already on.</li><li>The refusal shows in red.</li></ul></div>
+  <div class="warn"><span class="lab">FAIL IF</span><ul><li>Active is off by default.</li><li>The refusal is grey.</li></ul></div>
+</div>
+
+<div class="step" data-id="12.11">
+  <div class="step__hd"><span class="step__n">12.11</span><p class="step__t">A payout needs a reference (9.1)</p><div class="verdict"></div></div>
+  <div class="seg"><span class="lab">SIGNED IN AS</span><ul><li><strong>ADMIN window</strong>: <span class="inline">ioustinos.sarris@gmail.com</span> (you)</li><li><strong>DIETITIAN window</strong>: <span class="inline">ioustinos.sarris+diet@gmail.com</span></li></ul></div>
+  <p class="seg where"><span class="lab">WHERE</span>ADMIN window · TEST → «Commission &amp; payouts»</p>
+  <div class="seg"><span class="lab">DO</span><ol><li>Tick an outstanding line, press «Mark selected paid».</li><li>Try to confirm with the reference empty, then type one and confirm.</li></ol></div>
+  <div class="seg expect"><span class="lab">EXPECT</span><ul><li>A panel asks for «Payment reference *»; «Confirm payout» stays disabled until you type one.</li><li>After confirming, the payout row shows your reference.</li></ul></div>
+  <div class="warn"><span class="lab">FAIL IF</span><ul><li>A payout can be saved without a reference.</li></ul></div>
+  <div class="aside"><span class="lab">KNOWN, DO NOT RE-FILE</span>If no line is outstanding, mark Blocked.</div>
 </div>
 
 <!-- /STEPS -->

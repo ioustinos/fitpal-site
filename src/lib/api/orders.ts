@@ -511,6 +511,10 @@ export async function submitOrder(payload: SubmitOrderPayload): Promise<{
     paymentSetupFailed?: boolean
     /** Charged total in euros, after voucher, company benefit and dietitian discount. */
     total?: number
+    /** WEC-869: euros taken off by the voucher / the dietitian discount. */
+    voucherDiscount?: number
+    partnerDiscount?: number
+    partnerDiscountPct?: number
   } | null
   error: string | null
   validationErrors?: Record<string, string[]>
@@ -581,6 +585,9 @@ export async function submitOrder(payload: SubmitOrderPayload): Promise<{
         paymentUrl: json.paymentUrl ?? null,
         paymentSetupFailed: json.paymentSetupFailed ?? false,
         total: typeof json.total === 'number' ? json.total : undefined,
+        voucherDiscount: typeof json.voucherDiscount === 'number' ? json.voucherDiscount : undefined,
+        partnerDiscount: typeof json.partnerDiscount === 'number' ? json.partnerDiscount : undefined,
+        partnerDiscountPct: typeof json.partnerDiscountPct === 'number' ? json.partnerDiscountPct : undefined,
       },
       error: null,
     }

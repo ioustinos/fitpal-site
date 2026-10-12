@@ -571,6 +571,14 @@ export default async (request: Request) => {
           return Response.json({ error: 'Ο πελάτης δεν είναι πλέον ενεργός πελάτης σας. · This customer is no longer one of your active clients.', code: 'client_session_link' }, { status: 403 })
         }
         partnerPlacerId = sess.operator_user_id
+        // WEC-869 (🟢 Ioustinos 13/10): a dietitian never pays by card for a
+        // client — the client pays (payment link, cash, transfer, wallet).
+        if (body.paymentMethod === 'card') {
+          return Response.json({
+            error: 'Ο διαιτολόγος δεν μπορεί να πληρώσει με κάρτα για τον πελάτη. Επιλέξτε «Link πληρωμής» για να πληρώσει ο ίδιος. · A dietitian cannot pay by card for a client. Choose «Payment link» so the client pays.',
+            code: 'partner_card_blocked',
+          }, { status: 400 })
+        }
       }
       await svcS.from('impersonation_sessions').update({ last_seen_at: new Date().toISOString() }).eq('id', sess.id)
     }
@@ -1857,6 +1865,11 @@ export default async (request: Request) => {
       orderNumber,
       orderId,
       total: orderTotal / 100,
+      // WEC-869 (4.5): the discounts that made `total`, so the confirmation
+      // screen can show them as lines, not just a lower number.
+      voucherDiscount: discountAmount / 100,
+      partnerDiscount: partnerDiscountAmount / 100,
+      partnerDiscountPct: partnerDiscountBps != null ? partnerDiscountBps / 100 : null,
       paymentUrl,
       paymentSetupFailed,
       paymentStatus: paidStatus,

@@ -110,6 +110,16 @@ function PartnerEditor({ partner, onChanged }: { partner: AdminPartner; onChange
   )
 }
 
+/** WEC-869: ✗ messages in red, ✓ in green — a refusal must not look like info. */
+function Msg({ text, inline }: { text: string; inline?: boolean }) {
+  const bad = text.startsWith('✗')
+  const style: React.CSSProperties = {
+    color: bad ? '#b91c1c' : '#15803d', fontWeight: 600, fontSize: 13,
+    ...(inline ? {} : { marginBottom: 8, padding: '6px 10px', borderRadius: 6, background: bad ? '#fef2f2' : '#f0fdf4' }),
+  }
+  return inline ? <span style={style}>{text}</span> : <div style={style}>{text}</div>
+}
+
 function PartnerForm({ partner, onSaved, onCancel }: { partner: AdminPartner | null; onSaved: (p: AdminPartner | null) => void; onCancel?: () => void }) {
   const [f, setF] = useState({
     name: partner?.name ?? '', legal_name: partner?.legal_name ?? '', vat_number: partner?.vat_number ?? '',
@@ -171,6 +181,9 @@ function PartnerForm({ partner, onSaved, onCancel }: { partner: AdminPartner | n
   return (
     <div style={{ padding: partner ? 0 : 16 }}>
       {!partner && <h2 style={{ marginTop: 0 }}>New dietitian</h2>}
+      <div style={{ margin: '0 0 10px', padding: '8px 10px', borderRadius: 8, background: f.active ? '#f0fdf4' : '#fef2f2' }}>
+        {check('active', f.active ? 'Active — the dietitian can use the portal' : 'Inactive — the dietitian cannot use the portal')}
+      </div>
       <div className="admin-form-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
         {input('name', 'Display name *')}
         {input('legal_name', 'Legal name (invoices)')}
@@ -186,7 +199,6 @@ function PartnerForm({ partner, onSaved, onCancel }: { partner: AdminPartner | n
         {input('referral_code', 'Referral code (for /ref/<code>)')}
       </div>
       <div style={{ marginTop: 10 }}>
-        {check('active', 'Active')}
         {check('is_internal', 'Fitpal in-house dietitian', 'Sees every customer, earns no commission, admin access unaffected.')}
         <div className="admin-section-head" style={{ marginTop: 10 }}><strong>Paid add-ons (hidden unless switched on)</strong></div>
         {check('progress_tracking', 'Progress tracking', 'Measurement history + weight chart in the client card.')}
@@ -198,7 +210,7 @@ function PartnerForm({ partner, onSaved, onCancel }: { partner: AdminPartner | n
         <textarea className="admin-textarea" rows={2} style={{ width: '100%' }} value={f.notes} onChange={upd('notes')} />
       </label>
       <div className="admin-form-actions">
-        {msg && <span className="admin-text-muted">{msg}</span>}
+        {msg && <Msg text={msg} inline />}
         {onCancel && <button className="admin-btn-ghost" onClick={onCancel}>Cancel</button>}
         <button className="admin-btn-primary" onClick={save} disabled={busy}>{busy ? 'Saving…' : 'Save'}</button>
       </div>
@@ -240,7 +252,7 @@ function ClientsTab({ partner, onChanged }: { partner: AdminPartner; onChanged: 
           <input type="checkbox" checked={showInactive} onChange={(e) => setShowInactive(e.target.checked)} /> show ended links
         </label>
       </div>
-      {msg && <div className="admin-text-muted" style={{ marginBottom: 8 }}>{msg}</div>}
+      {msg && <Msg text={msg} />}
       <div className="admin-table-wrap">
         <table className="admin-table admin-table-compact">
           <thead><tr><th>Client</th><th>Status</th><th>Discount %</th><th>Commission %</th><th>Consent</th><th>Since</th><th></th></tr></thead>
@@ -321,15 +333,20 @@ function MoneyTab({ partner, onChanged }: { partner: AdminPartner; onChanged: ()
   const selTotal = lines.filter((l) => sel.has(key(l))).reduce((a, l) => a + l.outstanding, 0)
   const owed = lines.reduce((a, l) => a + l.outstanding, 0)
 
-  async function pay(which: AdminCommissionLine[]) {
+  // WEC-869: the payout reference is asked for (and required) at the moment of
+  // marking paid, in an inline confirm panel — not in a field nobody notices.
+  const [pending, setPending] = useState<AdminCommissionLine[] | null>(null)
+  function pay(which: AdminCommissionLine[]) {
     if (!which.length) return
-    const total = which.reduce((a, l) => a + l.outstanding, 0)
-    if (!window.confirm(`Mark ${which.length} line(s) as paid — ${eur(total)}?`)) return
+    setMsg(null); setPending(which)
+  }
+  async function confirmPay() {
+    if (!pending || !ref.trim()) return
     setBusy(true); setMsg(null)
-    const { error } = await markPaid(partner.id, which.map((l) => ({ source_type: l.source_type, source_id: l.source_id })), ref, '')
+    const { error } = await markPaid(partner.id, pending.map((l) => ({ source_type: l.source_type, source_id: l.source_id })), ref.trim(), '')
     setBusy(false)
     if (error) { setMsg(`✗ ${error}`); return }
-    setRef(''); setMsg('✓ Payout recorded'); void load(); onChanged()
+    setPending(null); setRef(''); setMsg('✓ Payout recorded'); void load(); onChanged()
   }
 
   return (
@@ -339,7 +356,6 @@ function MoneyTab({ partner, onChanged }: { partner: AdminPartner; onChanged: ()
         <div className="admin-stat-card"><div className="admin-stat-title">Paid out (all time)</div><div className="admin-stat-value">{eur(payouts.reduce((a, p) => a + p.amount, 0))}</div></div>
       </div>
       <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', margin: '10px 0' }}>
-        <input className="admin-input" placeholder="payment reference (bank transfer id…)" value={ref} onChange={(e) => setRef(e.target.value)} />
         <button className="admin-btn-primary" disabled={busy || sel.size === 0} onClick={() => pay(lines.filter((l) => sel.has(key(l))))}>
           Mark selected paid ({eur(selTotal)})
         </button>
@@ -348,7 +364,20 @@ function MoneyTab({ partner, onChanged }: { partner: AdminPartner; onChanged: ()
           <input type="checkbox" checked={onlyOpen} onChange={(e) => setOnlyOpen(e.target.checked)} /> outstanding only
         </label>
       </div>
-      {msg && <div className="admin-text-muted" style={{ marginBottom: 8 }}>{msg}</div>}
+      {pending && (
+        <div style={{ border: '1px solid #f59e0b', background: '#fffbeb', borderRadius: 8, padding: 12, margin: '0 0 10px' }}>
+          <div style={{ fontWeight: 700, marginBottom: 6 }}>
+            Mark {pending.length} line(s) as paid — {eur(pending.reduce((a, l) => a + l.outstanding, 0))}
+          </div>
+          <label style={{ display: 'block', fontSize: 12, marginBottom: 4 }}>Payment reference * (bank transfer id, date…)</label>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            <input className="admin-input" autoFocus value={ref} onChange={(e) => setRef(e.target.value)} placeholder="e.g. ΕΤΕ 13/10 #4421" style={{ minWidth: 240 }} />
+            <button className="admin-btn-primary" disabled={busy || !ref.trim()} onClick={confirmPay}>{busy ? 'Saving…' : 'Confirm payout'}</button>
+            <button className="admin-btn-ghost" disabled={busy} onClick={() => setPending(null)}>Cancel</button>
+          </div>
+        </div>
+      )}
+      {msg && <Msg text={msg} />}
       <div className="admin-table-wrap">
         <table className="admin-table admin-table-compact">
           <thead><tr><th></th><th>Date</th><th>Client</th><th>Ref</th><th>Amount</th><th>Collected</th><th>%</th><th>Commission</th><th>Paid</th><th>Outstanding</th></tr></thead>

@@ -97,16 +97,22 @@ function OrderCard({ o, showClient }: { o: PartnerOrder; showClient: boolean }) 
         <div>
           <strong>{o.orderNumber}</strong>
           {showClient && <> · {o.clientName}</>}
-          {o.placedBy === 'partner' && <span className="admin-pill" style={{ marginLeft: 6 }}>από εσάς</span>}
+          {o.placedBy === 'partner' && <span className="admin-pill" style={{ marginLeft: 6, background: '#fef3c7', color: '#92400e', border: '1px solid #f59e0b' }}>από εσάς</span>}
           {o.status === 'cancelled' && <span className="admin-pill-failed" style={{ marginLeft: 6 }}>Ακυρώθηκε</span>}
         </div>
         <div className="admin-text-muted">
-          {eur(o.total)}{o.partnerDiscount > 0 ? ` (έκπτωση ${eur(o.partnerDiscount)})` : ''} · {payLabel(o.paymentMethod)}
+          {eur(o.total)}{o.partnerDiscount > 0 ? ` (έκπτωση ${eur(o.partnerDiscount)})` : ''}
+          {o.commissionExpected != null && (
+            <span title={o.paymentMethod === 'wallet' ? 'Πληρωμή από πορτοφόλι — το commission μετρήθηκε στην αγορά του πλάνου' : 'Αναμενόμενο commission· πιστώνεται όταν εισπραχθεί η πληρωμή'}>
+              {' · '}commission {eur(o.commissionExpected)}{o.paymentStatus !== 'paid' && o.commissionExpected > 0 ? ' (αναμενόμενο)' : ''}
+            </span>
+          )}
+          {' · '}{payLabel(o.paymentMethod)}
         </div>
       </div>
       <table className="admin-table admin-table-compact">
         <thead>
-          <tr><th>Ημέρα</th><th>Παράδοση</th><th>kcal</th><th>P</th><th>C</th><th>F</th><th></th></tr>
+          <tr><th>Ημέρα</th><th>Παράδοση</th><th>kcal</th><th>P</th><th>C</th><th>F</th><th>€</th><th></th></tr>
         </thead>
         <tbody>
           {(o.days ?? []).map((d) => (
@@ -139,13 +145,21 @@ function DayRow({ d, target, open, onToggle }: { d: OrderDay; target: PartnerOrd
         {cell(d.totals.protein, target?.protein)}
         {cell(d.totals.carbs, target?.carbs)}
         {cell(d.totals.fat, target?.fat)}
+        <td style={{ whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' }}>{d.amount != null ? eur(d.amount) : ''}</td>
         <td><button className="admin-btn-ghost admin-btn-sm" onClick={onToggle}>{open ? 'Κλείσιμο' : 'Πιάτα'}</button></td>
       </tr>
       {open && (d.items ?? []).map((it, i) => (
         <tr key={i} className="partner-item-row">
           <td></td>
-          <td>{it.qty}× {it.name}{it.variant ? ` — ${it.variant}` : ''}{it.comment ? <em className="admin-text-muted"> «{it.comment}»</em> : null}</td>
-          <td>{(it.kcal ?? 0) * it.qty}</td><td>{(it.protein ?? 0) * it.qty}</td><td>{(it.carbs ?? 0) * it.qty}</td><td>{(it.fat ?? 0) * it.qty}</td><td></td>
+          <td>
+            {/* WEC-869: dish name in bold, its description underneath. */}
+            <div><strong>{it.qty}× {it.name}</strong>{it.variant ? <span className="admin-text-muted"> — {it.variant}</span> : null}</div>
+            {it.desc && <div className="admin-text-muted" style={{ fontSize: 12, lineHeight: 1.4, marginTop: 2 }}>{it.desc}</div>}
+            {it.comment ? <div><em className="admin-text-muted">«{it.comment}»</em></div> : null}
+          </td>
+          <td>{(it.kcal ?? 0) * it.qty}</td><td>{(it.protein ?? 0) * it.qty}</td><td>{(it.carbs ?? 0) * it.qty}</td><td>{(it.fat ?? 0) * it.qty}</td>
+          <td style={{ whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' }}>{it.price != null ? eur(it.price) : ''}</td>
+          <td></td>
         </tr>
       ))}
     </>

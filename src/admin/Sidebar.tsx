@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { NavLink } from 'react-router-dom'
+import { supabase } from '../lib/supabase'
 
 /**
  * Admin sidebar (WEC-256 polish).
@@ -176,6 +177,28 @@ export function Sidebar() {
     setOpen((s) => ({ ...s, [id]: !s[id] }))
   }
 
+  // WEC-869: dietitian links waiting for Fitpal's approval — a count on
+  // «Dietitians» so admins notice them without opening the page.
+  const [badges, setBadges] = useState<Record<string, number>>({})
+  useEffect(() => {
+    let alive = true
+    const load = async () => {
+      const { count } = await supabase.from('partner_clients')
+        .select('id', { count: 'exact', head: true })
+        .eq('status', 'pending').is('approved_at', null)
+      if (alive) setBadges({ '/admin/partners': count ?? 0 })
+    }
+    void load()
+    const t = window.setInterval(load, 60_000)
+    return () => { alive = false; window.clearInterval(t) }
+  }, [])
+  const badge = (path: string) => (badges[path] ? (
+    <span title="Waiting for Fitpal approval" style={{
+      marginLeft: 'auto', background: '#d97706', color: '#fff', borderRadius: 999,
+      fontSize: 11, fontWeight: 700, lineHeight: '18px', minWidth: 18, padding: '0 6px', textAlign: 'center',
+    }}>{badges[path]}</span>
+  ) : null)
+
   return (
     <nav className="admin-sidebar">
       {NAV.map((e) => {
@@ -204,6 +227,7 @@ export function Sidebar() {
             >
               <Icon name={e.icon} />
               <span>{e.label}</span>
+              {!isOpen && e.items.some((it) => badges[it.path]) && badge(e.items.find((it) => badges[it.path])!.path)}
               <span className="admin-nav-chevron"><Icon name="chevron" /></span>
             </button>
             {isOpen && (
@@ -217,6 +241,7 @@ export function Sidebar() {
                   >
                     <Icon name={it.icon} />
                     <span>{it.label}</span>
+                    {badge(it.path)}
                   </NavLink>
                 ))}
               </div>
