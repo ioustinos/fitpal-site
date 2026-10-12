@@ -104,3 +104,16 @@ export function usePartnerDiscount(rawTotalEuros: number): { active: boolean; pc
   const cents = Math.round(Math.round(rawTotalEuros * 100) * bps / 10000)
   return { active: true, pct: bps / 100, amount: cents / 100, partnerName: link?.partnerName ?? '' }
 }
+
+/**
+ * The voucher amount to SHOW next to the dietitian discount. Mirrors
+ * submit-order: when voucher + dietitian discount would exceed what is left
+ * after the company benefit, the voucher gives way (the dietitian discount is
+ * kept whole). Without this the cart showed e.g. −51,20 € voucher and −3,07 €
+ * dietitian on a 51,20 € cart, lines that do not add up to the 0,00 € total.
+ */
+export function voucherShownEuros(rawTotal: number, totalAfterVoucher: number, benefitTotal: number, partnerAmount: number): number {
+  const voucher = Math.max(0, rawTotal - totalAfterVoucher)
+  const room = Math.max(0, rawTotal - benefitTotal - partnerAmount)
+  return Math.round(Math.min(voucher, room) * 100) / 100
+}

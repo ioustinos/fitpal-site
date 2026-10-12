@@ -573,6 +573,7 @@ export async function submitOrder(payload: SubmitOrderPayload): Promise<{
         orderId: json.orderId,
         paymentUrl: json.paymentUrl ?? null,
         paymentSetupFailed: json.paymentSetupFailed ?? false,
+        total: typeof json.total === 'number' ? json.total : undefined,
       },
       error: null,
     }

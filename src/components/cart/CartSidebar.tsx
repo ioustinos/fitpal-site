@@ -7,7 +7,7 @@ import { makeTr } from '../../lib/translations'
 import { subTotal, activeDays, dayAmt, fmt } from '../../lib/helpers'
 import { useMenuStore } from '../../store/useMenuStore'
 import { useCompanyBenefit } from '../../lib/storefront/useCompanyBenefit'
-import { usePartnerDiscount } from '../../lib/partner/usePartnerLink'
+import { usePartnerDiscount, voucherShownEuros } from '../../lib/partner/usePartnerLink'
 import { PartnerDiscountRow } from '../partner/PartnerDiscountRow'
 
 export function CartSidebar() {
@@ -114,7 +114,7 @@ export function CartSidebar() {
                       {t('discount')}
                     </span>
                     <span style={{ fontWeight: 900, color: 'var(--green)', fontSize: 14 }}>
-                      −{fmt(rawTotal - total)}
+                      −{fmt(voucherShownEuros(rawTotal, total, benefit.total, partnerDisc.amount))}
                     </span>
                   </div>
                 </>

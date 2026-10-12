@@ -7,7 +7,7 @@ import { VoucherInput } from './VoucherInput'
 import { CartDietWarning } from './CartDietWarning'
 import { makeTr } from '../../lib/translations'
 import { subTotal, activeDays, dayAmt, fmt, totalCount } from '../../lib/helpers'
-import { usePartnerDiscount } from '../../lib/partner/usePartnerLink'
+import { usePartnerDiscount, voucherShownEuros } from '../../lib/partner/usePartnerLink'
 import { PartnerDiscountRow } from '../partner/PartnerDiscountRow'
 
 /**
@@ -225,7 +225,7 @@ export function MobileCartSheet({ mode = 'menu' }: Props) {
                         {t('discount')}
                       </span>
                       <span style={{ fontWeight: 900, color: 'var(--green)', fontSize: 14 }}>
-                        −{fmt(rawTotal - total)}
+                        −{fmt(voucherShownEuros(rawTotal, total, 0, partnerDisc.amount))}
                       </span>
                     </div>
                   </>

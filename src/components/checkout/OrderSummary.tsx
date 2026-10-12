@@ -7,7 +7,7 @@ import { useMenuStore } from '../../store/useMenuStore'
 import { DayOrderGroup } from '../shared/DayOrderGroup'
 import { CartDietWarning } from '../cart/CartDietWarning'
 import { useVoucherWidget } from '../cart/useVoucherWidget'
-import { usePartnerDiscount } from '../../lib/partner/usePartnerLink'
+import { usePartnerDiscount, voucherShownEuros } from '../../lib/partner/usePartnerLink'
 import { PartnerDiscountRow } from '../partner/PartnerDiscountRow'
 import { useCompanyBenefit } from '../../lib/storefront/useCompanyBenefit'
 
@@ -126,7 +126,7 @@ export function OrderSummary({ contactEmail = '', contactPhone = '', contactRead
                 >✕</span>
               </span>
               <span style={{ fontSize: 13, fontWeight: 900, color: 'var(--green)' }}>
-                −{fmt(rawTotal - total)}
+                −{fmt(voucherShownEuros(rawTotal, total, benefit.total, partnerDisc.amount))}
               </span>
             </div>
             {/* WEC-217: single-voucher policy hint (matches CartSidebar). */}

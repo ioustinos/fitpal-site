@@ -9,6 +9,9 @@ import { useEffect, useMemo, useState } from 'react'
 import { fetchFinance, type CommissionLine, eur, pct, fmtDate } from '../api'
 import { usePartner } from '../context'
 
+// Greek Excel reads «;»-separated CSV with decimal commas.
+const dec = (cents: number) => (cents / 100).toFixed(2).replace('.', ',')
+
 function monthRange(ym: string): [string, string] {
   const [y, m] = ym.split('-').map(Number)
   const last = new Date(y, m, 0).getDate()
@@ -56,8 +59,8 @@ export function Finance() {
     const head = ['Ημερομηνία', 'Πελάτης', 'Αναφορά', 'Τύπος', 'Πληρωμή', 'Κατάσταση πληρωμής', 'Ποσό', 'Βάση commission', 'Ποσοστό', 'Commission', 'Εξοφλημένο', 'Υπόλοιπο']
     const rows = lines.map((l) => [
       fmtDate(l.occurred_at), l.client_name ?? '', l.ref ?? '', l.source_type === 'order' ? 'Παραγγελία' : 'Πλάνο',
-      l.payment_method ?? '', l.payment_status ?? '', (l.gross / 100).toFixed(2), (l.base / 100).toFixed(2),
-      pct(l.rate_bps), (l.commission / 100).toFixed(2), (l.paid_out / 100).toFixed(2), (l.outstanding / 100).toFixed(2),
+      l.payment_method ?? '', l.payment_status ?? '', dec(l.gross), dec(l.base),
+      pct(l.rate_bps), dec(l.commission), dec(l.paid_out), dec(l.outstanding),
     ])
     const csv = [head, ...rows].map((r) => r.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(';')).join('\n')
     const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8' })
