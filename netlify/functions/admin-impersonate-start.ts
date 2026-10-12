@@ -29,6 +29,8 @@ const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY ?? ''
 
 interface RequestBody {
   targetUserId: string
+  /** WEC-869: 'partner' when started from the dietitian portal. */
+  as?: 'admin' | 'partner'
 }
 
 export default async (request: Request) => {
@@ -74,7 +76,22 @@ export default async (request: Request) => {
     // checked server-side with the caller's own JWT via partner_can_access.
     const { data: isAdmin, error: adminCheckErr } = await callerClient.rpc('is_admin')
     let impersonatorRole: 'admin' | 'partner' = 'admin'
-    if (adminCheckErr || !isAdmin) {
+    // WEC-869 (🟢 Ioustinos 13/10): someone who is BOTH admin and dietitian
+    // (Fitpal's in-house dietitians) and starts from the dietitian portal acts
+    // AS THE DIETITIAN — the order is recorded under their dietitian account.
+    // Only if they really are a dietitian with access to this customer; a pure
+    // admin viewing the portal falls back to admin.
+    let actAsPartner = false
+    if (body.as === 'partner') {
+      const { data: pu } = await svc.from('partner_users').select('partner_id').eq('user_id', caller.id).maybeSingle()
+      if (pu) {
+        const { data: canAccess } = await callerClient.rpc('partner_can_access', { p_client: body.targetUserId })
+        actAsPartner = !!canAccess
+      }
+    }
+    if (actAsPartner) {
+      impersonatorRole = 'partner'
+    } else if (adminCheckErr || !isAdmin) {
       const { data: canAccess, error: pErr } = await callerClient.rpc('partner_can_access', { p_client: body.targetUserId })
       if (pErr || !canAccess) {
         return Response.json({

@@ -56,7 +56,7 @@ export function ClientDetailPage() {
   // This portal tab stays exactly as it is.
   async function actAs(where: 'order' | 'plan' | 'account') {
     setActing(where); setErr(null)
-    const res = await useImpersonationStore.getState().openClientTab(userId, where)
+    const res = await useImpersonationStore.getState().openClientTab(userId, where, 'partner')
     setActing(null)
     if (!res.ok) setErr(res.error ?? 'Δεν ξεκίνησε η λειτουργία πελάτη')
   }

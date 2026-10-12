@@ -84,7 +84,7 @@ interface ImpersonationState {
   loading: boolean
   error: string | null
   /** Operator side: open a new client tab for this customer. */
-  openClientTab: (targetUserId: string, where?: ClientWhere) => Promise<{ ok: boolean; error?: string }>
+  openClientTab: (targetUserId: string, where?: ClientWhere, as?: 'admin' | 'partner') => Promise<{ ok: boolean; error?: string }>
   /** Client-tab side: take the handoff from the opener and sign in. */
   acceptHandoff: (h: ClientTabHandoff) => Promise<{ ok: boolean; error?: string }>
   lock: (reason: LockReason, message?: string | null) => void
@@ -131,7 +131,7 @@ export const useImpersonationStore = create<ImpersonationState>()(
 
       lock: (reason, message = null) => set({ locked: reason, lockMessage: message, loading: false }),
 
-      openClientTab: async (targetUserId, where = 'order') => {
+      openClientTab: async (targetUserId, where = 'order', as = 'admin') => {
         if (IS_CLIENT_TAB) {
           return { ok: false, error: 'Αυτή η καρτέλα είναι ήδη σε λειτουργία πελάτη. · This tab is already in client mode.' }
         }
@@ -154,7 +154,7 @@ export const useImpersonationStore = create<ImpersonationState>()(
           const res = await fetch('/.netlify/functions/admin-impersonate-start', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
-            body: JSON.stringify({ targetUserId }),
+            body: JSON.stringify({ targetUserId, as }),
           })
           const json = await res.json().catch(() => ({}))
           if (!res.ok || !json?.hashedToken || !json?.target || !json?.clientSessionId) {
