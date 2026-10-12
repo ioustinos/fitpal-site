@@ -55,7 +55,7 @@ INTRO = f"""
   <h3>Looks like a fault, is not</h3>
   <ul>
     <li>Seeded orders have numbers starting {il("SD-")}, not {il("FP-")}. That's deliberate so they never clash with new dev orders.</li>
-    <li>Leaving «ως πελάτης» mode signs you out; the portal says so in its own note. Signing in again is expected.</li>
+    <li>«Ως πελάτης» / «Place order for this customer» opens a <strong>new tab</strong> (WEC-868). If Chrome says it blocked a pop-up, allow pop-ups for the dev site once and press the button again.</li>
     <li>Wallet-paid orders always show 0 commission. The commission was earned when the plan was bought.</li>
     <li>Cash and transfer orders show 0 commission until they're marked paid. Commission counts collected money only.</li>
     <li>Ordering for a client from <em>your own</em> account records the order as placed by admin, not by the dietitian, because you're an admin. Part 5 uses the DIETITIAN window for that reason.</li>
@@ -112,6 +112,9 @@ LOGIN = {
   "9.1": [adm()], "9.2": [die()], "9.3": [die()],
   "10.1": [cli(D(10), "switch")], "10.2": [adm(), die()], "10.3": [die()],
   "10.4": [adm(), die(), cli(D(13), "switch")], "10.5": [adm()],
+  "11.1": [adm()], "11.2": [adm()], "11.3": [adm()], "11.4": [adm()], "11.5": [adm()],
+  "11.6": [adm()], "11.7": [adm(), die()], "11.8": [die(), cli(D(23), "switch")],
+  "11.9": [die(), cli(D(23), "same")], "11.10": [adm()],
 }
 
 # (part title, part note, [steps]); step = dict(id,title,where,do,expect,fail,aside)
@@ -258,24 +261,23 @@ PARTS = [
            "Keep «Αποστολή email σύνδεσης στον πελάτη» ticked. Press «Προσθήκη»."],
        expect=["The client card opens; the list shows «Ενεργός».", "A sign-in code email arrives for +dnew1."],
        fail=["Any error.", "Status pending.", "No email."]),
-  dict(id="5.2", title="«Ως πελάτης» other tabs stay as they were",
-       where="DIETITIAN window · open a second tab on /partner first",
-       do=["With two /partner tabs open, press «Παραγγελία ως πελάτης» in one.", "Then look at the other tab and reload it."],
-       expect=["Tab 1 is the normal site as Νέος Δοκιμής, with the impersonation banner and «Έκπτωση διαιτολόγου 6%» in the cart.",
-               "Tab 2 is still your dietitian portal (WEC-844, impersonation for own clients: «without killing other tabs»)."],
-       fail=["Tab 2 turns into the client or shows «Είστε συνδεδεμένοι ως πελάτης»."],
-       aside="I expect this one to fail: the swap changes the browser's session, which all tabs share. Mark it as you find it."),
+  dict(id="5.2", title="«Παραγγελία ως πελάτης» opens a new tab and the portal stays",
+       where="DIETITIAN window · Νέος Δοκιμής's card",
+       do=["Press «Παραγγελία ως πελάτης».", "Look at the new tab, then go back to the portal tab and reload it."],
+       expect=["A NEW tab opens, titled «Ως πελάτης: Νέος Δοκιμής · …», with the purple banner «Ενεργείτε ως Νέος Δοκιμής» and «Έκπτωση διαιτολόγου 6%» once you add dishes.",
+               "The portal tab is still your dietitian portal after reload, signed in as +diet (WEC-844, impersonation for own clients: «without killing other tabs»)."],
+       fail=["The portal tab turns into the client, or asks you to sign in.", "No new tab and no message about pop-ups."]),
   dict(id="5.3", title="A card order placed by the dietitian completes",
-       where="DIETITIAN window, client mode · checkout",
+       where="The client tab from 5.2 · checkout",
        do=["Order 2 days to the saved address.", "Pay by card with the sandbox card and 3DS code 111111."],
        expect=["The saved address is preselected.", "Payment completes and lands on the success page."],
        fail=["Payment hangs or the order stays pending."],
        aside="Viva sandbox hasn't been run against the new dev database yet. If it hangs, mark Blocked and note where."),
-  dict(id="5.4", title="Leaving client mode returns to the portal",
-       where="DIETITIAN window · the impersonation banner",
-       do=["Exit client mode."],
-       expect=[f"You land on {il('/partner')}, after signing in again if asked."],
-       fail=["You land on /admin or on the site as the client."]),
+  dict(id="5.4", title="Closing the client tab leaves the portal as it was",
+       where="The client tab · banner button «Κλείσιμο καρτέλας πελάτη»",
+       do=["After the success page, check the banner is still there (no automatic exit).", "Press «Κλείσιμο καρτέλας πελάτη»."],
+       expect=["The client tab closes.", "The portal tab is still signed in as +diet. No new sign-in."],
+       fail=["You are asked to sign in again anywhere.", "The client tab stays open with the site usable."]),
   dict(id="5.5", title="The order is marked «από εσάς» and earns commission",
        where="DIETITIAN window · Νέος Δοκιμής's card and «Οικονομικά»",
        do=["Find the card order."],
@@ -283,7 +285,7 @@ PARTS = [
        fail=["No pill.", "Commission 0 on a paid card order."]),
   dict(id="5.6", title="A plan bought through the dietitian",
        where="DIETITIAN window · Νέος Δοκιμής → «Νέο πλάνο / συνδρομή»",
-       do=["Build a plan in the wizard and pay by payment link (or cash).", "Exit client mode, open the client card and «Οικονομικά»."],
+       do=["The button opens a new client tab on the plan wizard. Build a plan and pay by payment link (or cash).", "Close the client tab, then in the portal open the client card and «Οικονομικά»."],
        expect=["The «Πλάνο &amp; πορτοφόλι» card shows the plan with «Στάλθηκε link» or «Εκκρεμεί πληρωμή».", "Finance has a «Πλάνο …» line with commission 0."],
        fail=["The plan isn't shown.", "Commission before payment."],
        aside="By the code, the plan gets no dietitian discount. If you want one, mark Fail and say so."),
@@ -394,6 +396,65 @@ PARTS = [
        expect=["Customers from all of Fitpal are found.", "No discount / commission column.", "No «Παραγγελίες» or «Οικονομικά» menu."],
        fail=["Search returns nothing.", "Commission columns shown."]),
  ]),
+("11 · Client mode in its own tab (WEC-868)", "WEC-868 (client mode in its own tab — one identity per tab for admins and dietitians). Rules under test: the client tab holds the customer's sign-in only for itself; your own tabs never change; one client tab per person at a time; nothing is ordered from a closed or replaced tab; the customer is never signed out of their own devices.", [
+  dict(id="11.1", title="Admin opens a client tab; the admin tab stays yours",
+       where=f"ADMIN window · first the site {il(SITE)}, then {il('/admin/users')}",
+       do=["On the site, put ONE dish in your own cart.",
+           "Go to /admin/users, search «Δοκιμής 7», open Πελάτης Δοκιμής 7, press «Place order for this customer →»."],
+       expect=["A new tab opens, titled «Ως πελάτης: Πελάτης Δοκιμής 7 · …», with the purple banner and an empty cart.",
+               "Your admin tab still shows /admin/users, signed in as you."],
+       fail=["The admin tab changes to the customer or signs you out.", "The client tab shows your dish in its cart."]),
+  dict(id="11.2", title="Your cart and the client's cart never mix",
+       where="ADMIN window · the client tab from 11.1, then your own tab",
+       do=["In the client tab add two dishes.", "Go to your own tab, open the site and look at the cart. Reload it.", "Go back to the client tab and reload it."],
+       expect=["Your own cart still has only your one dish.", "After reload the client tab is still Πελάτης Δοκιμής 7 with the banner and the two dishes."],
+       fail=["Any dish crosses over.", "The client tab loses the customer or the banner on reload."]),
+  dict(id="11.3", title="Admin does not open inside a client tab",
+       where="ADMIN window · the client tab",
+       do=[f"In the client tab's address bar, change the address to {il(SITE + '/admin')} and press Enter.", f"Do the same with {il(SITE + '/partner')}."],
+       expect=["Both show «Αυτή η καρτέλα είναι καρτέλα πελάτη» with «Κλείσιμο καρτέλας πελάτη» and «Συνέχεια ως Πελάτης». No admin or portal data."],
+       fail=["Any admin or portal screen opens."]),
+  dict(id="11.4", title="A copied address does not carry the client's sign-in",
+       where="ADMIN window · the client tab",
+       do=["Press «Συνέχεια ως Πελάτης» to return to the menu.", "Copy the client tab's address, open a brand-new tab (⌘T) and paste it."],
+       expect=["The new tab is YOU (your name top right, no purple banner)."],
+       fail=["The new tab is signed in as Πελάτης Δοκιμής 7."]),
+  dict(id="11.5", title="An order from the client tab is marked as placed by admin; the tab stays open",
+       where="ADMIN window · the client tab → checkout",
+       do=["Place a cash order for the two dishes.", "After the success page, look at the banner.", "In your own tab open /admin/orders and find the order."],
+       expect=["The order goes through and the banner is still there (no automatic exit, no sign-out).",
+               "In admin the order belongs to Πελάτης Δοκιμής 7 and has the orange shield icon «Managed order»."],
+       fail=["The order lands under you.", "No shield icon.", "You get signed out anywhere."]),
+  dict(id="11.6", title="A second client tab closes the first",
+       where="ADMIN window · your own tab → /admin/users",
+       do=["Open Πελάτης Δοκιμής 8 and press «Place order for this customer →».", "Switch to the Πελάτης Δοκιμής 7 tab. Wait up to a minute if needed.", "Reload that tab."],
+       expect=["The customer-8 tab opens normally.", "The customer-7 tab shows a lock screen «Άνοιξε νεότερη καρτέλα πελάτη», its title starts with «🔒», and nothing behind it can be clicked.",
+               "After reload it still shows a lock screen. «Κλείσιμο καρτέλας» closes it."],
+       fail=["Both client tabs keep working.", "The locked tab can still place an order."]),
+  dict(id="11.7", title="Admin and dietitian client tabs live side by side",
+       where="ADMIN window has the customer-8 tab open; DIETITIAN window · client 23's card",
+       do=["In the DIETITIAN window press «Παραγγελία ως πελάτης» for Πελάτης Δοκιμής 23.", "Switch back to the ADMIN window's customer-8 tab and add a dish."],
+       expect=["Both client tabs stay active: the limit is one client tab PER PERSON, not per browser.", "Each banner names its own customer."],
+       fail=["Opening the dietitian's client tab locks the admin's, or the other way round."]),
+  dict(id="11.8", title="The customer stays signed in on their own device",
+       where="CLIENT window (incognito) signed in as +dev23; DIETITIAN window has the client-23 tab from 11.7",
+       do=["In the CLIENT window, sign in as +dev23 and reload once. You're signed in.",
+           "In the DIETITIAN window's client-23 tab press «Κλείσιμο καρτέλας πελάτη».", "Back in the CLIENT window, reload."],
+       expect=["The CLIENT window is still signed in as +dev23.", "The dietitian's portal tab is still signed in as +diet."],
+       fail=["+dev23 is signed out in the CLIENT window.", "The dietitian has to sign in again."]),
+  dict(id="11.9", title="«Αποσύνδεση» inside a client tab only leaves client mode",
+       where="DIETITIAN window · open client mode for client 23 again",
+       do=["In the new client tab click the customer's name top right → «Αποσύνδεση»."],
+       expect=["The client tab closes, or shows the lock screen if the browser won't close it.", "The CLIENT window (+dev23) is still signed in after reload; the portal is still +diet."],
+       fail=["Anyone is signed out outside the client tab."]),
+  dict(id="11.10", title="Closing a client tab with the browser's ✕ is safe",
+       where="ADMIN window · the customer-8 tab",
+       do=["Close the customer-8 tab with the browser's ✕ (not the banner button).", "Open client mode for Πελάτης Δοκιμής 8 again."],
+       expect=["Nothing breaks: a new client tab opens normally.", "The admin tab is still you."],
+       fail=["An error, or the admin tab changes."],
+       aside="The 2-hour expiry and the «inactive for 5 minutes» rule are tested from the database by Claude, not by hand."),
+ ]),
+
 ]
 
 def ul(items):
@@ -435,6 +496,6 @@ t = t.replace('<h1>TEST PASS NAME</h1>', '<h1>Dietitian Partners Test Pass</h1>'
 t = t.replace('<p class="standfirst">Say what this pass is about, in one sentence.</p>',
               '<p class="standfirst">A first full walk of the dietitian partner feature on dev, as admin, dietitian and client, to find what breaks before anyone outside sees it.</p>')
 t = t.replace('<p>PROJECT · ENVIRONMENT · date</p>',
-              '<p>Fitpal · dev (dev--fitpal-order.netlify.app, Supabase branch dev) · written 12 Oct 2026 against commit ec33161</p>')
+              '<p>Fitpal · dev (dev--fitpal-order.netlify.app, Supabase branch dev) · written 12 Oct 2026; part 11 added for WEC-868 (commit 01b2ba0)</p>')
 open("docs/dietitian-partners-test.html", "w").write(t)
 print("steps:", sum(len(p[2]) for p in PARTS))

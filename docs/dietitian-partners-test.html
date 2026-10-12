@@ -230,7 +230,7 @@
   <h3>Looks like a fault, is not</h3>
   <ul>
     <li>Seeded orders have numbers starting <span class="inline">SD-</span>, not <span class="inline">FP-</span>. That's deliberate so they never clash with new dev orders.</li>
-    <li>Leaving «ως πελάτης» mode signs you out; the portal says so in its own note. Signing in again is expected.</li>
+    <li>«Ως πελάτης» / «Place order for this customer» opens a <strong>new tab</strong> (WEC-868). If Chrome says it blocked a pop-up, allow pop-ups for the dev site once and press the button again.</li>
     <li>Wallet-paid orders always show 0 commission. The commission was earned when the plan was bought.</li>
     <li>Cash and transfer orders show 0 commission until they're marked paid. Commission counts collected money only.</li>
     <li>Ordering for a client from <em>your own</em> account records the order as placed by admin, not by the dietitian, because you're an admin. Part 5 uses the DIETITIAN window for that reason.</li>
@@ -488,19 +488,18 @@
 </div>
 
 <div class="step" data-id="5.2">
-  <div class="step__hd"><span class="step__n">5.2</span><p class="step__t">«Ως πελάτης» other tabs stay as they were</p><div class="verdict"></div></div>
+  <div class="step__hd"><span class="step__n">5.2</span><p class="step__t">«Παραγγελία ως πελάτης» opens a new tab and the portal stays</p><div class="verdict"></div></div>
   <div class="seg"><span class="lab">SIGNED IN AS</span><ul><li><strong>DIETITIAN window</strong>: <span class="inline">ioustinos.sarris+diet@gmail.com</span></li></ul></div>
-  <p class="seg where"><span class="lab">WHERE</span>DIETITIAN window · open a second tab on /partner first</p>
-  <div class="seg"><span class="lab">DO</span><ol><li>With two /partner tabs open, press «Παραγγελία ως πελάτης» in one.</li><li>Then look at the other tab and reload it.</li></ol></div>
-  <div class="seg expect"><span class="lab">EXPECT</span><ul><li>Tab 1 is the normal site as Νέος Δοκιμής, with the impersonation banner and «Έκπτωση διαιτολόγου 6%» in the cart.</li><li>Tab 2 is still your dietitian portal (WEC-844, impersonation for own clients: «without killing other tabs»).</li></ul></div>
-  <div class="warn"><span class="lab">FAIL IF</span><ul><li>Tab 2 turns into the client or shows «Είστε συνδεδεμένοι ως πελάτης».</li></ul></div>
-  <div class="aside"><span class="lab">KNOWN, DO NOT RE-FILE</span>I expect this one to fail: the swap changes the browser's session, which all tabs share. Mark it as you find it.</div>
+  <p class="seg where"><span class="lab">WHERE</span>DIETITIAN window · Νέος Δοκιμής's card</p>
+  <div class="seg"><span class="lab">DO</span><ol><li>Press «Παραγγελία ως πελάτης».</li><li>Look at the new tab, then go back to the portal tab and reload it.</li></ol></div>
+  <div class="seg expect"><span class="lab">EXPECT</span><ul><li>A NEW tab opens, titled «Ως πελάτης: Νέος Δοκιμής · …», with the purple banner «Ενεργείτε ως Νέος Δοκιμής» and «Έκπτωση διαιτολόγου 6%» once you add dishes.</li><li>The portal tab is still your dietitian portal after reload, signed in as +diet (WEC-844, impersonation for own clients: «without killing other tabs»).</li></ul></div>
+  <div class="warn"><span class="lab">FAIL IF</span><ul><li>The portal tab turns into the client, or asks you to sign in.</li><li>No new tab and no message about pop-ups.</li></ul></div>
 </div>
 
 <div class="step" data-id="5.3">
   <div class="step__hd"><span class="step__n">5.3</span><p class="step__t">A card order placed by the dietitian completes</p><div class="verdict"></div></div>
   <div class="seg"><span class="lab">SIGNED IN AS</span><ul><li><strong>DIETITIAN window</strong>: <span class="inline">ioustinos.sarris+diet@gmail.com</span></li></ul></div>
-  <p class="seg where"><span class="lab">WHERE</span>DIETITIAN window, client mode · checkout</p>
+  <p class="seg where"><span class="lab">WHERE</span>The client tab from 5.2 · checkout</p>
   <div class="seg"><span class="lab">DO</span><ol><li>Order 2 days to the saved address.</li><li>Pay by card with the sandbox card and 3DS code 111111.</li></ol></div>
   <div class="seg expect"><span class="lab">EXPECT</span><ul><li>The saved address is preselected.</li><li>Payment completes and lands on the success page.</li></ul></div>
   <div class="warn"><span class="lab">FAIL IF</span><ul><li>Payment hangs or the order stays pending.</li></ul></div>
@@ -508,12 +507,12 @@
 </div>
 
 <div class="step" data-id="5.4">
-  <div class="step__hd"><span class="step__n">5.4</span><p class="step__t">Leaving client mode returns to the portal</p><div class="verdict"></div></div>
+  <div class="step__hd"><span class="step__n">5.4</span><p class="step__t">Closing the client tab leaves the portal as it was</p><div class="verdict"></div></div>
   <div class="seg"><span class="lab">SIGNED IN AS</span><ul><li><strong>DIETITIAN window</strong>: <span class="inline">ioustinos.sarris+diet@gmail.com</span></li></ul></div>
-  <p class="seg where"><span class="lab">WHERE</span>DIETITIAN window · the impersonation banner</p>
-  <div class="seg"><span class="lab">DO</span><ol><li>Exit client mode.</li></ol></div>
-  <div class="seg expect"><span class="lab">EXPECT</span><ul><li>You land on <span class="inline">/partner</span>, after signing in again if asked.</li></ul></div>
-  <div class="warn"><span class="lab">FAIL IF</span><ul><li>You land on /admin or on the site as the client.</li></ul></div>
+  <p class="seg where"><span class="lab">WHERE</span>The client tab · banner button «Κλείσιμο καρτέλας πελάτη»</p>
+  <div class="seg"><span class="lab">DO</span><ol><li>After the success page, check the banner is still there (no automatic exit).</li><li>Press «Κλείσιμο καρτέλας πελάτη».</li></ol></div>
+  <div class="seg expect"><span class="lab">EXPECT</span><ul><li>The client tab closes.</li><li>The portal tab is still signed in as +diet. No new sign-in.</li></ul></div>
+  <div class="warn"><span class="lab">FAIL IF</span><ul><li>You are asked to sign in again anywhere.</li><li>The client tab stays open with the site usable.</li></ul></div>
 </div>
 
 <div class="step" data-id="5.5">
@@ -529,7 +528,7 @@
   <div class="step__hd"><span class="step__n">5.6</span><p class="step__t">A plan bought through the dietitian</p><div class="verdict"></div></div>
   <div class="seg"><span class="lab">SIGNED IN AS</span><ul><li><strong>DIETITIAN window</strong>: <span class="inline">ioustinos.sarris+diet@gmail.com</span></li></ul></div>
   <p class="seg where"><span class="lab">WHERE</span>DIETITIAN window · Νέος Δοκιμής → «Νέο πλάνο / συνδρομή»</p>
-  <div class="seg"><span class="lab">DO</span><ol><li>Build a plan in the wizard and pay by payment link (or cash).</li><li>Exit client mode, open the client card and «Οικονομικά».</li></ol></div>
+  <div class="seg"><span class="lab">DO</span><ol><li>The button opens a new client tab on the plan wizard. Build a plan and pay by payment link (or cash).</li><li>Close the client tab, then in the portal open the client card and «Οικονομικά».</li></ol></div>
   <div class="seg expect"><span class="lab">EXPECT</span><ul><li>The «Πλάνο &amp; πορτοφόλι» card shows the plan with «Στάλθηκε link» or «Εκκρεμεί πληρωμή».</li><li>Finance has a «Πλάνο …» line with commission 0.</li></ul></div>
   <div class="warn"><span class="lab">FAIL IF</span><ul><li>The plan isn't shown.</li><li>Commission before payment.</li></ul></div>
   <div class="aside"><span class="lab">KNOWN, DO NOT RE-FILE</span>By the code, the plan gets no dietitian discount. If you want one, mark Fail and say so.</div>
@@ -720,10 +719,105 @@
   <div class="warn"><span class="lab">FAIL IF</span><ul><li>Search returns nothing.</li><li>Commission columns shown.</li></ul></div>
 </div>
 
+<h2 class="part">11 · Client mode in its own tab (WEC-868)</h2>
+
+<p class="partnote">WEC-868 (client mode in its own tab — one identity per tab for admins and dietitians). Rules under test: the client tab holds the customer's sign-in only for itself; your own tabs never change; one client tab per person at a time; nothing is ordered from a closed or replaced tab; the customer is never signed out of their own devices.</p>
+
+<div class="step" data-id="11.1">
+  <div class="step__hd"><span class="step__n">11.1</span><p class="step__t">Admin opens a client tab; the admin tab stays yours</p><div class="verdict"></div></div>
+  <div class="seg"><span class="lab">SIGNED IN AS</span><ul><li><strong>ADMIN window</strong>: <span class="inline">ioustinos.sarris@gmail.com</span> (you)</li></ul></div>
+  <p class="seg where"><span class="lab">WHERE</span>ADMIN window · first the site <span class="inline">https://dev--fitpal-order.netlify.app</span>, then <span class="inline">/admin/users</span></p>
+  <div class="seg"><span class="lab">DO</span><ol><li>On the site, put ONE dish in your own cart.</li><li>Go to /admin/users, search «Δοκιμής 7», open Πελάτης Δοκιμής 7, press «Place order for this customer →».</li></ol></div>
+  <div class="seg expect"><span class="lab">EXPECT</span><ul><li>A new tab opens, titled «Ως πελάτης: Πελάτης Δοκιμής 7 · …», with the purple banner and an empty cart.</li><li>Your admin tab still shows /admin/users, signed in as you.</li></ul></div>
+  <div class="warn"><span class="lab">FAIL IF</span><ul><li>The admin tab changes to the customer or signs you out.</li><li>The client tab shows your dish in its cart.</li></ul></div>
+</div>
+
+<div class="step" data-id="11.2">
+  <div class="step__hd"><span class="step__n">11.2</span><p class="step__t">Your cart and the client's cart never mix</p><div class="verdict"></div></div>
+  <div class="seg"><span class="lab">SIGNED IN AS</span><ul><li><strong>ADMIN window</strong>: <span class="inline">ioustinos.sarris@gmail.com</span> (you)</li></ul></div>
+  <p class="seg where"><span class="lab">WHERE</span>ADMIN window · the client tab from 11.1, then your own tab</p>
+  <div class="seg"><span class="lab">DO</span><ol><li>In the client tab add two dishes.</li><li>Go to your own tab, open the site and look at the cart. Reload it.</li><li>Go back to the client tab and reload it.</li></ol></div>
+  <div class="seg expect"><span class="lab">EXPECT</span><ul><li>Your own cart still has only your one dish.</li><li>After reload the client tab is still Πελάτης Δοκιμής 7 with the banner and the two dishes.</li></ul></div>
+  <div class="warn"><span class="lab">FAIL IF</span><ul><li>Any dish crosses over.</li><li>The client tab loses the customer or the banner on reload.</li></ul></div>
+</div>
+
+<div class="step" data-id="11.3">
+  <div class="step__hd"><span class="step__n">11.3</span><p class="step__t">Admin does not open inside a client tab</p><div class="verdict"></div></div>
+  <div class="seg"><span class="lab">SIGNED IN AS</span><ul><li><strong>ADMIN window</strong>: <span class="inline">ioustinos.sarris@gmail.com</span> (you)</li></ul></div>
+  <p class="seg where"><span class="lab">WHERE</span>ADMIN window · the client tab</p>
+  <div class="seg"><span class="lab">DO</span><ol><li>In the client tab's address bar, change the address to <span class="inline">https://dev--fitpal-order.netlify.app/admin</span> and press Enter.</li><li>Do the same with <span class="inline">https://dev--fitpal-order.netlify.app/partner</span>.</li></ol></div>
+  <div class="seg expect"><span class="lab">EXPECT</span><ul><li>Both show «Αυτή η καρτέλα είναι καρτέλα πελάτη» with «Κλείσιμο καρτέλας πελάτη» and «Συνέχεια ως Πελάτης». No admin or portal data.</li></ul></div>
+  <div class="warn"><span class="lab">FAIL IF</span><ul><li>Any admin or portal screen opens.</li></ul></div>
+</div>
+
+<div class="step" data-id="11.4">
+  <div class="step__hd"><span class="step__n">11.4</span><p class="step__t">A copied address does not carry the client's sign-in</p><div class="verdict"></div></div>
+  <div class="seg"><span class="lab">SIGNED IN AS</span><ul><li><strong>ADMIN window</strong>: <span class="inline">ioustinos.sarris@gmail.com</span> (you)</li></ul></div>
+  <p class="seg where"><span class="lab">WHERE</span>ADMIN window · the client tab</p>
+  <div class="seg"><span class="lab">DO</span><ol><li>Press «Συνέχεια ως Πελάτης» to return to the menu.</li><li>Copy the client tab's address, open a brand-new tab (⌘T) and paste it.</li></ol></div>
+  <div class="seg expect"><span class="lab">EXPECT</span><ul><li>The new tab is YOU (your name top right, no purple banner).</li></ul></div>
+  <div class="warn"><span class="lab">FAIL IF</span><ul><li>The new tab is signed in as Πελάτης Δοκιμής 7.</li></ul></div>
+</div>
+
+<div class="step" data-id="11.5">
+  <div class="step__hd"><span class="step__n">11.5</span><p class="step__t">An order from the client tab is marked as placed by admin; the tab stays open</p><div class="verdict"></div></div>
+  <div class="seg"><span class="lab">SIGNED IN AS</span><ul><li><strong>ADMIN window</strong>: <span class="inline">ioustinos.sarris@gmail.com</span> (you)</li></ul></div>
+  <p class="seg where"><span class="lab">WHERE</span>ADMIN window · the client tab → checkout</p>
+  <div class="seg"><span class="lab">DO</span><ol><li>Place a cash order for the two dishes.</li><li>After the success page, look at the banner.</li><li>In your own tab open /admin/orders and find the order.</li></ol></div>
+  <div class="seg expect"><span class="lab">EXPECT</span><ul><li>The order goes through and the banner is still there (no automatic exit, no sign-out).</li><li>In admin the order belongs to Πελάτης Δοκιμής 7 and has the orange shield icon «Managed order».</li></ul></div>
+  <div class="warn"><span class="lab">FAIL IF</span><ul><li>The order lands under you.</li><li>No shield icon.</li><li>You get signed out anywhere.</li></ul></div>
+</div>
+
+<div class="step" data-id="11.6">
+  <div class="step__hd"><span class="step__n">11.6</span><p class="step__t">A second client tab closes the first</p><div class="verdict"></div></div>
+  <div class="seg"><span class="lab">SIGNED IN AS</span><ul><li><strong>ADMIN window</strong>: <span class="inline">ioustinos.sarris@gmail.com</span> (you)</li></ul></div>
+  <p class="seg where"><span class="lab">WHERE</span>ADMIN window · your own tab → /admin/users</p>
+  <div class="seg"><span class="lab">DO</span><ol><li>Open Πελάτης Δοκιμής 8 and press «Place order for this customer →».</li><li>Switch to the Πελάτης Δοκιμής 7 tab. Wait up to a minute if needed.</li><li>Reload that tab.</li></ol></div>
+  <div class="seg expect"><span class="lab">EXPECT</span><ul><li>The customer-8 tab opens normally.</li><li>The customer-7 tab shows a lock screen «Άνοιξε νεότερη καρτέλα πελάτη», its title starts with «🔒», and nothing behind it can be clicked.</li><li>After reload it still shows a lock screen. «Κλείσιμο καρτέλας» closes it.</li></ul></div>
+  <div class="warn"><span class="lab">FAIL IF</span><ul><li>Both client tabs keep working.</li><li>The locked tab can still place an order.</li></ul></div>
+</div>
+
+<div class="step" data-id="11.7">
+  <div class="step__hd"><span class="step__n">11.7</span><p class="step__t">Admin and dietitian client tabs live side by side</p><div class="verdict"></div></div>
+  <div class="seg"><span class="lab">SIGNED IN AS</span><ul><li><strong>ADMIN window</strong>: <span class="inline">ioustinos.sarris@gmail.com</span> (you)</li><li><strong>DIETITIAN window</strong>: <span class="inline">ioustinos.sarris+diet@gmail.com</span></li></ul></div>
+  <p class="seg where"><span class="lab">WHERE</span>ADMIN window has the customer-8 tab open; DIETITIAN window · client 23's card</p>
+  <div class="seg"><span class="lab">DO</span><ol><li>In the DIETITIAN window press «Παραγγελία ως πελάτης» for Πελάτης Δοκιμής 23.</li><li>Switch back to the ADMIN window's customer-8 tab and add a dish.</li></ol></div>
+  <div class="seg expect"><span class="lab">EXPECT</span><ul><li>Both client tabs stay active: the limit is one client tab PER PERSON, not per browser.</li><li>Each banner names its own customer.</li></ul></div>
+  <div class="warn"><span class="lab">FAIL IF</span><ul><li>Opening the dietitian's client tab locks the admin's, or the other way round.</li></ul></div>
+</div>
+
+<div class="step" data-id="11.8">
+  <div class="step__hd"><span class="step__n">11.8</span><p class="step__t">The customer stays signed in on their own device</p><div class="verdict"></div></div>
+  <div class="seg"><span class="lab">SIGNED IN AS</span><ul><li><strong>DIETITIAN window</strong>: <span class="inline">ioustinos.sarris+diet@gmail.com</span></li><li><strong>CLIENT window</strong>: sign out of the previous client first («Αποσύνδεση» under your name, top right), then sign in as <span class="inline">ioustinos.sarris+dev23@gmail.com</span></li></ul></div>
+  <p class="seg where"><span class="lab">WHERE</span>CLIENT window (incognito) signed in as +dev23; DIETITIAN window has the client-23 tab from 11.7</p>
+  <div class="seg"><span class="lab">DO</span><ol><li>In the CLIENT window, sign in as +dev23 and reload once. You're signed in.</li><li>In the DIETITIAN window's client-23 tab press «Κλείσιμο καρτέλας πελάτη».</li><li>Back in the CLIENT window, reload.</li></ol></div>
+  <div class="seg expect"><span class="lab">EXPECT</span><ul><li>The CLIENT window is still signed in as +dev23.</li><li>The dietitian's portal tab is still signed in as +diet.</li></ul></div>
+  <div class="warn"><span class="lab">FAIL IF</span><ul><li>+dev23 is signed out in the CLIENT window.</li><li>The dietitian has to sign in again.</li></ul></div>
+</div>
+
+<div class="step" data-id="11.9">
+  <div class="step__hd"><span class="step__n">11.9</span><p class="step__t">«Αποσύνδεση» inside a client tab only leaves client mode</p><div class="verdict"></div></div>
+  <div class="seg"><span class="lab">SIGNED IN AS</span><ul><li><strong>DIETITIAN window</strong>: <span class="inline">ioustinos.sarris+diet@gmail.com</span></li><li><strong>CLIENT window</strong>: still <span class="inline">ioustinos.sarris+dev23@gmail.com</span> from the previous step</li></ul></div>
+  <p class="seg where"><span class="lab">WHERE</span>DIETITIAN window · open client mode for client 23 again</p>
+  <div class="seg"><span class="lab">DO</span><ol><li>In the new client tab click the customer's name top right → «Αποσύνδεση».</li></ol></div>
+  <div class="seg expect"><span class="lab">EXPECT</span><ul><li>The client tab closes, or shows the lock screen if the browser won't close it.</li><li>The CLIENT window (+dev23) is still signed in after reload; the portal is still +diet.</li></ul></div>
+  <div class="warn"><span class="lab">FAIL IF</span><ul><li>Anyone is signed out outside the client tab.</li></ul></div>
+</div>
+
+<div class="step" data-id="11.10">
+  <div class="step__hd"><span class="step__n">11.10</span><p class="step__t">Closing a client tab with the browser's ✕ is safe</p><div class="verdict"></div></div>
+  <div class="seg"><span class="lab">SIGNED IN AS</span><ul><li><strong>ADMIN window</strong>: <span class="inline">ioustinos.sarris@gmail.com</span> (you)</li></ul></div>
+  <p class="seg where"><span class="lab">WHERE</span>ADMIN window · the customer-8 tab</p>
+  <div class="seg"><span class="lab">DO</span><ol><li>Close the customer-8 tab with the browser's ✕ (not the banner button).</li><li>Open client mode for Πελάτης Δοκιμής 8 again.</li></ol></div>
+  <div class="seg expect"><span class="lab">EXPECT</span><ul><li>Nothing breaks: a new client tab opens normally.</li><li>The admin tab is still you.</li></ul></div>
+  <div class="warn"><span class="lab">FAIL IF</span><ul><li>An error, or the admin tab changes.</li></ul></div>
+  <div class="aside"><span class="lab">KNOWN, DO NOT RE-FILE</span>The 2-hour expiry and the «inactive for 5 minutes» rule are tested from the database by Claude, not by hand.</div>
+</div>
+
 <!-- /STEPS -->
 
 <footer>
-  <p>Fitpal · dev (dev--fitpal-order.netlify.app, Supabase branch dev) · written 12 Oct 2026 against commit ec33161</p>
+  <p>Fitpal · dev (dev--fitpal-order.netlify.app, Supabase branch dev) · written 12 Oct 2026; part 11 added for WEC-868 (commit 01b2ba0)</p>
   <p>Your verdicts and notes go to the results file you choose. Nothing leaves your computer.</p>
 </footer>
 
