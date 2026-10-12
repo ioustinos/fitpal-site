@@ -26,8 +26,12 @@ export function Partners() {
   const [loading, setLoading] = useState(true)
   const [err, setErr] = useState<string | null>(null)
 
+  // Only the first load shows the spinner. Later refreshes (after a save,
+  // an approval or a payout) keep the editor mounted, so it stays on the
+  // tab the admin was using instead of jumping back to «Clients & terms».
   async function refresh(keep?: string | null) {
-    setLoading(true); setErr(null)
+    if (partners.length === 0) setLoading(true)
+    setErr(null)
     const r = await fetchPartners()
     if (r.error) setErr(r.error)
     setPartners(r.data); setBalances(r.balances)
