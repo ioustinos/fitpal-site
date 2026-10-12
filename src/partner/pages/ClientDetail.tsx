@@ -5,7 +5,7 @@
 import { useEffect, useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import {
-  fetchClientDetail, saveClient, addMeasurement,
+  fetchClientDetail, saveClient, addMeasurement, setClientDiscount,
   type ClientDetail, type MealKey, eur, pct, fmtDate,
 } from '../api'
 import { usePartner } from '../context'
@@ -98,6 +98,9 @@ export function ClientDetailPage() {
       {err && <div className="admin-error-banner">{err}</div>}
 
       <div className="partner-grid">
+        {d.link?.ownLink && !partner.is_internal && d.link.status !== 'inactive' && (
+          <DiscountCard userId={userId} envelopeBps={partner.envelope_bps ?? 1200} discountBps={d.link.discountBps} onSaved={() => load(true)} />
+        )}
         <BodyCard d={d} userId={userId} onSaved={() => load(true)} />
         <TargetsCard d={d} userId={userId} onSaved={() => load(true)} />
         <PlanCard d={d} />
@@ -119,6 +122,61 @@ function Card({ title, children, right }: { title: string; children: React.React
       </div>
       <div className="admin-setting-body">{children}</div>
     </section>
+  )
+}
+
+/**
+ * WEC-870 (🟢 Ioustinos 13/10): Fitpal gives each dietitian a total % (default
+ * 12%); the dietitian splits it per client into a discount for the client and
+ * their own commission. Applies to future orders. A voucher never stacks with
+ * the discount (the larger applies) and never changes the commission.
+ */
+function DiscountCard({ userId, envelopeBps, discountBps, onSaved }: { userId: string; envelopeBps: number; discountBps: number; onSaved: () => void }) {
+  const [v, setV] = useState(String(discountBps / 100))
+  const [busy, setBusy] = useState(false)
+  const [msg, setMsg] = useState<string | null>(null)
+  const env = envelopeBps / 100
+  const n = Number(v.replace(',', '.'))
+  const valid = v.trim() !== '' && !Number.isNaN(n) && n >= 0 && n <= env
+  const dBps = valid ? Math.round(n * 100) : null
+  const dirty = dBps != null && dBps !== discountBps
+  async function save() {
+    if (dBps == null) { setMsg(`✗ Η έκπτωση πρέπει να είναι από 0% έως ${env}%.`); return }
+    setBusy(true); setMsg(null)
+    const { error } = await setClientDiscount(userId, dBps)
+    setBusy(false)
+    setMsg(error ? `✗ ${error}` : '✓ Αποθηκεύτηκε — ισχύει για τις επόμενες παραγγελίες')
+    if (!error) onSaved()
+  }
+  return (
+    <Card title="Έκπτωση πελάτη & commission">
+      <p className="admin-text-muted" style={{ fontSize: 12, marginTop: 0 }}>
+        Η Fitpal σάς δίνει συνολικά <strong>{env}%</strong> για κάθε πελάτη σας. Μοιράστε το όπως θέλετε: ό,τι δίνετε έκπτωση στον πελάτη αφαιρείται από το commission σας.
+      </p>
+      <div style={{ display: 'flex', gap: 10, alignItems: 'flex-end', flexWrap: 'wrap' }}>
+        <label style={{ display: 'block' }}>
+          <span className="admin-form-label" style={{ display: 'block', fontSize: 12 }}>Έκπτωση πελάτη (%)</span>
+          <input className="admin-input" style={{ width: 90 }} inputMode="decimal" value={v}
+                 onChange={(e) => { setV(e.target.value); setMsg(null) }} />
+        </label>
+        <div style={{ fontSize: 14, paddingBottom: 8 }}>
+          Commission σας: <strong>{dBps == null ? '—' : `${Math.round((envelopeBps - dBps)) / 100}%`}</strong>
+        </div>
+      </div>
+      <input type="range" min={0} max={envelopeBps} step={50} value={dBps ?? discountBps}
+             onChange={(e) => { setV(String(Number(e.target.value) / 100)); setMsg(null) }}
+             style={{ width: '100%', margin: '10px 0 4px' }} aria-label="Έκπτωση πελάτη" />
+      <div className="admin-text-muted" style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11 }}>
+        <span>0% έκπτωση · {env}% commission</span><span>{env}% έκπτωση · 0% commission</span>
+      </div>
+      <p className="admin-text-muted" style={{ fontSize: 12 }}>
+        Αν ο πελάτης βάλει κουπόνι, δεν προστίθεται στην έκπτωσή σας: ισχύει όποιο είναι μεγαλύτερο. Το commission σας δεν αλλάζει από κουπόνια.
+      </p>
+      <div className="admin-form-actions" style={{ justifyContent: 'flex-start' }}>
+        <button className="admin-btn-primary" disabled={busy || !dirty} onClick={save}>{busy ? 'Αποθήκευση…' : 'Αποθήκευση'}</button>
+        {msg && <span style={{ color: msg.startsWith('✗') ? '#b91c1c' : '#15803d', fontWeight: 600, fontSize: 13 }}>{msg}</span>}
+      </div>
+    </Card>
   )
 }
 

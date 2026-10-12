@@ -44,8 +44,9 @@ export function PaymentSection() {
 
   // WEC-845: the dietitian-client discount lowers what the wallet must cover.
   const rawTotal = activeDays(cart).reduce((sum, d) => sum + dayAmt(cart, d), 0)
-  const partnerDisc = usePartnerDiscount(rawTotal)
-  const total = Math.max(0, subTotal(cart, voucher, catLookup) - partnerDisc.amount)
+  const afterVoucher = subTotal(cart, voucher, catLookup)
+  const partnerDisc = usePartnerDiscount(rawTotal, afterVoucher)
+  const total = Math.max(0, afterVoucher + partnerDisc.voucherDropped - partnerDisc.amount)
   const walletSufficient = walletBalance >= total
 
   // WEC-255/588: filter by the admin visibility map via the shared helper

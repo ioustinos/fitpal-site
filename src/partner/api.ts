@@ -36,6 +36,8 @@ export interface MyPartner {
   features: { progress_tracking?: boolean; referral?: boolean; notifications?: boolean }
   default_commission_bps: number
   default_discount_bps: number
+  /** WEC-870: total % Fitpal gives this dietitian; they split it per client. */
+  envelope_bps: number
   referral_code: string | null
 }
 
@@ -125,6 +127,12 @@ export async function saveClient(userId: string, patch: { profile?: Record<strin
   const { error } = await rpc('partner_update_client', { p_client: userId, p: patch })
   return { error: msg(error) }
 }
+/** WEC-870: the dietitian sets this client's discount; commission = envelope − discount (future orders). */
+export async function setClientDiscount(userId: string, discountBps: number) {
+  const { data, error } = await supabase.rpc('partner_set_client_discount', { p_client: userId, p_discount_bps: discountBps })
+  return { data: data as { discountBps: number; commissionBps: number; envelopeBps: number } | null, error: error ? error.message : null }
+}
+
 export async function addMeasurement(userId: string, m: Record<string, unknown>) {
   const { error } = await rpc('partner_add_measurement', { p_client: userId, p: m })
   return { error: msg(error) }

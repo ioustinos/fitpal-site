@@ -17,6 +17,8 @@ export interface AdminPartner {
   iban: string | null
   default_commission_bps: number
   default_discount_bps: number
+  /** WEC-870: the total % Fitpal gives this dietitian; commission = envelope − client discount (DB-enforced). */
+  envelope_bps: number
   is_internal: boolean
   active: boolean
   features: { progress_tracking?: boolean; referral?: boolean; notifications?: boolean }
@@ -120,8 +122,8 @@ export async function fetchPartnerClients(partnerId: string) {
   }
 }
 
-/** 🟢 Only Fitpal edits the split. History is kept by a DB trigger. */
-export async function updateClientTerms(linkId: string, patch: { discount_bps?: number; commission_bps?: number; status?: string }) {
+/** WEC-870: the client discount; commission is derived (envelope − discount) by a DB trigger. History is kept by a DB trigger. */
+export async function updateClientTerms(linkId: string, patch: { discount_bps?: number; status?: string }) {
   const { error } = await supabase.from('partner_clients').update(patch).eq('id', linkId)
   return { error: m(error) }
 }

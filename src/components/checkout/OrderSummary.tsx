@@ -54,7 +54,7 @@ export function OrderSummary({ contactEmail = '', contactPhone = '', contactRead
   // WEC-713: the employer's per-day contribution. Zero on retail.
   const benefit = useCompanyBenefit()
   // WEC-845: dietitian-client discount (stacks with vouchers).
-  const partnerDisc = usePartnerDiscount(rawTotal)
+  const partnerDisc = usePartnerDiscount(rawTotal, total)
 
   if (!dates.length) {
     return (
@@ -126,7 +126,7 @@ export function OrderSummary({ contactEmail = '', contactPhone = '', contactRead
                 >✕</span>
               </span>
               <span style={{ fontSize: 13, fontWeight: 900, color: 'var(--green)' }}>
-                −{fmt(voucherShownEuros(rawTotal, total, benefit.total, partnerDisc.amount))}
+                {partnerDisc.voucherDropped > 0 ? (lang === 'el' ? 'δεν εφαρμόζεται' : 'not applied') : <>−{fmt(voucherShownEuros(rawTotal, total, benefit.total, partnerDisc.amount))}</>}
               </span>
             </div>
             {/* WEC-217: single-voucher policy hint (matches CartSidebar). */}
@@ -174,12 +174,12 @@ export function OrderSummary({ contactEmail = '', contactPhone = '', contactRead
           </div>
         )}
 
-        <PartnerDiscountRow lang={lang} pct={partnerDisc.pct} amount={partnerDisc.amount} partnerName={partnerDisc.partnerName} />
+        <PartnerDiscountRow lang={lang} pct={partnerDisc.pct} amount={partnerDisc.amount} partnerName={partnerDisc.partnerName} superseded={partnerDisc.superseded} voucherDropped={partnerDisc.voucherDropped} />
 
         {/* Total */}
         <div className="cart-total-row">
           <span className="cart-total-lbl">{t('total')}</span>
-          <span className="cart-total-amt">{fmt(Math.max(0, total - benefit.total - partnerDisc.amount))}</span>
+          <span className="cart-total-amt">{fmt(Math.max(0, total + partnerDisc.voucherDropped - benefit.total - partnerDisc.amount))}</span>
         </div>
 
         {/* Back to menu */}

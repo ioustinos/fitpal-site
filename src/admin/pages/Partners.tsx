@@ -125,7 +125,7 @@ function PartnerForm({ partner, onSaved, onCancel }: { partner: AdminPartner | n
     name: partner?.name ?? '', legal_name: partner?.legal_name ?? '', vat_number: partner?.vat_number ?? '',
     tax_office: partner?.tax_office ?? '', address: partner?.address ?? '', email: partner?.email ?? '',
     phone: partner?.phone ?? '', iban: partner?.iban ?? '',
-    commission: String((partner?.default_commission_bps ?? 1200) / 100),
+    envelope: String((partner?.envelope_bps ?? 1200) / 100),
     discount: String((partner?.default_discount_bps ?? 0) / 100),
     is_internal: partner?.is_internal ?? false, active: partner?.active ?? true,
     progress_tracking: !!partner?.features?.progress_tracking, referral: !!partner?.features?.referral,
@@ -143,13 +143,16 @@ function PartnerForm({ partner, onSaved, onCancel }: { partner: AdminPartner | n
 
   async function save() {
     setBusy(true); setMsg(null)
-    const comm = Math.round(Number(f.commission.replace(',', '.')) * 100)
+    const env = Math.round(Number(f.envelope.replace(',', '.')) * 100)
     const disc = Math.round(Number(f.discount.replace(',', '.')) * 100)
-    if (!f.name.trim() || Number.isNaN(comm) || Number.isNaN(disc)) { setBusy(false); setMsg('✗ Name and valid percentages are required'); return }
+    if (!f.name.trim() || Number.isNaN(env) || Number.isNaN(disc)) { setBusy(false); setMsg('✗ Name and valid percentages are required'); return }
+    if (env < 0 || env > 5000) { setBusy(false); setMsg('✗ Total % must be between 0 and 50'); return }
+    if (disc < 0 || disc > env) { setBusy(false); setMsg(`✗ Default client discount must be between 0 and ${env / 100}%`); return }
+    const comm = f.is_internal ? 0 : env - disc
     const { data, error } = await savePartner({
       id: partner?.id, name: f.name.trim(), legal_name: f.legal_name || null, vat_number: f.vat_number || null,
       tax_office: f.tax_office || null, address: f.address || null, email: f.email || null, phone: f.phone || null,
-      iban: f.iban || null, default_commission_bps: comm, default_discount_bps: disc, is_internal: f.is_internal,
+      iban: f.iban || null, envelope_bps: env, default_commission_bps: comm, default_discount_bps: disc, is_internal: f.is_internal,
       active: f.active, features: { progress_tracking: f.progress_tracking, referral: f.referral, notifications: f.notifications },
       referral_code: f.referral_code.trim() || null, agreement_date: f.agreement_date || null, notes: f.notes || null,
     })
@@ -193,11 +196,23 @@ function PartnerForm({ partner, onSaved, onCancel }: { partner: AdminPartner | n
         {input('phone', 'Phone')}
         {input('iban', 'IBAN')}
         {input('address', 'Address')}
-        {input('commission', 'Default commission % (spec: 12)')}
-        {input('discount', 'Default client discount %')}
+        {input('envelope', 'Total % for this dietitian (default 12)')}
+        {input('discount', 'Default client discount % (the rest is commission)')}
         {input('agreement_date', 'Agreement date', 'date')}
         {input('referral_code', 'Referral code (for /ref/<code>)')}
       </div>
+      {!f.is_internal && (() => {
+        const e = Number(f.envelope.replace(',', '.')), d = Number(f.discount.replace(',', '.'))
+        const ok = !Number.isNaN(e) && !Number.isNaN(d) && d >= 0 && d <= e
+        return (
+          <p className="admin-text-muted" style={{ fontSize: 12, margin: '8px 0 0' }}>
+            WEC-870: Fitpal sets the total; the dietitian splits it per client in the portal (client discount + own commission).
+            {ok && <> New clients start at <b>{d}%</b> discount + <b>{Math.round((e - d) * 100) / 100}%</b> commission.</>}
+            {' '}Changing the total keeps each client's discount and adjusts the commission (future orders only).
+            Vouchers never stack with the dietitian discount — the larger one applies — and never change the commission.
+          </p>
+        )
+      })()}
       <div style={{ marginTop: 10 }}>
         {check('is_internal', 'Fitpal in-house dietitian', 'Sees every customer, earns no commission, admin access unaffected.')}
         <div className="admin-section-head" style={{ marginTop: 10 }}><strong>Paid add-ons (hidden unless switched on)</strong></div>
@@ -258,31 +273,35 @@ function ClientsTab({ partner, onChanged }: { partner: AdminPartner; onChanged: 
           <thead><tr><th>Client</th><th>Status</th><th>Discount %</th><th>Commission %</th><th>Consent</th><th>Since</th><th></th></tr></thead>
           <tbody>
             {visible.length === 0 && <tr><td colSpan={7} className="admin-table-empty">No clients.</td></tr>}
-            {visible.map((r) => <ClientTermsRow key={r.id} r={r} onSaved={() => { void load(); onChanged() }} />)}
+            {visible.map((r) => <ClientTermsRow key={r.id} r={r} envelopeBps={partner.is_internal ? null : partner.envelope_bps} onSaved={() => { void load(); onChanged() }} />)}
           </tbody>
         </table>
       </div>
       <p className="admin-text-muted" style={{ fontSize: 12 }}>
+        {!partner.is_internal && <>Total for this dietitian: <b>{partner.envelope_bps / 100}%</b>. Commission = total − client discount; the dietitian can change the discount in the portal too. </>}
         Rates are frozen onto each order when it is placed — changing them here affects future orders only. Every change is kept in partner_client_terms_history.
       </p>
     </div>
   )
 }
 
-function ClientTermsRow({ r, onSaved }: { r: AdminPartnerClient; onSaved: () => void }) {
+function ClientTermsRow({ r, envelopeBps, onSaved }: { r: AdminPartnerClient; envelopeBps: number | null; onSaved: () => void }) {
   const [d, setD] = useState(String(r.discount_bps / 100))
-  const [c, setC] = useState(String(r.commission_bps / 100))
   const [busy, setBusy] = useState(false)
-  const dirty = d !== String(r.discount_bps / 100) || c !== String(r.commission_bps / 100)
+  const [err, setErr] = useState<string | null>(null)
+  const dirty = d !== String(r.discount_bps / 100)
+  const dBps = Math.round(Number(d.replace(',', '.')) * 100)
+  // WEC-870: commission = envelope − discount (enforced by a DB trigger).
+  const commShown = envelopeBps == null ? r.commission_bps : (Number.isNaN(dBps) ? null : envelopeBps - dBps)
   async function save(extra?: { status?: string }) {
+    setErr(null)
+    if (!extra && (Number.isNaN(dBps) || dBps < 0 || (envelopeBps != null && dBps > envelopeBps))) {
+      setErr(`✗ 0–${(envelopeBps ?? 10000) / 100}%`); return
+    }
     setBusy(true)
-    const { error } = await updateClientTerms(r.id, {
-      discount_bps: Math.round(Number(d.replace(',', '.')) * 100),
-      commission_bps: Math.round(Number(c.replace(',', '.')) * 100),
-      ...extra,
-    })
+    const { error } = await updateClientTerms(r.id, extra ? extra : { discount_bps: dBps })
     setBusy(false)
-    if (error) alert(error); else onSaved()
+    if (error) setErr(`✗ ${error}`); else onSaved()
   }
   return (
     <tr className={r.status === 'inactive' ? 'partner-cancelled' : ''}>
@@ -297,7 +316,10 @@ function ClientTermsRow({ r, onSaved }: { r: AdminPartnerClient; onSaved: () => 
         )}
       </td>
       <td><input className="admin-input admin-input-tight" style={{ width: 64 }} value={d} onChange={(e) => setD(e.target.value)} /></td>
-      <td><input className="admin-input admin-input-tight" style={{ width: 64 }} value={c} onChange={(e) => setC(e.target.value)} /></td>
+      <td title={envelopeBps != null ? `Total ${envelopeBps / 100}% − discount` : undefined}>
+        {commShown == null ? '—' : `${commShown / 100}%`}
+        {err && <div><Msg text={err} inline /></div>}
+      </td>
       <td>{r.consent_at ? '✓' : '—'}</td>
       <td>{fmtD(r.created_at)}</td>
       <td style={{ whiteSpace: 'nowrap' }}>

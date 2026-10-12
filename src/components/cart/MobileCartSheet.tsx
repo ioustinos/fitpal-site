@@ -87,8 +87,8 @@ export function MobileCartSheet({ mode = 'menu' }: Props) {
   const dates = activeDays(cart)
   const rawTotal = dates.reduce((sum, d) => sum + dayAmt(cart, d), 0)
   // WEC-845: dietitian-client discount (stacks with vouchers).
-  const partnerDisc = usePartnerDiscount(rawTotal)
-  const payable = Math.max(0, total - partnerDisc.amount)
+  const partnerDisc = usePartnerDiscount(rawTotal, total)
+  const payable = Math.max(0, total + partnerDisc.voucherDropped - partnerDisc.amount)
   const hasItems = dates.length > 0
   const cartCount = totalCount(cart)
   const canCheckout = hasItems && dates.every((d) => {
@@ -225,13 +225,13 @@ export function MobileCartSheet({ mode = 'menu' }: Props) {
                         {t('discount')}
                       </span>
                       <span style={{ fontWeight: 900, color: 'var(--green)', fontSize: 14 }}>
-                        −{fmt(voucherShownEuros(rawTotal, total, 0, partnerDisc.amount))}
+                        {partnerDisc.voucherDropped > 0 ? (lang === 'el' ? 'δεν εφαρμόζεται' : 'not applied') : <>−{fmt(voucherShownEuros(rawTotal, total, 0, partnerDisc.amount))}</>}
                       </span>
                     </div>
                   </>
                 )}
 
-                <PartnerDiscountRow lang={lang} pct={partnerDisc.pct} amount={partnerDisc.amount} partnerName={partnerDisc.partnerName} />
+                <PartnerDiscountRow lang={lang} pct={partnerDisc.pct} amount={partnerDisc.amount} partnerName={partnerDisc.partnerName} superseded={partnerDisc.superseded} voucherDropped={partnerDisc.voucherDropped} />
                 <div className="cart-total-row">
                   <span className="cart-total-lbl">{t('total')}</span>
                   <span className="cart-total-amt">{payable.toFixed(2)} €</span>

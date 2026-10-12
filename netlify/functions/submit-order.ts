@@ -1224,10 +1224,8 @@ export default async (request: Request) => {
 
     // ─── WEC-845: dietitian-partner discount ─────────────────────────────
     // If the (logged-in) customer is an ACTIVE client of an active partner,
-    // they get the per-client discount on the items subtotal. It stacks with
-    // vouchers (🟢 Ioustinos: refund vouchers / one-off promos must still
-    // work); if voucher + partner would exceed what is left after the company
-    // benefit, the VOUCHER gives way. Rates are frozen onto the order here —
+    // they get the per-client discount on the items subtotal. WEC-870: it no
+    // longer stacks with a voucher — the larger of the two applies. Rates are frozen onto the order here —
     // later term changes never touch past orders; recompute_order_money reads
     // the frozen bps. Fail-OPEN: if the lookup fails the order goes through
     // at full price rather than failing (logged loudly).
@@ -1235,6 +1233,7 @@ export default async (request: Request) => {
     let partnerDiscountBps: number | null = null
     let partnerCommissionBps: number | null = null
     let partnerDiscountAmount = 0
+    let voucherNotCombined = false
     if (userId && SUPABASE_SERVICE_KEY) {
       try {
         const svcPd = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY, {
@@ -1256,9 +1255,23 @@ export default async (request: Request) => {
             partnerDiscountBps = l.discount_bps
             partnerCommissionBps = l.commission_bps
             const room = Math.max(0, orderSubtotal - benefitTotal)
-            partnerDiscountAmount = Math.min(room, Math.round(orderSubtotal * l.discount_bps / 10000))
-            if (discountAmount + partnerDiscountAmount > room) {
-              discountAmount = Math.max(0, room - partnerDiscountAmount)
+            const fullPartner = Math.min(room, Math.round(orderSubtotal * l.discount_bps / 10000))
+            // WEC-870 (🟢 Christos): voucher and dietitian discount never
+            // stack — the customer gets the LARGER one (6% + 15% → 15%,
+            // 6% + 3% → 6%). The commission is unaffected either way: it is
+            // computed on the items value before any discount (see
+            // partner_commission_lines), so partner_id + commission bps are
+            // frozen on the order even when the voucher wins.
+            if (voucherId && discountAmount > fullPartner) {
+              partnerDiscountAmount = 0
+            } else {
+              partnerDiscountAmount = fullPartner
+              if (voucherId && discountAmount > 0) {
+                console.log('[submit-order] WEC-870 voucher %s (%d) not applied — dietitian discount %d is larger', voucherId, discountAmount, fullPartner)
+                voucherId = null
+                discountAmount = 0
+                voucherNotCombined = true
+              }
             }
           }
         }
@@ -1870,6 +1883,7 @@ export default async (request: Request) => {
       voucherDiscount: discountAmount / 100,
       partnerDiscount: partnerDiscountAmount / 100,
       partnerDiscountPct: partnerDiscountBps != null ? partnerDiscountBps / 100 : null,
+      voucherNotCombined,
       paymentUrl,
       paymentSetupFailed,
       paymentStatus: paidStatus,

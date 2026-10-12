@@ -76,7 +76,7 @@ export function Finance() {
       <div className="admin-page-head">
         <div>
           <h1 className="admin-page-title">Οικονομικά</h1>
-          <p className="admin-page-sub">Το commission υπολογίζεται μόνο σε ό,τι έχει πληρωθεί. Οι παραγγελίες από πορτοφόλι δεν έχουν commission — υπολογίστηκε στην αγορά του πλάνου.</p>
+          <p className="admin-page-sub">Το commission υπολογίζεται στην αξία των πιάτων πριν από εκπτώσεις και κουπόνια, και μόνο όταν πληρωθεί η παραγγελία. Οι παραγγελίες από πορτοφόλι δεν έχουν commission — υπολογίστηκε στην αγορά του πλάνου.</p>
         </div>
         <div className="partner-actions">
           <input className="admin-input admin-input-tight" type="month" value={ym} disabled={all} onChange={(e) => setYm(e.target.value)} />

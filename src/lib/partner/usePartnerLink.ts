@@ -96,23 +96,39 @@ export function usePartnerLink(): PartnerLink | null {
 /**
  * The dietitian discount for a cart whose items subtotal (before vouchers)
  * is `rawTotalEuros`. Returns euros, rounded to the cent like the server.
+ *
+ * WEC-870 (🟢 Christos): a voucher and the dietitian discount do NOT stack —
+ * the customer gets the LARGER of the two (6% + 15% → 15%, 6% + 3% → 6%).
+ * Pass `totalAfterVoucherEuros` (the cart total with the voucher applied) and:
+ *   • voucher larger  → `amount` = 0, `superseded` = true (dietitian line shows
+ *     as «not combined»); the voucher line stays as is.
+ *   • dietitian larger (or equal) → `amount` = full discount and
+ *     `voucherDropped` = the voucher euros the server will NOT apply; callers
+ *     add it back to their total and show the voucher as «not applied».
+ * Mirrors submit-order.ts exactly.
  */
-export function usePartnerDiscount(rawTotalEuros: number): { active: boolean; pct: number; amount: number; partnerName: string } {
+export function usePartnerDiscount(rawTotalEuros: number, totalAfterVoucherEuros?: number): {
+  active: boolean; pct: number; amount: number; partnerName: string; superseded: boolean; voucherDropped: number
+} {
   const link = usePartnerLink()
   const bps = link && link.status === 'active' ? link.discountBps : 0
-  if (!bps || rawTotalEuros <= 0) return { active: false, pct: 0, amount: 0, partnerName: link?.partnerName ?? '' }
-  const cents = Math.round(Math.round(rawTotalEuros * 100) * bps / 10000)
-  return { active: true, pct: bps / 100, amount: cents / 100, partnerName: link?.partnerName ?? '' }
+  const name = link?.partnerName ?? ''
+  if (!bps || rawTotalEuros <= 0) return { active: false, pct: 0, amount: 0, partnerName: name, superseded: false, voucherDropped: 0 }
+  const full = Math.round(Math.round(rawTotalEuros * 100) * bps / 10000)
+  const voucherCents = totalAfterVoucherEuros == null ? 0 : Math.max(0, Math.round((rawTotalEuros - totalAfterVoucherEuros) * 100))
+  if (voucherCents > full) {
+    return { active: true, pct: bps / 100, amount: 0, partnerName: name, superseded: true, voucherDropped: 0 }
+  }
+  return { active: true, pct: bps / 100, amount: full / 100, partnerName: name, superseded: false, voucherDropped: voucherCents / 100 }
 }
 
 /**
- * The voucher amount to SHOW next to the dietitian discount. Mirrors
- * submit-order: when voucher + dietitian discount would exceed what is left
- * after the company benefit, the voucher gives way (the dietitian discount is
- * kept whole). Without this the cart showed e.g. −51,20 € voucher and −3,07 €
- * dietitian on a 51,20 € cart, lines that do not add up to the 0,00 € total.
+ * The voucher amount to SHOW. 0 when the dietitian discount won (WEC-870, the
+ * voucher is not applied). Otherwise the voucher, capped so the lines add up
+ * after the company benefit.
  */
-export function voucherShownEuros(rawTotal: number, totalAfterVoucher: number, benefitTotal: number, partnerAmount: number): number {
+export function voucherShownEuros(rawTotal: number, totalAfterVoucher: number, benefitTotal: number, partnerAmount: number, voucherDropped = 0): number {
+  if (voucherDropped > 0) return 0
   const voucher = Math.max(0, rawTotal - totalAfterVoucher)
   const room = Math.max(0, rawTotal - benefitTotal - partnerAmount)
   return Math.round(Math.min(voucher, room) * 100) / 100
