@@ -1,6 +1,5 @@
 dietitian-partners-run1
-13/10/2026, 01:17:07
-viewport 654x1146
+13/10/2026, 02:05:10
 
 1.1  PASS  The dev site loads and you are admin
 1.2  PASS  A plain dietitian login exists
@@ -28,7 +27,7 @@ viewport 654x1146
       1. i need you to add the price as well in the list with each day and each dish respectively
       2. i want each dish to be title with bold and the dish description underneath in new line
 3.8  PASS  «Παραγγελίες» shows only own clients
-      also great. 
+      also great.
       also add here the details i explained on 3.7 for each day order and for each dish.
       also
 3.9  PASS  Finance is empty before any linked order
@@ -52,7 +51,7 @@ viewport 654x1146
       the address field need to be google autocomplete.
       
       Moreover what is this really? I thought the comissions was define by the dietician no?
-5.2  PASS  «Ως πελάτης» other tabs stay as they were
+5.2  PASS  «Παραγγελία ως πελάτης» opens a new tab and the portal stays
       i think for this to work properly "Παραγγελία ως πελάτης, should open in new tab" instead of asking the dietitian to open and new tab and navigate again to the same place. 
       
       Note after testing, Actually it does open in new tab so the test script was not really well written.
@@ -60,7 +59,7 @@ viewport 654x1146
       this is a little bit weird to be honest. meaning that the dietitian should NOT be able to order for the customer with their card.
       
       An idea here for Fitpal people. You could actually urge the dietitians to make a deal with the customers. Dietitians pay with card, these can go as tax deductions, customers pays with cash to the dietitian. Dietitian wins more than the commission actually.
-5.4  PASS  Leaving client mode returns to the portal
+5.4  PASS  Closing the client tab leaves the portal as it was
       was not asked to sign in again
 5.5  PASS  The order is marked «από εσάς» and earns commission
       good. "από εσάς" pill should have a yellow color to distinguish it.
@@ -110,5 +109,36 @@ viewport 654x1146
       nena@fitpal.gr (which is an admin)
       
       we will have to guide them to do this manually.
+11.1  PASS  Admin opens a client tab; the admin tab stays yours
+      you fixed it.
+11.2  PASS  Your cart and the client's cart never mix
+      super!!!
+11.3  PASS  Admin does not open inside a client tab
+      gold!
+11.4  PASS  A copied address does not carry the client's sign-in
+      good.
+11.5  PASS  An order from the client tab is marked as placed by admin; the tab stays open
+      SO SO good. this is so great that we fixed it.
+11.6  PASS  A second client tab closes the first
+11.7  PASS  Admin and dietitian client tabs live side by side
+      ok so...the critical question now. If my admins want to order for their customers as dieticians...will they have to open a new window as a new profile?
+11.8  PASS  The customer stays signed in on their own device
+11.9  PASS  «Αποσύνδεση» inside a client tab only leaves client mode
+11.10  PASS  Closing a client tab with the browser's ✕ is safe
+12.1  PASS  A dietitian's own login never becomes a client (3.3)
+12.2  PASS  An existing customer through the link waits for approval (7.2)
+12.3  PASS  Admins see how many links wait for approval (6.2)
+12.4  PASS  A dietitian cannot pay by card for a client (5.3)
+12.5  PASS  «Νέο πλάνο / συνδρομή» is visible but disabled (5.6)
+12.6  PASS  The dietitian can fill in body data (4.2)
+12.7  PASS  Orders show prices, dish descriptions and commission (3.7, 3.8, 5.5)
+12.8  PASS  The confirmation shows the dietitian discount (4.5)
+      fantastic! only issue now is the confirmation email.
+      
+      Does not show the dietitian discount
+12.9  PASS  New-client popup: spacing, address search, existing email (5.1, 6.1, 6.4)
+      good
+12.10  PASS  Admin messages and the Active switch (2.1, 2.4)
+12.11  BLOCKED  A payout needs a reference (9.1)
 
-40 pass, 2 fail, 6 blocked, 0 not run, of 48 steps
+60 pass, 2 fail, 7 blocked, 0 not run, of 69 steps
