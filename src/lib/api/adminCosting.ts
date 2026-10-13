@@ -499,3 +499,39 @@ export async function setDefaultLink(ingredientId: string, componentId: string |
 
 /** «N lines unlinked» badge in the dish editor. */
 export const fetchDishUnlinkedCount = (dishId: string) => rpc<number>('admin_cost_dish_unlinked_count', { p_dish: dishId })
+
+// ── dish recipe tree (WEC-866 follow-up: recipe + cost per cost item) ─────────
+/** A cost item at the bottom of the tree, scaled to the plated portion. */
+export interface RecipeItemNode {
+  kind: 'item'; id: string; name: string; unit: string
+  /** raw quantity in the item's unit for THIS portion */
+  qty: number; unit_cost: number; source: CostSource; price_date: string | null
+  /** € for this portion */
+  cost: number
+}
+/** A component used at `grams` (cooked) in this portion, with its recipe below it. */
+export interface RecipeComponentNode {
+  kind: 'component'; id: string; name: string
+  grams: number; cost_per_g: number; cost: number
+  yield_mode: YieldMode | null; yield_pct: number | null; output_weight_g: number | null
+  raw_weight_g: number | null; output_g: number | null; version_no: number | null; effective_from: string | null
+  /** nothing below it: fixed-cost Excel estimate, no version, or zero output */
+  leaf: boolean
+  flags: CostFlags
+  children: RecipeNode[]
+}
+export type RecipeNode = RecipeItemNode | RecipeComponentNode
+export interface VariantTree {
+  variant_id: string; date: string
+  food_cost: number; packaging_cost: number; product_cost: number
+  lines: Array<{
+    ingredient_id: string; ingredient: string; grams: number; link_source: string | null
+    unlinked: boolean; line_cost: number | null; tree: RecipeComponentNode | null
+  }>
+  /** whole portion, summed per purchased cost item */
+  items: Array<{ id: string; name: string; unit: string; qty: number; cost: number; unit_cost: number; source: CostSource; price_date: string | null }>
+  /** components with no recipe below them (e.g. Excel fixed-cost estimates) */
+  leaf_components: Array<{ id: string; name: string; grams: number; cost: number; yield_mode: YieldMode | null; flags: CostFlags }>
+}
+export const fetchVariantTree = (variantId: string, date?: string | null) =>
+  rpc<VariantTree>('admin_cost_variant_tree', { p_variant: variantId, p_date: date ?? null })

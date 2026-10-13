@@ -22,12 +22,12 @@ import {
   fmtDate,
   fmtEur,
   fmtPct,
-  fmtPerKg,
   skey,
   todayAthens,
   useUrlState,
   type PickOption,
 } from '../../costing/shared'
+import { RecipeBreakdown } from './RecipeBreakdown'
 
 /**
  * Admin → Costing → Dishes (WEC-866 — dish costing per variant: food +
@@ -451,12 +451,6 @@ function validatePack(rows: PackRow[]): { items: Array<{ cost_item_id: string; q
 type Detail = { breakdown: VariantBreakdown; history: Array<{ date: string; product_cost: number; cause: string | null }> }
 type DetailRes = { key: string; data: Detail | null; error: string | null }
 
-const linkSourceBadge = (s: string | undefined) =>
-  s === 'manual' ? <span className="cst-badge cst-ok">manual</span>
-    : s === 'default' ? <span className="cst-badge">default</span>
-      : s === 'auto_excel' ? <span className="cst-badge cst-est" title="Auto-matched from the kitchen Excel">auto</span>
-        : s ? <span className="cst-badge">{s}</span> : null
-
 function DishDrawer({ view, asOf, base, packOptions, onClose, onSaved }: {
   view: DishView; asOf: string; base: Base; packOptions: PickOption[]; onClose: () => void; onSaved: () => void
 }) {
@@ -516,7 +510,6 @@ function DishDrawer({ view, asOf, base, packOptions, onClose, onSaved }: {
   const hist = det?.data?.history ?? []
   const product = n(b?.product_cost) ?? 0
   const share = (c: number | null | undefined) => (product > 0 && c !== null && c !== undefined ? Number(c) / product : null)
-  const unlinkedCount = b ? b.lines.filter((l) => l.unlinked).length : 0
 
   return (
     <div className="admin-drawer-overlay" onClick={onClose}>
@@ -555,43 +548,8 @@ function DishDrawer({ view, asOf, base, packOptions, onClose, onSaved }: {
                 <span><Flags dishId={d.id} flags={b.flags} /></span>
               </div>
 
-              <div className="cst-section">
-                <h4>
-                  Food lines
-                  {unlinkedCount > 0 && (
-                    <Link to={`/admin/costing/links?dish=${encodeURIComponent(d.id)}`} className="cst-inline-err" style={{ marginLeft: 8, fontWeight: 400 }}>
-                      {unlinkedCount} unlinked — fix in Dish links →
-                    </Link>
-                  )}
-                </h4>
-                <table className="cst-table">
-                  <thead>
-                    <tr>
-                      <th>Ingredient</th><th>Component</th><th>Link</th>
-                      <th className="num">Grams</th><th className="num">Cost / kg</th><th className="num">Line cost</th><th className="num">Share</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {b.lines.map((l) => (
-                      <tr key={l.ingredient_id} style={l.unlinked ? { color: '#991b1b' } : undefined}>
-                        <td>{l.ingredient}</td>
-                        <td>
-                          {l.unlinked || !l.component_id
-                            ? <Link to={`/admin/costing/links?dish=${encodeURIComponent(d.id)}`} className="cst-inline-err">unlinked — link it</Link>
-                            : <Link to={`/admin/costing/components?id=${encodeURIComponent(l.component_id)}`}>{l.component ?? l.component_id}</Link>}
-                          {l.flags && <span style={{ marginLeft: 4 }}><FlagBadges flags={l.flags} /></span>}
-                        </td>
-                        <td>{linkSourceBadge(l.link_source)}</td>
-                        <td className="num">{Number(l.grams).toLocaleString('el-GR')}</td>
-                        <td className="num">{l.unlinked ? '—' : fmtPerKg(n(l.cost_per_g))}</td>
-                        <td className="num">{l.unlinked ? '—' : fmtEur(l.line_cost)}</td>
-                        <td className="num cst-muted">{l.unlinked ? '—' : fmtPct(share(n(l.line_cost)))}</td>
-                      </tr>
-                    ))}
-                    {!b.lines.length && <tr><td colSpan={7} className="cst-muted">No ingredient lines with grams.</td></tr>}
-                  </tbody>
-                </table>
-              </div>
+              {/* recipe + cost per ingredient / cost item (replaces the flat «Food lines» table) */}
+              {variantId && <RecipeBreakdown variantId={variantId} asOf={asOf} rev={rev} dishId={d.id} />}
 
               <div className="cst-section">
                 <h4>Packaging (this variant)</h4>
