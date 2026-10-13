@@ -5,7 +5,7 @@ import { toE164 } from '../../../src/lib/phoneNormalize'
 // Parent/Child) are set by resolved record id — never typecast.
 
 import type { SupabaseClient } from '@supabase/supabase-js'
-import { TABLES, RETAIL_STORE_ID, airtableDeleteEnabled, airtableInvoiceNameField, airtableStoreId } from './env'
+import { TABLES, RETAIL_STORE_ID, airtableDeleteEnabled, airtableInvoiceNameField } from './env'
 import { findRecordId, upsertRecords, createRecord, listRecords, deleteRecords } from './client'
 import { mapPaid, mapPaymentMethod, mapInvoice, mapOrderType, mapOrderStatus, toEuros, athensIso, esc } from './maps'
 
@@ -213,13 +213,11 @@ export async function pushOrderToAirtable(
     'Order Type': mapOrderType(order.payment_method, order.admin_order_id, storeSlug),
     // WEC-727: the company's own ops id when it has one, retail's 9999
     // otherwise. Ioustinos allocates these and adds the matching Airtable row.
-    // Dev deploys add 900000 (909999 = dev retail) so dev rows never mix with
-    // production ones in the shared base — see airtableStoreId() in env.ts.
-    'Store Id': airtableStoreId(storeAirtableId ?? RETAIL_STORE_ID),
+    'Store Id': storeAirtableId ?? RETAIL_STORE_ID,
     'Μαχαιροπίρουνα': !!order.cutlery,
   }
   if (pm.extra) orderFields['Payment Extra'] = pm.extra
-  orderFields['Voucher'] = voucherCodes  // WEC-846
+  orderFields['voucher'] = voucherCodes  // WEC-846
   // WEC-824: a €0 order is a freebie — surface it distinctly in the ops view
   // using the existing 'Freeba' Payment Method option (no Airtable schema
   // change) so the kitchen/reporting tell it apart from a genuinely-paid order.

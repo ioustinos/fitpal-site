@@ -1,5 +1,4 @@
 import { useState, useEffect, useRef, useMemo } from 'react'
-import { toE164 } from '../lib/phoneNormalize'
 import { useUIStore } from '../store/useUIStore'
 import { useCartStore } from '../store/useCartStore'
 import { useAuthStore } from '../store/useAuthStore'
@@ -151,11 +150,6 @@ export function CheckoutPage() {
 
   const [confirmed, setConfirmed] = useState(false)
   const [orderNumber, setOrderNumber] = useState('')
-  // The server's charged total (euros) — includes voucher, company benefit and
-  // dietitian discount, which the cart-side subTotal() does not all know about.
-  const [serverTotal, setServerTotal] = useState<number | undefined>(undefined)
-  // WEC-869: discount lines for the confirmation screen.
-  const [serverDiscounts, setServerDiscounts] = useState<{ voucher?: number; partner?: number; partnerPct?: number }>({})
   const [submitting, setSubmitting] = useState(false)
   // Errors returned from the server-side submit (validationErrors object),
   // flattened into strings and rendered in the red validation block below
@@ -452,9 +446,7 @@ export function CheckoutPage() {
         email: impersonationTarget.email || '',
         // WEC-816: the customer's phone (never the admin's). Empty if the
         // customer has none, so the admin fills it in rather than leaking theirs.
-        // E.164: a profile saved as a bare «69…» number otherwise shows as
-        // «+69…» in the phone field and fails validation.
-        phone: toE164(impersonationTarget.phone || prev.phone) ?? '',
+        phone: impersonationTarget.phone || prev.phone || '',
       }))
     } else if (user) {
       // WEC-597: profile WINS over guest-typed values on mid-checkout login,
@@ -463,7 +455,7 @@ export function CheckoutPage() {
       setContact((prev) => ({
         name: user.name || prev.name || '',
         email: user.email || prev.email || '',
-        phone: toE164(user.phone || prev.phone) ?? '',
+        phone: user.phone || prev.phone || '',
       }))
     } else {
       const guest = readGuestContact()
@@ -823,8 +815,6 @@ export function CheckoutPage() {
     }
 
     setOrderNumber(data?.orderNumber ?? '')
-    setServerTotal(typeof data?.total === 'number' ? data.total : undefined)
-    setServerDiscounts({ voucher: data?.voucherDiscount, partner: data?.partnerDiscount, partnerPct: data?.partnerDiscountPct })
 
     // WEC-771: the order is placed — now remember the invoice details on the
     // account so the next one prefills. AFTER success on purpose: a failed
@@ -885,9 +875,14 @@ export function CheckoutPage() {
       toast(t('coPaymentSetupFailed'))
     }
 
-    // WEC-868: client mode is NOT left automatically after an order any more.
-    // The client tab stays open (same customer, clean cart) so the operator can
-    // place another order or close the tab from the banner when they're done.
+    // If we placed this order via impersonation, exit impersonation now —
+    // restores the admin's session so their next click takes them back to
+    // their own admin context. The store handles setSession + cleanup.
+    if (isImpersonating) {
+      // Fire and forget — the confirmation screen still renders for the
+      // customer-side eyes the admin is showing the result to.
+      void useImpersonationStore.getState().stop()
+    }
 
     // WEC-397: Purchase conversion (browser Pixel + server CAPI, deduped by the
     // order number). INERT unless VITE_TRACKING_ENABLED. Card orders redirect to
@@ -916,7 +911,7 @@ export function CheckoutPage() {
     setConfirmed(true)
   }
 
-  if (confirmed) return <ConfirmationScreen orderNumber={orderNumber} serverTotal={serverTotal} serverDiscounts={serverDiscounts} />
+  if (confirmed) return <ConfirmationScreen orderNumber={orderNumber} />
 
   const sections = [
     {

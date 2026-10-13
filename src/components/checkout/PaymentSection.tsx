@@ -1,11 +1,9 @@
-import { useEffect } from 'react'
 import { useCartStore } from '../../store/useCartStore'
 import { useUIStore } from '../../store/useUIStore'
 import { useAuthStore } from '../../store/useAuthStore'
 import { useMenuStore } from '../../store/useMenuStore'
 import { useImpersonationStore } from '../../store/useImpersonationStore'
-import { subTotal, activeDays, dayAmt } from '../../lib/helpers'
-import { usePartnerDiscount } from '../../lib/partner/usePartnerLink'
+import { subTotal } from '../../lib/helpers'
 import { makeTr } from '../../lib/translations'
 import { visiblePaymentMethods } from '../../lib/paymentVisibility'
 import { CopyButton } from '../ui/CopyButton'
@@ -42,11 +40,7 @@ export function PaymentSection() {
   const dishMap = useMenuStore((s) => s.dishMap)
   const catLookup = (id: string) => dishMap[id]?.catId
 
-  // WEC-845: the dietitian-client discount lowers what the wallet must cover.
-  const rawTotal = activeDays(cart).reduce((sum, d) => sum + dayAmt(cart, d), 0)
-  const afterVoucher = subTotal(cart, voucher, catLookup)
-  const partnerDisc = usePartnerDiscount(rawTotal, afterVoucher)
-  const total = Math.max(0, afterVoucher + partnerDisc.voucherDropped - partnerDisc.amount)
+  const total = subTotal(cart, voucher, catLookup)
   const walletSufficient = walletBalance >= total
 
   // WEC-255/588: filter by the admin visibility map via the shared helper
@@ -55,20 +49,11 @@ export function PaymentSection() {
   // impersonation; non-impersonating customers without an active/positive wallet
   // don't see the option. During impersonation the wallet always shows (WEC-362),
   // rendering greyed + disabled below when it can't cover the order.
-  const allMethods = visiblePaymentMethods(visibility, {
+  const visibleMethods = visiblePaymentMethods(visibility, {
     isImpersonating,
     applyWalletGating: true,
     wallet: effWallet,
   })
-  // WEC-869 (🟢 Ioustinos 13/10): a dietitian ordering for a client never pays
-  // by card — the client pays, so a payment link is sent instead. The server
-  // refuses the combination too (submit-order).
-  const impersonatorRole = useImpersonationStore((s) => s.impersonatorRole)
-  const cardBlocked = isImpersonating && impersonatorRole === 'partner'
-  const visibleMethods = cardBlocked ? allMethods.filter((m) => m.id !== 'card') : allMethods
-  useEffect(() => {
-    if (cardBlocked && payment.method === 'card') setPayment({ ...payment, method: '' as typeof payment.method })
-  }, [cardBlocked, payment.method]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // WEC-260: bank info is now an array of up to 5 entries. Customer sees
   // all configured IBANs stacked when they pick the bank-transfer method.

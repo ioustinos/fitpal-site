@@ -8,7 +8,7 @@ import {
 } from '../../lib/api/adminUsers'
 import { fetchAdminZones, type AdminZone } from '../../lib/api/adminZones'
 import { useImpersonationStore } from '../../store/useImpersonationStore'
-import { useSearchParams } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { fetchActivePlanDetails, type PlanDetails } from '../../lib/api/planDetails'
 import { PlanDetailsPanel } from '../../components/shared/PlanDetailsPanel'
 import { useAdminFilters } from '../../lib/useAdminFilters'
@@ -31,7 +31,8 @@ const PAGE_SIZE = 50
  * Click into a user to see and edit.
  */
 export function Users() {
-  const openClientTab = useImpersonationStore((s) => s.openClientTab)
+  const navigate = useNavigate()
+  const startImpersonation = useImpersonationStore((s) => s.start)
   const [searchParams] = useSearchParams()
   // WEC-263: deep-link from /admin/orders → /admin/users?userId=<uuid>.
   // Read once on mount; we strip the param after consuming it so back-nav
@@ -121,11 +122,18 @@ export function Users() {
   }
 
   async function handleImpersonate(d: AdminUserDetail) {
-    // WEC-868: client mode opens in its OWN tab holding the customer's
-    // session. This admin tab stays signed in as you, untouched.
-    setErr(null)
-    const { ok, error } = await openClientTab(d.userId, 'order')
-    if (!ok) setErr(error ?? 'Failed to open client mode')
+    // Approach A — session swap. The store stashes the admin's session,
+    // calls /api/admin-impersonate-start to mint a magic-link token for
+    // the customer, then verifyOtp swaps the active Supabase session.
+    // From there the customer site renders with the customer's data
+    // because auth.uid() is the customer.
+    const { ok, error } = await startImpersonation(d.userId)
+    if (!ok) {
+      setErr(error ?? 'Failed to start impersonation')
+      return
+    }
+    // Land on the customer menu so admin can build the order.
+    navigate('/')
   }
 
   const pageCount = Math.max(1, Math.ceil(total / PAGE_SIZE))

@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react'
 import { NavLink } from 'react-router-dom'
-import { supabase } from '../lib/supabase'
 
 /**
  * Admin sidebar (WEC-256 polish).
@@ -26,7 +25,7 @@ type IconName =
   | 'dashboard' | 'menus' | 'dishes' | 'categories' | 'tags' | 'ingredients'
   | 'allergies' | 'images' | 'import' | 'orders' | 'settings' | 'zones'
   | 'users' | 'vouchers' | 'wallet' | 'walletSettings'
-  | 'catalogue' | 'promotions' | 'customers' | 'costing'
+  | 'catalogue' | 'promotions' | 'customers'
   | 'chevron'
 
 interface NavLeaf {
@@ -75,8 +74,6 @@ const NAV: NavEntry[] = [
     icon: 'customers',
     items: [
       { path: '/admin/users', label: 'Users', icon: 'users' },
-      // WEC-840: dietitian partners (epic WEC-838).
-      { path: '/admin/partners', label: 'Dietitians', icon: 'users' },
     ],
   },
 
@@ -94,22 +91,6 @@ const NAV: NavEntry[] = [
       { path: '/admin/allergies',    label: 'Allergies',    icon: 'allergies' },
       { path: '/admin/dish-images',  label: 'Dish images',  icon: 'images' },
       { path: '/admin/import-menu',  label: 'Import menu',  icon: 'import' },
-    ],
-  },
-
-  // Costing (epic WEC-857): cost items, purchases, components, dish product cost
-  {
-    id: 'costing',
-    label: 'Costing',
-    icon: 'costing',
-    items: [
-      { path: '/admin/costing',            label: 'Overview',     icon: 'costing', end: true },
-      { path: '/admin/costing/dishes',     label: 'Dish costs',   icon: 'dishes' },
-      { path: '/admin/costing/components', label: 'Components',   icon: 'ingredients' },
-      { path: '/admin/costing/items',      label: 'Cost items',   icon: 'categories' },
-      { path: '/admin/costing/purchases',  label: 'Purchases',    icon: 'import' },
-      { path: '/admin/costing/suppliers',  label: 'Suppliers',    icon: 'users' },
-      { path: '/admin/costing/links',      label: 'Dish links',   icon: 'tags' },
     ],
   },
 
@@ -177,28 +158,6 @@ export function Sidebar() {
     setOpen((s) => ({ ...s, [id]: !s[id] }))
   }
 
-  // WEC-869: dietitian links waiting for Fitpal's approval — a count on
-  // «Dietitians» so admins notice them without opening the page.
-  const [badges, setBadges] = useState<Record<string, number>>({})
-  useEffect(() => {
-    let alive = true
-    const load = async () => {
-      const { count } = await supabase.from('partner_clients')
-        .select('id', { count: 'exact', head: true })
-        .eq('status', 'pending').is('approved_at', null)
-      if (alive) setBadges({ '/admin/partners': count ?? 0 })
-    }
-    void load()
-    const t = window.setInterval(load, 60_000)
-    return () => { alive = false; window.clearInterval(t) }
-  }, [])
-  const badge = (path: string) => (badges[path] ? (
-    <span title="Waiting for Fitpal approval" style={{
-      marginLeft: 'auto', background: '#d97706', color: '#fff', borderRadius: 999,
-      fontSize: 11, fontWeight: 700, lineHeight: '18px', minWidth: 18, padding: '0 6px', textAlign: 'center',
-    }}>{badges[path]}</span>
-  ) : null)
-
   return (
     <nav className="admin-sidebar">
       {NAV.map((e) => {
@@ -227,7 +186,6 @@ export function Sidebar() {
             >
               <Icon name={e.icon} />
               <span>{e.label}</span>
-              {!isOpen && e.items.some((it) => badges[it.path]) && badge(e.items.find((it) => badges[it.path])!.path)}
               <span className="admin-nav-chevron"><Icon name="chevron" /></span>
             </button>
             {isOpen && (
@@ -241,7 +199,6 @@ export function Sidebar() {
                   >
                     <Icon name={it.icon} />
                     <span>{it.label}</span>
-                    {badge(it.path)}
                   </NavLink>
                 ))}
               </div>
@@ -404,15 +361,6 @@ function Icon({ name }: { name: IconName }) {
           <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
           <circle cx="8.5" cy="7" r="4" />
           <path d="M20 8v6M23 11h-6" />
-        </svg>
-      )
-    case 'costing':
-      return (
-        <svg {...p}>
-          <path d="M4 19h16" />
-          <path d="M7 16V9" />
-          <path d="M12 16V5" />
-          <path d="M17 16v-4" />
         </svg>
       )
     case 'chevron':

@@ -7,8 +7,6 @@ import { makeTr } from '../../lib/translations'
 import { subTotal, activeDays, dayAmt, fmt } from '../../lib/helpers'
 import { useMenuStore } from '../../store/useMenuStore'
 import { useCompanyBenefit } from '../../lib/storefront/useCompanyBenefit'
-import { usePartnerDiscount, voucherShownEuros } from '../../lib/partner/usePartnerLink'
-import { PartnerDiscountRow } from '../partner/PartnerDiscountRow'
 
 export function CartSidebar() {
   const lang = useUIStore((s) => s.lang)
@@ -32,9 +30,7 @@ export function CartSidebar() {
   const rawTotal = dates.reduce((sum, d) => sum + dayAmt(cart, d), 0)
   // WEC-713: the employer's per-day contribution. Zero on retail.
   const benefit = useCompanyBenefit()
-  // WEC-845/870: dietitian-client discount — never stacks with a voucher, the larger applies.
-  const partnerDisc = usePartnerDiscount(rawTotal, total)
-  const grandTotal = Math.max(0, total + partnerDisc.voucherDropped - benefit.total - partnerDisc.amount)
+  const grandTotal = Math.max(0, total - benefit.total)
   const hasItems = dates.length > 0
   const canCheckout = dates.every((d) => {
     const amt = (cart[d] ?? []).reduce((s, i) => s + i.price * i.qty, 0)
@@ -114,7 +110,7 @@ export function CartSidebar() {
                       {t('discount')}
                     </span>
                     <span style={{ fontWeight: 900, color: 'var(--green)', fontSize: 14 }}>
-                      {partnerDisc.voucherDropped > 0 ? (lang === 'el' ? 'δεν εφαρμόζεται' : 'not applied') : <>−{fmt(voucherShownEuros(rawTotal, total, benefit.total, partnerDisc.amount))}</>}
+                      −{fmt(rawTotal - total)}
                     </span>
                   </div>
                 </>
@@ -136,8 +132,6 @@ export function CartSidebar() {
                   <span className="cart-benefit-amt">−{fmt(benefit.total)}</span>
                 </div>
               )}
-
-              <PartnerDiscountRow lang={lang} pct={partnerDisc.pct} amount={partnerDisc.amount} partnerName={partnerDisc.partnerName} superseded={partnerDisc.superseded} voucherDropped={partnerDisc.voucherDropped} />
 
               <div className="cart-total-row">
                 <span className="cart-total-lbl">{t('total')}</span>

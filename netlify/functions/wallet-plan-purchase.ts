@@ -24,7 +24,6 @@ import { createWalletPlanVivaOrder } from '../lib/wallet/createWalletPlanOrder'
 import { track } from '../lib/klaviyo'
 import { notifySubscriptionAdmins } from '../lib/notifySubscriptionAdmins'
 import { corsHeaders } from '../lib/cors'
-import { checkClientSession, sessionReasonText } from '../lib/clientSession' // WEC-868
 import type { WalletCalcInput, PaymentMethod } from '../../src/lib/wallet/types'
 import { isValidGreekVat } from '../../src/lib/vat'
 import { isValidPhone } from '../../src/lib/phone'  // WEC-827
@@ -104,16 +103,6 @@ export default async (request: Request) => {
   if (inputErr) return Response.json({ error: inputErr }, { status: 400, headers: cors })
 
   const supabase = serviceClient()
-
-  // WEC-868: a purchase from a client-mode tab is only allowed while that
-  // tab's session is still open for this very customer.
-  const clientSessionHeader = request.headers.get('X-Client-Session-Id')
-  if (clientSessionHeader) {
-    const st = await checkClientSession(supabase, clientSessionHeader, userId)
-    if (!st.ok) {
-      return Response.json({ error: sessionReasonText(st.reason), code: 'client_session_' + st.reason }, { status: 409, headers: cors })
-    }
-  }
 
   // WEC-827: a wallet-plan purchase must carry a customer NAME and PHONE,
   // regardless of channel (self-serve with/without a completed profile, or

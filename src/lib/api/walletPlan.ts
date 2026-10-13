@@ -59,17 +59,11 @@ export async function purchaseWalletPlan(
   if (!token) return { error: 'Not authenticated' }
 
   try {
-    // WEC-868: a client-mode tab sends its session id; the server refuses the
-    // purchase once that session is over. A locked tab never submits.
-    const { useImpersonationStore } = await import('../../store/useImpersonationStore')
-    const imp = useImpersonationStore.getState()
-    if (imp.locked) return { error: imp.lockMessage ?? 'Η λειτουργία πελάτη έχει κλείσει. · Client mode has ended.' }
     const res = await fetch('/api/wallet-plan-purchase', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         Authorization: `Bearer ${token}`,
-        ...(imp.active && imp.clientSessionId ? { 'X-Client-Session-Id': imp.clientSessionId } : {}),
       },
       body: JSON.stringify(input),
     })

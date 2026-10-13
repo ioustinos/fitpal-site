@@ -20,10 +20,6 @@ import { WalletModal } from './components/wallet/WalletModal'
 import { DemoDishesModal } from './components/wallet/DemoDishesModal'
 import SiteFooter from './components/layout/SiteFooter'
 import { ImpersonationBanner } from './components/admin/ImpersonationBanner'
-import { ClientTabController } from './components/admin/ClientTabController'
-import { UpdateNotice } from './components/layout/UpdateNotice'
-import { PartnerLinkPrompt } from './components/partner/PartnerLinkPrompt'
-import { ReferralLanding } from './pages/ReferralLanding'
 import { ConsentBanner } from './components/consent/ConsentBanner'
 import { StoreProvider } from './lib/storefront/StoreProvider'
 import { initTracking } from './lib/tracking'
@@ -35,8 +31,6 @@ import { resolveSlugFromLocation } from './lib/storefront/reserved'
 // Admin is lazy-loaded so the customer bundle stays lean — /admin/* code
 // won't be fetched until a user actually visits the admin panel.
 const AdminApp = lazy(() => import('./admin/AdminApp'))
-// WEC-841: the dietitian portal is its own lazy bundle — it never loads admin code.
-const PartnerApp = lazy(() => import('./partner/PartnerApp'))
 
 /** The existing customer site — unchanged, still driven by useUIStore. */
 function CustomerApp() {
@@ -314,10 +308,6 @@ export default function App() {
           admin pages, return URLs, etc. The banner pushes content via the
           `is-impersonating` body class. */}
       <ImpersonationBanner />
-      {/* WEC-868: handshake, heartbeat, title and lock screen of a client tab. */}
-      <ClientTabController />
-      {/* WEC-869: offer a reload when a newer deploy is live. */}
-      <UpdateNotice />
       <ConsentBanner />
       {/* WEC-710 — resolves which storefront the URL points at (path-based:
           orders.fitpal.gr/acme) and exposes it via useStorefront(). On every
@@ -325,8 +315,6 @@ export default function App() {
           site renders exactly as before. Nothing consumes the resolved store
           yet — that lands in WEC-711 (per-store data loading). */}
       <StoreProvider>
-      {/* WEC-842: client confirms a dietitian link / gives consent. */}
-      <PartnerLinkPrompt />
       <Routes>
         <Route
           path="/admin/*"
@@ -349,17 +337,6 @@ export default function App() {
         <Route path="/auth/callback" element={<AuthCallback />} />
         {/* Public legal pages — linked from Facebook App config, footer,
             and OAuth consent screens. */}
-        {/* WEC-841: dietitian (partner) portal. */}
-        <Route
-          path="/partner/*"
-          element={
-            <Suspense fallback={<AdminBootFallback />}>
-              <PartnerApp />
-            </Suspense>
-          }
-        />
-        {/* WEC-852: dietitian referral link. */}
-        <Route path="/ref/:code" element={<ReferralLanding />} />
         <Route path="/privacy" element={<PrivacyPage />} />
         <Route path="/terms" element={<TermsPage />} />
         <Route path="*" element={<CustomerApp />} />

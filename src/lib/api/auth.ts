@@ -185,11 +185,6 @@ export async function signUp(email: string, password: string, name?: string): Pr
 }
 
 export async function signOut(): Promise<{ error: string | null }> {
-  // WEC-868: «Αποσύνδεση» inside a client tab means "leave client mode": end
-  // the session and drop ONLY this tab's copy. A global sign-out here would
-  // log the real customer out on all their own devices.
-  const { IS_CLIENT_TAB, closeClientTab } = await import('../clientTab')
-  if (IS_CLIENT_TAB) { await closeClientTab('closed'); return { error: null } }
   const { error } = await supabase.auth.signOut()
   return { error: error?.message ?? null }
 }

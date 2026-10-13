@@ -309,8 +309,7 @@ function StoreMessage({ kind, slug }: { kind: 'inactive' | 'not_found' | 'error'
    */
   async function switchAccount() {
     setSwitching(true)
-    // WEC-868: local scope — never sign the account out on its other devices.
-    try { await supabase.auth.signOut({ scope: 'local' }) } catch { /* fall through — the gate re-checks anyway */ }
+    try { await supabase.auth.signOut() } catch { /* fall through — the gate re-checks anyway */ }
     setSwitching(false)
     openAuthModal(here)
   }

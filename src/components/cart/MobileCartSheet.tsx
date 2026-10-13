@@ -7,8 +7,6 @@ import { VoucherInput } from './VoucherInput'
 import { CartDietWarning } from './CartDietWarning'
 import { makeTr } from '../../lib/translations'
 import { subTotal, activeDays, dayAmt, fmt, totalCount } from '../../lib/helpers'
-import { usePartnerDiscount, voucherShownEuros } from '../../lib/partner/usePartnerLink'
-import { PartnerDiscountRow } from '../partner/PartnerDiscountRow'
 
 /**
  * Mobile-only bottom sheet (WEC-264).
@@ -86,9 +84,6 @@ export function MobileCartSheet({ mode = 'menu' }: Props) {
   // WEC-336: activeDays now returns date strings (YYYY-MM-DD).
   const dates = activeDays(cart)
   const rawTotal = dates.reduce((sum, d) => sum + dayAmt(cart, d), 0)
-  // WEC-845: dietitian-client discount (stacks with vouchers).
-  const partnerDisc = usePartnerDiscount(rawTotal, total)
-  const payable = Math.max(0, total + partnerDisc.voucherDropped - partnerDisc.amount)
   const hasItems = dates.length > 0
   const cartCount = totalCount(cart)
   const canCheckout = hasItems && dates.every((d) => {
@@ -137,7 +132,7 @@ export function MobileCartSheet({ mode = 'menu' }: Props) {
             {hasItems ? cartCount : 0}
           </span>
           <span className="mcs-bar-total">
-            {hasItems ? `${payable.toFixed(2)} €` : t('cartEmpty')}
+            {hasItems ? `${total.toFixed(2)} €` : t('cartEmpty')}
           </span>
           {/* "View" hint nudges discoverability — the bar is tappable but
               the cue helps first-timers know that. Hidden when expanded. */}
@@ -225,16 +220,15 @@ export function MobileCartSheet({ mode = 'menu' }: Props) {
                         {t('discount')}
                       </span>
                       <span style={{ fontWeight: 900, color: 'var(--green)', fontSize: 14 }}>
-                        {partnerDisc.voucherDropped > 0 ? (lang === 'el' ? 'δεν εφαρμόζεται' : 'not applied') : <>−{fmt(voucherShownEuros(rawTotal, total, 0, partnerDisc.amount))}</>}
+                        −{fmt(rawTotal - total)}
                       </span>
                     </div>
                   </>
                 )}
 
-                <PartnerDiscountRow lang={lang} pct={partnerDisc.pct} amount={partnerDisc.amount} partnerName={partnerDisc.partnerName} superseded={partnerDisc.superseded} voucherDropped={partnerDisc.voucherDropped} />
                 <div className="cart-total-row">
                   <span className="cart-total-lbl">{t('total')}</span>
-                  <span className="cart-total-amt">{payable.toFixed(2)} €</span>
+                  <span className="cart-total-amt">{total.toFixed(2)} €</span>
                 </div>
 
                 {mode === 'menu' && (

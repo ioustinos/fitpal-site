@@ -3,7 +3,6 @@ import { useNavigate } from 'react-router-dom'
 import { useAuthStore } from '../../store/useAuthStore'
 import { fetchDashboardStats, fetchLatestReconcileRun, type DashboardStats, type ReconcileSummary } from '../../lib/api/adminDashboard'
 import { fetchAdminWalletStats, type WalletPlanStats } from '../../lib/api/adminWalletPlans'
-import { fetchCheckRuns, type CostCheckRun } from '../../lib/api/adminCosting'
 
 export function Dashboard() {
   const user = useAuthStore((s) => s.user)
@@ -110,7 +109,6 @@ export function Dashboard() {
           {walletStats && <WalletStatsRow stats={walletStats} onClick={() => navigate('/admin/wallet-purchases')} />}
 
           <ReconcileHealthRow reconcile={reconcile} />
-          <CostingCheckRow onClick={() => navigate('/admin/costing')} />
         </>
       )}
     </div>
@@ -215,49 +213,6 @@ function ReconcileHealthRow({ reconcile }: { reconcile: ReconcileSummary | null 
         </span>
       )}
       {stale && !canary && <span>· (stale — no run in 15+ min)</span>}
-    </div>
-  )
-}
-
-/**
- * WEC-861 — costing ledger check health. Red when the latest run found
- * mismatches OR errored (check the error column, not just that a row exists),
- * amber when the last run is older than ~26 h (missed a nightly run).
- */
-function CostingCheckRow({ onClick }: { onClick: () => void }) {
-  const [run, setRun] = useState<CostCheckRun | null | undefined>(undefined)
-  const [ageSec, setAgeSec] = useState(0)
-  useEffect(() => {
-    fetchCheckRuns(1).then((r) => {
-      const last = r.data?.[0] ?? null
-      if (last) setAgeSec(Math.max(0, Math.floor((Date.now() - new Date(last.started_at).getTime()) / 1000)))
-      setRun(last)
-    }).catch(() => setRun(null))
-  }, [])
-  if (run === undefined) return null
-  if (run === null) {
-    return (
-      <div className="admin-text-muted" style={{ marginTop: 8, fontSize: 12, cursor: 'pointer' }} onClick={onClick}>
-        Costing ledger check: no runs recorded yet
-      </div>
-    )
-  }
-  const bad = !!run.error || run.status === 'error' || run.mismatch_count > 0
-  const stale = ageSec > 26 * 3600
-  const tone = bad ? '#ef4444' : stale ? '#f59e0b' : '#6b7280'
-  return (
-    <div
-      onClick={onClick}
-      style={{ marginTop: 8, padding: '8px 12px', border: '1px solid var(--a-border, #e5e7eb)', borderRadius: 6, fontSize: 12,
-               color: tone, display: 'flex', gap: 16, flexWrap: 'wrap', alignItems: 'center', cursor: 'pointer' }}
-      title="Nightly recompute of every cost vs the cost ledger — open Costing"
-    >
-      <span><strong>Costing ledger check</strong>: {formatAge(ageSec)} ago ({run.trigger_source})</span>
-      <span>· {run.values_checked} values</span>
-      {run.mismatch_count > 0 && <span>· ⚠ <strong>{run.mismatch_count}</strong> mismatch{run.mismatch_count === 1 ? '' : 'es'}</span>}
-      {run.error && <span>· ⚠ error: {run.error}</span>}
-      {!bad && <span>· OK</span>}
-      {stale && <span>· (stale — no run in 26 h+)</span>}
     </div>
   )
 }
