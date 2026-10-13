@@ -127,7 +127,11 @@ export function AuthModal() {
       return
     }
     const user = useAuthStore.getState().user
-    if (user?.isAdmin) navigate('/admin')
+    // WEC-869: someone arriving through a dietitian's referral link stays on
+    // the site — the admin shortcut sent a referral scan straight to /admin.
+    let viaReferral = false
+    try { viaReferral = !!localStorage.getItem('fitpal_partner_ref') } catch { /* ignore */ }
+    if (user?.isAdmin && !viaReferral) navigate('/admin')
   }
 
   /* ── Login: password path ────────────────────────────────────── */

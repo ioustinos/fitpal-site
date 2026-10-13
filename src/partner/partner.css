@@ -1,0 +1,36 @@
+/* WEC-841 — dietitian portal. Builds on admin.css tokens (--a-*). */
+.partner-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(380px, 1fr));
+  gap: 16px;
+  margin: 14px 0 24px;
+}
+@media (max-width: 720px) { .partner-grid { grid-template-columns: 1fr; } }
+.partner-card { margin: 0; }
+.partner-h2 { font-size: 16px; font-weight: 800; margin: 22px 0 10px; }
+.partner-actions { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.partner-form-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.partner-form-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+.partner-form-5 { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; }
+@media (max-width: 720px) {
+  .partner-form-2, .partner-form-3, .partner-form-5 { grid-template-columns: 1fr 1fr; }
+}
+.partner-targets input { width: 76px; }
+.partner-targets-daily td { background: var(--a-hover, #f6f7f9); }
+.partner-off { color: #b45309; font-weight: 700; }
+.partner-ok { color: #047857; }
+.partner-diff { font-size: 11px; opacity: .75; margin-left: 2px; }
+.partner-cancelled td { opacity: .45; text-decoration: line-through; }
+.partner-item-row td { font-size: 12px; color: var(--a-text-muted, #6b7280); }
+.partner-order { margin-bottom: 12px; }
+.partner-order-head { display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.partner-range { display: flex; gap: 12px; margin-bottom: 12px; align-items: center; }
+.partner-range label { display: flex; gap: 6px; align-items: center; font-size: 13px; }
+.partner-weeks { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 14px; }
+.partner-week { border: 1px solid var(--a-border, #e5e7eb); border-radius: 10px; padding: 10px 12px; font-size: 13px; min-width: 200px; background: var(--a-surface, #fff); }
+.partner-week-title { font-weight: 800; margin-bottom: 4px; }
+.partner-list { margin: 0; padding-left: 18px; font-size: 14px; line-height: 1.6; }
+.partner-chart { color: var(--a-accent, #16a34a); max-width: 560px; }
+.partner-referral { display: flex; justify-content: space-between; gap: 12px; align-items: center; margin-bottom: 14px; flex-wrap: wrap; }
+.partner-referral-actions { display: flex; gap: 6px; }
+.partner-mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; margin-top: 4px; word-break: break-all; }

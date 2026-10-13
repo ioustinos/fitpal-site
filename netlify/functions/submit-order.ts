@@ -14,6 +14,7 @@ import { createVivaOrder } from '../lib/viva/createOrder'
 // createVivaOrder below for why this cannot live in the background function.
 import { track, subscribeProfileToMarketing, EVT } from '../lib/klaviyo'
 import { corsHeaders } from '../lib/cors'
+import { checkClientSession, sessionReasonText } from '../lib/clientSession'
 import { loadCategoryDiscounts, effectiveDiscountPct, applyDiscountCents } from '../lib/stores/categoryDiscounts'
 import { checkRateLimit, clientIp } from '../lib/rateLimit'
 import { isMirrorEligible } from '../lib/airtable/pushOrder'
@@ -505,43 +506,81 @@ export default async (request: Request) => {
       body.customerEmail = authEmail
     }
 
-    // ─── Impersonation attribution via X-Impersonator-Admin-Id ─────────
+    // ─── WEC-868: client mode (admin or dietitian acting for a customer) ──
     //
-    // Session-swap impersonation: the admin's session was swapped to the
-    // customer's on impersonate-start, so the Authorization header is the
-    // customer's token — `userId` is correctly the customer. For audit
-    // trail purposes we capture WHICH admin placed this order in
-    // `admin_order_id`. The client sends the admin's user_id in
-    // X-Impersonator-Admin-Id; we validate it corresponds to a real admin
-    // (row in `public.admin_users`) before trusting it.
+    // Client mode runs in its own browser tab holding the CUSTOMER's session,
+    // so the Authorization header is the customer's JWT and `userId` is the
+    // customer. The tab also sends X-Client-Session-Id: the server-side
+    // session opened by admin-impersonate-start. We attribute the order to the
+    // operator ONLY when that session is open, unexpired, still heartbeating,
+    // and belongs to this very customer. Anything else is refused (409), never
+    // silently placed as a plain customer order, so an operator can't believe
+    // they acted for one customer while the order lands as another's.
     //
-    // Why a header with just an id (not a token):
-    //   - The convention is "admin signs out at exit" — there's no admin
-    //     token still alive once the customer's session is in play.
-    //   - Worst case forgery: someone fakes another admin's id as the
-    //     attribution. The order is still legitimately the customer's
-    //     (their JWT is the active session); only the audit column is
-    //     wrong, not the order data. We also verify the id is a real
-    //     admin so non-admin ids can't be smuggled in as attribution.
+    // The old X-Impersonator-Admin-Id header (an unauthenticated id) is no
+    // longer trusted; a stale client still sending it is asked to reload.
     let adminUserId: string | null = null
-    let isImpersonating = false
-    const claimedAdminId = request.headers.get('X-Impersonator-Admin-Id')
-    if (claimedAdminId && SUPABASE_SERVICE_KEY) {
-      const svc = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY)
-      const { data: adminRow } = await svc
-        .from('admin_users')
-        .select('user_id')
-        .eq('user_id', claimedAdminId)
-        .maybeSingle()
-      if (adminRow) {
-        adminUserId = claimedAdminId
-        isImpersonating = true
-        // Use service-role for the rest so admin_order_id can be written
-        // without RLS edge cases on cross-user audit columns.
-        supabase = svc
+    let partnerPlacerId: string | null = null
+    const claimedSessionId = request.headers.get('X-Client-Session-Id')
+    const legacyAdminHeader = request.headers.get('X-Impersonator-Admin-Id')
+    if (legacyAdminHeader && !claimedSessionId) {
+      return Response.json({
+        error: 'Η σελίδα είναι παλιά έκδοση. Ανανεώστε και ανοίξτε ξανά τη λειτουργία πελάτη. · This page is out of date. Reload and open client mode again.',
+        code: 'client_session_outdated',
+      }, { status: 409 })
+    }
+    if (claimedSessionId) {
+      if (!userId || !SUPABASE_SERVICE_KEY) {
+        return Response.json({ error: sessionReasonText('missing'), code: 'client_session_invalid' }, { status: 409 })
       }
-      // If the id wasn't a real admin we silently drop it and proceed as
-      // a normal customer submission. No leak risk.
+      const svcS = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY, {
+        auth: { persistSession: false, autoRefreshToken: false },
+      })
+      const st = await checkClientSession(svcS, claimedSessionId, userId)
+      if (!st.ok) {
+        return Response.json({ error: sessionReasonText(st.reason), code: 'client_session_' + st.reason }, { status: 409 })
+      }
+      const sess = st.row
+      if (sess.operator_role === 'admin') {
+        const { data: adminRow } = await svcS.from('admin_users').select('user_id')
+          .eq('user_id', sess.operator_user_id).maybeSingle()
+        if (!adminRow) {
+          return Response.json({ error: 'Ο χειριστής δεν είναι πλέον διαχειριστής. · The operator is no longer an admin.', code: 'client_session_operator' }, { status: 403 })
+        }
+        adminUserId = sess.operator_user_id
+        // Service-role for the rest so admin_order_id can be written without
+        // RLS edge cases on cross-user audit columns (unchanged behaviour).
+        supabase = svcS
+      } else {
+        // Dietitian: their partner must still be active and still linked to
+        // this customer (internal partners may act for anyone).
+        const { data: pu } = await svcS
+          .from('partner_users')
+          .select('partner_id, partners!inner(active, is_internal)')
+          .eq('user_id', sess.operator_user_id)
+          .maybeSingle()
+        const pRow = pu as { partner_id: string; partners: { active: boolean; is_internal: boolean } | { active: boolean; is_internal: boolean }[] } | null
+        const pInfo = pRow ? (Array.isArray(pRow.partners) ? pRow.partners[0] : pRow.partners) : null
+        let allowed = !!(pRow && pInfo?.active && pInfo.is_internal)
+        if (pRow && pInfo?.active && !allowed) {
+          const { data: link } = await svcS.from('partner_clients').select('id')
+            .eq('partner_id', pRow.partner_id).eq('client_user_id', userId).eq('status', 'active').maybeSingle()
+          allowed = !!link
+        }
+        if (!allowed) {
+          return Response.json({ error: 'Ο πελάτης δεν είναι πλέον ενεργός πελάτης σας. · This customer is no longer one of your active clients.', code: 'client_session_link' }, { status: 403 })
+        }
+        partnerPlacerId = sess.operator_user_id
+        // WEC-869 (🟢 Ioustinos 13/10): a dietitian never pays by card for a
+        // client — the client pays (payment link, cash, transfer, wallet).
+        if (body.paymentMethod === 'card') {
+          return Response.json({
+            error: 'Ο διαιτολόγος δεν μπορεί να πληρώσει με κάρτα για τον πελάτη. Επιλέξτε «Link πληρωμής» για να πληρώσει ο ίδιος. · A dietitian cannot pay by card for a client. Choose «Payment link» so the client pays.',
+            code: 'partner_card_blocked',
+          }, { status: 400 })
+        }
+      }
+      await svcS.from('impersonation_sessions').update({ last_seen_at: new Date().toISOString() }).eq('id', sess.id)
     }
 
     // ─── Phase 2: Fetch all reference data in parallel ──────────────────
@@ -1183,7 +1222,65 @@ export default async (request: Request) => {
       : discountAmount
     discountAmount = effectiveDiscount
 
-    const orderTotal = Math.max(0, orderSubtotal - discountAmount - benefitTotal)
+    // ─── WEC-845: dietitian-partner discount ─────────────────────────────
+    // If the (logged-in) customer is an ACTIVE client of an active partner,
+    // they get the per-client discount on the items subtotal. WEC-870: it no
+    // longer stacks with a voucher — the larger of the two applies. Rates are frozen onto the order here —
+    // later term changes never touch past orders; recompute_order_money reads
+    // the frozen bps. Fail-OPEN: if the lookup fails the order goes through
+    // at full price rather than failing (logged loudly).
+    let partnerId: string | null = null
+    let partnerDiscountBps: number | null = null
+    let partnerCommissionBps: number | null = null
+    let partnerDiscountAmount = 0
+    let voucherNotCombined = false
+    if (userId && SUPABASE_SERVICE_KEY) {
+      try {
+        const svcPd = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY, {
+          auth: { persistSession: false, autoRefreshToken: false },
+        })
+        const { data: link, error: linkErr } = await svcPd
+          .from('partner_clients')
+          .select('partner_id, discount_bps, commission_bps, partners!inner(active)')
+          .eq('client_user_id', userId)
+          .eq('status', 'active')
+          .maybeSingle()
+        if (linkErr) {
+          console.error('[submit-order] partner link lookup failed — no partner discount applied:', linkErr.message)
+        } else if (link) {
+          const l = link as { partner_id: string; discount_bps: number; commission_bps: number; partners: { active: boolean } | { active: boolean }[] }
+          const pActive = Array.isArray(l.partners) ? l.partners[0]?.active : l.partners?.active
+          if (pActive) {
+            partnerId = l.partner_id
+            partnerDiscountBps = l.discount_bps
+            partnerCommissionBps = l.commission_bps
+            const room = Math.max(0, orderSubtotal - benefitTotal)
+            const fullPartner = Math.min(room, Math.round(orderSubtotal * l.discount_bps / 10000))
+            // WEC-870 (🟢 Christos): voucher and dietitian discount never
+            // stack — the customer gets the LARGER one (6% + 15% → 15%,
+            // 6% + 3% → 6%). The commission is unaffected either way: it is
+            // computed on the items value before any discount (see
+            // partner_commission_lines), so partner_id + commission bps are
+            // frozen on the order even when the voucher wins.
+            if (voucherId && discountAmount > fullPartner) {
+              partnerDiscountAmount = 0
+            } else {
+              partnerDiscountAmount = fullPartner
+              if (voucherId && discountAmount > 0) {
+                console.log('[submit-order] WEC-870 voucher %s (%d) not applied — dietitian discount %d is larger', voucherId, discountAmount, fullPartner)
+                voucherId = null
+                discountAmount = 0
+                voucherNotCombined = true
+              }
+            }
+          }
+        }
+      } catch (e) {
+        console.error('[submit-order] partner discount step threw — no partner discount applied:', e)
+      }
+    }
+
+    const orderTotal = Math.max(0, orderSubtotal - discountAmount - benefitTotal - partnerDiscountAmount)
 
     // ─── Phase 5: Insert order ──────────────────────────────────────────
 
@@ -1243,6 +1340,15 @@ export default async (request: Request) => {
       // On the promote-from-draft path this flows through the RPC's
       // p_order_patch (migration wec712_promote_draft_atomic_store_columns).
       store_id: storeId,
+      // WEC-845: dietitian partner snapshot (frozen) + 🟢 «placed by».
+      // NOTE: promote_draft_atomic ignores these keys (explicit column list),
+      // so the promote path writes them with a follow-up UPDATE below.
+      partner_id: partnerId,
+      partner_discount_bps: partnerDiscountBps,
+      partner_commission_bps: partnerCommissionBps,
+      partner_discount_amount: partnerDiscountAmount,
+      placed_by_role: adminUserId ? 'admin' : partnerPlacerId ? 'partner' : 'customer',
+      placed_by_user: adminUserId ?? partnerPlacerId ?? userId,
       updated_at: new Date().toISOString(),
     }
 
@@ -1353,6 +1459,28 @@ export default async (request: Request) => {
       }
       orderId = row.promoted_order_id as string
       childrenAlreadyInserted = true
+
+      // WEC-845: promote_draft_atomic's column list doesn't know the partner
+      // columns, so write them here. Only on a fresh promote — a retry that
+      // found the order already promoted must not overwrite anything.
+      if (!row.was_already_promoted) {
+        const { error: pErr } = await svcRpc
+          .from('orders')
+          .update({
+            partner_id: orderRecord.partner_id,
+            partner_discount_bps: orderRecord.partner_discount_bps,
+            partner_commission_bps: orderRecord.partner_commission_bps,
+            partner_discount_amount: orderRecord.partner_discount_amount,
+            placed_by_role: orderRecord.placed_by_role,
+            placed_by_user: orderRecord.placed_by_user,
+          })
+          .eq('id', orderId)
+        if (pErr) {
+          // The total already includes the discount; losing the snapshot only
+          // affects reporting/commission, so log loudly rather than fail the order.
+          console.error('[submit-order] WEC-845 partner snapshot UPDATE failed for orderId=%s:', orderId, pErr)
+        }
+      }
     } else {
       const { data: orderRow, error: oErr } = await supabase
         .from('orders')
@@ -1750,6 +1878,12 @@ export default async (request: Request) => {
       orderNumber,
       orderId,
       total: orderTotal / 100,
+      // WEC-869 (4.5): the discounts that made `total`, so the confirmation
+      // screen can show them as lines, not just a lower number.
+      voucherDiscount: discountAmount / 100,
+      partnerDiscount: partnerDiscountAmount / 100,
+      partnerDiscountPct: partnerDiscountBps != null ? partnerDiscountBps / 100 : null,
+      voucherNotCombined,
       paymentUrl,
       paymentSetupFailed,
       paymentStatus: paidStatus,

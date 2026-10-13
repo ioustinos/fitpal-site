@@ -19,6 +19,7 @@ import {
   type AdminTag,
 } from '../../lib/api/adminDishes'
 import { fetchDishRecipe } from '../../lib/api/dishRecipe'
+import { fetchDishUnlinkedCount } from '../../lib/api/adminCosting' // WEC-865
 import { DishRecipeEditor, type RecipeRow } from '../components/DishRecipeEditor'
 import { NumberField } from '../components/NumberField'
 import { supabase } from '../../lib/supabase'
@@ -286,6 +287,18 @@ function DishDrawer({
       }
       setRecipeLoaded(true)
     })
+    return () => { cancelled = true }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dish.id])
+
+  // WEC-865: «N lines unlinked» costing badge. Best-effort — never blocks the editor.
+  const [unlinkedCount, setUnlinkedCount] = useState(0)
+  useEffect(() => {
+    if (isNew || !dish.id) return
+    let cancelled = false
+    fetchDishUnlinkedCount(dish.id)
+      .then((res) => { if (!cancelled && typeof res.data === 'number') setUnlinkedCount(res.data) })
+      .catch(() => {})
     return () => { cancelled = true }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dish.id])
@@ -822,6 +835,15 @@ function DishDrawer({
           <section className="admin-form-section">
             <div className="admin-section-head">
               <label className="admin-form-label">Recipe</label>
+              {!isNew && form.id && unlinkedCount > 0 && (
+                <a
+                  href={`/admin/costing/links?dish=${encodeURIComponent(form.id)}`}
+                  style={{ background: '#fef2f2', color: '#991b1b', border: '1px solid #fecaca', borderRadius: 999, fontSize: 11, padding: '2px 7px', fontWeight: 600, textDecoration: 'none', whiteSpace: 'nowrap' }}
+                  title="Dish lines without a costing component — open the link review"
+                >
+                  {unlinkedCount} {unlinkedCount === 1 ? 'line' : 'lines'} unlinked (costing)
+                </a>
+              )}
             </div>
             <DishRecipeEditor
               dishId={form.id}

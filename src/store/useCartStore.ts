@@ -1,5 +1,6 @@
 import { create } from 'zustand'
-import { persist } from 'zustand/middleware'
+import { persist, createJSONStorage } from 'zustand/middleware'
+import { IS_CLIENT_TAB, tabStorage } from '../lib/clientTab'
 import type { Macros } from '../data/menu'
 import { track } from '../lib/tracking'
 import { CART_STORAGE_KEY } from '../lib/storefront/cartKey'
@@ -445,6 +446,9 @@ export const useCartStore = create<CartStore>()(
       // key, so every cart that exists in a customer's browser survives this
       // deploy untouched; a company storefront gets 'fitpal-cart-<slug>'.
       name: CART_STORAGE_KEY,
+      // WEC-868: a client-mode tab keeps its cart to itself (sessionStorage),
+      // so the operator's own cart and the customer's never mix.
+      storage: createJSONStorage(() => tabStorage),
       // WEC-336: bumped from 2 → 3 to re-key cart entries by deliveryDate
       // (YYYY-MM-DD) instead of dayIndex (number). Old v2 carts are wiped
       // on hydrate via migrate() — easier than mapping indices to dates
@@ -519,7 +523,8 @@ function todayIso(): string {
 // freshly-written state and propagates it through the store's subscribers (so
 // every component re-renders with the new cart within a tick). Same-tab writes
 // don't trigger this — the event spec explicitly excludes the writing tab.
-if (typeof window !== 'undefined') {
+// WEC-868: not in a client tab — its cart is private to the tab.
+if (typeof window !== 'undefined' && !IS_CLIENT_TAB) {
   window.addEventListener('storage', (e) => {
     // WEC-711: watch THIS storefront's key — a cart change on another store
     // must not rehydrate this one.

@@ -5,7 +5,7 @@ import { toE164 } from '../../../src/lib/phoneNormalize'
 // Parent/Child) are set by resolved record id — never typecast.
 
 import type { SupabaseClient } from '@supabase/supabase-js'
-import { TABLES, RETAIL_STORE_ID, airtableDeleteEnabled, airtableInvoiceNameField } from './env'
+import { TABLES, RETAIL_STORE_ID, airtableDeleteEnabled, airtableInvoiceNameField, airtableStoreId } from './env'
 import { findRecordId, upsertRecords, createRecord, listRecords, deleteRecords } from './client'
 import { mapPaid, mapPaymentMethod, mapInvoice, mapOrderType, mapOrderStatus, toEuros, athensIso, esc } from './maps'
 
@@ -176,6 +176,22 @@ export async function pushOrderToAirtable(
   const storeAirtableId = storeSlug && storeSlug !== 'main'
     ? (storeEmbed?.airtable_store_id ?? null)
     : null
+  // WEC-846: mirror the voucher code(s) used on this order into Airtable so ops
+  // can filter/measure promo codes. voucher_uses is the source of truth and
+  // supports stacked vouchers — join multiple codes. Empty string clears the
+  // field when no voucher, keeping Airtable in sync if one is later removed.
+  let voucherCodes = ''
+  try {
+    const { data: vUses } = await supabase
+      .from('voucher_uses')
+      .select('vouchers(code)')
+      .eq('order_id', order.id)
+    const codes = (vUses ?? [])
+      .map((r: any) => (Array.isArray(r.vouchers) ? r.vouchers[0]?.code : r.vouchers?.code))
+      .filter(Boolean) as string[]
+    voucherCodes = [...new Set(codes)].join(', ')
+  } catch { /* non-fatal: never block the mirror on the voucher lookup */ }
+
   const orderFields: Record<string, unknown> = {
     'Order Id': order.id,
     'Admin Order ID': String(order.order_number),
@@ -197,10 +213,13 @@ export async function pushOrderToAirtable(
     'Order Type': mapOrderType(order.payment_method, order.admin_order_id, storeSlug),
     // WEC-727: the company's own ops id when it has one, retail's 9999
     // otherwise. Ioustinos allocates these and adds the matching Airtable row.
-    'Store Id': storeAirtableId ?? RETAIL_STORE_ID,
+    // Dev deploys add 900000 (909999 = dev retail) so dev rows never mix with
+    // production ones in the shared base — see airtableStoreId() in env.ts.
+    'Store Id': airtableStoreId(storeAirtableId ?? RETAIL_STORE_ID),
     'Μαχαιροπίρουνα': !!order.cutlery,
   }
   if (pm.extra) orderFields['Payment Extra'] = pm.extra
+  orderFields['Voucher'] = voucherCodes  // WEC-846
   // WEC-824: a €0 order is a freebie — surface it distinctly in the ops view
   // using the existing 'Freeba' Payment Method option (no Airtable schema
   // change) so the kitchen/reporting tell it apart from a genuinely-paid order.
