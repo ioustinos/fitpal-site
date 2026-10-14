@@ -891,7 +891,7 @@ export function CheckoutPage() {
     // never break the confirmation screen.
     try {
       const allItems = activeDates.flatMap((d) => cart[d] ?? [])
-      // WEC-847: Meta Purchase reported value=0. dayAmt(cart[d]) used the wrong
+      // WEC-871: Meta Purchase reported value=0. dayAmt(cart[d]) used the wrong
       // signature (it is dayAmt(cart, date)) so every day summed to 0. Also prefer
       // the server's authoritative charged total (data.total, cents) so vouchers/
       // discounts are reflected; fall back to the correctly-computed cart sum.
