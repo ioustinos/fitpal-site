@@ -404,7 +404,21 @@ export function Orders() {
             <tbody>
               {visibleOrders.length === 0 && <tr><td colSpan={12} className="admin-table-empty">No orders match.</td></tr>}
               {visibleOrders.map((o) => (
-                <tr key={o.id} onClick={() => openDetail(o.id)} style={{ cursor: 'pointer' }}>
+                /* WEC-873: highlight card orders whose payment never completed (unpaid/failed),
+                   so staff spot them in the list before e.g. sending tracking. Visual only, no guard. */
+                <tr
+                  key={o.id}
+                  onClick={() => openDetail(o.id)}
+                  title={o.paymentMethod === 'card' && (o.paymentStatus === 'pending' || o.paymentStatus === 'failed') && o.status !== 'cancelled'
+                    ? 'Κάρτα: η πληρωμή δεν ολοκληρώθηκε — απλήρωτη παραγγελία'
+                    : undefined}
+                  style={{
+                    cursor: 'pointer',
+                    ...(o.paymentMethod === 'card' && (o.paymentStatus === 'pending' || o.paymentStatus === 'failed') && o.status !== 'cancelled'
+                      ? { background: '#ef44441f', boxShadow: 'inset 3px 0 0 #ef4444' }
+                      : {}),
+                  }}
+                >
                   <td>
                     <strong>{o.orderNumber}</strong>
                     {/* WEC-557: pending customer change request — visible without opening the drawer. */}
