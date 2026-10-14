@@ -88,9 +88,15 @@ export async function fetchPlanConsumption(
       .from('child_orders')
       // !inner so the payment_method / user_id filters on the parent order
       // actually restrict the child rows (a left join would keep all of them).
-      .select('id, orders!inner(user_id, payment_method)', { count: 'exact', head: true })
+      .select('id, orders!inner(user_id, payment_method, status)', { count: 'exact', head: true })
       .eq('orders.user_id', userId)
       .eq('orders.payment_method', 'wallet')
+      // WEC-872: a consumed day is an actually-placed delivery. Exclude `draft`
+      // (admin staging / add-a-day that was never finalised — e.g. an extension
+      // the admin later undid left `draft`/`pending` child rows with no
+      // cancelled_at) and `cancelled`, otherwise usedDays over-counts and the
+      // strip can floor daysLeft to 0 while days are still active.
+      .not('orders.status', 'in', '(draft,cancelled)')
       .is('cancelled_at', null)
       .gte('delivery_date', startIso)
     if (endIso) q = q.lte('delivery_date', endIso)
