@@ -173,7 +173,7 @@ export function CheckoutPage() {
       const allItems = dates.flatMap((d) => cart[d] ?? [])
       if (allItems.length === 0) return
       track('initiate_checkout', {
-        value: Math.round(dates.reduce((s, d) => s + dayAmt(cart[d] ?? []), 0) * 100) / 100,
+        value: Math.round(dates.reduce((s, d) => s + dayAmt(cart, d), 0) * 100) / 100,
         currency: 'EUR',
         contentIds: Array.from(new Set(allItems.map((i) => i.dishId))),
         numItems: allItems.reduce((n, i) => n + (i.qty ?? 1), 0),
@@ -896,7 +896,12 @@ export function CheckoutPage() {
     // never break the confirmation screen.
     try {
       const allItems = activeDates.flatMap((d) => cart[d] ?? [])
-      const value = activeDates.reduce((sum, d) => sum + dayAmt(cart[d] ?? []), 0)
+      // WEC-847: Meta Purchase reported value=0. dayAmt(cart[d]) used the wrong
+      // signature (it is dayAmt(cart, date)) so every day summed to 0. Also prefer
+      // the server's authoritative charged total (data.total, cents) so vouchers/
+      // discounts are reflected; fall back to the correctly-computed cart sum.
+      const cartValue = activeDates.reduce((sum, d) => sum + dayAmt(cart, d), 0)
+      const value = typeof data?.total === 'number' ? data.total / 100 : cartValue
       track(
         'purchase',
         {
