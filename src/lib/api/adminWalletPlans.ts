@@ -37,6 +37,8 @@ export interface AdminWalletPlanRow {
   startDate: string | null
   activeUntil: string | null
   planLengthWeeks: number | null
+  // Contacted: admin-set yes/no flag — has the team reached out about this purchase.
+  contacted: boolean
 }
 
 export interface AdminWalletPlanDetail extends AdminWalletPlanRow {
@@ -100,6 +102,7 @@ function rowToBase(row: Record<string, unknown>): AdminWalletPlanRow {
     startDate:  (row.start_date  as string | null) ?? null,
     activeUntil:(row.active_until as string | null) ?? null,
     planLengthWeeks: (row.plan_length_weeks as number | null) ?? null,
+    contacted: (row.contacted as boolean) ?? false,
   }
 }
 
@@ -256,4 +259,31 @@ export async function updateWalletPlanStartDate(
     .update({ start_date: startDateIso, active_until: activeUntil })
     .eq('id', id)
   return { activeUntil, error: error ? error.message : null }
+}
+
+/**
+ * Toggle the admin "Contacted" flag on a wallet purchase. Persists the boolean,
+ * writes an admin_change_log entry (who/when), and flags the plan airtable_dirty
+ * so the reconcile mirrors the value into the Airtable Subscriptions table.
+ */
+export async function setWalletPlanContacted(
+  id: string,
+  contacted: boolean,
+  adminUser: string,
+): Promise<{ error: string | null }> {
+  const { error } = await supabase
+    .from('wallet_plans')
+    .update({ contacted, airtable_dirty: true })
+    .eq('id', id)
+  if (error) return { error: error.message }
+  await supabase.from('admin_change_log').insert({
+    order_id: null,
+    table_name: 'wallet_plans',
+    field_name: 'contacted',
+    old_value: String(!contacted),
+    new_value: String(contacted),
+    label: contacted ? 'Marked contacted' : 'Unmarked contacted',
+    admin_user: adminUser,
+  })
+  return { error: null }
 }
