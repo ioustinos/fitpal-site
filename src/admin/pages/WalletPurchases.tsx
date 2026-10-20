@@ -112,6 +112,7 @@ export function WalletPurchases() {
         <table className="admin-table">
           <thead>
             <tr>
+              <th>Contacted</th>
               <th>When</th>
               <th>Customer</th>
               <th>Goal</th>
@@ -121,7 +122,6 @@ export function WalletPurchases() {
               <th>Κατάσταση</th>
               <th>Pay</th>
               <th>Credit</th>
-              <th>Contacted</th>
               <th></th>
             </tr>
           </thead>
@@ -133,6 +133,15 @@ export function WalletPurchases() {
               const abandoned = r.paymentStatus === 'pending' && (r.paymentMethod === 'card' || r.paymentMethod === 'link') && !r.vivaTransactionId
               return (
               <tr key={r.id} style={abandoned ? { opacity: 0.55 } : undefined}>
+                <td style={{ textAlign: 'center' }} onClick={(e) => e.stopPropagation()}>
+                  <input
+                    type="checkbox"
+                    checked={r.contacted}
+                    onChange={(e) => toggleContacted(r.id, e.target.checked)}
+                    title={r.contacted ? 'Contacted' : 'Not contacted'}
+                    style={{ width: 16, height: 16, cursor: 'pointer' }}
+                  />
+                </td>
                 <td>{new Date(r.createdAt).toLocaleString('el-GR')}</td>
                 <td>
                   <div>
@@ -175,15 +184,6 @@ export function WalletPurchases() {
                 </td>
                 <td>{(r.amountToPayCents / 100).toFixed(2)} €</td>
                 <td>{(r.walletCreditCents / 100).toFixed(2)} €</td>
-                <td style={{ textAlign: 'center' }} onClick={(e) => e.stopPropagation()}>
-                  <input
-                    type="checkbox"
-                    checked={r.contacted}
-                    onChange={(e) => toggleContacted(r.id, e.target.checked)}
-                    title={r.contacted ? 'Contacted' : 'Not contacted'}
-                    style={{ width: 16, height: 16, cursor: 'pointer' }}
-                  />
-                </td>
                 <td><button className="admin-btn-secondary admin-btn-sm" onClick={() => openDrawer(r.id)}>Details</button></td>
               </tr>
             )})}
