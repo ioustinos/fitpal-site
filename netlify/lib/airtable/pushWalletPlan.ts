@@ -123,7 +123,7 @@ export async function pushWalletPlanToAirtable(
       'payment_method, payment_status, viva_order_code, viva_transaction_id, ' +
       'invoice_type, invoice_name, invoice_vat, refund_amount_cents, ' +
       // updated_at: WEC-833 optimistic-concurrency guard on the sync stamp below.
-      'voucher_id, voucher_amount_cents, start_date, active_until, admin_note, status, updated_at',
+      'voucher_id, voucher_amount_cents, start_date, active_until, admin_note, status, contacted, updated_at',
     )
     .eq('id', planId)
     .maybeSingle()
@@ -259,6 +259,9 @@ export async function pushWalletPlanToAirtable(
   if (meals.length > 0) fields.Meals = meals
 
   if (custRecId) fields.Customer = [custRecId]
+
+  // WEC-875: Contacted admin flag mirrored as an Airtable checkbox.
+  fields['Contacted'] = !!plan.contacted
 
   // Voucher code, if one was redeemed. Separate read — cheap and optional.
   if (plan.voucher_id) {
