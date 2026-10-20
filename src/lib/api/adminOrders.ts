@@ -132,6 +132,9 @@ export interface AdminOrder {
   customerName: string
   customerEmail: string
   customerPhone: string
+  /** Pays Monthly: customer-level flag (profiles.pays_monthly); set only in the
+   *  order detail (getAdminOrder) for the drawer's payment card. */
+  customerPaysMonthly?: boolean
   subtotal: number
   discountAmount: number
   /** WEC-803: admin-added manual discount in cents (part of discountAmount). */
@@ -497,6 +500,11 @@ export async function getAdminOrder(id: string): Promise<{ data: AdminOrder | nu
   const mapped = mapOrderRow(orderRes.data, childOrders, voucherUses, changeLog, paymentLink, payment)
   // WEC-715: the drawer names the storefront too, not just the list.
   await attachStores([mapped])
+  // Pays Monthly: customer-level flag surfaced read-only on the drawer payment card.
+  if (mapped.userId) {
+    const { data: prof } = await supabase.from('profiles').select('pays_monthly').eq('id', mapped.userId).maybeSingle()
+    mapped.customerPaysMonthly = !!(prof as { pays_monthly?: boolean } | null)?.pays_monthly
+  }
   return { data: mapped, error: null }
 }
 

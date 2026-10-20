@@ -24,6 +24,7 @@ export function WalletPurchases() {
   const [status, setStatus] = useState<string>('')
   const [planLength, setPlanLength] = useState<string>('')
   const [goal, setGoal] = useState<string>('')
+  const [lifecycle, setLifecycle] = useState<string>('')
 
   // Drawer
   const [openId, setOpenId] = useState<string | null>(null)
@@ -60,12 +61,13 @@ export function WalletPurchases() {
       status: status || undefined,
       planLength: planLength || undefined,
       goal: goal || undefined,
+      lifecycle: lifecycle || undefined,
     })
     if (error) setErr(error)
     setRows(data ?? [])
     setLoading(false)
   }
-  useEffect(() => { refresh() /* eslint-disable-next-line */ }, [status, planLength, goal])
+  useEffect(() => { refresh() /* eslint-disable-next-line */ }, [status, planLength, goal, lifecycle])
 
   async function openDrawer(id: string) {
     setOpenId(id); setDetail(null); setDetailLoading(true)
@@ -100,6 +102,11 @@ export function WalletPurchases() {
           <option value="lose">Lose</option>
           <option value="maintain">Maintain</option>
           <option value="gain">Gain</option>
+        </select>
+        <select className="admin-select" value={lifecycle} onChange={(e) => setLifecycle(e.target.value)}>
+          <option value="">All statuses</option>
+          <option value="active">Ενεργή</option>
+          <option value="cancelled">Ακυρωμένη</option>
         </select>
         <button className="admin-btn-secondary" onClick={refresh}>Refresh</button>
       </div>

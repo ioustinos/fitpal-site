@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import {
-  fetchAdminUsers, fetchAdminUserDetail, saveAdminUserNotes, setWalletAdminManaged, setWalletActive,
+  fetchAdminUsers, fetchAdminUserDetail, saveAdminUserNotes, setWalletAdminManaged, setWalletActive, setCustomerPaysMonthly,
   grantWalletCredit,
   // WEC-770
   createAdminCustomer, sendCustomerInvite, saveWalletPlanOpsFields, setWalletPlanStatus, type NewCustomerInput,
@@ -257,6 +257,7 @@ function UserDetail({
   const [dietician, setDietician] = useState(detail.dietician ?? '')
   const [dietaryNotes, setDietaryNotes] = useState(detail.dietaryNotes ?? '')
   const [savingNotes, setSavingNotes] = useState(false)
+  const [savingMonthly, setSavingMonthly] = useState(false)
   const [savingFlag, setSavingFlag] = useState(false)
   const [err, setErr] = useState<string | null>(null)
   const [showGrantModal, setShowGrantModal] = useState(false)
@@ -287,6 +288,14 @@ function UserDetail({
     })
     if (error) setErr(error)
     setSavingNotes(false)
+    onSavedNotes()
+  }
+
+  async function handleTogglePaysMonthly(next: boolean) {
+    setSavingMonthly(true); setErr(null)
+    const { error } = await setCustomerPaysMonthly(detail.userId, next)
+    setSavingMonthly(false)
+    if (error) { setErr(error); return }
     onSavedNotes()
   }
 
@@ -360,6 +369,18 @@ function UserDetail({
             : 'None'}
         />
         <Stat label="Goals" value={detail.goals?.enabled ? 'On' : 'Off'} />
+      </div>
+
+      {/* Pays Monthly — customer-level billing flag, shown read-only on the customer's orders */}
+      <div style={{ marginTop: 20, display: 'flex', alignItems: 'center', gap: 10 }}>
+        <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
+          <input type="checkbox" checked={detail.paysMonthly} disabled={savingMonthly}
+            onChange={(e) => handleTogglePaysMonthly(e.target.checked)} />
+          <strong>Pays Monthly</strong>
+        </label>
+        <span className="admin-text-muted" style={{ fontSize: 12 }}>
+          Appears as a badge on this customer's orders (payment card).
+        </span>
       </div>
 
       {/* Admin notes */}

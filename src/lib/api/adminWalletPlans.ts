@@ -58,6 +58,7 @@ interface AdminWalletPlanFilters {
   status?: string             // 'pending' | 'paid' | 'failed' | 'refunded'
   planLength?: string         // '2w' | '1mo' | '3mo'
   goal?: string               // 'lose' | 'maintain' | 'gain'
+  lifecycle?: string          // wallet_plans.status: 'active' | 'cancelled'
   fromDate?: string           // ISO date
   toDate?: string             // ISO date
   search?: string             // matches customer email or name (substring)
@@ -118,6 +119,7 @@ export async function fetchAdminWalletPlans(
   if (filters.status)     q = q.eq('payment_status', filters.status)
   if (filters.planLength) q = q.eq('plan_length',    filters.planLength)
   if (filters.goal)       q = q.eq('goal',           filters.goal)
+  if (filters.lifecycle)  q = q.eq('status',         filters.lifecycle)
   if (filters.fromDate)   q = q.gte('created_at', filters.fromDate)
   if (filters.toDate)     q = q.lte('created_at', filters.toDate)
 
