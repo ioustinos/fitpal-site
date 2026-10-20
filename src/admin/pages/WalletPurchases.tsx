@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import {
   fetchAdminWalletPlans, fetchAdminWalletPlanDetail, refundAdminWalletPlan, markAdminWalletPlanPaid,
-  updateWalletPlanStartDate,
+  updateWalletPlanStartDate, setWalletPlanContacted,
   type AdminWalletPlanRow, type AdminWalletPlanDetail,
 } from '../../lib/api/adminWalletPlans'
 import { setWalletPlanStatus } from '../../lib/api/adminUsers'
@@ -40,6 +40,18 @@ export function WalletPurchases() {
     setTogglingId(null)
     if (error) { setErr(error); return }
     refresh()
+  }
+
+  // Contacted flag — optimistic, persisted + audit-logged + mirrored to Airtable.
+  async function toggleContacted(id: string, next: boolean) {
+    setRows((rs) => rs.map((r) => (r.id === id ? { ...r, contacted: next } : r)))
+    setDetail((d) => (d && d.id === id ? { ...d, contacted: next } : d))
+    const { error } = await setWalletPlanContacted(id, next, adminUser?.email ?? 'admin')
+    if (error) {
+      setErr(error)
+      setRows((rs) => rs.map((r) => (r.id === id ? { ...r, contacted: !next } : r)))
+      setDetail((d) => (d && d.id === id ? { ...d, contacted: !next } : d))
+    }
   }
 
   async function refresh() {
@@ -109,6 +121,7 @@ export function WalletPurchases() {
               <th>Κατάσταση</th>
               <th>Pay</th>
               <th>Credit</th>
+              <th>Contacted</th>
               <th></th>
             </tr>
           </thead>
@@ -162,6 +175,15 @@ export function WalletPurchases() {
                 </td>
                 <td>{(r.amountToPayCents / 100).toFixed(2)} €</td>
                 <td>{(r.walletCreditCents / 100).toFixed(2)} €</td>
+                <td style={{ textAlign: 'center' }} onClick={(e) => e.stopPropagation()}>
+                  <input
+                    type="checkbox"
+                    checked={r.contacted}
+                    onChange={(e) => toggleContacted(r.id, e.target.checked)}
+                    title={r.contacted ? 'Contacted' : 'Not contacted'}
+                    style={{ width: 16, height: 16, cursor: 'pointer' }}
+                  />
+                </td>
                 <td><button className="admin-btn-secondary admin-btn-sm" onClick={() => openDrawer(r.id)}>Details</button></td>
               </tr>
             )})}
@@ -175,6 +197,7 @@ export function WalletPurchases() {
           loading={detailLoading}
           onClose={() => { setOpenId(null); setDetail(null) }}
           onRefunded={() => { setOpenId(null); setDetail(null); refresh() }}
+          onToggleContacted={(next) => detail && toggleContacted(detail.id, next)}
         />
       )}
     </div>
@@ -186,9 +209,10 @@ interface DrawerProps {
   loading: boolean
   onClose: () => void
   onRefunded: () => void
+  onToggleContacted: (next: boolean) => void
 }
 
-function Drawer({ detail, loading, onClose, onRefunded }: DrawerProps) {
+function Drawer({ detail, loading, onClose, onRefunded, onToggleContacted }: DrawerProps) {
   const [refundReason, setRefundReason] = useState('')
   const [refundAmount, setRefundAmount] = useState('') // empty = full refund of remaining
   const [refunding, setRefunding] = useState(false)
@@ -248,6 +272,15 @@ function Drawer({ detail, loading, onClose, onRefunded }: DrawerProps) {
             <div className="admin-loading">Loading…</div>
           ) : (
             <>
+              <label className="admin-drawer-section" style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
+                <input
+                  type="checkbox"
+                  checked={detail.contacted}
+                  onChange={(e) => onToggleContacted(e.target.checked)}
+                  style={{ width: 16, height: 16, cursor: 'pointer' }}
+                />
+                <span style={{ fontWeight: 700 }}>Contacted</span>
+              </label>
               <Section title="Customer">
                 <KV k="Name" v={detail.customerName ?? '—'} />
                 <KV k="Email" v={detail.customerEmail ?? '—'} />
