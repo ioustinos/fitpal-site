@@ -31,6 +31,8 @@ export interface AdminUserDetail extends AdminUserRow {
   nameEn: string | null
   dietician: string | null
   dietaryNotes: string | null
+  /** Pays Monthly: customer-level billing flag, surfaced read-only on orders. */
+  paysMonthly: boolean
   avatarUrl: string | null
   addresses: Array<{
     id: string; labelEl: string; labelEn: string; street: string;
@@ -160,7 +162,7 @@ export async function fetchAdminUserDetail(userId: string): Promise<{
     ordersRes, ordersAggRes, adminsRes,
   ] = await Promise.all([
     supabase.from('profiles')
-      .select('id, email, name, name_en, phone, avatar_url, dietician, dietary_notes, created_at')
+      .select('id, email, name, name_en, phone, avatar_url, dietician, dietary_notes, pays_monthly, created_at')
       .eq('id', userId).maybeSingle(),
     supabase.from('addresses')
       .select('id, label_el, label_en, street, area, zip, is_default')
@@ -192,7 +194,7 @@ export async function fetchAdminUserDetail(userId: string): Promise<{
   const p = profileRes.data as {
     id: string; email: string | null; name: string | null; name_en: string | null
     phone: string | null; avatar_url: string | null; dietician: string | null
-    dietary_notes: string | null; created_at: string
+    dietary_notes: string | null; pays_monthly: boolean | null; created_at: string
   }
 
   const ordersAll = (ordersAggRes.data ?? []) as Array<{ total: number; payment_status: string }>
@@ -213,6 +215,7 @@ export async function fetchAdminUserDetail(userId: string): Promise<{
     avatarUrl: p.avatar_url,
     dietician: p.dietician,
     dietaryNotes: p.dietary_notes,
+    paysMonthly: p.pays_monthly ?? false,
     createdAt: p.created_at,
     ordersCount: ordersAll.length,
     totalSpent,
@@ -280,6 +283,21 @@ export async function saveAdminUserNotes(
 
   const { error } = await supabase.from('profiles').update(payload).eq('id', userId)
   return { error: error?.message ?? null }
+}
+
+/**
+ * Toggle the customer-level "Pays Monthly" billing flag. Also re-flags the
+ * customer's orders airtable_dirty so the reconcile mirrors the new value onto
+ * each order's Airtable row.
+ */
+export async function setCustomerPaysMonthly(
+  userId: string,
+  paysMonthly: boolean,
+): Promise<{ error: string | null }> {
+  const { error } = await supabase.from('profiles').update({ pays_monthly: paysMonthly }).eq('id', userId)
+  if (error) return { error: error.message }
+  await supabase.from('orders').update({ airtable_dirty: true }).eq('user_id', userId)
+  return { error: null }
 }
 
 /**

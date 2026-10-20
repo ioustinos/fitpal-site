@@ -27,6 +27,7 @@ export interface PushResult {
 interface OrderRow {
   id: string
   order_number: number | string
+  user_id: string | null
   customer_name: string | null
   customer_email: string | null
   customer_phone: string | null
@@ -93,13 +94,20 @@ export async function pushOrderToAirtable(
   const { data: order, error: oErr } = await supabase
     .from('orders')
     .select(
-      'id, order_number, customer_name, customer_email, customer_phone, subtotal, total, payment_method, payment_status, status, cutlery, invoice_type, invoice_name, invoice_vat, notes, admin_order_id, cancel_reason, created_at, submitted_at, updated_at, store_id, stores(slug, airtable_store_id)',
+      'id, order_number, user_id, customer_name, customer_email, customer_phone, subtotal, total, payment_method, payment_status, status, cutlery, invoice_type, invoice_name, invoice_vat, notes, admin_order_id, cancel_reason, created_at, submitted_at, updated_at, store_id, stores(slug, airtable_store_id)',
     )
     .eq('id', orderId)
     .single<OrderRow>()
   if (oErr || !order) return { ok: false, orderId, skipped: 'not_found' }
 
   if (!isMirrorEligible(order)) return { ok: true, orderId, skipped: 'not_eligible' }
+
+  // Pays Monthly: customer-level flag (profiles.pays_monthly) mirrored onto the order.
+  let paysMonthly = false
+  if (order.user_id) {
+    const { data: prof } = await supabase.from('profiles').select('pays_monthly').eq('id', order.user_id).maybeSingle()
+    paysMonthly = !!(prof as { pays_monthly?: boolean } | null)?.pays_monthly
+  }
 
   // 2. Load children + items.
   // WEC-697: capture the read error explicitly — a FAILED read must never be
@@ -220,6 +228,7 @@ export async function pushOrderToAirtable(
   }
   if (pm.extra) orderFields['Payment Extra'] = pm.extra
   orderFields['voucher'] = voucherCodes  // WEC-846
+  orderFields['Pays Monthly'] = paysMonthly  // customer-level billing flag
   // WEC-824: a €0 order is a freebie — surface it distinctly in the ops view
   // using the existing 'Freeba' Payment Method option (no Airtable schema
   // change) so the kitchen/reporting tell it apart from a genuinely-paid order.

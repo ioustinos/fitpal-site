@@ -1284,6 +1284,12 @@ function OverviewTab({ order, adminUser, onChanged }: { order: AdminOrder; admin
         {/* Payment */}
         <div className="admin-od-card admin-od-col-3">
           <span className="admin-od-card-title"><Ico name="card" /> Payment</span>
+          {order.customerPaysMonthly && (
+            <div style={{ margin: '4px 0 8px', display: 'inline-block', padding: '2px 8px', borderRadius: 999,
+              fontSize: 11, fontWeight: 800, background: '#7c3aed22', color: '#6d28d9', border: '1px solid #ddd6fe' }}>
+              Pays Monthly
+            </div>
+          )}
           {editErr && <div className="admin-error-banner" style={{ marginBottom: 6 }}>{editErr}</div>}
           <dl className="admin-od-kv">
             <div><dt>Method</dt><dd className="admin-od-method">
