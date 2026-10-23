@@ -246,8 +246,8 @@ function AddClientModal({ onClose, onDone }: { onClose: () => void; onDone: (use
             </>
           )}
           <p className="admin-text-muted" style={{ fontSize: 12, margin: 0 }}>
-            Η έκπτωση του πελάτη και το commission σας είναι αυτά της συμφωνίας σας με τη Fitpal και μπαίνουν αυτόματα.
-            Για αλλαγή σε συγκεκριμένο πελάτη, επικοινωνήστε με τη Fitpal.
+            Ο πελάτης ξεκινά με την έκπτωση της συμφωνίας σας με τη Fitpal. Μπορείτε να την αλλάξετε μετά,
+            στην καρτέλα του πελάτη («Έκπτωση πελάτη &amp; commission»).
           </p>
           {err && <div className="admin-error-banner">{err}</div>}
           {warn && (
