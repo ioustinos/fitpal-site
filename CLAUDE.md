@@ -77,6 +77,17 @@ grep -r "@github.com" "$W/.git/config"           # must print nothing — never 
 
 `cp -rf` (never `rm -rf`) — FUSE blocks deletes. Copying the clone's `.git/index` is the step people forget; without it every file reads as staged-deleted.
 
+## ⚠️ RULE #0c-bis — main DELIBERATELY LACKS COSTING (since 2026-10-23)
+
+On 23/10 the dietitian epic (WEC-838 incl. 868/869/870/877) went to production **without the costing
+panel** (WEC-857..866) — 🟢 Ioustinos: «Dietitians only». Costing's database exists only on dev.
+So main's tree = dev's tree **minus** costing files (`src/admin/pages/costing/`, `src/admin/costing/`,
+`src/lib/api/adminCosting.ts`, `netlify/functions/costing-nightly-check.ts`, costing migrations/seed/tests),
+the costing routes in `AdminApp.tsx`, the Costing group in `Sidebar.tsx`, and the costing bits of
+`Dashboard.tsx` / `Dishes.tsx` (main has its own versions). **Do NOT promote dev's tree verbatim** (the
+recipe below would ship costing): either apply costing's migrations to production first and get
+Ioustinos's go, or strip the same pieces again. Promotion commit: 152489d.
+
 ## ⚠️ RULE #0c — MERGING dev INTO main CAN SILENTLY SHIP NOTHING
 
 `main` contains **`b6ac715`, a revert of merge `10107bd`**. Any commit that was inside that merge is still an *ancestor* of `main`, so `git merge dev` considers it already merged and re-applies **nothing** — the reverted content stays gone. On 2026-09-17 WEC-774, WEC-776 and WEC-777 were sitting undone on production for exactly this reason, invisible in the log.
