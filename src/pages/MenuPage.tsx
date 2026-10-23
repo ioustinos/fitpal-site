@@ -1,4 +1,5 @@
 import { useEffect } from 'react'
+import { useEffectiveMinOrder } from '../lib/partner/usePartnerLink'
 import { useUIStore } from '../store/useUIStore'
 import { useCartStore, reconcileCartAgainstMenu, reconcileCartAgeAndDates } from '../store/useCartStore'
 import { useAuthStore } from '../store/useAuthStore'
@@ -51,7 +52,7 @@ export function MenuPage() {
   const loadMenu = useMenuStore((s) => s.load)
   // WEC-676: banner minimum-order must reflect settings.min_order (the DB rule
   // checkout + server already enforce), not a hardcoded €15.
-  const minOrder = useMenuStore((s) => s.settings.minOrder)
+  const minOrder = useEffectiveMinOrder(useMenuStore((s) => s.settings.minOrder)) // WEC-877: dietitian clients' own minimum
   // WEC-676: banner delivery hours derive from settings.time_slots (earliest
   // start → latest end), not a hardcoded range. Falls back if none configured.
   const timeSlots = useMenuStore((s) => s.settings.timeSlots)

@@ -2,6 +2,7 @@ import { useState, type FormEvent, type ReactNode } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuthStore } from '../store/useAuthStore'
 import { useImpersonationStore } from '../store/useImpersonationStore'
+import { IS_CLIENT_TAB, closeClientTab } from '../lib/clientTab'
 
 /**
  * Gates /admin/*:
@@ -13,9 +14,7 @@ import { useImpersonationStore } from '../store/useImpersonationStore'
 export function AdminGuard({ children }: { children: ReactNode }) {
   const user = useAuthStore((s) => s.user)
   const sessionChecked = useAuthStore((s) => s.sessionChecked)
-  const isImpersonating = useImpersonationStore((s) => s.active)
   const target = useImpersonationStore((s) => s.target)
-  const stop = useImpersonationStore((s) => s.stop)
   const navigate = useNavigate()
 
   if (!sessionChecked) {
@@ -26,33 +25,32 @@ export function AdminGuard({ children }: { children: ReactNode }) {
     )
   }
 
-  // While an admin is impersonating a customer, the active Supabase session
-  // IS the customer's. The /admin/* routes must refuse access in this state
-  // — even if the impersonated customer happens to be an admin themselves
-  // (rare, but possible). The admin gets a clear "exit impersonation to
-  // continue as admin" prompt rather than nominally being allowed in.
-  if (isImpersonating && target) {
-    const exitAndGoToAdmin = async () => {
-      await stop()
-      // signOut → admin lands on /admin which renders <AdminSignIn />
-    }
+  // WEC-868: a client-mode tab holds a CUSTOMER's session and must never
+  // open admin — even if that customer is an admin themselves. Admin lives
+  // in the operator's other tabs, which client mode never touches.
+  if (IS_CLIENT_TAB) {
+    const who = target?.name || target?.email
     return (
       <div className="admin-403">
         <div className="admin-403-card">
-          <div className="admin-403-eyebrow">Impersonating</div>
-          <h1>Exit impersonation to use admin</h1>
+          <div className="admin-403-eyebrow">Λειτουργία πελάτη · Client mode</div>
+          <h1>Αυτή η καρτέλα είναι καρτέλα πελάτη</h1>
           <p>
-            You're currently impersonating <strong>{target.name || target.email}</strong>.
-            Admin actions are disabled while impersonation is active. Exit
-            impersonation to sign in again as admin.
+            {who ? <>Εδώ ενεργείτε ως <strong>{who}</strong>. </> : null}
+            Το admin δεν ανοίγει σε καρτέλα πελάτη. Χρησιμοποιήστε την άλλη σας καρτέλα για το admin.
+          </p>
+          <p style={{ fontSize: 13, opacity: 0.75 }}>
+            This tab is a client tab. Admin does not open here — use your other tab.
           </p>
           <div className="admin-403-actions">
-            <button className="btn-primary" onClick={exitAndGoToAdmin}>
-              Exit impersonation &amp; sign in
+            <button className="btn-primary" onClick={() => void closeClientTab('closed')}>
+              Κλείσιμο καρτέλας πελάτη
             </button>
-            <button className="btn-ghost" onClick={() => navigate('/')}>
-              Continue as {target.name?.split(' ')[0] || 'customer'}
-            </button>
+            {who && (
+              <button className="btn-ghost" onClick={() => navigate('/')}>
+                Συνέχεια ως {target?.name?.split(' ')[0] || 'πελάτης'}
+              </button>
+            )}
           </div>
         </div>
       </div>

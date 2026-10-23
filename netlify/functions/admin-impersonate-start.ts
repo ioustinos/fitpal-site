@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js'
 import { corsHeaders } from '../lib/cors'
+import { openClientSession } from '../lib/clientSession'
 
 /**
  * Mint a magic-link token for an arbitrary customer, callable only by admins.
@@ -28,6 +29,8 @@ const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY ?? ''
 
 interface RequestBody {
   targetUserId: string
+  /** WEC-869: 'partner' when started from the dietitian portal. */
+  as?: 'admin' | 'partner'
 }
 
 export default async (request: Request) => {
@@ -61,17 +64,43 @@ export default async (request: Request) => {
     if (!caller) {
       return Response.json({ error: 'Invalid session' }, { status: 401 })
     }
-    const { data: isAdmin, error: adminCheckErr } = await callerClient.rpc('is_admin')
-    if (adminCheckErr || !isAdmin) {
-      return Response.json({ error: 'Not authorised' }, { status: 403 })
-    }
-
     if (!SUPABASE_SERVICE_KEY) {
       return Response.json({ error: 'Server not configured for impersonation' }, { status: 500 })
     }
     const svc = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY, {
       auth: { persistSession: false, autoRefreshToken: false },
     })
+
+    // Admins may impersonate anyone. WEC-844: a dietitian PARTNER may
+    // impersonate only their own active clients (internal partners: anyone),
+    // checked server-side with the caller's own JWT via partner_can_access.
+    const { data: isAdmin, error: adminCheckErr } = await callerClient.rpc('is_admin')
+    let impersonatorRole: 'admin' | 'partner' = 'admin'
+    // WEC-869 (🟢 Ioustinos 13/10): someone who is BOTH admin and dietitian
+    // (Fitpal's in-house dietitians) and starts from the dietitian portal acts
+    // AS THE DIETITIAN — the order is recorded under their dietitian account.
+    // Only if they really are a dietitian with access to this customer; a pure
+    // admin viewing the portal falls back to admin.
+    let actAsPartner = false
+    if (body.as === 'partner') {
+      const { data: pu } = await svc.from('partner_users').select('partner_id').eq('user_id', caller.id).maybeSingle()
+      if (pu) {
+        const { data: canAccess } = await callerClient.rpc('partner_can_access', { p_client: body.targetUserId })
+        actAsPartner = !!canAccess
+      }
+    }
+    if (actAsPartner) {
+      impersonatorRole = 'partner'
+    } else if (adminCheckErr || !isAdmin) {
+      const { data: canAccess, error: pErr } = await callerClient.rpc('partner_can_access', { p_client: body.targetUserId })
+      if (pErr || !canAccess) {
+        return Response.json({
+          error: 'Not authorised',
+          detail: pErr ? pErr.message : 'Ο πελάτης δεν είναι ενεργός πελάτης σας. · This customer is not one of your active clients.',
+        }, { status: 403, headers: cors })
+      }
+      impersonatorRole = 'partner'
+    }
 
     // ── Look up target user ────────────────────────────────────────────
     // We read from `profiles` (which mirrors auth.users.email via the
@@ -198,7 +227,26 @@ export default async (request: Request) => {
       }, { status: 500 })
     }
 
+    // WEC-868: register the client-mode session. Ends any other client tab this
+    // operator still has open ('replaced'), so one operator = one client tab.
+    let partnerId: string | null = null
+    if (impersonatorRole === 'partner') {
+      const { data: pu } = await svc.from('partner_users').select('partner_id').eq('user_id', caller.id).maybeSingle()
+      partnerId = (pu as { partner_id: string } | null)?.partner_id ?? null
+    }
+    let clientSession
+    try {
+      clientSession = await openClientSession(svc, {
+        operatorUserId: caller.id, operatorRole: impersonatorRole,
+        clientUserId: body.targetUserId, partnerId,
+      })
+    } catch (e) {
+      return Response.json({ error: 'Could not open client session', detail: (e as Error).message }, { status: 500, headers: cors })
+    }
+
     return Response.json({
+      clientSessionId: clientSession.id,
+      expiresAt: clientSession.expires_at,
       hashedToken,
       target: {
         userId: body.targetUserId,
@@ -220,6 +268,9 @@ export default async (request: Request) => {
       // Echo admin id back so the client can stash it for the
       // X-Impersonator-Admin-Id attribution header on order submission.
       adminUserId: caller.id,
+      // WEC-844: who is impersonating — the client uses it to send the
+      // partner back to /partner (not /admin) on exit.
+      impersonatorRole,
     }, {
       headers: cors,
     })

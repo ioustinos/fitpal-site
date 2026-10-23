@@ -1346,6 +1346,12 @@ function OverviewTab({ order, adminUser, onChanged }: { order: AdminOrder; admin
             {order.discountAmount > 0 && (
               <div className="admin-od-total-row admin-od-total-disc"><span>Discount</span><span>−{(order.discountAmount / 100).toFixed(2)} €</span></div>
             )}
+            {order.partnerDiscount > 0 && (
+              <div className="admin-od-total-row admin-od-total-disc">
+                <span>Dietitian discount{order.partnerDiscountBps ? ` ${order.partnerDiscountBps / 100}%` : ''}</span>
+                <span>−{(order.partnerDiscount / 100).toFixed(2)} €</span>
+              </div>
+            )}
             <div className="admin-od-total-row admin-od-total-grand"><span>Total</span><span>{(order.total / 100).toFixed(2)} €</span></div>
           </div>
           <PriceChangePanel order={order} adminUser={adminUser} onChanged={onChanged} />

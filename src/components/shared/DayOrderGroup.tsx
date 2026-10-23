@@ -1,4 +1,5 @@
 import { useUIStore } from '../../store/useUIStore'
+import { useEffectiveMinOrder } from '../../lib/partner/usePartnerLink'
 import { useCartStore } from '../../store/useCartStore'
 import { useMenuStore } from '../../store/useMenuStore'
 import { dayAmt, itemVoucherDiscount } from '../../lib/helpers'
@@ -27,7 +28,7 @@ export function DayOrderGroup({
   const cart = useCartStore((s) => s.cart)
   const voucher = useCartStore((s) => s.voucher)
   const delivery = useCartStore((s) => s.delivery)
-  const minOrder = useMenuStore((s) => s.settings.minOrder)
+  const minOrder = useEffectiveMinOrder(useMenuStore((s) => s.settings.minOrder)) // WEC-877: dietitian clients' own minimum
   // WEC-262: dish→category lookup so per-item discount allocation can
   // tell which items are in the voucher's scope.
   const dishMap = useMenuStore((s) => s.dishMap)

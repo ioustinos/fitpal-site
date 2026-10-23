@@ -1,11 +1,12 @@
 import { useEffect, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
 import { useImpersonationStore } from '../../store/useImpersonationStore'
+import { useUIStore } from '../../store/useUIStore'
 import { supabase } from '../../lib/supabase'
 import { fetchActivePlanDetails, type PlanDetails } from '../../lib/api/planDetails'
 import { fetchPlanConsumption, planTotalDays } from '../../lib/api/planConsumption'
 import { PlanDetailsPanel } from '../shared/PlanDetailsPanel'
 import { planMealsLabel } from '../../lib/planMeals'
+import { closeClientTab } from '../../lib/clientTab'
 
 /**
  * Persistent banner shown at the top of every page while an admin is
@@ -48,8 +49,19 @@ export function ImpersonationBanner() {
   const active = useImpersonationStore((s) => s.active)
   const target = useImpersonationStore((s) => s.target)
   const loading = useImpersonationStore((s) => s.loading)
-  const stop = useImpersonationStore((s) => s.stop)
-  const navigate = useNavigate()
+  const lang = useUIStore((s) => s.lang)
+  const expiresAt = useImpersonationStore((s) => s.expiresAt)
+  const locked = useImpersonationStore((s) => s.locked)
+  const [closing, setClosing] = useState(false)
+  // WEC-868: minutes left before the 2h hard expiry, shown in the last 15.
+  const [minsLeft, setMinsLeft] = useState<number | null>(null)
+  useEffect(() => {
+    if (!expiresAt) { setMinsLeft(null); return }
+    const tick = () => setMinsLeft(Math.max(0, Math.ceil((new Date(expiresAt).getTime() - Date.now()) / 60_000)))
+    tick()
+    const t = window.setInterval(tick, 30_000)
+    return () => window.clearInterval(t)
+  }, [expiresAt])
 
   const [summary, setSummary] = useState<PlanSummary | null>(null)
 
@@ -64,7 +76,7 @@ export function ImpersonationBanner() {
   // Only flip the body class when we'd actually render the banner. Without
   // the `target` guard we can end up with the page padded down 36px while
   // the banner is invisible — the symptom of stale persisted state.
-  const shouldShow = active && !!target
+  const shouldShow = active && !!target && !locked
   const targetUserId = target?.userId
 
   useEffect(() => {
@@ -217,13 +229,25 @@ export function ImpersonationBanner() {
   }
 
   async function handleExit() {
-    // stop() signs the customer out via supabase.auth.signOut(). The admin
-    // lands on the customer site as a guest, then navigates to /admin to
-    // sign back in. This is the deliberate convention — no session
-    // restoration, no stale-token edge cases.
-    await stop()
-    navigate('/admin')
+    // WEC-868: close THIS tab only. Ends the server session, drops this tab's
+    // copy of the customer's session (the customer's own devices stay signed
+    // in) and closes the tab. The operator's other tabs never changed.
+    setClosing(true)
+    await closeClientTab('closed')
+    setClosing(false)
   }
+
+  // Follows the site's ΕΛ/EN toggle — dietitians use the portal in Greek.
+  const el = lang === 'el'
+  const L = el
+    ? { acting: 'Ενεργείτε ως', plan: 'Πλάνο', bonus: 'μπόνους', left: 'Υπόλοιπο', spent: 'Ξοδεύτηκαν', days: 'ημέρες',
+        ends: 'Λήξη', daysLeft: 'ημ. ακόμα', perDay: '/ημέρα', exiting: 'Κλείσιμο…', exit: 'Κλείσιμο καρτέλας πελάτη', minsLeft: 'λεπτά ακόμα',
+        tPlan: 'Βασικό υπόλοιπο πλάνου + μπόνους', tDays: 'Ημέρες παράδοσης με πορτοφόλι / σύνολο ημερών πλάνου',
+        tOver: 'Ξοδεύει πάνω από τον ομαλό ημερήσιο ρυθμό (>10%)', tPace: 'Υπόλοιπο ÷ ημέρες παράδοσης που απομένουν' }
+    : { acting: 'Acting as', plan: 'Plan', bonus: 'bonus', left: 'Left', spent: 'Spent', days: 'days',
+        ends: 'Ends', daysLeft: 'd left', perDay: '/day', exiting: 'Closing…', exit: 'Close client tab', minsLeft: 'min left',
+        tPlan: 'Plan base credit + bonus credit', tDays: 'Delivery-days ordered on the wallet / plan total days',
+        tOver: 'Spending above the even per-day pace (>10% over)', tPace: 'Remaining balance ÷ delivery-days left on the plan' }
 
   const chip: React.CSSProperties = {
     background: 'rgba(255,255,255,0.18)', borderRadius: 4, padding: '1px 7px', whiteSpace: 'nowrap',
@@ -236,30 +260,35 @@ export function ImpersonationBanner() {
         <path d="M4 21v-1a4 4 0 0 1 4-4h8a4 4 0 0 1 4 4v1" />
       </svg>
       <span>
-        Impersonating <strong>{target.name || target.email}</strong>
+        {L.acting} <strong>{target.name || target.email}</strong>
       </span>
+      {minsLeft != null && minsLeft <= 15 && (
+        <span style={{ ...chip, background: '#dc2626' }} title="Client mode ends 2 hours after it was opened">
+          ⏱ {minsLeft} {L.minsLeft}
+        </span>
+      )}
 
       {/* WEC-507: plan budget summary (only when the customer has an active plan) */}
       {summary && (
         <span style={{ display: 'inline-flex', gap: 6, alignItems: 'center', fontSize: 12, fontWeight: 600 }}>
-          <span style={chip} title="Plan base credit + bonus credit">
-            Plan {eur(summary.baseEur)}{summary.bonusEur > 0 ? ` + ${eur(summary.bonusEur)} bonus` : ''}
+          <span style={chip} title={L.tPlan}>
+            {L.plan} {eur(summary.baseEur)}{summary.bonusEur > 0 ? ` + ${eur(summary.bonusEur)} ${L.bonus}` : ''}
           </span>
-          <span style={chip}>Left {eur(summary.remainingEur)} · Spent {eur(summary.spentEur)}</span>
+          <span style={chip}>{L.left} {eur(summary.remainingEur)} · {L.spent} {eur(summary.spentEur)}</span>
           {/* WEC-836: delivery-days ordered on the wallet vs the plan total. */}
-          <span style={chip} title="Delivery-days ordered on the wallet / plan total days">
-            {summary.usedDays}/{summary.totalDays ?? '?'} ημέρες
+          <span style={chip} title={L.tDays}>
+            {summary.usedDays}/{summary.totalDays ?? '?'} {L.days}
           </span>
-          <span style={chip}>Ends {summary.endStr}{summary.daysLeft != null ? ` · ${summary.daysLeft}d left` : ''}</span>
+          <span style={chip}>{L.ends} {summary.endStr}{summary.daysLeft != null ? ` · ${summary.daysLeft} ${L.daysLeft}` : ''}</span>
           <span
             style={{
               ...chip,
               background: summary.overPace ? '#dc2626' : 'rgba(255,255,255,0.18)',
               color: '#fff',
             }}
-            title={summary.overPace ? 'Spending above the even per-day pace (>10% over)' : 'Remaining balance ÷ delivery-days left on the plan'}
+            title={summary.overPace ? L.tOver : L.tPace}
           >
-            {eur(summary.dailyLimitEur)}/day{summary.overPace ? ' ⚠' : ''}
+            {eur(summary.dailyLimitEur)}{L.perDay}{summary.overPace ? ' ⚠' : ''}
           </span>
           {summary.meals && <span style={chip}>{summary.meals}</span>}
         </span>
@@ -279,8 +308,8 @@ export function ImpersonationBanner() {
         </button>
       )}
 
-      <button onClick={handleExit} disabled={loading}>
-        {loading ? 'Exiting…' : 'Exit & sign back in'}
+      <button onClick={handleExit} disabled={loading || closing}>
+        {closing ? L.exiting : L.exit}
       </button>
 
       {planOpen && (

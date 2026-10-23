@@ -18,6 +18,26 @@ export const TABLES = {
 // Retail orders carry this Store Id so the ops views can filter source.
 export const RETAIL_STORE_ID = 9999
 
+// Dev deploys write to the SAME live Airtable base as production (Ioustinos,
+// 2026-10-10: "airtable integration matters"). To keep dev rows apart, every
+// dev order's Store Id gets this offset (retail 9999 → 909999, a company's
+// 6423 → 906423) and dev plans get DEV_NOTE_PREFIX on their Admin Note.
+// Ops views filter with «Store Id < 900000» to see production only.
+//
+// Fail-safe direction: tagging happens ONLY when the env says dev explicitly
+// and Netlify does not say production. A missing variable means NO tag, so a
+// misconfigured production can never get its orders hidden as «dev».
+export const DEV_STORE_ID_OFFSET = 900000
+export const DEV_NOTE_PREFIX = '[DEV] '
+
+export function isDevAirtableTarget(): boolean {
+  return process.env.VITE_FITPAL_ENV === 'dev' && process.env.CONTEXT !== 'production'
+}
+
+export function airtableStoreId(base: number): number {
+  return isDevAirtableTarget() ? DEV_STORE_ID_OFFSET + base : base
+}
+
 export function getAirtablePat(): string {
   const pat = process.env.AIRTABLE_PAT
   if (!pat) throw new Error('AIRTABLE_PAT not set')

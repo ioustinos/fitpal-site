@@ -7,6 +7,8 @@ import { useMenuStore } from '../../store/useMenuStore'
 import { DayOrderGroup } from '../shared/DayOrderGroup'
 import { CartDietWarning } from '../cart/CartDietWarning'
 import { useVoucherWidget } from '../cart/useVoucherWidget'
+import { usePartnerDiscount, voucherShownEuros } from '../../lib/partner/usePartnerLink'
+import { PartnerDiscountRow } from '../partner/PartnerDiscountRow'
 import { useCompanyBenefit } from '../../lib/storefront/useCompanyBenefit'
 
 interface OrderSummaryProps {
@@ -51,6 +53,8 @@ export function OrderSummary({ contactEmail = '', contactPhone = '', contactRead
   const total = subTotal(cart, voucher, catLookup)
   // WEC-713: the employer's per-day contribution. Zero on retail.
   const benefit = useCompanyBenefit()
+  // WEC-845: dietitian-client discount (stacks with vouchers).
+  const partnerDisc = usePartnerDiscount(rawTotal, total)
 
   if (!dates.length) {
     return (
@@ -122,7 +126,7 @@ export function OrderSummary({ contactEmail = '', contactPhone = '', contactRead
                 >✕</span>
               </span>
               <span style={{ fontSize: 13, fontWeight: 900, color: 'var(--green)' }}>
-                −{fmt(rawTotal - total)}
+                {partnerDisc.voucherDropped > 0 ? (lang === 'el' ? 'δεν εφαρμόζεται' : 'not applied') : <>−{fmt(voucherShownEuros(rawTotal, total, benefit.total, partnerDisc.amount))}</>}
               </span>
             </div>
             {/* WEC-217: single-voucher policy hint (matches CartSidebar). */}
@@ -170,10 +174,12 @@ export function OrderSummary({ contactEmail = '', contactPhone = '', contactRead
           </div>
         )}
 
+        <PartnerDiscountRow lang={lang} pct={partnerDisc.pct} amount={partnerDisc.amount} partnerName={partnerDisc.partnerName} superseded={partnerDisc.superseded} voucherDropped={partnerDisc.voucherDropped} />
+
         {/* Total */}
         <div className="cart-total-row">
           <span className="cart-total-lbl">{t('total')}</span>
-          <span className="cart-total-amt">{fmt(Math.max(0, total - benefit.total))}</span>
+          <span className="cart-total-amt">{fmt(Math.max(0, total + partnerDisc.voucherDropped - benefit.total - partnerDisc.amount))}</span>
         </div>
 
         {/* Back to menu */}

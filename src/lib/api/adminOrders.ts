@@ -140,6 +140,9 @@ export interface AdminOrder {
   /** WEC-803: admin-added manual discount in cents (part of discountAmount). */
   manualDiscount: number
   manualDiscountNote: string | null
+  /** WEC-845: dietitian-partner discount in cents (NOT part of discountAmount). */
+  partnerDiscount: number
+  partnerDiscountBps: number | null
   total: number
   /** WEC-814: the total at submit — what the customer agreed to pay. Null only
    *  on old rows the backfill could not reconstruct from the audit log. */
@@ -538,6 +541,7 @@ function mapOrderRow(r: unknown, childOrders: AdminChildOrder[], voucherUses: Ad
     customer_name: string | null; customer_email: string | null; customer_phone: string | null;
     subtotal: number; discount_amount: number | null; total: number; refund_amount: number | null;
     manual_discount: number | null; manual_discount_note: string | null;
+    partner_discount_amount?: number | null; partner_discount_bps?: number | null;
     original_total: number | null; price_changed: boolean | null; freebie: boolean | null;
     price_review_at: string | null; price_review_by: string | null; price_review_note: string | null;
     payment_method: PaymentMethod | null; payment_status: PaymentStatus | null; status: OrderStatus | null;
@@ -552,6 +556,7 @@ function mapOrderRow(r: unknown, childOrders: AdminChildOrder[], voucherUses: Ad
     customerName: row.customer_name ?? '', customerEmail: row.customer_email ?? '', customerPhone: row.customer_phone ?? '',
     subtotal: row.subtotal, discountAmount: row.discount_amount ?? 0, total: row.total,
     manualDiscount: row.manual_discount ?? 0, manualDiscountNote: row.manual_discount_note ?? null,
+    partnerDiscount: row.partner_discount_amount ?? 0, partnerDiscountBps: row.partner_discount_bps ?? null,
     // WEC-814. priceChanged is DB-generated; default false rather than deriving
     // it here, so the UI can never show a flag the database disagrees with.
     originalTotal: row.original_total ?? null,
