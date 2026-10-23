@@ -76,7 +76,7 @@ export function Finance() {
       <div className="admin-page-head">
         <div>
           <h1 className="admin-page-title">Οικονομικά</h1>
-          <p className="admin-page-sub">Το commission υπολογίζεται στην αξία των πιάτων πριν από εκπτώσεις και κουπόνια, και μόνο όταν πληρωθεί η παραγγελία. Οι παραγγελίες από πορτοφόλι δεν έχουν commission — υπολογίστηκε στην αγορά του πλάνου.</p>
+          <p className="admin-page-sub">Το commission υπολογίζεται στην αξία των πιάτων πριν από εκπτώσεις και κουπόνια, και μόνο όταν πληρωθεί η παραγγελία.</p>
         </div>
         <div className="partner-actions">
           <input className="admin-input admin-input-tight" type="month" value={ym} disabled={all} onChange={(e) => setYm(e.target.value)} />
@@ -90,7 +90,7 @@ export function Finance() {
       {err && <div className="admin-error-banner">{err}</div>}
       <div className="admin-stats-grid">
         <Stat title="Τζίρος" value={eur(tot.gross)} />
-        <Stat title="Commission" value={eur(tot.commission)} hint={`σε ${eur(tot.base)} πληρωμένα`} />
+        <Stat title="Commission" value={eur(tot.commission)} hint={`σε ${eur(tot.base)} αξία πιάτων (πληρωμένες)`} />
         <Stat title="Εξοφλημένο" value={eur(tot.paid)} />
         <Stat title="Οφειλόμενο" value={eur(tot.outstanding)} />
       </div>
@@ -111,7 +111,7 @@ export function Finance() {
           <h2 className="partner-h2">Κινήσεις</h2>
           <div className="admin-table-wrap">
             <table className="admin-table admin-table-compact">
-              <thead><tr><th>Ημ/νία</th><th>Πελάτης</th><th>Αναφορά</th><th>Ποσό</th><th>Πληρώθηκε</th><th>%</th><th>Commission</th><th>Κατάσταση</th></tr></thead>
+              <thead><tr><th>Ημ/νία</th><th>Πελάτης</th><th>Αναφορά</th><th>Ποσό</th><th>Βάση commission</th><th>%</th><th>Commission</th><th>Κατάσταση</th></tr></thead>
               <tbody>
                 {lines.length === 0 && <tr><td colSpan={8} className="admin-table-empty">Καμία κίνηση.</td></tr>}
                 {lines.map((l) => (
