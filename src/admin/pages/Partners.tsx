@@ -100,7 +100,7 @@ function PartnerEditor({ partner, onChanged }: { partner: AdminPartner; onChange
         <button className={`admin-tab${tab === 'details' ? ' active' : ''}`} onClick={() => setTab('details')}>Details & add-ons</button>
       </div>
       <button className="admin-btn-secondary admin-btn-sm" style={{ marginLeft: 10 }}
-        onClick={() => { try { sessionStorage.setItem('fitpal_partner_view_as', partner.id) } catch { /* ignore */ } window.location.href = '/partner' }}>
+        onClick={() => { window.open(`/partner?view_as=${encodeURIComponent(partner.id)}`, '_blank') }}>
         Open portal as {partner.name} →
       </button>
       {tab === 'details' && <PartnerForm partner={partner} onSaved={() => onChanged()} />}
@@ -127,6 +127,7 @@ function PartnerForm({ partner, onSaved, onCancel }: { partner: AdminPartner | n
     phone: partner?.phone ?? '', iban: partner?.iban ?? '',
     envelope: String((partner?.envelope_bps ?? 1200) / 100),
     discount: String((partner?.default_discount_bps ?? 0) / 100),
+    min_order: String((partner?.min_order_cents ?? 900) / 100),
     is_internal: partner?.is_internal ?? false, active: partner?.active ?? true,
     progress_tracking: !!partner?.features?.progress_tracking, referral: !!partner?.features?.referral,
     notifications: !!partner?.features?.notifications,
@@ -149,10 +150,12 @@ function PartnerForm({ partner, onSaved, onCancel }: { partner: AdminPartner | n
     if (env < 0 || env > 5000) { setBusy(false); setMsg('✗ Total % must be between 0 and 50'); return }
     if (disc < 0 || disc > env) { setBusy(false); setMsg(`✗ Default client discount must be between 0 and ${env / 100}%`); return }
     const comm = f.is_internal ? 0 : env - disc
+    const minOrder = Math.round(Number(f.min_order.replace(',', '.')) * 100)
+    if (Number.isNaN(minOrder) || minOrder < 0 || minOrder > 100000) { setBusy(false); setMsg('✗ Minimum order must be a valid amount in €'); return }
     const { data, error } = await savePartner({
       id: partner?.id, name: f.name.trim(), legal_name: f.legal_name || null, vat_number: f.vat_number || null,
       tax_office: f.tax_office || null, address: f.address || null, email: f.email || null, phone: f.phone || null,
-      iban: f.iban || null, envelope_bps: env, default_commission_bps: comm, default_discount_bps: disc, is_internal: f.is_internal,
+      iban: f.iban || null, envelope_bps: env, default_commission_bps: comm, default_discount_bps: disc, min_order_cents: minOrder, is_internal: f.is_internal,
       active: f.active, features: { progress_tracking: f.progress_tracking, referral: f.referral, notifications: f.notifications },
       referral_code: f.referral_code.trim() || null, agreement_date: f.agreement_date || null, notes: f.notes || null,
     })
@@ -198,6 +201,7 @@ function PartnerForm({ partner, onSaved, onCancel }: { partner: AdminPartner | n
         {input('address', 'Address')}
         {input('envelope', 'Total % for this dietitian (default 12)')}
         {input('discount', 'Default client discount % (the rest is commission)')}
+        {input('min_order', 'Minimum order per day for these clients, € (default 9)')}
         {input('agreement_date', 'Agreement date', 'date')}
         {input('referral_code', 'Referral code (for /ref/<code>)')}
       </div>
@@ -248,7 +252,7 @@ function PartnerForm({ partner, onSaved, onCancel }: { partner: AdminPartner | n
 
 function ClientsTab({ partner, onChanged }: { partner: AdminPartner; onChanged: () => void }) {
   const [rows, setRows] = useState<AdminPartnerClient[]>([])
-  const [showInactive, setShowInactive] = useState(false)
+  const [showInactive, setShowInactive] = useState(true)
   const [linkEmail, setLinkEmail] = useState('')
   const [msg, setMsg] = useState<string | null>(null)
   async function load() { setRows((await fetchPartnerClients(partner.id)).data) }
@@ -264,7 +268,7 @@ function ClientsTab({ partner, onChanged }: { partner: AdminPartner; onChanged: 
           setMsg(error ? `✗ ${error}` : '✓ Linked'); if (!error) { setLinkEmail(''); void load(); onChanged() }
         }}>Link</button>
         <label className="admin-text-muted" style={{ display: 'flex', gap: 6, alignItems: 'center', marginLeft: 'auto' }}>
-          <input type="checkbox" checked={showInactive} onChange={(e) => setShowInactive(e.target.checked)} /> show ended links
+          <input type="checkbox" checked={showInactive} onChange={(e) => setShowInactive(e.target.checked)} /> show inactive
         </label>
       </div>
       {msg && <Msg text={msg} />}
@@ -307,8 +311,16 @@ function ClientTermsRow({ r, envelopeBps, onSaved }: { r: AdminPartnerClient; en
     <tr className={r.status === 'inactive' ? 'partner-cancelled' : ''}>
       <td><div style={{ fontWeight: 700 }}>{r.name ?? '—'}</div><div className="admin-text-muted" style={{ fontSize: 12 }}>{r.email}</div></td>
       <td>
-        {r.status === 'active' && <span className="admin-pill-paid">active</span>}
-        {r.status === 'inactive' && <span className="admin-pill-refunded">ended</span>}
+        {/* 23/10 (Slack): a toggle instead of «End». Inactive = no discount,
+            no commission on future orders; switch back on any time. */}
+        {r.status !== 'pending' && (
+          <label className="partner-toggle" title={r.status === 'active' ? 'Active — click to deactivate' : 'Inactive — click to activate'}
+                 style={{ display: 'inline-flex', alignItems: 'center', gap: 6, cursor: busy ? 'wait' : 'pointer' }}>
+            <input type="checkbox" role="switch" checked={r.status === 'active'} disabled={busy}
+                   onChange={(e) => void save({ status: e.target.checked ? 'active' : 'inactive' })} />
+            <span className={r.status === 'active' ? 'admin-pill-paid' : 'admin-pill-refunded'}>{r.status === 'active' ? 'active' : 'inactive'}</span>
+          </label>
+        )}
         {r.status === 'pending' && (
           <span className="admin-pill-pending">
             pending · {r.client_confirmed_at ? 'client ✓' : 'client ✗'} · {r.approved_at ? 'Fitpal ✓' : 'Fitpal ✗'}
@@ -327,8 +339,8 @@ function ClientTermsRow({ r, envelopeBps, onSaved }: { r: AdminPartnerClient; en
         {r.status === 'pending' && !r.approved_at && (
           <button className="admin-btn-secondary admin-btn-sm" disabled={busy} onClick={async () => { await approveLink(r.id); onSaved() }}>Approve</button>
         )}
-        {r.status !== 'inactive' && (
-          <button className="admin-btn-ghost admin-btn-sm" disabled={busy} onClick={() => { if (window.confirm('End this link? Future orders get no discount/commission.')) void save({ status: 'inactive' }) }}>End</button>
+        {r.status === 'pending' && (
+          <button className="admin-btn-ghost admin-btn-sm" disabled={busy} onClick={() => void save({ status: 'inactive' })}>Reject</button>
         )}
       </td>
     </tr>

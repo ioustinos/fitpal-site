@@ -14,12 +14,15 @@
 import { useEffect } from 'react'
 import { create } from 'zustand'
 import { supabase } from '../supabase'
+import { useStorefront } from '../storefront/StoreProvider'
 
 export interface PartnerLink {
   id: string
   partnerName: string
   status: 'active' | 'pending'
   discountBps: number
+  /** WEC-877: the dietitian's minimum per day (cents) while the link is active; null otherwise. */
+  minOrderCents?: number | null
   needsConfirm: boolean
   needsConsent: boolean
   awaitingFitpal: boolean
@@ -132,4 +135,16 @@ export function voucherShownEuros(rawTotal: number, totalAfterVoucher: number, b
   const voucher = Math.max(0, rawTotal - totalAfterVoucher)
   const room = Math.max(0, rawTotal - benefitTotal - partnerAmount)
   return Math.round(Math.min(voucher, room) * 100) / 100
+}
+
+/**
+ * WEC-877 — the minimum order per day (euros) for the signed-in customer:
+ * their dietitian's minimum when they have an active dietitian link
+ * (🟢 «από 15 σε 9»), otherwise the store setting. submit-order applies the same rule.
+ */
+export function useEffectiveMinOrder(storeMinOrderEuros: number): number {
+  const link = usePartnerLink()
+  const store = useStorefront()
+  if (store.type === 'main' && link && link.status === 'active' && typeof link.minOrderCents === 'number') return link.minOrderCents / 100
+  return storeMinOrderEuros
 }

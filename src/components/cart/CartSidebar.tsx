@@ -7,7 +7,7 @@ import { makeTr } from '../../lib/translations'
 import { subTotal, activeDays, dayAmt, fmt } from '../../lib/helpers'
 import { useMenuStore } from '../../store/useMenuStore'
 import { useCompanyBenefit } from '../../lib/storefront/useCompanyBenefit'
-import { usePartnerDiscount, voucherShownEuros } from '../../lib/partner/usePartnerLink'
+import { usePartnerDiscount, voucherShownEuros, useEffectiveMinOrder } from '../../lib/partner/usePartnerLink'
 import { PartnerDiscountRow } from '../partner/PartnerDiscountRow'
 
 export function CartSidebar() {
@@ -18,7 +18,7 @@ export function CartSidebar() {
   const t = makeTr(lang)
 
   const weeks = useMenuStore((s) => s.weeks)
-  const minOrder = useMenuStore((s) => s.settings.minOrder)
+  const minOrder = useEffectiveMinOrder(useMenuStore((s) => s.settings.minOrder)) // WEC-877: dietitian clients' own minimum
   const dishMap = useMenuStore((s) => s.dishMap)
   // WEC-262: scoped vouchers need the dish→category lookup to compute
   // the correct eligible-only discount client-side.

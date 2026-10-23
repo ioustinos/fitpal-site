@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useMemo } from 'react'
+import { useEffectiveMinOrder } from '../lib/partner/usePartnerLink'
 import { toE164 } from '../lib/phoneNormalize'
 import { useUIStore } from '../store/useUIStore'
 import { useCartStore } from '../store/useCartStore'
@@ -146,7 +147,7 @@ export function CheckoutPage() {
   // WEC-525: needed to validate that a selected slot is actually offered by
   // the day's resolved zone (and to gate the prefs slot-prefill on the same).
   const timeSlots = useMenuStore((s) => s.timeSlots)
-  const minOrder = useMenuStore((s) => s.settings.minOrder)
+  const minOrder = useEffectiveMinOrder(useMenuStore((s) => s.settings.minOrder)) // WEC-877: dietitian clients' own minimum
   const pickupLocations = useMenuStore((s) => s.settings.pickupLocations)
 
   const [confirmed, setConfirmed] = useState(false)

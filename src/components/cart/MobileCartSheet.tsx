@@ -7,7 +7,7 @@ import { VoucherInput } from './VoucherInput'
 import { CartDietWarning } from './CartDietWarning'
 import { makeTr } from '../../lib/translations'
 import { subTotal, activeDays, dayAmt, fmt, totalCount } from '../../lib/helpers'
-import { usePartnerDiscount, voucherShownEuros } from '../../lib/partner/usePartnerLink'
+import { usePartnerDiscount, voucherShownEuros, useEffectiveMinOrder } from '../../lib/partner/usePartnerLink'
 import { PartnerDiscountRow } from '../partner/PartnerDiscountRow'
 
 /**
@@ -55,7 +55,7 @@ export function MobileCartSheet({ mode = 'menu' }: Props) {
   const t = makeTr(lang)
 
   const weeks = useMenuStore((s) => s.weeks)
-  const minOrder = useMenuStore((s) => s.settings.minOrder)
+  const minOrder = useEffectiveMinOrder(useMenuStore((s) => s.settings.minOrder)) // WEC-877: dietitian clients' own minimum
   const dishMap = useMenuStore((s) => s.dishMap)
   const catLookup = (id: string) => dishMap[id]?.catId
 

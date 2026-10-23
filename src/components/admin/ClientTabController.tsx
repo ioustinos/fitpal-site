@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useImpersonationStore, type LockReason } from '../../store/useImpersonationStore'
 import { useUIStore } from '../../store/useUIStore'
+import { useAuthStore } from '../../store/useAuthStore'
 import { supabase } from '../../lib/supabase'
 import {
   IS_CLIENT_TAB, CLIENT_TAB_READY, CLIENT_TAB_HANDOFF, closeClientTab, type ClientTabHandoff,
@@ -59,8 +60,18 @@ function ClientTabControllerInner() {
       if (!res.ok) return
       // Clean URL, then land where the operator asked.
       window.history.replaceState(null, '', '/')
-      if (h.where === 'account') useUIStore.getState().goToAccount('profile')
-      else if (h.where === 'plan') useUIStore.getState().goToWalletPage()
+      // 23/10 fix: the account page sends a signed-out visitor back to the
+      // menu, and right after the handoff the customer's profile is still
+      // loading — so «Λογαριασμός πελάτη» landed on the menu. Wait until the
+      // customer is actually loaded (max 15 s) before opening the page.
+      const land = () => {
+        if (h.where === 'account') useUIStore.getState().goToAccount('profile')
+        else if (h.where === 'plan') useUIStore.getState().goToWalletPage()
+      }
+      if (h.where !== 'account' && h.where !== 'plan') return
+      if (useAuthStore.getState().user) { land(); return }
+      const stop = useAuthStore.subscribe((s) => { if (s.user) { stop(); window.clearTimeout(t); land() } })
+      const t = window.setTimeout(() => { stop(); land() }, 15_000)
     }
     window.addEventListener('message', onMsg)
     announce()

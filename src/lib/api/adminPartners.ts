@@ -19,6 +19,8 @@ export interface AdminPartner {
   default_discount_bps: number
   /** WEC-870: the total % Fitpal gives this dietitian; commission = envelope − client discount (DB-enforced). */
   envelope_bps: number
+  /** WEC-877: minimum order per day (cents) for this dietitian's active clients; replaces the retail minimum. */
+  min_order_cents: number
   is_internal: boolean
   active: boolean
   features: { progress_tracking?: boolean; referral?: boolean; notifications?: boolean }
@@ -124,7 +126,12 @@ export async function fetchPartnerClients(partnerId: string) {
 
 /** WEC-870: the client discount; commission is derived (envelope − discount) by a DB trigger. History is kept by a DB trigger. */
 export async function updateClientTerms(linkId: string, patch: { discount_bps?: number; status?: string }) {
-  const { error } = await supabase.from('partner_clients').update(patch).eq('id', linkId)
+  // Switching a link back on = Fitpal approves it (also covers a link that was
+  // rejected while pending).
+  const row: Record<string, unknown> = { ...patch }
+  if (patch.status === 'active') row.approved_at = new Date().toISOString()
+  const { error } = await supabase.from('partner_clients').update(row).eq('id', linkId)
+  if (error?.code === '23505') return { error: 'Ο πελάτης έχει ήδη ενεργή σύνδεση με άλλον διαιτολόγο — απενεργοποιήστε εκείνη πρώτα.' }
   return { error: m(error) }
 }
 

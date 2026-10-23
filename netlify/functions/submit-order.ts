@@ -777,6 +777,31 @@ export default async (request: Request) => {
 
     const cutoffCfg = parseCutoffSettings(effectiveSettingRows)
 
+    // ── WEC-877: dietitian clients have their own minimum per day ─────────
+    // (🟢 «Minimum από 15 σε 9 — για τους dietitians θα ορίσουμε άλλο»). A
+    // customer with an ACTIVE link to an active dietitian uses that
+    // dietitian's minimum (partners.min_order_cents, default 9 €) instead of
+    // the retail one. Retail store only. Fail-closed to the retail minimum.
+    if (userId && isMainStore && SUPABASE_SERVICE_KEY) {
+      try {
+        const svcMin = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY, {
+          auth: { persistSession: false, autoRefreshToken: false },
+        })
+        const { data: ml } = await svcMin
+          .from('partner_clients')
+          .select('partners!inner(active, min_order_cents)')
+          .eq('client_user_id', userId)
+          .eq('status', 'active')
+          .maybeSingle()
+        type MinP = { active: boolean; min_order_cents: number }
+        const raw = (ml as unknown as { partners: MinP | MinP[] } | null)?.partners
+        const mp = Array.isArray(raw) ? raw[0] : raw
+        if (mp?.active && typeof mp.min_order_cents === 'number') cutoffCfg.minOrderCents = mp.min_order_cents
+      } catch (e) {
+        console.error('[submit-order] WEC-877 dietitian minimum lookup failed — retail minimum applies:', e)
+      }
+    }
+
     // ── WEC-177 + WEC-255: server-side enabled-methods guard ────────────
     // Client UI already filters by this, but never trust it. Accepts both
     // the legacy array shape and the new {method: {public, admin}} object.

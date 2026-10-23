@@ -32,7 +32,20 @@ export default function PartnerApp() {
   const [state, setState] = useState<'loading' | 'ok' | 'none' | 'error'>('loading')
   const [err, setErr] = useState<string | null>(null)
   // Admins: view the portal AS any partner (x-partner-view header, admin-only on the DB side).
-  const [viewAs, setViewAsState] = useState<string | null>(getViewAs())
+  // 23/10: admin's «Open portal as …» opens a NEW tab with ?view_as=<id>
+  // (sessionStorage is per tab, so the choice travels in the URL once).
+  const [viewAs, setViewAsState] = useState<string | null>(() => {
+    try {
+      const u = new URL(window.location.href)
+      const q = u.searchParams.get('view_as')
+      if (q) {
+        setViewAs(q)
+        u.searchParams.delete('view_as')
+        window.history.replaceState(null, '', u.pathname + (u.search ? u.search : '') + u.hash)
+      }
+    } catch { /* ignore */ }
+    return getViewAs()
+  })
   const [allPartners, setAllPartners] = useState<Array<{ id: string; name: string; is_internal: boolean; active: boolean }>>([])
   const isAdmin = !!user?.isAdmin
   useEffect(() => {
@@ -144,6 +157,8 @@ export default function PartnerApp() {
               <span className="admin-role-badge">{partner.is_internal ? 'Fitpal' : partner.name}</span>
             )}
             <span className="admin-user-email">{user.email}</span>
+            {/* 23/10 (Slack): a way back to the admin view for admins. */}
+            {isAdmin && <button className="admin-topbar-link" onClick={() => navigate('/admin/partners')}>← Admin</button>}
             <button className="admin-topbar-link" onClick={() => navigate('/')}>Site</button>
             <button className="admin-logout" onClick={async () => { await useAuthStore.getState().logout(); navigate('/partner') }}>Αποσύνδεση</button>
           </div>
