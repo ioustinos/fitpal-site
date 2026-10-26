@@ -1,12 +1,15 @@
 /* WEC-841 — dietitian portal. Builds on admin.css tokens (--a-*). */
 .partner-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(380px, 100%), 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(480px, 100%), 1fr));
   gap: 16px;
   margin: 14px 0 24px;
 }
 @media (max-width: 720px) { .partner-grid { grid-template-columns: 1fr; } }
 .partner-card { margin: 0; }
+/* 26/10: the portal reads as a document, not a dashboard — cap the width so
+   cards are roomy (max 2 per row) instead of thin strips across a wide screen. */
+.partner-shell .admin-main > * { max-width: 1180px; margin-left: auto; margin-right: auto; }
 .partner-h2 { font-size: 16px; font-weight: 800; margin: 22px 0 10px; }
 .partner-actions { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
 .partner-form-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
