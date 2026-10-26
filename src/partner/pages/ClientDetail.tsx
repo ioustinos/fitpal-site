@@ -20,10 +20,10 @@ const MEALS: Array<{ key: MealKey; label: string }> = [
   { key: 'snack', label: 'Σνακ' },
 ]
 const MACROS = [
-  { key: 'kcal', label: 'Θερμίδες', unit: 'kcal' },
-  { key: 'protein', label: 'Πρωτεΐνη', unit: 'g' },
-  { key: 'carbs', label: 'Υδατάνθρακες', unit: 'g' },
-  { key: 'fat', label: 'Λιπαρά', unit: 'g' },
+  { key: 'kcal', label: 'Θερμίδες', short: 'Θερμ.', unit: 'kcal' },
+  { key: 'protein', label: 'Πρωτεΐνη', short: 'Πρωτ.', unit: 'g' },
+  { key: 'carbs', label: 'Υδατάνθρακες', short: 'Υδατ.', unit: 'g' },
+  { key: 'fat', label: 'Λιπαρά', short: 'Λιπ.', unit: 'g' },
 ] as const
 type MacroKey = typeof MACROS[number]['key']
 
@@ -291,7 +291,7 @@ function TargetsCard({ d, userId, onSaved }: { d: ClientDetail; userId: string; 
             onClick={() => setDaily((x) => ({ ...x, kcal: String(d.plan!.dailyKcal) }))}>Θερμίδες από το πλάνο ({d.plan.dailyKcal})</button> : null}>
       <table className="admin-table admin-table-compact partner-targets">
         <thead>
-          <tr><th></th>{MACROS.map((m) => <th key={m.key}>{m.label}<br /><span className="admin-text-muted">({m.unit})</span></th>)}</tr>
+          <tr><th></th>{MACROS.map((m) => <th key={m.key}><span className="pt-long">{m.label}</span><span className="pt-short">{m.short}</span><br /><span className="admin-text-muted">({m.unit})</span></th>)}</tr>
         </thead>
         <tbody>
           <tr className="partner-targets-daily">
@@ -311,7 +311,7 @@ function TargetsCard({ d, userId, onSaved }: { d: ClientDetail; userId: string; 
             </tr>
           ))}
           <tr>
-            <td className="admin-text-muted">Σύνολο γευμάτων</td>
+            <td className="admin-text-muted">Σύνολο</td>
             {MACROS.map((m) => {
               const sum = mealSum(m.key); const target = Number(daily[m.key]) || 0
               const off = target > 0 && sum > 0 && Math.abs(sum - target) / target > 0.05
