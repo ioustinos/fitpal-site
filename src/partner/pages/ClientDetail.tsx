@@ -389,21 +389,31 @@ function ProgressCard({ d, userId, onSaved }: { d: ClientDetail; userId: string;
     <Card title="Πρόοδος & μετρήσεις">
       <WeightChart points={ms.filter((m) => m.weightKg != null).map((m) => ({ x: m.measuredOn, y: Number(m.weightKg) }))} />
       {ms.length > 0 && (
-        <table className="admin-table admin-table-compact" style={{ marginTop: 8 }}>
-          <thead><tr><th>Ημ/νία</th><th>Βάρος</th><th>Λίπος %</th><th>Μέση</th><th>Σημ.</th></tr></thead>
-          <tbody>
-            {[...ms].reverse().map((m) => (
-              <tr key={m.id}><td>{fmtDate(m.measuredOn)}</td><td>{m.weightKg ?? '—'}</td><td>{m.bodyFatPct ?? '—'}</td><td>{m.waistCm ?? '—'}</td><td>{m.notes ?? ''}</td></tr>
-            ))}
-          </tbody>
-        </table>
+        <div className="partner-ms-list">
+          {[...ms].reverse().map((m) => (
+            <div key={m.id} className="partner-ms">
+              <div className="partner-ms-date">{fmtDate(m.measuredOn)}</div>
+              <div className="partner-ms-vals">
+                <span><em>Βάρος</em> {m.weightKg != null ? `${m.weightKg} kg` : '—'}</span>
+                <span><em>Λίπος</em> {m.bodyFatPct != null ? `${m.bodyFatPct}%` : '—'}</span>
+                <span><em>Μέση</em> {m.waistCm != null ? `${m.waistCm} cm` : '—'}</span>
+              </div>
+              {m.notes && <div className="partner-ms-notes">{m.notes}</div>}
+            </div>
+          ))}
+        </div>
       )}
-      <div className="partner-form-5" style={{ marginTop: 10 }}>
-        <Field label="Ημ/νία" value={f.measuredOn} onChange={upd('measuredOn')} type="date" />
-        <Field label="Βάρος (kg)" value={f.weightKg} onChange={upd('weightKg')} type="number" />
-        <Field label="Λίπος (%)" value={f.bodyFatPct} onChange={upd('bodyFatPct')} type="number" />
-        <Field label="Μέση (cm)" value={f.waistCm} onChange={upd('waistCm')} type="number" />
-        <Field label="Σημείωση" value={f.notes} onChange={upd('notes')} />
+      <div className="partner-ms-form">
+        <div className="partner-ms-form-title">Νέα μέτρηση</div>
+        <div className="partner-ms-row-date">
+          <Field label="Ημερομηνία" value={f.measuredOn} onChange={upd('measuredOn')} type="date" />
+        </div>
+        <div className="partner-form-3">
+          <Field label="Βάρος (kg)" value={f.weightKg} onChange={upd('weightKg')} type="number" />
+          <Field label="Λίπος (%)" value={f.bodyFatPct} onChange={upd('bodyFatPct')} type="number" />
+          <Field label="Μέση (cm)" value={f.waistCm} onChange={upd('waistCm')} type="number" />
+        </div>
+        <Field label="Σημείωση" value={f.notes} onChange={upd('notes')} placeholder="π.χ. μετά από προπόνηση, νέο πρόγραμμα…" />
       </div>
       <div className="admin-form-actions">
         {msg && <span className="admin-text-muted">{msg}</span>}
