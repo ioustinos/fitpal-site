@@ -15,7 +15,15 @@
 @media (max-width: 720px) {
   .partner-form-2, .partner-form-3, .partner-form-5 { grid-template-columns: 1fr 1fr; }
 }
-.partner-targets input { width: 76px; }
+.partner-card-wide { grid-column: 1 / -1; }
+/* Targets table: always fits its card — no internal horizontal scroll. */
+.partner-targets { table-layout: fixed; width: 100%; }
+.partner-targets th:first-child, .partner-targets td:first-child { width: 112px; white-space: normal; }
+.partner-targets th, .partner-targets td { padding-left: 4px; padding-right: 4px; overflow-wrap: anywhere; }
+.partner-targets input { width: 100%; min-width: 0; max-width: 120px; box-sizing: border-box; padding-left: 8px; padding-right: 4px; -moz-appearance: textfield; }
+.partner-targets input::-webkit-outer-spin-button,
+.partner-targets input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+@media (max-width: 480px) { .partner-targets th:first-child, .partner-targets td:first-child { width: 84px; } }
 .partner-targets-daily td { background: var(--a-hover, #f6f7f9); }
 .partner-off { color: #b45309; font-weight: 700; }
 .partner-ok { color: #047857; }
