@@ -50,6 +50,7 @@
 .pt-sum > span.partner-off { color: #b45309; }
 .pt-actions { justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; }
 .pt-save { display: inline-flex; gap: 10px; align-items: center; }
+@container (max-width: 420px) { .pt-row { padding-left: 4px; padding-right: 4px; gap: 4px; } .pt-label { font-size: 12px; } }
 @container (min-width: 440px) { .pt { --pt-col: 72px; } }
 @container (min-width: 560px) { .pt { --pt-col: 96px; } .pt-long { display: inline; } .pt-short { display: none; } }
 .partner-off { color: #b45309; font-weight: 700; }
