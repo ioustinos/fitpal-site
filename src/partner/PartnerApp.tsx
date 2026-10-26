@@ -178,6 +178,10 @@ export default function PartnerApp() {
                 <span>Οικονομικά</span>
               </NavLink>
             )}
+            {/* WEC-881: static user guide, new tab */}
+            <a href="/partner-guide.html" target="_blank" rel="noopener" className="admin-nav-item">
+              <span>Οδηγός χρήσης ↗</span>
+            </a>
           </nav>
           <main className="admin-main">
             <Routes>
