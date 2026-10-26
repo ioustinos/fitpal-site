@@ -114,9 +114,9 @@ export function ClientDetailPage() {
   )
 }
 
-function Card({ title, children, right }: { title: string; children: React.ReactNode; right?: React.ReactNode }) {
+function Card({ title, children, right, wide }: { title: string; children: React.ReactNode; right?: React.ReactNode; wide?: boolean }) {
   return (
-    <section className="admin-setting-card partner-card">
+    <section className={'admin-setting-card partner-card' + (wide ? ' partner-card-wide' : '')}>
       <div className="admin-setting-head" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <strong>{title}</strong>{right}
       </div>
@@ -286,12 +286,12 @@ function TargetsCard({ d, userId, onSaved }: { d: ClientDetail; userId: string; 
   }
 
   return (
-    <Card title="Στόχοι (ίδιοι κάθε μέρα)"
+    <Card title="Στόχοι (ίδιοι κάθε μέρα)" wide
           right={d.plan?.dailyKcal ? <button className="admin-btn-ghost admin-btn-sm"
             onClick={() => setDaily((x) => ({ ...x, kcal: String(d.plan!.dailyKcal) }))}>Θερμίδες από το πλάνο ({d.plan.dailyKcal})</button> : null}>
       <table className="admin-table admin-table-compact partner-targets">
         <thead>
-          <tr><th></th>{MACROS.map((m) => <th key={m.key}>{m.label} <span className="admin-text-muted">({m.unit})</span></th>)}</tr>
+          <tr><th></th>{MACROS.map((m) => <th key={m.key}>{m.label}<br /><span className="admin-text-muted">({m.unit})</span></th>)}</tr>
         </thead>
         <tbody>
           <tr className="partner-targets-daily">
