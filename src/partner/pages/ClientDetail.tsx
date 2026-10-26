@@ -114,9 +114,9 @@ export function ClientDetailPage() {
   )
 }
 
-function Card({ title, children, right, wide }: { title: string; children: React.ReactNode; right?: React.ReactNode; wide?: boolean }) {
+function Card({ title, children, right }: { title: string; children: React.ReactNode; right?: React.ReactNode }) {
   return (
-    <section className={'admin-setting-card partner-card' + (wide ? ' partner-card-wide' : '')}>
+    <section className="admin-setting-card partner-card">
       <div className="admin-setting-head" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <strong>{title}</strong>{right}
       </div>
@@ -286,46 +286,55 @@ function TargetsCard({ d, userId, onSaved }: { d: ClientDetail; userId: string; 
   }
 
   return (
-    <Card title="Στόχοι (ίδιοι κάθε μέρα)" wide
-          right={d.plan?.dailyKcal ? <button className="admin-btn-ghost admin-btn-sm"
-            onClick={() => setDaily((x) => ({ ...x, kcal: String(d.plan!.dailyKcal) }))}>Θερμίδες από το πλάνο ({d.plan.dailyKcal})</button> : null}>
-      <table className="admin-table admin-table-compact partner-targets">
-        <thead>
-          <tr><th></th>{MACROS.map((m) => <th key={m.key}><span className="pt-long">{m.label}</span><span className="pt-short">{m.short}</span><br /><span className="admin-text-muted">({m.unit})</span></th>)}</tr>
-        </thead>
-        <tbody>
-          <tr className="partner-targets-daily">
-            <td><strong>Ημέρα</strong></td>
-            {MACROS.map((m) => (
-              <td key={m.key}><input className="admin-input admin-input-tight" type="number" value={daily[m.key]}
-                onChange={(e) => setDaily((x) => ({ ...x, [m.key]: e.target.value }))} /></td>
-            ))}
-          </tr>
-          {MEALS.map((meal) => (
-            <tr key={meal.key}>
-              <td>{meal.label}</td>
-              {MACROS.map((m) => (
-                <td key={m.key}><input className="admin-input admin-input-tight" type="number" value={meals[meal.key][m.key]}
-                  onChange={(e) => setMeals((x) => ({ ...x, [meal.key]: { ...x[meal.key], [m.key]: e.target.value } }))} /></td>
-              ))}
-            </tr>
+    <Card title="Στόχοι (ίδιοι κάθε μέρα)">
+      <div className="pt">
+        <div className="pt-row pt-head">
+          <span />
+          {MACROS.map((m) => (
+            <span key={m.key} className={`pt-h pt-${m.key}`} title={m.label}>
+              <b><span className="pt-long">{m.label}</span><span className="pt-short">{m.short}</span></b>
+              <small>{m.unit}</small>
+            </span>
           ))}
-          <tr>
-            <td className="admin-text-muted">Σύνολο</td>
-            {MACROS.map((m) => {
-              const sum = mealSum(m.key); const target = Number(daily[m.key]) || 0
-              const off = target > 0 && sum > 0 && Math.abs(sum - target) / target > 0.05
-              return <td key={m.key} className={off ? 'partner-off' : 'admin-text-muted'}>{sum || '—'}</td>
-            })}
-          </tr>
-        </tbody>
-      </table>
-      <p className="admin-text-muted" style={{ fontSize: 12 }}>
-        Η σύγκριση με τις παραγγελίες γίνεται ανά ημέρα. Οι στόχοι ανά γεύμα είναι οδηγός.
+        </div>
+        <div className="pt-row pt-day">
+          <span className="pt-label">Ημέρα</span>
+          {MACROS.map((m) => (
+            <input key={m.key} className="admin-input pt-in" type="number" inputMode="numeric" aria-label={`${m.label} ημέρας`}
+              value={daily[m.key]} onChange={(e) => setDaily((x) => ({ ...x, [m.key]: e.target.value }))} />
+          ))}
+        </div>
+        <div className="pt-caption">Ανά γεύμα <span>· προαιρετικό, ως οδηγός</span></div>
+        {MEALS.map((meal) => (
+          <div key={meal.key} className="pt-row">
+            <span className="pt-label">{meal.label}</span>
+            {MACROS.map((m) => (
+              <input key={m.key} className="admin-input pt-in" type="number" inputMode="numeric" aria-label={`${m.label} — ${meal.label}`}
+                value={meals[meal.key][m.key]} onChange={(e) => setMeals((x) => ({ ...x, [meal.key]: { ...x[meal.key], [m.key]: e.target.value } }))} />
+            ))}
+          </div>
+        ))}
+        <div className="pt-row pt-sum">
+          <span className="pt-label">Σύνολο γευμάτων</span>
+          {MACROS.map((m) => {
+            const sum = mealSum(m.key); const target = Number(daily[m.key]) || 0
+            const off = target > 0 && sum > 0 && Math.abs(sum - target) / target > 0.05
+            return <span key={m.key} className={off ? 'partner-off' : ''} title={off ? `Διαφέρει από τον στόχο ημέρας (${target})` : undefined}>{sum || '—'}</span>
+          })}
+        </div>
+      </div>
+      <p className="admin-text-muted" style={{ fontSize: 12, margin: '10px 0 0' }}>
+        Οι παραγγελίες συγκρίνονται με τον στόχο της ημέρας.
       </p>
-      <div className="admin-form-actions">
-        {msg && <span className="admin-text-muted">{msg}</span>}
-        <button className="admin-btn-primary" onClick={save} disabled={busy}>{busy ? 'Αποθήκευση…' : 'Αποθήκευση στόχων'}</button>
+      <div className="admin-form-actions pt-actions">
+        {d.plan?.dailyKcal ? (
+          <button className="admin-btn-ghost admin-btn-sm" onClick={() => setDaily((x) => ({ ...x, kcal: String(d.plan!.dailyKcal) }))}
+            title="Βάζει στις θερμίδες ημέρας την τιμή του πλάνου του πελάτη">Θερμίδες πλάνου: {d.plan.dailyKcal}</button>
+        ) : <span />}
+        <span className="pt-save">
+          {msg && <span className="admin-text-muted">{msg}</span>}
+          <button className="admin-btn-primary" onClick={save} disabled={busy}>{busy ? 'Αποθήκευση…' : 'Αποθήκευση στόχων'}</button>
+        </span>
       </div>
     </Card>
   )
