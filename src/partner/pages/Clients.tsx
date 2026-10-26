@@ -87,7 +87,7 @@ export function Clients() {
       {err && <div className="admin-error-banner">{err}</div>}
       {loading ? <div className="admin-loading">Φόρτωση…</div> : (
         <div className="admin-table-wrap">
-          <table className="admin-table">
+          <table className="admin-table partner-stack">
             <thead>
               <tr>
                 <th>Πελάτης</th>
@@ -109,15 +109,15 @@ export function Clients() {
                 return (
                   <tr key={r.userId} style={{ cursor: clickable ? 'pointer' : 'default' }}
                       onClick={() => clickable && navigate(`/partner/clients/${r.userId}`)}>
-                    <td>
+                    <td className="ps-full">
                       <div style={{ fontWeight: 700 }}>{r.name}</div>
                       <div className="admin-text-muted" style={{ fontSize: 12 }}>{r.email}{r.phone ? ` · ${r.phone}` : ''}</div>
                     </td>
-                    <td><StatusPill r={r} /></td>
-                    {!partner.is_internal && <td>{pct(r.discountBps)} / {pct(r.commissionBps)}</td>}
-                    <td>{fmtDate(r.lastOrderAt)}</td>
-                    <td>{r.walletBalance != null ? eur(r.walletBalance) : '—'}</td>
-                    <td>{fmtDate(r.planActiveUntil)}</td>
+                    <td className="ps-full" data-label="Κατάσταση"><StatusPill r={r} /></td>
+                    {!partner.is_internal && <td data-label="Έκπτωση / Commission">{pct(r.discountBps)} / {pct(r.commissionBps)}</td>}
+                    <td data-label="Τελ. παραγγελία">{fmtDate(r.lastOrderAt)}</td>
+                    <td data-label="Πορτοφόλι">{r.walletBalance != null ? eur(r.walletBalance) : '—'}</td>
+                    <td data-label="Πλάνο έως">{fmtDate(r.planActiveUntil)}</td>
                   </tr>
                 )
               })}

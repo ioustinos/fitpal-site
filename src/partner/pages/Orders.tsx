@@ -110,7 +110,7 @@ function OrderCard({ o, showClient }: { o: PartnerOrder; showClient: boolean }) 
           {' · '}{payLabel(o.paymentMethod)}
         </div>
       </div>
-      <table className="admin-table admin-table-compact">
+      <table className="admin-table admin-table-compact partner-days">
         <thead>
           <tr><th>Ημέρα</th><th>Παράδοση</th><th>kcal</th><th>P</th><th>C</th><th>F</th><th>€</th><th></th></tr>
         </thead>
@@ -127,39 +127,39 @@ function OrderCard({ o, showClient }: { o: PartnerOrder; showClient: boolean }) 
 function DayRow({ d, target, open, onToggle }: { d: OrderDay; target: PartnerOrder['target']; open: boolean; onToggle: () => void }) {
   const place = d.fulfillment === 'pickup' ? `Παραλαβή${d.pickupLocationId ? ` (${d.pickupLocationId})` : ''}` : [d.area, d.zip].filter(Boolean).join(' ')
   const special = SPECIAL.test(`${d.zoneName ?? ''} ${d.area ?? ''} ${d.street ?? ''} ${d.pickupLocationId ?? ''}`)
-  const cell = (v: number, t: number | null | undefined) => {
-    if (!t) return <td>{Math.round(v)}</td>
+  const cell = (v: number, t: number | null | undefined, label: string) => {
+    if (!t) return <td className="pd-m" data-label={label}>{Math.round(v)}</td>
     const diff = v - t
     const off = Math.abs(diff) / t > 0.1
-    return <td className={off ? 'partner-off' : 'partner-ok'} title={`στόχος ${t}`}>{Math.round(v)} <span className="partner-diff">{diff >= 0 ? '+' : ''}{Math.round(diff)}</span></td>
+    return <td className={'pd-m ' + (off ? 'partner-off' : 'partner-ok')} data-label={label} title={`στόχος ${t}`}>{Math.round(v)} <span className="partner-diff">{diff >= 0 ? '+' : ''}{Math.round(diff)}</span></td>
   }
   return (
     <>
       <tr className={d.cancelled ? 'partner-cancelled' : ''}>
-        <td>{dayLabel(d.date)}{d.cancelled ? ' · ακυρ.' : ''}</td>
-        <td>
+        <td className="pd-day">{dayLabel(d.date)}{d.cancelled ? ' · ακυρ.' : ''}</td>
+        <td className="pd-place">
           {place || '—'}{d.timeFrom ? ` · ${d.timeFrom.slice(0, 5)}–${(d.timeTo ?? '').slice(0, 5)}` : ''}
           {special && <span className="admin-pill-warn" style={{ marginLeft: 6 }}>{d.zoneName || 'Ειδική ζώνη'}</span>}
         </td>
-        {cell(d.totals.kcal, target?.kcal)}
-        {cell(d.totals.protein, target?.protein)}
-        {cell(d.totals.carbs, target?.carbs)}
-        {cell(d.totals.fat, target?.fat)}
-        <td style={{ whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' }}>{d.amount != null ? eur(d.amount) : ''}</td>
-        <td><button className="admin-btn-ghost admin-btn-sm" onClick={onToggle}>{open ? 'Κλείσιμο' : 'Πιάτα'}</button></td>
+        {cell(d.totals.kcal, target?.kcal, 'kcal')}
+        {cell(d.totals.protein, target?.protein, 'P')}
+        {cell(d.totals.carbs, target?.carbs, 'C')}
+        {cell(d.totals.fat, target?.fat, 'F')}
+        <td className="pd-amt" style={{ whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' }}>{d.amount != null ? eur(d.amount) : ''}</td>
+        <td className="pd-btn"><button className="admin-btn-ghost admin-btn-sm" onClick={onToggle}>{open ? 'Κλείσιμο' : 'Πιάτα'}</button></td>
       </tr>
       {open && (d.items ?? []).map((it, i) => (
         <tr key={i} className="partner-item-row">
-          <td></td>
-          <td>
+          <td className="pd-skip"></td>
+          <td className="pd-place">
             {/* WEC-869: dish name in bold, its description underneath. */}
             <div><strong>{it.qty}× {it.name}</strong>{it.variant ? <span className="admin-text-muted"> — {it.variant}</span> : null}</div>
             {it.desc && <div className="admin-text-muted" style={{ fontSize: 12, lineHeight: 1.4, marginTop: 2 }}>{it.desc}</div>}
             {it.comment ? <div><em className="admin-text-muted">«{it.comment}»</em></div> : null}
           </td>
-          <td>{(it.kcal ?? 0) * it.qty}</td><td>{(it.protein ?? 0) * it.qty}</td><td>{(it.carbs ?? 0) * it.qty}</td><td>{(it.fat ?? 0) * it.qty}</td>
-          <td style={{ whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' }}>{it.price != null ? eur(it.price) : ''}</td>
-          <td></td>
+          <td className="pd-m" data-label="kcal">{(it.kcal ?? 0) * it.qty}</td><td className="pd-m" data-label="P">{(it.protein ?? 0) * it.qty}</td><td className="pd-m" data-label="C">{(it.carbs ?? 0) * it.qty}</td><td className="pd-m" data-label="F">{(it.fat ?? 0) * it.qty}</td>
+          <td className="pd-amt" style={{ whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' }}>{it.price != null ? eur(it.price) : ''}</td>
+          <td className="pd-skip"></td>
         </tr>
       ))}
     </>
