@@ -42,3 +42,20 @@
 .partner-referral { display: flex; justify-content: space-between; gap: 12px; align-items: center; margin-bottom: 14px; flex-wrap: wrap; }
 .partner-referral-actions { display: flex; gap: 6px; }
 .partner-mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; margin-top: 4px; word-break: break-all; }
+
+/* Number inputs across the portal: no spinner arrows (they covered the typed value). */
+.partner-card input[type=number] { -moz-appearance: textfield; appearance: textfield; }
+.partner-card input[type=number]::-webkit-outer-spin-button,
+.partner-card input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+
+/* Measurements: one record = date header, values row, notes row. */
+.partner-ms-list { display: flex; flex-direction: column; gap: 8px; margin: 10px 0 14px; }
+.partner-ms { border: 1px solid var(--a-border, #e5e7eb); border-radius: 10px; overflow: hidden; }
+.partner-ms-date { background: var(--a-hover, #f6f7f9); padding: 6px 12px; font-weight: 700; font-size: 13px; }
+.partner-ms-vals { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; padding: 8px 12px; font-size: 14px; }
+.partner-ms-vals em { display: block; font-style: normal; font-size: 11px; color: var(--a-text-muted, #6b7280); }
+.partner-ms-notes { padding: 0 12px 8px; font-size: 13px; color: var(--a-text-muted, #6b7280); white-space: pre-wrap; }
+.partner-ms-form { display: flex; flex-direction: column; gap: 10px; border-top: 1px solid var(--a-border, #e5e7eb); padding-top: 12px; }
+.partner-ms-form-title { font-weight: 700; font-size: 13px; }
+.partner-ms-row-date { max-width: 220px; }
+.partner-ms-form .partner-form-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
