@@ -101,29 +101,29 @@ export function Finance() {
             <>
               <h2 className="partner-h2">Ανά πελάτη</h2>
               <div className="admin-table-wrap">
-                <table className="admin-table admin-table-compact">
+                <table className="admin-table admin-table-compact partner-stack">
                   <thead><tr><th>Πελάτης</th><th>Κινήσεις</th><th>Τζίρος</th><th>Commission</th></tr></thead>
-                  <tbody>{perClient.map((c) => <tr key={c.name}><td>{c.name}</td><td>{c.n}</td><td>{eur(c.gross)}</td><td>{eur(c.commission)}</td></tr>)}</tbody>
+                  <tbody>{perClient.map((c) => <tr key={c.name}><td className="ps-full"><strong>{c.name}</strong></td><td data-label="Κινήσεις">{c.n}</td><td data-label="Τζίρος">{eur(c.gross)}</td><td data-label="Commission">{eur(c.commission)}</td></tr>)}</tbody>
                 </table>
               </div>
             </>
           )}
           <h2 className="partner-h2">Κινήσεις</h2>
           <div className="admin-table-wrap">
-            <table className="admin-table admin-table-compact">
+            <table className="admin-table admin-table-compact partner-stack">
               <thead><tr><th>Ημ/νία</th><th>Πελάτης</th><th>Αναφορά</th><th>Ποσό</th><th>Βάση commission</th><th>%</th><th>Commission</th><th>Κατάσταση</th></tr></thead>
               <tbody>
                 {lines.length === 0 && <tr><td colSpan={8} className="admin-table-empty">Καμία κίνηση.</td></tr>}
                 {lines.map((l) => (
                   <tr key={l.source_type + l.source_id}>
-                    <td>{fmtDate(l.occurred_at)}</td>
-                    <td>{l.client_name}</td>
-                    <td>{l.ref}{l.source_type === 'wallet_plan' ? '' : l.payment_method === 'wallet' ? ' · πορτοφόλι' : ''}</td>
-                    <td>{eur(l.gross)}</td>
-                    <td>{eur(l.base)}</td>
-                    <td>{pct(l.rate_bps)}</td>
-                    <td>{eur(l.commission)}</td>
-                    <td>{l.commission === 0 ? <span className="admin-text-muted">—</span>
+                    <td data-label="Ημ/νία">{fmtDate(l.occurred_at)}</td>
+                    <td data-label="Πελάτης">{l.client_name}</td>
+                    <td data-label="Αναφορά">{l.ref}{l.source_type === 'wallet_plan' ? '' : l.payment_method === 'wallet' ? ' · πορτοφόλι' : ''}</td>
+                    <td data-label="Ποσό">{eur(l.gross)}</td>
+                    <td data-label="Βάση commission">{eur(l.base)}</td>
+                    <td data-label="%">{pct(l.rate_bps)}</td>
+                    <td data-label="Commission"><strong>{eur(l.commission)}</strong></td>
+                    <td data-label="Κατάσταση">{l.commission === 0 ? <span className="admin-text-muted">—</span>
                       : l.outstanding === 0 ? <span className="admin-pill-paid">Εξοφλήθηκε</span>
                       : l.outstanding < 0 ? <span className="admin-pill-warn">Επιστροφή {eur(-l.outstanding)}</span>
                       : <span className="admin-pill-pending">Οφείλεται</span>}</td>

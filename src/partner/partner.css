@@ -1,7 +1,7 @@
 /* WEC-841 — dietitian portal. Builds on admin.css tokens (--a-*). */
 .partner-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(380px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(380px, 100%), 1fr));
   gap: 16px;
   margin: 14px 0 24px;
 }
@@ -59,3 +59,66 @@
 .partner-ms-form-title { font-weight: 700; font-size: 13px; }
 .partner-ms-row-date { max-width: 220px; }
 .partner-ms-form .partner-form-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+
+/* ── Phones (Ioustinos 26/10: «make it work on mobile») ───────────────────── */
+@media (max-width: 760px) {
+  .partner-shell .admin-topbar { height: auto; flex-wrap: wrap; gap: 8px; padding: 8px 12px; }
+  .partner-shell .admin-topbar-right { flex-wrap: wrap; gap: 6px; justify-content: flex-end; flex: 1 1 auto; }
+  .partner-shell .admin-user-email { display: none; }
+  .partner-shell .admin-topbar-right .admin-select { order: 10; flex: 1 1 100%; min-width: 0; font-size: 13px; }
+  .partner-shell .admin-topbar-link, .partner-shell .admin-logout { padding: 5px 8px; font-size: 12px; }
+  .partner-shell .admin-logo-text { font-size: 14px; }
+
+  .partner-shell .admin-body { flex-direction: column; }
+  .partner-shell .admin-sidebar {
+    width: auto; flex-direction: row; gap: 4px; padding: 6px 8px;
+    border-right: 0; border-bottom: 1px solid var(--a-border);
+  }
+  .partner-shell .admin-nav-item { flex: 1 1 0; justify-content: center; padding: 8px 6px; font-size: 13px; }
+  .partner-shell .admin-main { padding: 16px 12px 32px; }
+
+  .partner-shell .admin-page-head { flex-direction: column; align-items: stretch; gap: 10px; }
+  .partner-shell .admin-page-title { font-size: 20px; }
+  .partner-shell .admin-page-actions { flex-wrap: wrap; }
+  .partner-shell .admin-page-actions > * { flex: 1 1 auto; }
+  .partner-shell .admin-toolbar input { max-width: none !important; width: 100%; }
+  .partner-shell .admin-table-wrap { overflow-x: visible; }
+  .partner-grid { grid-template-columns: minmax(0, 1fr); }
+  .partner-shell .admin-setting-head { flex-wrap: wrap; gap: 8px; }
+  .partner-week { min-width: 0; flex: 1 1 140px; }
+  .partner-range { flex-wrap: wrap; }
+
+  /* Lists become cards: one record per card, label above each value. */
+  .partner-stack thead { display: none; }
+  .partner-stack, .partner-stack tbody { display: block; }
+  .partner-stack tr {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 6px 12px;
+    padding: 12px; margin-bottom: 8px;
+    border: 1px solid var(--a-border, #e5e7eb); border-radius: 10px; background: var(--a-surface, #fff);
+  }
+  .partner-stack td { display: block; padding: 0 !important; border: 0 !important; min-width: 0; overflow-wrap: anywhere; }
+  .partner-stack td.ps-full, .partner-stack td.admin-table-empty { grid-column: 1 / -1; }
+  .partner-stack td[data-label]::before {
+    content: attr(data-label); display: block;
+    font-size: 11px; color: var(--a-text-muted, #6b7280); margin-bottom: 1px;
+  }
+
+  /* Order days: day + amount, then place, then the four macros, then the button. */
+  .partner-days thead { display: none; }
+  .partner-days, .partner-days tbody { display: block; }
+  .partner-days tr {
+    display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 4px 8px;
+    padding: 10px 0; border-bottom: 1px solid var(--a-border, #e5e7eb);
+  }
+  .partner-days td { display: block; padding: 0 !important; border: 0 !important; min-width: 0; }
+  .partner-days .pd-day { grid-column: 1 / 4; font-weight: 700; }
+  .partner-days .pd-amt { grid-column: 4; text-align: right; font-weight: 700; }
+  .partner-days .pd-place { grid-column: 1 / -1; overflow-wrap: anywhere; }
+  .partner-days .pd-m[data-label]::before { content: attr(data-label); display: block; font-size: 10px; color: var(--a-text-muted, #6b7280); }
+  .partner-days .pd-btn { grid-column: 1 / -1; }
+  .partner-days .pd-btn button { width: 100%; }
+  .partner-days .pd-skip { display: none; }
+  .partner-days .partner-item-row { padding-left: 10px; border-left: 3px solid var(--a-border, #e5e7eb); }
+  .partner-days .partner-item-row .pd-amt { grid-column: 1 / -1; text-align: left; font-weight: 400; }
+  .partner-order-head { flex-direction: column; gap: 4px; }
+}
