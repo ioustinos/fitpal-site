@@ -102,7 +102,7 @@
     width: auto; flex-direction: row; gap: 4px; padding: 6px 8px;
     border-right: 0; border-bottom: 1px solid var(--a-border);
   }
-  .partner-shell .admin-nav-item { flex: 1 1 0; justify-content: center; padding: 8px 6px; font-size: 13px; }
+  .partner-shell .admin-nav-item { flex: 1 1 auto; justify-content: center; padding: 8px 6px; font-size: 12px; white-space: nowrap; }
   .partner-shell .admin-main { padding: 16px 12px 32px; }
 
   .partner-shell .admin-page-head { flex-direction: column; align-items: stretch; gap: 10px; }
