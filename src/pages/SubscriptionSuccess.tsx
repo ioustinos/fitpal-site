@@ -128,6 +128,7 @@ export function SubscriptionSuccess() {
       {
         value: d.amountPaid,
         currency: 'EUR',
+        paymentMethod: d.paymentMethod, // WEC-887
         orderId: d.reference, // stable eventId → Pixel/CAPI dedup
         orderNumber: d.reference,
         contentName: `Subscription ${lengthLabel(d, false)}`.trim(),

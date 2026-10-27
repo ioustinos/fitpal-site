@@ -95,6 +95,7 @@ function metaParams(p: EventPayload) {
     content_name: p.contentName,
     content_type: p.contentIds?.length ? 'product' : undefined,
     num_items: p.numItems,
+    payment_method: p.paymentMethod, // WEC-887
   })
 }
 
@@ -106,6 +107,7 @@ function metaCustomData(p: EventPayload) {
     contentName: p.contentName,
     numItems: p.numItems,
     orderId: p.orderNumber || p.orderId,
+    payment_method: p.paymentMethod, // WEC-887
     contents: p.items?.map((i) => ({ id: i.dishId, quantity: i.quantity, item_price: i.price })),
   })
 }

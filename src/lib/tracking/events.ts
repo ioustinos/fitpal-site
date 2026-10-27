@@ -25,6 +25,13 @@ export const EVENT_MAP: Record<StandardEvent, EventRoute> = {
   // Michalis can optimise/report subscription conversions separately from
   // food-order Purchases in Ads Manager. Meta standard 'Subscribe' event.
   subscribe: { meta: 'Subscribe', ga4: 'subscribe', klaviyo: 'Subscribed Plan', server: true, always: true },
+  // WEC-887: wallet orders spend a pre-paid balance, so counting them as
+  // Purchase double-counts revenue already reported at Subscribe — 19.8% of
+  // October's reported turnover was this. Meta + GA4 get a distinct event so
+  // the revenue columns are clean without anyone having to remember a filter.
+  // Klaviyo deliberately keeps 'Placed Order': to the customer it IS an order,
+  // and the flows/audiences built on it must not change.
+  wallet_redemption: { meta: 'WalletRedemption', ga4: 'wallet_redemption', klaviyo: 'Placed Order', server: true, always: true },
   lead: { meta: 'Lead', ga4: 'generate_lead', klaviyo: 'Signed Up', server: true },
   complete_registration: { meta: 'CompleteRegistration', ga4: 'sign_up', klaviyo: 'Created Account' },
   schedule: { meta: 'Schedule', ga4: 'schedule', klaviyo: 'Selected Delivery Day' },

@@ -131,7 +131,7 @@ async function firePurchaseCapi(
   try {
     const { data: order } = await supabase
       .from('orders')
-      .select('order_number, total, customer_email, customer_phone, user_id')
+      .select('order_number, total, customer_email, customer_phone, user_id, payment_method')
       .eq('id', orderId)
       .maybeSingle()
     if (!order) return
@@ -147,6 +147,7 @@ async function firePurchaseCapi(
         currency: 'EUR',
         value: Math.round(order.total ?? amountCents) / 100,
         order_id: order.order_number,
+        payment_method: order.payment_method, // WEC-887
       },
     })
   } catch (e) {

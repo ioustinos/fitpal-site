@@ -910,11 +910,16 @@ export function CheckoutPage() {
       // it has already been converted. Do not re-divide.
       const cartValue = activeDates.reduce((sum, d) => sum + dayAmt(cart, d), 0)
       const value = typeof data?.total === 'number' ? data.total : cartValue
+      // WEC-887: a wallet order spends balance the customer already paid for,
+      // and that money was already reported to Meta as Subscribe when the plan
+      // was bought. Firing Purchase here counted the same euro twice — 19.8% of
+      // October's reported turnover. It now fires a distinct event instead.
       track(
-        'purchase',
+        payment.method === 'wallet' ? 'wallet_redemption' : 'purchase',
         {
           value: Math.round(value * 100) / 100,
           currency: 'EUR',
+          paymentMethod: payment.method,
           contentIds: Array.from(new Set(allItems.map((i) => i.dishId))),
           numItems: allItems.reduce((n, i) => n + (i.qty ?? 1), 0),
           orderId: data?.orderNumber, // stable dedup key

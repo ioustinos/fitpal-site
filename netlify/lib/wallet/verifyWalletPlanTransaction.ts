@@ -190,10 +190,13 @@ async function fireSubscribeCapi(
     let phone: string | undefined
     const { data: planRow } = await supabase
       .from('wallet_plans')
-      .select('wallet_id')
+      .select('wallet_id, payment_method')
       .eq('id', walletPlanId)
       .maybeSingle()
     const walletId = (planRow as { wallet_id?: string } | null)?.wallet_id
+    // WEC-887: reported to Meta so cash subscriptions (which may never actually
+    // be collected) can be told apart from card ones in reporting.
+    const planPaymentMethod = (planRow as { payment_method?: string } | null)?.payment_method
     if (walletId) {
       const { data: w } = await supabase
         .from('wallets')
@@ -227,6 +230,7 @@ async function fireSubscribeCapi(
         currency: 'EUR',
         value: Math.round(amountCents) / 100,
         order_id: planReference, // WEC-878: same identifier the Pixel reports
+        payment_method: planPaymentMethod, // WEC-887
         content_type: 'subscription',
       },
     })
