@@ -103,3 +103,24 @@ export async function deleteRecords(tableId: string, ids: string[]): Promise<num
   }
   return deleted
 }
+
+/**
+ * WEC-882: update existing records by id (no performUpsert, no create).
+ * Chunks to Airtable's 10-records/req limit. typecast:false — callers pass
+ * field IDs (or exact names) only. Returns the updated records.
+ */
+export async function updateRecords(
+  tableId: string,
+  records: Array<{ id: string; fields: Json }>,
+): Promise<Array<{ id: string; fields: Json }>> {
+  const out: Array<{ id: string; fields: Json }> = []
+  for (let i = 0; i < records.length; i += 10) {
+    const chunk = records.slice(i, i + 10)
+    const data = await atFetch(tableId, {
+      method: 'PATCH',
+      body: JSON.stringify({ records: chunk, typecast: false }),
+    })
+    out.push(...(data.records ?? []))
+  }
+  return out
+}
