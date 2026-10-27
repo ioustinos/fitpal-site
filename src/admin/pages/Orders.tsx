@@ -1731,6 +1731,9 @@ function DayCard({
     : '—'
   const addrLine = [child.addressStreet, child.addressZip, child.addressArea].filter(Boolean).join(', ') || '—'
   const daySubtotal = child.items.reduce((s, it) => s + it.unitPrice * it.quantity, 0)
+  // WEC-886: prefer the stored per-day cost (Σ order_items.total_price, maintained by
+  // DB trigger — reflects any admin price edits); fall back to the computed subtotal.
+  const dayCost = child.dayTotal || daySubtotal
   // WEC-488: per-day macro totals. Multiply by quantity — the per-item
   // calories/protein/carbs/fat snapshot is per-unit, taken from the
   // variant at order time, and we sum across the day's items.
@@ -1781,7 +1784,7 @@ function DayCard({
           <div className="admin-od-day-addr"><Ico name="pin" size={13} /> {addrLine}</div>
         </div>
         <span className="admin-od-timepill">{timeLabel}</span>
-        <span className="admin-od-day-count">{child.items.length} item{child.items.length === 1 ? '' : 's'} · {(daySubtotal / 100).toFixed(2)} €</span>
+        <span className="admin-od-day-count">{child.items.length} item{child.items.length === 1 ? '' : 's'} · {(dayCost / 100).toFixed(2)} €</span>
         {cancelled ? (
           <button className="admin-row-btn admin-od-restoreday" disabled={working} onClick={(e) => { e.stopPropagation(); restoreDay() }}>Restore</button>
         ) : editable ? (
@@ -1856,6 +1859,13 @@ function DayCard({
           {child.items.length > 0 && (
             <div className="admin-od-day-macros">
               Day macros: {Math.round(dayMacros.calories)} kcal · {Math.round(dayMacros.protein)} g protein · {Math.round(dayMacros.carbs)} g carbs · {Math.round(dayMacros.fat)} g fat
+            </div>
+          )}
+          {/* WEC-886: explicit per-day cost, stored on child_orders.day_total. */}
+          {child.items.length > 0 && (
+            <div className="admin-od-day-cost">
+              <span>Day cost</span>
+              <strong>{(dayCost / 100).toFixed(2)} €</strong>
             </div>
           )}
 
