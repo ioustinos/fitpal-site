@@ -44,18 +44,10 @@ const N = {
   priceExVat: 'Price', priceIncVat: 'Price (ΦΠΑ)',
 } as const
 
-// Κατηγορία (singleSelect, typecast false): the MR choices were aligned to our
-// site's category names (WEC-882), so we write name_el straight through. The
-// allow-set stays as a defensive guard — if a category ever isn't a known MR
-// choice, we skip that one field (never 422) rather than failing the row.
-const CATEGORY_CHOICES = new Set([
-  'Πρωινά', 'Snacks', 'Σαλάτες', 'Ατομικές Σαλάτες', 'Μαγειρευτά',
-  'Ψητές Επιλογές', 'Healthy Bowls', 'Smoothies', 'Νερό / Αναψυκτικά',
-])
-function mapCategory(name: string | null): string | null {
-  const n = (name ?? '').trim()
-  return CATEGORY_CHOICES.has(n) ? n : null // null => skip category field
-}
+// Κατηγορία (singleSelect): we write our category name (name_el) straight
+// through — NO hardcoded category list here. If a name isn't yet a Menu
+// Reference choice, the isolated category write pass (below) fails just that
+// batch's category field and reports it; the other fields are unaffected.
 
 interface DbRow {
   code: string | null
@@ -82,7 +74,6 @@ export interface SyncReport {
   dbNotInMr: string[]
   mrNotInDb: string[]
   blankDbSkipped: string[]   // empty recipe → skipped entirely
-  categorySkipped: string[]  // category had no matching MR choice (other fields still synced)
   applied: number
   appliedErrors: string[]
 }
@@ -124,7 +115,7 @@ export async function syncMenuReference(
     dbVariants: dbByCode.size,
     mrRows: mrByCode.size,
     changed: [], unchanged: 0,
-    dbNotInMr: [], mrNotInDb: [], blankDbSkipped: [], categorySkipped: [],
+    dbNotInMr: [], mrNotInDb: [], blankDbSkipped: [],
     applied: 0, appliedErrors: [],
   }
   const writesByCode = new Map<string, Record<string, unknown>>()     // non-category fields
@@ -176,11 +167,9 @@ export async function syncMenuReference(
       if (cur !== val && val !== null) { changes.push({ field: label, from: cur, to: val }); fieldsToWrite[fid] = val }
     }
 
-    // --- category (singleSelect; map + allow-set; skip if no matching choice) ---
-    const tgtCat = mapCategory(d.category)
-    if (tgtCat === null) {
-      if (norm(d.category) !== '') report.categorySkipped.push(code)
-    } else {
+    // --- category (singleSelect) — write our name straight through ---
+    const tgtCat = norm(d.category)
+    if (tgtCat !== '') {
       const curCat = norm((mr.fields[N.category] as { name?: string } | undefined)?.name)
       if (curCat !== tgtCat) { changes.push({ field: 'Κατηγορία', from: curCat, to: tgtCat }); categoryByCode.set(code, tgtCat) }
     }
