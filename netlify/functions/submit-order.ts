@@ -1860,8 +1860,29 @@ export default async (request: Request) => {
     // Stamp the submit time — Airtable mirrors this as "Submitted at (GO)".
     // created_at holds the draft/placement time; this records the actual
     // submit/promote moment. Fail-soft: never block checkout.
+    // WEC-884: this MUST use the service-role client. `supabase` is the caller's
+    // client, and the only UPDATE policy on public.orders is admin_all_orders
+    // (is_admin()). For a signed-in, non-admin customer the UPDATE therefore
+    // matched ZERO rows — and Supabase treats a zero-row UPDATE as success, so
+    // the catch below never fired. 88% of signed-in customer orders ended up
+    // with submitted_at = NULL (guest + admin orders, which already used a
+    // service client, were at 0%). The admin then fell back to created_at and
+    // showed the DRAFT time — off by up to 26 days — and the date filter, which
+    // has no fallback, hid those orders entirely.
+    //
+    // `.select('id')` is what makes a zero-row update detectable: without it a
+    // silent no-op is indistinguishable from success.
     try {
-      await supabase.from('orders').update({ submitted_at: new Date().toISOString() }).eq('id', orderId)
+      const { data: stamped, error: stampErr } = await svcRpc
+        .from('orders')
+        .update({ submitted_at: new Date().toISOString() })
+        .eq('id', orderId)
+        .select('id')
+      if (stampErr) {
+        console.error('[submit-order] submitted_at stamp failed (non-fatal):', stampErr.message)
+      } else if (!stamped || stamped.length === 0) {
+        console.error('[submit-order] WEC-884: submitted_at stamp matched 0 rows for %s', orderId)
+      }
     } catch (e) {
       console.error('[submit-order] submitted_at stamp failed (non-fatal):', e)
     }

@@ -1271,6 +1271,16 @@ function OverviewTab({ order, adminUser, onChanged }: { order: AdminOrder; admin
               sitting?" without having to infer from the order number. */}
           <div className="admin-od-provenance">
             <Ico name="info" size={13} /> Placed at {new Date(order.submittedAt ?? order.createdAt).toLocaleString('en-GB', { dateStyle: 'short', timeStyle: 'short' })}
+            {/* WEC-884: a cart can sit open for days, so "placed at" alone used
+                to be read as the whole story. Surface the draft age only when
+                the gap is big enough to mislead (>30 min); the Timeline tab
+                always carries the exact «Cart created (draft)» row. */}
+            {order.submittedAt
+              && new Date(order.submittedAt).getTime() - new Date(order.createdAt).getTime() > 30 * 60 * 1000 && (
+              <span style={{ opacity: 0.65 }}>
+                {' '}· cart opened {new Date(order.createdAt).toLocaleString('en-GB', { dateStyle: 'short', timeStyle: 'short' })}
+              </span>
+            )}
           </div>
           {/* WEC-392: read-only impersonation provenance (from admin_order_id),
               kept separate from the editable admin note. */}

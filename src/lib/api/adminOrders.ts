@@ -263,8 +263,20 @@ export async function listAdminOrders(f: OrderFilters): Promise<{ data: AdminOrd
   // submitted_at is backfilled for all non-draft rows (wec473) + stamped at
   // submit; the default admin view excludes drafts, so a submitted_at filter is
   // authoritative here.
-  if (f.createdFrom) q = q.gte('submitted_at', `${f.createdFrom}T00:00:00Z`)
-  if (f.createdTo) q = q.lte('submitted_at', `${f.createdTo}T23:59:59Z`)
+  // WEC-884: NULL-safe. `submitted_at` was NULL on 355 orders (an RLS silent
+  // failure in submit-order), and `NULL >= x` is NULL in Postgres, so a plain
+  // .gte() DROPPED those rows — a third of the book was invisible in any
+  // date-filtered view. The rows are backfilled and the write path is fixed,
+  // but one missed stamp must never hide an order again, so fall back to
+  // created_at whenever submitted_at is null.
+  if (f.createdFrom) {
+    const from = `${f.createdFrom}T00:00:00Z`
+    q = q.or(`submitted_at.gte.${from},and(submitted_at.is.null,created_at.gte.${from})`)
+  }
+  if (f.createdTo) {
+    const to = `${f.createdTo}T23:59:59Z`
+    q = q.or(`submitted_at.lte.${to},and(submitted_at.is.null,created_at.lte.${to})`)
+  }
   if (orderIdsFromChild) q = q.in('id', Array.from(orderIdsFromChild))
   // WEC-715: Ioustinos asked for company orders to land in the normal orders
   // page with the store visible and filterable — not a separate B2B inbox.
