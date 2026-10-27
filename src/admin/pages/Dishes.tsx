@@ -127,8 +127,7 @@ export function Dishes() {
         `Θα ενημερωθούν ${n} εγγραφές στο Menu Reference (Κρυμμένο Πεδίο + macros).\n` +
         `Νέα πιάτα εκτός MR: ${report.dbNotInMr?.length ?? 0} · ` +
         `MR χωρίς πιάτο: ${report.mrNotInDb?.length ?? 0} · ` +
-        `Κενή συνταγή (παράλειψη): ${report.blankDbSkipped?.length ?? 0} · ` +
-        `Κατηγορία χωρίς επιλογή: ${report.categorySkipped?.length ?? 0}\n\n` +
+        `Κενή συνταγή (παράλειψη): ${report.blankDbSkipped?.length ?? 0}\n\n` +
         `Να εφαρμοστούν οι ${n} αλλαγές;`
       if (!window.confirm(msg)) return
       const appRes = await fetch('/api/sync-menu-reference', { method: 'POST', headers, body: JSON.stringify({ apply: true }) })
