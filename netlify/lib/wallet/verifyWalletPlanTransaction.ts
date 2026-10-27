@@ -212,14 +212,21 @@ async function fireSubscribeCapi(
       const { data: au } = await supabase.auth.admin.getUserById(userId)
       email = au?.user?.email ?? undefined
     }
+    // WEC-878: the event_id MUST be byte-identical to the one the browser Pixel
+    // sends, or Meta cannot deduplicate the two copies and every card
+    // subscription is counted twice. The browser uses the customer-facing
+    // reference (SubscriptionSuccess.tsx -> track.ts), which is derived from the
+    // plan uuid by `WP-` + first 8 chars uppercased. Keep this in step with
+    // src/lib/api/wallet.ts (planReference) and wallet-plan-purchase.ts.
+    const planReference = `WP-${walletPlanId.slice(0, 8).toUpperCase()}`
     await sendMetaCapiEvent({
       eventName: 'Subscribe',
-      eventId: `subscribe:${walletPlanId}`,
+      eventId: `subscribe:${planReference}`,
       userData: { em: hashLower(email), ph: hashPhone(phone), external_id: hashLower(userId) },
       customData: {
         currency: 'EUR',
         value: Math.round(amountCents) / 100,
-        order_id: walletPlanId,
+        order_id: planReference, // WEC-878: same identifier the Pixel reports
         content_type: 'subscription',
       },
     })
