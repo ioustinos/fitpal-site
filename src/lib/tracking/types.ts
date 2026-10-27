@@ -8,6 +8,10 @@ export type StandardEvent =
   | 'initiate_checkout'
   | 'add_payment_info'
   | 'purchase'
+  // WEC-887: an order paid from wallet balance is NOT new revenue — the money
+  // was collected (and reported as Subscribe) when the plan was bought. It gets
+  // its own event so it never lands in the Purchase column.
+  | 'wallet_redemption'
   | 'subscribe'
   | 'lead'
   | 'complete_registration'
@@ -32,6 +36,9 @@ export interface EventPayload {
   orderId?: string // Supabase orders.id → event_id (Pixel ↔ CAPI dedup)
   orderNumber?: string // human-facing e.g. FP-2026-04-1234
   items?: EcommerceItem[]
+  /** WEC-887: cash | card | link | transfer | wallet — reported to Meta so
+   *  conversions can be segmented by how they were actually paid. */
+  paymentMethod?: string
   [k: string]: unknown
 }
 
