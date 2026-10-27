@@ -45,6 +45,7 @@ export function Dishes() {
 
   const [showCats, setShowCats] = useState(false)
   const [showTags, setShowTags] = useState(false)
+  const [syncing, setSyncing] = useState(false) // WEC-882
 
   async function refresh() {
     setLoading(true)
@@ -103,6 +104,45 @@ export function Dishes() {
     setIsNew(false)
   }
 
+  // WEC-882: full DB -> Airtable Menu Reference sync. Dry-run preview first,
+  // then apply only on explicit confirm. Per-dish edits already auto-sync;
+  // this button is the catch-all.
+  async function runAirtableSync() {
+    if (syncing) return
+    setSyncing(true)
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      const jwt = session?.access_token
+      if (!jwt) { alert('Η συνεδρία έληξε — κάνε ξανά login.'); return }
+      const headers = { 'Content-Type': 'application/json', Authorization: `Bearer ${jwt}` }
+      const dry = await fetch('/api/sync-menu-reference', { method: 'POST', headers, body: JSON.stringify({ apply: false }) })
+      const report = await dry.json()
+      if (!dry.ok) { alert('Αποτυχία προεπισκόπησης: ' + (report?.error ?? dry.status)); return }
+      const n: number = report.changed?.length ?? 0
+      if (report.devGuard) {
+        alert(`DEV — μόνο προεπισκόπηση (δεν εφαρμόζεται σε dev).\nΘα άλλαζαν ${n} εγγραφές.`)
+        return
+      }
+      if (n === 0) { alert('Το Menu Reference είναι ήδη ενημερωμένο — καμία αλλαγή.'); return }
+      const msg =
+        `Θα ενημερωθούν ${n} εγγραφές στο Menu Reference (Κρυμμένο Πεδίο + macros).\n` +
+        `Νέα πιάτα εκτός MR: ${report.dbNotInMr?.length ?? 0} · ` +
+        `MR χωρίς πιάτο: ${report.mrNotInDb?.length ?? 0} · ` +
+        `Κενή συνταγή (παράλειψη): ${report.blankDbSkipped?.length ?? 0} · ` +
+        `Κατηγορία χωρίς επιλογή: ${report.categorySkipped?.length ?? 0}\n\n` +
+        `Να εφαρμοστούν οι ${n} αλλαγές;`
+      if (!window.confirm(msg)) return
+      const appRes = await fetch('/api/sync-menu-reference', { method: 'POST', headers, body: JSON.stringify({ apply: true }) })
+      const appReport = await appRes.json()
+      if (!appRes.ok) { alert('Αποτυχία εφαρμογής: ' + (appReport?.error ?? appRes.status)); return }
+      alert(`Έγινε. Ενημερώθηκαν ${appReport.applied ?? 0} εγγραφές.`)
+    } catch (e) {
+      alert('Σφάλμα sync: ' + (e instanceof Error ? e.message : String(e)))
+    } finally {
+      setSyncing(false)
+    }
+  }
+
   return (
     <div className="admin-page">
       <div className="admin-page-head">
@@ -113,6 +153,7 @@ export function Dishes() {
         <div className="admin-page-actions">
           <button className="admin-btn-ghost" onClick={() => setShowCats(true)}>Categories</button>
           <button className="admin-btn-ghost" onClick={() => setShowTags(true)}>Tags</button>
+          <button className="admin-btn-ghost" onClick={runAirtableSync} disabled={syncing} title="Συγχρονισμός Κρυμμένο Πεδίο + macros προς Airtable Menu Reference">{syncing ? 'Sync…' : 'Sync → Airtable'}</button>
           <button className="admin-btn-primary" onClick={openNew}>+ New dish</button>
         </div>
       </div>

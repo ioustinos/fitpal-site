@@ -1,5 +1,26 @@
 import { supabase } from '../supabase'
 
+/**
+ * WEC-882: after a dish's recipe or macros change, push just that dish's
+ * variant rows to the Airtable Menu Reference (Κρυμμένο Πεδίο + macros).
+ * Best-effort and fire-and-forget — a sync hiccup must NEVER fail the save;
+ * the full-sync button on /admin/dishes is the catch-all safety net.
+ */
+export async function syncDishToMenuReference(dishId: string): Promise<void> {
+  try {
+    const { data: { session } } = await supabase.auth.getSession()
+    const jwt = session?.access_token
+    if (!jwt) return
+    await fetch('/api/sync-menu-reference', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${jwt}` },
+      body: JSON.stringify({ dishId, apply: true }),
+    })
+  } catch {
+    /* best-effort; never block the admin save */
+  }
+}
+
 // ─── Types (camelCase for client) ──────────────────────────────────────────
 
 export interface AdminVariant {
@@ -377,6 +398,8 @@ export async function saveDish(input: SaveDishInput): Promise<{ data: { id: stri
     if (insTagErr) return { data: null, error: insTagErr.message }
   }
 
+  // WEC-882: mirror this dish's recipe/macros to Airtable Menu Reference.
+  void syncDishToMenuReference(id)
   return { data: { id }, error: null }
 }
 
@@ -519,6 +542,8 @@ export async function saveDishRecipe(
     if (insAmtErr) return { error: `save variant amounts: ${insAmtErr.message}` }
   }
 
+  // WEC-882: mirror this dish's recipe/macros to Airtable Menu Reference.
+  void syncDishToMenuReference(dishId)
   return { error: null }
 }
 
