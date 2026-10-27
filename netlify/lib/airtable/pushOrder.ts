@@ -117,7 +117,7 @@ export async function pushOrderToAirtable(
   // set and becomes stale → removed by the reconcile.
   const { data: children, error: cErr } = await supabase
     .from('child_orders')
-    .select('id, delivery_date, time_from, time_to, address_street, address_area, address_zip, address_floor, address_doorbell, address_notes, cancelled_at')
+    .select('id, delivery_date, time_from, time_to, address_street, address_area, address_zip, address_floor, address_doorbell, address_notes, cancelled_at, day_total')
     .eq('order_id', orderId)
   const allChildren = children ?? []
   const childList = allChildren.filter((c: any) => c.cancelled_at == null) // active days only
@@ -283,6 +283,10 @@ export async function pushOrderToAirtable(
       Doorbell: c.address_doorbell ?? '',
       'Address Comment': c.address_notes ?? '',
       'Parent Order Id': [orderRecId],
+      // WEC-886: per-day order cost from our DB (Σ order_items.total_price, cents →
+      // euros). Authoritative platform value; mirror stays in sync because any item
+      // edit already flags the order dirty and re-pushes.
+      'Daily Price': toEuros((c as any).day_total ?? 0),
     }
     if (custLink) childFields['Customer'] = custLink
     const [childRec] = await upsertRecords(TABLES.childOrders, ['Child/Day Order Id'], [{ fields: childFields }])
