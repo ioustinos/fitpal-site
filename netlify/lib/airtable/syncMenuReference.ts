@@ -69,7 +69,9 @@ export interface SyncReport {
   mode: 'dry-run' | 'apply'
   dbVariants: number
   mrRows: number
-  changed: SyncChange[]
+  changedCount: number
+  changedCodes: string[]       // all codes with at least one change (for batched apply by the client)
+  changedSample: SyncChange[]  // first 30, for a human-readable preview (keeps the response small)
   unchanged: number
   dbNotInMr: string[]
   mrNotInDb: string[]
@@ -92,12 +94,16 @@ export async function syncMenuReference(
   const apply = opts.apply === true
   const codes = opts.codes && opts.codes.length > 0 ? opts.codes : null
 
-  let dbQuery = supabase.from('v_menu_reference_sync').select('*')
-  if (codes) dbQuery = dbQuery.in('code', codes)
-  const { data, error } = await dbQuery
-  if (error) throw new Error(`v_menu_reference_sync read failed: ${error.message}`)
   const dbByCode = new Map<string, DbRow>()
-  for (const r of (data ?? []) as DbRow[]) { if (r.code) dbByCode.set(r.code, r) }
+  const PAGE = 1000
+  for (let from = 0; ; from += PAGE) {
+    let q = supabase.from('v_menu_reference_sync').select('*').order('code').range(from, from + PAGE - 1)
+    if (codes) q = q.in('code', codes)
+    const { data, error } = await q
+    if (error) throw new Error(`v_menu_reference_sync read failed: ${error.message}`)
+    for (const r of (data ?? []) as DbRow[]) { if (r.code) dbByCode.set(r.code, r) }
+    if (!data || data.length < PAGE) break
+  }
 
   const mrFormula = codes
     ? `OR(${codes.map((c) => `{Κωδικός}='${String(c).replace(/'/g, '')}'`).join(',')})`
@@ -114,10 +120,11 @@ export async function syncMenuReference(
     mode: apply ? 'apply' : 'dry-run',
     dbVariants: dbByCode.size,
     mrRows: mrByCode.size,
-    changed: [], unchanged: 0,
+    changedCount: 0, changedCodes: [], changedSample: [], unchanged: 0,
     dbNotInMr: [], mrNotInDb: [], blankDbSkipped: [],
     applied: 0, appliedErrors: [],
   }
+  const changed: SyncChange[] = []
   const writesByCode = new Map<string, Record<string, unknown>>()     // non-category fields
   const categoryByCode = new Map<string, string>()                     // category, written in its own pass
 
@@ -175,13 +182,16 @@ export async function syncMenuReference(
     }
 
     if (changes.length === 0) { report.unchanged++; continue }
-    report.changed.push({ code, recordId: mr.id, changes })
+    changed.push({ code, recordId: mr.id, changes })
     writesByCode.set(code, fieldsToWrite)
   }
+  report.changedCount = changed.length
+  report.changedCodes = changed.map((c) => c.code)
+  report.changedSample = changed.slice(0, 30)
 
-  if (apply && report.changed.length > 0) {
+  if (apply && changed.length > 0) {
     // Pass 1 — all non-category fields (always valid, never 422).
-    const mainUpdates = report.changed
+    const mainUpdates = changed
       .map((c) => ({ id: c.recordId, fields: writesByCode.get(c.code) ?? {} }))
       .filter((u) => Object.keys(u.fields).length > 0)
     if (mainUpdates.length > 0) {
@@ -194,7 +204,7 @@ export async function syncMenuReference(
     }
     // Pass 2 — category only (single-select). Isolated so a not-yet-created
     // choice fails just the category write, not the rest of the row.
-    const catUpdates = report.changed
+    const catUpdates = changed
       .filter((c) => categoryByCode.has(c.code))
       .map((c) => ({ id: c.recordId, fields: { [F.category]: categoryByCode.get(c.code) as string } }))
     if (catUpdates.length > 0) {

@@ -45,6 +45,7 @@ export function Dishes() {
   const [showCats, setShowCats] = useState(false)
   const [showTags, setShowTags] = useState(false)
   const [syncing, setSyncing] = useState(false) // WEC-882
+  const [syncProg, setSyncProg] = useState('')  // WEC-882 batch progress
 
   async function refresh() {
     setLoading(true)
@@ -104,40 +105,51 @@ export function Dishes() {
   }
 
   // WEC-882: full DB -> Airtable Menu Reference sync. Dry-run preview first,
-  // then apply only on explicit confirm. Per-dish edits already auto-sync;
-  // this button is the catch-all.
+  // then apply in bounded batches (~100 codes/request) to stay under the Netlify
+  // function timeout. Per-dish edits already auto-sync; this is the catch-all.
   async function runAirtableSync() {
     if (syncing) return
-    setSyncing(true)
+    setSyncing(true); setSyncProg('')
     try {
       const { data: { session } } = await supabase.auth.getSession()
       const jwt = session?.access_token
       if (!jwt) { alert('Η συνεδρία έληξε — κάνε ξανά login.'); return }
       const headers = { 'Content-Type': 'application/json', Authorization: `Bearer ${jwt}` }
+
       const dry = await fetch('/api/sync-menu-reference', { method: 'POST', headers, body: JSON.stringify({ apply: false }) })
-      const report = await dry.json()
-      if (!dry.ok) { alert('Αποτυχία προεπισκόπησης: ' + (report?.error ?? dry.status)); return }
-      const n: number = report.changed?.length ?? 0
-      if (report.devGuard) {
-        alert(`DEV — μόνο προεπισκόπηση (δεν εφαρμόζεται σε dev).\nΘα άλλαζαν ${n} εγγραφές.`)
-        return
-      }
+      const report = await dry.json().catch(() => null)
+      if (!dry.ok || !report) { alert('Αποτυχία προεπισκόπησης: ' + (report?.error ?? dry.status)); return }
+      const codes: string[] = report.changedCodes ?? []
+      const n: number = report.changedCount ?? codes.length
+      if (report.devGuard) { alert(`DEV — μόνο προεπισκόπηση (δεν εφαρμόζεται σε dev).\nΘα άλλαζαν ${n} εγγραφές.`); return }
       if (n === 0) { alert('Το Menu Reference είναι ήδη ενημερωμένο — καμία αλλαγή.'); return }
       const msg =
-        `Θα ενημερωθούν ${n} εγγραφές στο Menu Reference (Κρυμμένο Πεδίο + macros).\n` +
+        `Θα ενημερωθούν ${n} εγγραφές στο Menu Reference.\n` +
         `Νέα πιάτα εκτός MR: ${report.dbNotInMr?.length ?? 0} · ` +
         `MR χωρίς πιάτο: ${report.mrNotInDb?.length ?? 0} · ` +
         `Κενή συνταγή (παράλειψη): ${report.blankDbSkipped?.length ?? 0}\n\n` +
-        `Να εφαρμοστούν οι ${n} αλλαγές;`
+        `Να εφαρμοστούν σε παρτίδες;`
       if (!window.confirm(msg)) return
-      const appRes = await fetch('/api/sync-menu-reference', { method: 'POST', headers, body: JSON.stringify({ apply: true }) })
-      const appReport = await appRes.json()
-      if (!appRes.ok) { alert('Αποτυχία εφαρμογής: ' + (appReport?.error ?? appRes.status)); return }
-      alert(`Έγινε. Ενημερώθηκαν ${appReport.applied ?? 0} εγγραφές.`)
+
+      const BATCH = 100
+      const total = Math.ceil(codes.length / BATCH)
+      let applied = 0
+      const errors: string[] = []
+      for (let i = 0; i < codes.length; i += BATCH) {
+        const batchNo = Math.floor(i / BATCH) + 1
+        setSyncProg(`${batchNo}/${total}`)
+        const batch = codes.slice(i, i + BATCH)
+        const res = await fetch('/api/sync-menu-reference', { method: 'POST', headers, body: JSON.stringify({ apply: true, codes: batch }) })
+        const r = await res.json().catch(() => null)
+        if (!res.ok || !r) { errors.push(`παρτίδα ${batchNo}: ${r?.error ?? res.status}`); continue }
+        applied += r.applied ?? 0
+        if (Array.isArray(r.appliedErrors)) errors.push(...r.appliedErrors)
+      }
+      alert(`Έγινε. Ενημερώθηκαν ${applied} εγγραφές.` + (errors.length ? `\nΣφάλματα (${errors.length}): ${errors.slice(0, 3).join(' | ')}` : ''))
     } catch (e) {
       alert('Σφάλμα sync: ' + (e instanceof Error ? e.message : String(e)))
     } finally {
-      setSyncing(false)
+      setSyncing(false); setSyncProg('')
     }
   }
 
@@ -151,7 +163,7 @@ export function Dishes() {
         <div className="admin-page-actions">
           <button className="admin-btn-ghost" onClick={() => setShowCats(true)}>Categories</button>
           <button className="admin-btn-ghost" onClick={() => setShowTags(true)}>Tags</button>
-          <button className="admin-btn-ghost" onClick={runAirtableSync} disabled={syncing} title="Συγχρονισμός Κρυμμένο Πεδίο + macros προς Airtable Menu Reference">{syncing ? 'Sync…' : 'Sync → Airtable'}</button>
+          <button className="admin-btn-ghost" onClick={runAirtableSync} disabled={syncing} title="Συγχρονισμός Κρυμμένο Πεδίο + macros προς Airtable Menu Reference">{syncing ? (syncProg ? `Sync ${syncProg}…` : 'Sync…') : 'Sync → Airtable'}</button>
           <button className="admin-btn-primary" onClick={openNew}>+ New dish</button>
         </div>
       </div>
