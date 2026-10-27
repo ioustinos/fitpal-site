@@ -103,6 +103,8 @@ export interface AdminChildOrder {
   addressDoorbell: string | null
   /** WEC-389: set when this delivery day has been soft-cancelled. */
   cancelledAt: string | null
+  /** WEC-886: stored per-day cost in cents (Σ order_items.total_price), maintained by DB trigger. */
+  dayTotal: number
   items: AdminOrderItem[]
 }
 
@@ -347,6 +349,7 @@ export async function listAdminOrders(f: OrderFilters): Promise<{ data: AdminOrd
       address_street: string | null; address_area: string | null; address_zip: string | null; address_floor: string | null;
       address_doorbell: string | null;
       cancelled_at: string | null;
+      day_total: number | null;
     }
     const arr = childrenByOrder.get(row.order_id) ?? []
     arr.push({
@@ -356,6 +359,7 @@ export async function listAdminOrders(f: OrderFilters): Promise<{ data: AdminOrd
       addressZip: row.address_zip, addressFloor: row.address_floor,
       addressDoorbell: row.address_doorbell,
       cancelledAt: row.cancelled_at,
+      dayTotal: row.day_total ?? 0,
       items: itemsByChild.get(row.id) ?? [],
     })
     childrenByOrder.set(row.order_id, arr)
@@ -439,6 +443,7 @@ export async function getAdminOrder(id: string): Promise<{ data: AdminOrder | nu
       address_street: string | null; address_area: string | null; address_zip: string | null; address_floor: string | null;
       address_doorbell: string | null;
       cancelled_at: string | null;
+      day_total: number | null;
     }
     return {
       id: row.id, orderId: row.order_id, deliveryDate: row.delivery_date,
@@ -447,6 +452,7 @@ export async function getAdminOrder(id: string): Promise<{ data: AdminOrder | nu
       addressZip: row.address_zip, addressFloor: row.address_floor,
       addressDoorbell: row.address_doorbell,
       cancelledAt: row.cancelled_at,
+      dayTotal: row.day_total ?? 0,
       items: itemsByChild.get(row.id) ?? [],
     }
   })

@@ -1843,6 +1843,19 @@
   font-size: 11px;
   color: #7A957A;
 }
+/* WEC-886: explicit per-day cost line under the macros summary. */
+.admin-od-day-cost {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin: 0 0 12px;
+  padding: 8px 12px;
+  background: #F4F8F4;
+  border: 1px solid #E2ECE2;
+  border-radius: 8px;
+}
+.admin-od-day-cost span { font-size: 12px; color: #5A6B5A; font-weight: 600; }
+.admin-od-day-cost strong { font-size: 15px; color: #1F3D1F; }
 .admin-od-itemx {
   background: none; border: none; color: #dc2626; font-size: 18px; line-height: 1;
   cursor: pointer; padding: 0 4px;
