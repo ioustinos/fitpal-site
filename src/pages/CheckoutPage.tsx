@@ -899,10 +899,17 @@ export function CheckoutPage() {
       const allItems = activeDates.flatMap((d) => cart[d] ?? [])
       // WEC-871: Meta Purchase reported value=0. dayAmt(cart[d]) used the wrong
       // signature (it is dayAmt(cart, date)) so every day summed to 0. Also prefer
-      // the server's authoritative charged total (data.total, cents) so vouchers/
-      // discounts are reflected; fall back to the correctly-computed cart sum.
+      // the server's authoritative charged total so vouchers/discounts are
+      // reflected; fall back to the correctly-computed cart sum.
+      //
+      // WEC-879: `data.total` is EUROS, not cents. submit-order.ts already does
+      // `total: orderTotal / 100` before responding (and setServerTotal above
+      // consumes it as euros). Dividing again sent Meta 1/100 of every non-card
+      // order: a 27.40 € order was reported as 0.27 €, live 14/10 - 27/10.
+      // The money is stored in cents everywhere; this response is the one place
+      // it has already been converted. Do not re-divide.
       const cartValue = activeDates.reduce((sum, d) => sum + dayAmt(cart, d), 0)
-      const value = typeof data?.total === 'number' ? data.total / 100 : cartValue
+      const value = typeof data?.total === 'number' ? data.total : cartValue
       track(
         'purchase',
         {
