@@ -2243,3 +2243,28 @@
 /* WEC-840 — dietitian partners admin page (shares two helpers with /partner). */
 .partner-list { margin: 0; padding-left: 18px; font-size: 14px; line-height: 1.6; }
 .partner-cancelled td { opacity: .45; }
+
+/* WEC-883: dish editor Basic tab — grouped cards + aligned layout */
+.dish-basic { display: grid; gap: 16px; }
+.dish-basic-top { display: grid; grid-template-columns: 260px 1fr; gap: 16px; align-items: start; }
+@media (max-width: 760px) { .dish-basic-top { grid-template-columns: 1fr; } }
+.dish-card {
+  background: var(--a-surface);
+  border: 1px solid var(--a-border);
+  border-radius: 10px;
+  padding: 16px;
+}
+.dish-card-title {
+  font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em;
+  color: var(--a-text-muted); margin: 0 0 14px; padding-bottom: 8px;
+  border-bottom: 1px solid var(--a-border);
+}
+.dish-card-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 0 0 14px; padding-bottom: 8px; border-bottom: 1px solid var(--a-border); }
+.dish-card-head .dish-card-title { margin: 0; padding: 0; border: 0; }
+.dish-card-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px 16px; align-items: start; }
+.dish-card-grid .span-2 { grid-column: 1 / -1; }
+@media (max-width: 560px) { .dish-card-grid { grid-template-columns: 1fr; } }
+.dish-field { min-width: 0; display: flex; flex-direction: column; }
+.dish-field > .admin-input, .dish-field > .admin-select, .dish-field > .admin-textarea { width: 100%; }
+.dish-field > span { margin-top: 4px; }
+.dish-card .admin-img-preview img { max-width: 100%; max-height: 160px; }
