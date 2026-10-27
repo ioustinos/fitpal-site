@@ -598,195 +598,184 @@ function DishDrawer({
           </nav>
 
           {editTab === 'basic' && (
-            <>
-          {/* External code — the slug used everywhere (CSV, URLs, admin search). */}
-          {/* Read-only on existing dishes (renaming would orphan past order rows). */}
-          <section className="admin-form-section">
-            <label className="admin-form-label">Code</label>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <code style={{
-                fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
-                fontSize: 13, padding: '6px 10px',
-                background: 'var(--a-bg)', border: '1px dashed var(--a-border)',
-                borderRadius: 6, userSelect: 'text', minWidth: 200,
-              }}>
-                {form.id || (isNew ? '(auto-generated on save)' : '—')}
-              </code>
-              {!isNew && form.id && (
-                <button
-                  type="button"
-                  className="admin-btn-ghost"
-                  onClick={() => navigator.clipboard.writeText(form.id)}
-                  title="Copy code to clipboard"
-                >
-                  Copy
-                </button>
-              )}
-            </div>
-          </section>
+            <div className="dish-basic">
 
-          {/* Image */}
-          <section className="admin-form-section">
-            <label className="admin-form-label">Image</label>
-            <div className="admin-img-preview">
-              {form.imageUrl
-                ? <img src={form.imageUrl} alt="" />
-                : <div className="admin-img-empty">No image</div>
-              }
-            </div>
-            <div className="admin-tab-row">
-              <button className={`admin-tab${imageMode === 'upload' ? ' active' : ''}`} onClick={() => setImageMode('upload')}>Upload</button>
-              <button className={`admin-tab${imageMode === 'url' ? ' active' : ''}`} onClick={() => setImageMode('url')}>Paste URL</button>
-            </div>
-            {imageMode === 'upload' ? (
-              <>
-                <input
-                  ref={fileInput} type="file" accept="image/*" style={{ display: 'none' }}
-                  onChange={(e) => { const f = e.target.files?.[0]; if (f) handleUpload(f) }}
-                />
-                <button className="admin-btn-ghost" disabled={uploading} onClick={() => fileInput.current?.click()}>
-                  {uploading ? 'Uploading…' : 'Choose file'}
-                </button>
-                {form.imageUrl && <button className="admin-btn-ghost" onClick={() => patch('imageUrl', null)}>Remove</button>}
-              </>
-            ) : (
-              <>
-                <input
-                  className="admin-input" type="url" placeholder="https://…"
-                  value={form.imageUrl ?? ''}
-                  onChange={(e) => patch('imageUrl', e.target.value || null)}
-                />
-                <div style={{ display: 'flex', gap: 8, marginTop: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-                  <button
-                    type="button"
-                    className="admin-btn-ghost"
-                    disabled={uploading || isNew || !form.id || !form.imageUrl}
-                    onClick={handleImportFromUrl}
-                    title={isNew ? 'Save the dish first, then import' : 'Download from this URL and host on Supabase Storage'}
-                  >
-                    {uploading ? 'Importing…' : 'Import to Storage'}
-                  </button>
-                  <span style={{ fontSize: 11, color: 'var(--a-text-muted)' }}>
-                    Drive links and any public image URL. Hosts the file on our CDN so the original can disappear.
-                  </span>
+              {/* Top row: image + identity/classification side by side */}
+              <div className="dish-basic-top">
+
+                {/* Image */}
+                <div className="dish-card">
+                  <h3 className="dish-card-title">Εικόνα</h3>
+                  <div className="admin-img-preview">
+                    {form.imageUrl
+                      ? <img src={form.imageUrl} alt="" />
+                      : <div className="admin-img-empty">No image</div>
+                    }
+                  </div>
+                  <div className="admin-tab-row">
+                    <button className={`admin-tab${imageMode === 'upload' ? ' active' : ''}`} onClick={() => setImageMode('upload')}>Upload</button>
+                    <button className={`admin-tab${imageMode === 'url' ? ' active' : ''}`} onClick={() => setImageMode('url')}>Paste URL</button>
+                  </div>
+                  {imageMode === 'upload' ? (
+                    <div className="admin-tab-row" style={{ marginTop: 8 }}>
+                      <input
+                        ref={fileInput} type="file" accept="image/*" style={{ display: 'none' }}
+                        onChange={(e) => { const f = e.target.files?.[0]; if (f) handleUpload(f) }}
+                      />
+                      <button className="admin-btn-ghost" disabled={uploading} onClick={() => fileInput.current?.click()}>
+                        {uploading ? 'Uploading…' : 'Choose file'}
+                      </button>
+                      {form.imageUrl && <button className="admin-btn-ghost" onClick={() => patch('imageUrl', null)}>Remove</button>}
+                    </div>
+                  ) : (
+                    <>
+                      <input
+                        className="admin-input" type="url" placeholder="https://…" style={{ marginTop: 8 }}
+                        value={form.imageUrl ?? ''}
+                        onChange={(e) => patch('imageUrl', e.target.value || null)}
+                      />
+                      <div style={{ display: 'flex', gap: 8, marginTop: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+                        <button
+                          type="button"
+                          className="admin-btn-ghost"
+                          disabled={uploading || isNew || !form.id || !form.imageUrl}
+                          onClick={handleImportFromUrl}
+                          title={isNew ? 'Save the dish first, then import' : 'Download from this URL and host on Supabase Storage'}
+                        >
+                          {uploading ? 'Importing…' : 'Import to Storage'}
+                        </button>
+                        <span style={{ fontSize: 11, color: 'var(--a-text-muted)' }}>
+                          Hosts the file on our CDN so the original can disappear.
+                        </span>
+                      </div>
+                    </>
+                  )}
                 </div>
-              </>
-            )}
-          </section>
 
-          {/* Bilingual name + desc */}
-          <section className="admin-form-section">
-            <div className="admin-tab-row">
-              <button className={`admin-tab${lang === 'el' ? ' active' : ''}`} onClick={() => setLang('el')}>EL</button>
-              <button className={`admin-tab${lang === 'en' ? ' active' : ''}`} onClick={() => setLang('en')}>EN</button>
-            </div>
-            <label className="admin-form-label">Name ({lang.toUpperCase()})</label>
-            <input
-              className="admin-input"
-              value={lang === 'el' ? form.nameEl : form.nameEn}
-              onChange={(e) => patch(lang === 'el' ? 'nameEl' : 'nameEn', e.target.value)}
-              placeholder={lang === 'el' ? 'π.χ. Κοτόπουλο λεμονάτο' : 'e.g. Lemon chicken'}
-            />
-            {/* WEC-660: the description IS the Υλικά (ingredient) list — that's
-                what renders on the menu card/modal. The separate Ingredients
-                field was removed as redundant; edit ingredients here. */}
-            <label className="admin-form-label" style={{ marginTop: 12 }}>Περιγραφή / Υλικά — Description ({lang.toUpperCase()})</label>
-            <textarea
-              className="admin-input admin-textarea"
-              value={lang === 'el' ? form.descEl : form.descEn}
-              onChange={(e) => patch(lang === 'el' ? 'descEl' : 'descEn', e.target.value)}
-              rows={3}
-              placeholder={lang === 'el' ? 'π.χ. Ψωμί, Μοσχάρι, Ρόκα (χωρίζονται με κόμμα)' : 'e.g. Bread, Beef, Arugula (comma-separated)'}
-            />
-          </section>
+                {/* Identity + classification */}
+                <div className="dish-card">
+                  <h3 className="dish-card-title">Στοιχεία & ταξινόμηση</h3>
+                  <div className="dish-card-grid">
+                    <div className="dish-field">
+                      <label className="admin-form-label">Code</label>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <code style={{
+                          fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
+                          fontSize: 13, padding: '6px 10px', flex: 1, minWidth: 0,
+                          background: 'var(--a-bg)', border: '1px dashed var(--a-border)',
+                          borderRadius: 6, userSelect: 'text', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+                        }}>
+                          {form.id || (isNew ? '(auto-generated on save)' : '—')}
+                        </code>
+                        {!isNew && form.id && (
+                          <button type="button" className="admin-btn-ghost" onClick={() => navigator.clipboard.writeText(form.id)} title="Copy code to clipboard">Copy</button>
+                        )}
+                      </div>
+                    </div>
+                    <div className="dish-field">
+                      <label className="admin-form-label">External code</label>
+                      <input
+                        className="admin-input"
+                        value={form.externalId ?? ''}
+                        onChange={(e) => patch('externalId', e.target.value || null)}
+                        placeholder={form.id ? form.id : 'auto (= dish id on save)'}
+                        style={{ fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace', fontSize: 13 }}
+                      />
+                      <span style={{ fontSize: 11, color: 'var(--a-text-muted)' }}>Airtable Menu Reference — leave blank to use the id.</span>
+                    </div>
+                    <div className="dish-field">
+                      <label className="admin-form-label">Category</label>
+                      <select className="admin-select" value={form.categoryId} onChange={(e) => patch('categoryId', e.target.value)}>
+                        {categories.map((c) => <option key={c.id} value={c.id}>{c.nameEl}</option>)}
+                      </select>
+                    </div>
+                    <div className="dish-field">
+                      <label className="admin-form-label">Emoji (optional)</label>
+                      <input className="admin-input" maxLength={3} value={form.emoji ?? ''} onChange={(e) => patch('emoji', e.target.value || null)} />
+                    </div>
+                    <div className="dish-field">
+                      <label className="admin-form-label">Discount %</label>
+                      <NumberField className="admin-input" integer min={0} max={100} value={form.discountPct} onChange={(v) => patch('discountPct', Math.max(0, Math.min(100, v ?? 0)))} />
+                    </div>
+                    <div className="dish-field" style={{ alignSelf: 'end', paddingBottom: 8 }}>
+                      <label className="admin-form-checkbox">
+                        <input type="checkbox" checked={form.active} onChange={(e) => patch('active', e.target.checked)} />
+                        <span>Active (visible to customers)</span>
+                      </label>
+                    </div>
+                  </div>
+                </div>
+              </div>
 
-          {/* WEC-474: external code field — sits standalone so it's visible
-              without scrolling. Stable matching key against Airtable Menu
-              Reference and any other external system. Editable; defaults to
-              the dish id on save when blank. */}
-          <section className="admin-form-section">
-            <label className="admin-form-label">
-              External code <span style={{ fontWeight: 400, color: 'var(--a-text-muted)' }}>(Airtable Menu Reference, etc — leave blank to use the internal id)</span>
-            </label>
-            <input
-              className="admin-input"
-              value={form.externalId ?? ''}
-              onChange={(e) => patch('externalId', e.target.value || null)}
-              placeholder={form.id ? form.id : 'auto (= dish id on save)'}
-              style={{ fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace', fontSize: 13, maxWidth: 280 }}
-            />
-          </section>
-
-          {/* Category + tags + emoji + discount + active */}
-          <section className="admin-form-section admin-grid-2">
-            <div>
-              <label className="admin-form-label">Category</label>
-              <select className="admin-select" value={form.categoryId} onChange={(e) => patch('categoryId', e.target.value)}>
-                {categories.map((c) => <option key={c.id} value={c.id}>{c.nameEl}</option>)}
-              </select>
-            </div>
-            <div>
-              <label className="admin-form-label">Emoji (optional)</label>
-              <input
-                className="admin-input" maxLength={3}
-                value={form.emoji ?? ''}
-                onChange={(e) => patch('emoji', e.target.value || null)}
-              />
-            </div>
-            <div>
-              <label className="admin-form-label">Discount %</label>
-              <NumberField
-                className="admin-input" integer min={0} max={100}
-                value={form.discountPct}
-                onChange={(v) => patch('discountPct', Math.max(0, Math.min(100, v ?? 0)))}
-              />
-            </div>
-            <div style={{ alignSelf: 'end' }}>
-              <label className="admin-form-checkbox">
-                <input type="checkbox" checked={form.active} onChange={(e) => patch('active', e.target.checked)} />
-                <span>Active (visible to customers)</span>
-              </label>
-            </div>
-          </section>
-
-          {/* Tags */}
-          <section className="admin-form-section">
-            <label className="admin-form-label">Tags</label>
-            <div className="admin-chip-wrap">
-              {tags.length === 0 && <span className="admin-text-muted">No tags yet. Add some via the Tags button.</span>}
-              {tags.map((t) => {
-                const on = form.tagIds.includes(t.id)
-                return (
-                  <button
-                    key={t.id}
-                    className={`admin-chip${on ? ' on' : ''}`}
-                    style={on ? { background: t.bgColor, color: t.fontColor, borderColor: t.bgColor } : undefined}
-                    onClick={() => patch('tagIds', on ? form.tagIds.filter((x) => x !== t.id) : [...form.tagIds, t.id])}
-                  >
-                    {t.labelEl}
-                  </button>
-                )
-              })}
-            </div>
-          </section>
-
-          {/* Preview macro dots */}
-          <section className="admin-form-section">
-            <label className="admin-form-label">Preview macro dots (1–5 — shown on menu cards)</label>
-            <div className="admin-dots-grid">
-              {(['previewCal', 'previewPro', 'previewCarb', 'previewFat'] as const).map((k) => (
-                <div key={k}>
-                  <div className="admin-dots-label">{k.replace('preview', '').replace('Cal', 'Calories').replace('Pro', 'Protein').replace('Carb', 'Carbs').replace('Fat', 'Fat')}</div>
-                  <NumberField
-                    className="admin-input" integer min={1} max={5}
-                    value={form[k]}
-                    onChange={(v) => patch(k, Math.max(1, Math.min(5, v ?? 3)) as 1 | 2 | 3 | 4 | 5)}
+              {/* Content — bilingual name + description */}
+              <div className="dish-card">
+                <div className="dish-card-head">
+                  <h3 className="dish-card-title">Περιεχόμενο</h3>
+                  <div className="admin-tab-row">
+                    <button className={`admin-tab${lang === 'el' ? ' active' : ''}`} onClick={() => setLang('el')}>EL</button>
+                    <button className={`admin-tab${lang === 'en' ? ' active' : ''}`} onClick={() => setLang('en')}>EN</button>
+                  </div>
+                </div>
+                <div className="dish-field">
+                  <label className="admin-form-label">Name ({lang.toUpperCase()})</label>
+                  <input
+                    className="admin-input"
+                    value={lang === 'el' ? form.nameEl : form.nameEn}
+                    onChange={(e) => patch(lang === 'el' ? 'nameEl' : 'nameEn', e.target.value)}
+                    placeholder={lang === 'el' ? 'π.χ. Κοτόπουλο λεμονάτο' : 'e.g. Lemon chicken'}
                   />
                 </div>
-              ))}
+                <div className="dish-field" style={{ marginTop: 12 }}>
+                  <label className="admin-form-label">Περιγραφή / Υλικά — Description ({lang.toUpperCase()})</label>
+                  <textarea
+                    className="admin-input admin-textarea"
+                    value={lang === 'el' ? form.descEl : form.descEn}
+                    onChange={(e) => patch(lang === 'el' ? 'descEl' : 'descEn', e.target.value)}
+                    rows={3}
+                    placeholder={lang === 'el' ? 'π.χ. Ψωμί, Μοσχάρι, Ρόκα (χωρίζονται με κόμμα)' : 'e.g. Bread, Beef, Arugula (comma-separated)'}
+                  />
+                </div>
+              </div>
+
+              {/* Tags */}
+              <div className="dish-card">
+                <h3 className="dish-card-title">Tags</h3>
+                <div className="admin-chip-wrap">
+                  {tags.length === 0 && <span className="admin-text-muted">No tags yet. Add some via the Tags button.</span>}
+                  {tags.map((t) => {
+                    const on = form.tagIds.includes(t.id)
+                    return (
+                      <button
+                        key={t.id}
+                        className={`admin-chip${on ? ' on' : ''}`}
+                        style={on ? { background: t.bgColor, color: t.fontColor, borderColor: t.bgColor } : undefined}
+                        onClick={() => patch('tagIds', on ? form.tagIds.filter((x) => x !== t.id) : [...form.tagIds, t.id])}
+                      >
+                        {t.labelEl}
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
+
+              {/* Preview macro dots */}
+              <div className="dish-card">
+                <h3 className="dish-card-title">Preview macro dots (1–5 — shown on menu cards)</h3>
+                <div className="admin-dots-grid">
+                  {(['previewCal', 'previewPro', 'previewCarb', 'previewFat'] as const).map((k) => (
+                    <div key={k}>
+                      <div className="admin-dots-label">{k.replace('preview', '').replace('Cal', 'Calories').replace('Pro', 'Protein').replace('Carb', 'Carbs').replace('Fat', 'Fat')}</div>
+                      <NumberField
+                        className="admin-input" integer min={1} max={5}
+                        value={form[k]}
+                        onChange={(v) => patch(k, Math.max(1, Math.min(5, v ?? 3)) as 1 | 2 | 3 | 4 | 5)}
+                      />
+                    </div>
+                  ))}
+                </div>
+              </div>
+
             </div>
-          </section>
-            </>
           )}
 
           {editTab === 'recipe' && (
