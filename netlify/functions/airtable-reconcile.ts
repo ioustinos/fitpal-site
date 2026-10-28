@@ -12,7 +12,25 @@ import { airtableConfigured } from '../lib/airtable/env'
 
 const SUPABASE_URL = process.env.VITE_SUPABASE_URL ?? ''
 const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY ?? ''
-const BATCH_LIMIT = 50
+const BATCH_LIMIT = 10
+// WEC-890: hard wall-clock budget for the push loop.
+//
+// On 2026-10-28 Netlify killed EVERY scheduled invocation of this function at
+// ~14.98s with status 499. The real execution limit is ~15 SECONDS, not the
+// 30s asserted in reconcile-run.ts — that comment was wrong and is now fixed.
+//
+// One pushOrderToAirtable costs ~8s (it writes child orders, order items and
+// runs reconcileDeletes), so only 1-2 fit in a run. BATCH_LIMIT was 50, i.e.
+// ~400s of work in a 15s window: the batch could never drain, every run was
+// killed, and because the run row was written on the LAST line nothing was
+// ever logged. The job looked dead for 2h31m while it was in fact running and
+// dying every 5 minutes with errors: 0 — and FP-261027-00024 (4 portions,
+// 29/10) never reached the kitchen view.
+//
+// Stop pushing at 10s so there is time left to write the run row. Whatever is
+// still dirty waits for the next run; that is the correct contract, and the
+// two-flag design already guarantees it is picked up.
+const PUSH_BUDGET_MS = 10_000
 
 function serviceClient(): SupabaseClient {
   if (!SUPABASE_SERVICE_KEY) throw new Error('SUPABASE_SERVICE_ROLE_KEY not set')
@@ -27,6 +45,28 @@ export default async (): Promise<Response> => {
     return Response.json({ skipped: 'AIRTABLE_PAT not set' })
   }
   const supabase = serviceClient()
+
+  // WEC-890: open the run row BEFORE doing any work, close it at the end.
+  // It used to be a single insert on the last line of the function, so a run
+  // killed at 15s logged NOTHING: 17 invocations between 00:25 and 03:10 on
+  // 2026-10-28 produced 4 rows. A row left saying 'running' is itself the
+  // signal that an invocation was killed — silence must not be possible.
+  let runId: string | null = null
+  try {
+    const { data } = await supabase
+      .from('reconcile_runs')
+      .insert({
+        provider: 'airtable',
+        checked: 0, paid: 0, failed: 0, still_pending: 0,
+        cancelled_timeout: 0, errors: 0, duration_ms: 0,
+        notes: 'running',
+      })
+      .select('id')
+      .single()
+    runId = (data as { id: string } | null)?.id ?? null
+  } catch (err) {
+    console.error('[airtable-reconcile] could not open run log:', err)
+  }
 
   // Dirty orders are eligible by construction (we only flag eligible ones),
   // but pushOrderToAirtable re-checks defensively.
@@ -52,7 +92,10 @@ export default async (): Promise<Response> => {
   // before AIRTABLE_DELETE_ENABLED is flipped on.
   const deleteNotes: string[] = []
 
+  let deferred = 0
   for (const r of rows ?? []) {
+    // WEC-890: out of time — leave the rest dirty for the next run.
+    if (Date.now() - startMs > PUSH_BUDGET_MS) { deferred++; continue }
     checked++
     try {
       const res = await pushOrderToAirtable(supabase, r.id)
@@ -104,6 +147,7 @@ export default async (): Promise<Response> => {
   }
 
   for (const r of planRows ?? []) {
+    if (Date.now() - startMs > PUSH_BUDGET_MS) { deferred++; continue }
     checked++
     try {
       const res = await pushWalletPlanToAirtable(supabase, r.id)
@@ -126,19 +170,27 @@ export default async (): Promise<Response> => {
   }
 
   const durationMs = Date.now() - startMs
-  const summary = { checked, synced, skipped, errors }
+  const summary = { checked, synced, skipped, deferred, errors }
+  const notes =
+    [...(deferred ? [`deferred:${deferred} (budget)`] : []), ...errorNotes, ...deleteNotes]
+      .slice(0, 15)
+      .join(' | ') || null
+  const row = {
+    provider: 'airtable',
+    checked,
+    paid: synced, // reuse column: rows successfully mirrored
+    failed: 0,
+    still_pending: skipped,
+    cancelled_timeout: 0,
+    errors,
+    duration_ms: durationMs,
+    notes,
+  }
   try {
-    await supabase.from('reconcile_runs').insert({
-      provider: 'airtable',
-      checked,
-      paid: synced, // reuse column: rows successfully mirrored
-      failed: 0,
-      still_pending: skipped,
-      cancelled_timeout: 0,
-      errors,
-      duration_ms: durationMs,
-      notes: [...errorNotes, ...deleteNotes].slice(0, 15).join(' | ') || null,
-    })
+    // WEC-890: close the row opened at the top. Fall back to an insert only if
+    // opening it failed, so a run is never completely unrecorded.
+    if (runId) await supabase.from('reconcile_runs').update(row).eq('id', runId)
+    else await supabase.from('reconcile_runs').insert(row)
   } catch (err) {
     console.error('[airtable-reconcile] failed to log run:', err)
   }
