@@ -12,6 +12,12 @@ import { usePartner } from '../context'
 // Greek Excel reads «;»-separated CSV with decimal commas.
 const dec = (cents: number) => (cents / 100).toFixed(2).replace('.', ',')
 
+// WEC-889: the dietitian invoices Fitpal for the commission PLUS 24% output VAT.
+// Display-only — never stored. Commission itself stays net (already net of the
+// 13% food VAT on the order base, WEC-885).
+const COMMISSION_VAT_RATE = 0.24
+const vatOf = (commissionCents: number) => Math.round(commissionCents * COMMISSION_VAT_RATE)
+
 function monthRange(ym: string): [string, string] {
   const [y, m] = ym.split('-').map(Number)
   const last = new Date(y, m, 0).getDate()
@@ -45,6 +51,10 @@ export function Finance() {
     paid: a.paid + l.paid_out, outstanding: a.outstanding + l.outstanding,
   }), { gross: 0, base: 0, commission: 0, paid: 0, outstanding: 0 }), [lines])
 
+  // WEC-889: output VAT (24%) the dietitian adds on top of the commission.
+  const vat = vatOf(tot.commission)
+  const commissionWithVat = tot.commission + vat
+
   const perClient = useMemo(() => {
     const m = new Map<string, { name: string; gross: number; commission: number; n: number }>()
     for (const l of lines) {
@@ -56,11 +66,11 @@ export function Finance() {
   }, [lines])
 
   function exportCsv() {
-    const head = ['Ημερομηνία', 'Πελάτης', 'Αναφορά', 'Τύπος', 'Πληρωμή', 'Κατάσταση πληρωμής', 'Ποσό', 'Βάση commission', 'Ποσοστό', 'Commission', 'Εξοφλημένο', 'Υπόλοιπο']
+    const head = ['Ημερομηνία', 'Πελάτης', 'Αναφορά', 'Τύπος', 'Πληρωμή', 'Κατάσταση πληρωμής', 'Ποσό', 'Βάση commission', 'Ποσοστό', 'Commission', 'ΦΠΑ (24%)', 'Σύνολο με ΦΠΑ', 'Εξοφλημένο', 'Υπόλοιπο']
     const rows = lines.map((l) => [
       fmtDate(l.occurred_at), l.client_name ?? '', l.ref ?? '', l.source_type === 'order' ? 'Παραγγελία' : 'Πλάνο',
       l.payment_method ?? '', l.payment_status ?? '', dec(l.gross), dec(l.base),
-      pct(l.rate_bps), dec(l.commission), dec(l.paid_out), dec(l.outstanding),
+      pct(l.rate_bps), dec(l.commission), dec(vatOf(l.commission)), dec(l.commission + vatOf(l.commission)), dec(l.paid_out), dec(l.outstanding),
     ])
     const csv = [head, ...rows].map((r) => r.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(';')).join('\n')
     const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8' })
@@ -76,7 +86,7 @@ export function Finance() {
       <div className="admin-page-head">
         <div>
           <h1 className="admin-page-title">Οικονομικά</h1>
-          <p className="admin-page-sub">Το commission υπολογίζεται στην αξία των πιάτων πριν από εκπτώσεις και κουπόνια, και μόνο όταν πληρωθεί η παραγγελία.</p>
+          <p className="admin-page-sub">Το commission υπολογίζεται στην αξία των πιάτων πριν από εκπτώσεις και κουπόνια, και μόνο όταν πληρωθεί η παραγγελία. Στο commission προστίθεται ΦΠΑ 24% κατά την τιμολόγηση προς τη Fitpal.</p>
         </div>
         <div className="partner-actions">
           <input className="admin-input admin-input-tight" type="month" value={ym} disabled={all} onChange={(e) => setYm(e.target.value)} />
@@ -91,6 +101,8 @@ export function Finance() {
       <div className="admin-stats-grid">
         <Stat title="Τζίρος" value={eur(tot.gross)} />
         <Stat title="Commission" value={eur(tot.commission)} hint={`σε ${eur(tot.base)} αξία πιάτων (πληρωμένες)`} />
+        <Stat title="ΦΠΑ (24%)" value={eur(vat)} hint="στο commission, κατά την τιμολόγηση" />
+        <Stat title="Σύνολο με ΦΠΑ" value={eur(commissionWithVat)} hint="ποσό τιμολογίου προς Fitpal" />
         <Stat title="Εξοφλημένο" value={eur(tot.paid)} />
         <Stat title="Οφειλόμενο" value={eur(tot.outstanding)} />
       </div>
