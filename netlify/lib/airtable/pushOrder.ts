@@ -265,6 +265,37 @@ export async function pushOrderToAirtable(
   const currentItemUuids = new Set<string>()
 
   // 7. Upsert Child/Day Orders + their items
+  //
+  // WEC-886: "Daily Price" reflects the order-level discount. Fitpal vouchers
+  // apply once to the whole order (voucher_uses), never per day, so we split the
+  // discount across the active days pro-rata by each day's GROSS total
+  // (day_total). The rounding remainder lands on the largest day so the days sum
+  // EXACTLY to order.total. No discount (total == gross sum) → gross passes
+  // through unchanged; a single-day order gets the whole order total.
+  const netDailyByChild = new Map<string, number>()
+  {
+    const grossByChild = (childList as any[]).map((c) => [c.id as string, (c.day_total ?? 0) as number] as const)
+    const grossSum = grossByChild.reduce((s, [, g]) => s + g, 0)
+    const orderTotal = order.total ?? grossSum
+    if (grossSum <= 0 || orderTotal === grossSum) {
+      for (const [id, g] of grossByChild) netDailyByChild.set(id, g)
+    } else {
+      let allocated = 0
+      let largestId: string | null = null
+      let largestG = -1
+      for (const [id, g] of grossByChild) {
+        const net = Math.round((g * orderTotal) / grossSum)
+        netDailyByChild.set(id, net)
+        allocated += net
+        if (g > largestG) { largestG = g; largestId = id }
+      }
+      const remainder = orderTotal - allocated
+      if (largestId != null && remainder !== 0) {
+        netDailyByChild.set(largestId, (netDailyByChild.get(largestId) ?? 0) + remainder)
+      }
+    }
+  }
+
   for (const c of childList as any[]) {
     const wishIso = athensIso(c.delivery_date, c.time_from)
     const childKey = `${order.id}#${wishIso}`
@@ -286,7 +317,7 @@ export async function pushOrderToAirtable(
       // WEC-886: per-day order cost from our DB (Σ order_items.total_price, cents →
       // euros). Authoritative platform value; mirror stays in sync because any item
       // edit already flags the order dirty and re-pushes.
-      'Daily Price': toEuros((c as any).day_total ?? 0),
+      'Daily Price': toEuros(netDailyByChild.get(c.id) ?? ((c as any).day_total ?? 0)),
     }
     if (custLink) childFields['Customer'] = custLink
     const [childRec] = await upsertRecords(TABLES.childOrders, ['Child/Day Order Id'], [{ fields: childFields }])
