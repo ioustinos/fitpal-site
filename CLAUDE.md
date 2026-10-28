@@ -92,6 +92,16 @@ Ioustinos's go, or strip the same pieces again. Promotion commit: 152489d.
 
 `main` contains **`b6ac715`, a revert of merge `10107bd`**. Any commit that was inside that merge is still an *ancestor* of `main`, so `git merge dev` considers it already merged and re-applies **nothing** — the reverted content stays gone. On 2026-09-17 WEC-774, WEC-776 and WEC-777 were sitting undone on production for exactly this reason, invisible in the log.
 
+> **⚠️ The rollback notes in this rule are HISTORY, not current state. Verify before repeating them.**
+>
+> This section also records a second rollback — `5765875` on 14/10/2026, *"Roll prod back to pre-epic tree (df832b4) … The dietitian/costing epic on dev was promoted to main unintentionally"*. **That epic has since been re-shipped and is LIVE on `main`** — `src/admin/pages/Partners.tsx`, `netlify/functions/partner-create-client.ts`, `public/partner-guide.html`, with WEC-877 / WEC-881 commits through 26/10/2026.
+>
+> On 2026-10-27 a chat repeated the 14/10 note as if it were current and told Ioustinos the dietitians were rolled back. They were not. **Before citing any rollback here, check the tree:** `git ls-tree -r --name-only origin/main | grep -i partner`.
+>
+> The *mechanism* this rule describes (a revert makes commits un-re-mergeable) is permanent and still applies. The *list of what is currently rolled back* goes stale and must never be quoted from memory.
+
+**When you only need to ship a small fix to production, do NOT promote the whole tree.** Commit the specific files directly on top of `origin/main` and push, then repeat on `dev`. That ships exactly what you intended and sidesteps this rule entirely. Tree promotion is for a real release. (WEC-878/879, 27/10/2026, shipped this way.)
+
 **So never promote with a bare merge. Promote the tree, and prove it:**
 
 ```bash

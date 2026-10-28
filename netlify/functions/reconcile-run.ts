@@ -89,7 +89,9 @@ export default async (req: Request): Promise<Response> => {
   const results: Record<string, unknown> = {}
 
   // Sequential, not Promise.all: both hit the same Supabase service client and
-  // the same external APIs, and 30s is the scheduled-function execution limit.
+  // the same external APIs, and the scheduled-function execution limit is ~15s (WEC-890: Netlify
+  // killed every scheduled airtable-reconcile invocation at ~14.98s/499 on
+  // 2026-10-28 — the 30s figure previously stated here was wrong).
   // Serialising keeps one slow provider from pushing the other over the edge.
   for (const name of ['viva', 'airtable'] as const) {
     if (target !== 'both' && target !== name) continue
