@@ -318,6 +318,9 @@ function Drawer({ detail, loading, onClose, onRefunded, onReload, onToggleContac
                   <span style={{ fontWeight: 700 }}>Contacted</span>
                 </label>
                 <StatusToggle detail={detail} onChanged={onReload} />
+                <div style={{ fontSize: 12, color: '#6b7280', marginTop: 10, lineHeight: 1.45 }}>
+                  Η «ενεργή έως» είναι μόνο για δική μας εικόνα — <strong>δεν μπλοκάρει</strong> τίποτα· ο πελάτης μπορεί να παραγγείλει ακόμη κι αν περάσει.
+                </div>
               </Section>
 
               {/* WEC-893 round-2 (2.3): customer card high up, profile link prominent. */}
@@ -416,9 +419,6 @@ function Drawer({ detail, loading, onClose, onRefunded, onReload, onToggleContac
                       : '…'
                   }
                 />
-                <div style={{ fontSize: 12, color: '#6b7280', marginTop: 10, lineHeight: 1.45 }}>
-                  Η «ενεργή έως» είναι μόνο για δική μας εικόνα — <strong>δεν μπλοκάρει</strong> τίποτα· ο πελάτης μπορεί να παραγγείλει ακόμη κι αν περάσει.
-                </div>
                 {/* WEC-896: renewal link — opens the wizard pre-filled with this
                     package, for the team to send manually (same link the 3-day
                     email uses). */}
