@@ -419,6 +419,10 @@ function Drawer({ detail, loading, onClose, onRefunded, onReload, onToggleContac
                 <div style={{ fontSize: 12, color: '#6b7280', marginTop: 10, lineHeight: 1.45 }}>
                   Η «ενεργή έως» είναι μόνο για δική μας εικόνα — <strong>δεν μπλοκάρει</strong> τίποτα· ο πελάτης μπορεί να παραγγείλει ακόμη κι αν περάσει.
                 </div>
+                {/* WEC-896: renewal link — opens the wizard pre-filled with this
+                    package, for the team to send manually (same link the 3-day
+                    email uses). */}
+                <RenewalLink planId={detail.id} />
               </Section>
 
               {/* WEC-893 Leg 5: read-only plan + macros via the shared panel. */}
@@ -576,6 +580,34 @@ function StatusToggle({ detail, onChanged }: { detail: AdminWalletPlanDetail; on
         {busy && <span style={{ fontSize: 12, color: '#6b7280' }}>…</span>}
       </div>
       {err && <div className="admin-error-banner" style={{ marginTop: 8 }}>{err}</div>}
+    </div>
+  )
+}
+
+// WEC-896: renewal invitation link for the team to copy/send. Opens the
+// wizard pre-filled with this package (`?view=subscription&renew=<planId>`) —
+// the same URL the 3-day-before email will use. Origin = current site (admin
+// is served from the ordering site, so the wizard lives at the same origin).
+function RenewalLink({ planId }: { planId: string }) {
+  const url = typeof window !== 'undefined'
+    ? `${window.location.origin}/?view=subscription&renew=${planId}`
+    : `/?view=subscription&renew=${planId}`
+  const [copied, setCopied] = useState(false)
+  async function copy() {
+    try { await navigator.clipboard.writeText(url); setCopied(true); setTimeout(() => setCopied(false), 1800) } catch { /* noop */ }
+  }
+  return (
+    <div style={{ marginTop: 12, paddingTop: 10, borderTop: '1px solid var(--a-border)' }}>
+      <div style={{ fontSize: 11, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '.04em', color: 'var(--a-text-muted)', marginBottom: 6 }}>
+        Σύνδεσμος ανανέωσης
+      </div>
+      <div style={{ fontSize: 12, color: '#6b7280', marginBottom: 6, lineHeight: 1.45 }}>
+        Στείλ’ τον στον πελάτη για να ξανανοίξει τον wizard με το ίδιο πακέτο προσυμπληρωμένο.
+      </div>
+      <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+        <input className="admin-input" readOnly value={url} onFocus={(e) => e.currentTarget.select()} style={{ flex: '1 1 260px', minWidth: 220, fontSize: 12 }} />
+        <button type="button" className="admin-btn" onClick={copy}>{copied ? '✓ Αντιγράφηκε' : 'Αντιγραφή'}</button>
+      </div>
     </div>
   )
 }

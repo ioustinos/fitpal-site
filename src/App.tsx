@@ -81,7 +81,9 @@ function CustomerApp() {
     if (typeof window === 'undefined') return
     const params = new URLSearchParams(window.location.search)
     const view = params.get('view')
-    if (view === 'subscription' || view === 'subscriptions') {
+    // WEC-896: `?renew=<planId>` (renewal invitation link) also lands in the
+    // wizard, which reads the param itself and pre-fills the previous package.
+    if (view === 'subscription' || view === 'subscriptions' || params.get('renew')) {
       useUIStore.getState().goToWalletPage()
     }
     // WEC-781: landing menu-carousel CTA deep-links to /?menu=1 to auto-open the

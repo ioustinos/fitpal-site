@@ -19,6 +19,7 @@ import { saveProfileAllergies, saveProfileAvoidedIngredients } from '../lib/api/
 import { useMenuStore } from '../store/useMenuStore'
 import { supabase } from '../lib/supabase'
 import { tabStorage } from '../lib/clientTab' // WEC-868
+import { fetchRenewalPrefill } from '../lib/api/planDetails' // WEC-896
 import { MacroIcon } from '../components/ui/MacroDots'
 import { DiscountPill } from '../components/ui/DiscountPill'
 import { isValidGreekVat, vatDigits } from '../lib/vat'
@@ -405,6 +406,36 @@ export function WalletPage() {
       }))
     } catch { /* quota / private mode — non-fatal */ }
   }, [goal, sex, age, heightCm, weightKg, activity, meals, planLength, daysPerWeek, indAddr, startDate])
+
+  // WEC-896: renewal deep link — `?renew=<planId>` reopens the wizard with the
+  // customer's previous package pre-filled. Reads the old plan's config (RLS:
+  // owner during their session) and overrides the defaults/restore. Runs once;
+  // the param survives the OTP reload, so a not-yet-signed-in click fills in
+  // after login. Start date is intentionally left blank — they pick a new one.
+  const renewalHandled = useRef(false)
+  useEffect(() => {
+    if (renewalHandled.current) return
+    if (typeof window === 'undefined') return
+    const renewId = new URLSearchParams(window.location.search).get('renew')
+    if (!renewId) return
+    renewalHandled.current = true
+    let cancelled = false
+    ;(async () => {
+      const { data } = await fetchRenewalPrefill(renewId)
+      if (cancelled || !data) return
+      if (data.goal) setGoal(data.goal as Goal)
+      if (data.sex) setSex(data.sex as Sex)
+      if (data.age) setAge(data.age)
+      if (data.heightCm) setHeightCm(data.heightCm)
+      if (data.weightKg) setWeightKg(data.weightKg)
+      if (data.activity) setActivity(data.activity as ActivityLevel)
+      if (data.meals) setMeals(data.meals as MealsSelection)
+      if (data.planLength) setPlanLength(data.planLength as PlanLength)
+      if (data.daysPerWeek) setDaysPerWeek(data.daysPerWeek as DaysPerWeek)
+    })()
+    return () => { cancelled = true }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   // WEC-691: tick down the resend cooldown.
   useEffect(() => {
