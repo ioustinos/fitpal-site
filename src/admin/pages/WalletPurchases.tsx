@@ -86,6 +86,17 @@ export function WalletPurchases() {
     setDetail(data); setDetailLoading(false)
   }
 
+  // WEC-894 round-2 (4.3): re-fetch the open drawer's detail IN PLACE after an
+  // in-drawer edit (price, dates, status) so the cards reflect the new values
+  // without the drawer closing. Also refreshes the list behind it.
+  async function reloadDetail() {
+    if (!openId) return
+    const { data, error } = await fetchAdminWalletPlanDetail(openId)
+    if (error) setErr(error)
+    if (data) setDetail(data)
+    refresh()
+  }
+
   return (
     <div className="admin-page">
       <h1 className="admin-page-title">Wallet purchases</h1>
@@ -214,6 +225,7 @@ export function WalletPurchases() {
           loading={detailLoading}
           onClose={() => { setOpenId(null); setDetail(null) }}
           onRefunded={() => { setOpenId(null); setDetail(null); refresh() }}
+          onReload={reloadDetail}
           onToggleContacted={(next) => detail && toggleContacted(detail.id, next)}
         />
       )}
@@ -226,10 +238,11 @@ interface DrawerProps {
   loading: boolean
   onClose: () => void
   onRefunded: () => void
+  onReload: () => void
   onToggleContacted: (next: boolean) => void
 }
 
-function Drawer({ detail, loading, onClose, onRefunded, onToggleContacted }: DrawerProps) {
+function Drawer({ detail, loading, onClose, onRefunded, onReload, onToggleContacted }: DrawerProps) {
   const [tab, setTab] = useState<'details' | 'history'>('details')
   const [refundReason, setRefundReason] = useState('')
   const [refundAmount, setRefundAmount] = useState('') // empty = full refund of remaining
@@ -298,12 +311,28 @@ function Drawer({ detail, loading, onClose, onRefunded, onToggleContacted }: Dra
                 <HistoryTab planId={detail.id} />
               ) : (
             <div className="admin-od"><div className="admin-od-grid">
-              <label className="admin-od-card admin-od-col-12" style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
-                <input type="checkbox" checked={detail.contacted} onChange={(e) => onToggleContacted(e.target.checked)} style={{ width: 16, height: 16, cursor: 'pointer' }} />
-                <span style={{ fontWeight: 700 }}>Contacted</span>
-              </label>
+              {/* WEC-893 round-2 (2.1/2.5): top card = contact + lifecycle status. */}
+              <Section title="Κατάσταση & επικοινωνία" col={12} icon={ICO.check}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', marginBottom: 12 }}>
+                  <input type="checkbox" checked={detail.contacted} onChange={(e) => onToggleContacted(e.target.checked)} style={{ width: 16, height: 16, cursor: 'pointer' }} />
+                  <span style={{ fontWeight: 700 }}>Contacted</span>
+                </label>
+                <StatusToggle detail={detail} onChanged={onReload} />
+              </Section>
 
-              {/* WEC-893: Pricing + Payment first. */}
+              {/* WEC-893 round-2 (2.3): customer card high up, profile link prominent. */}
+              <Section title="Customer" col={12} icon={ICO.user}>
+                <KV k="Name" v={detail.customerName ?? '—'} />
+                <KV k="Email" v={detail.customerEmail ?? '—'} />
+                <KV k="User ID" v={detail.userId ?? '—'} mono />
+                {detail.userId && (
+                  <Link to={`/admin/users?userId=${detail.userId}`} className="admin-btn-secondary admin-btn-sm" style={{ marginTop: 10, display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                    {ICO.user}Προφίλ πελάτη →
+                  </Link>
+                )}
+              </Section>
+
+              {/* WEC-893: Pricing + Payment side by side. */}
               <Section title="Pricing" col={6} icon={ICO.euro}>
                 <KV k="Subtotal" v={`${(detail.subtotalCents / 100).toFixed(2)} €`} />
                 {detail.voucherId && (
@@ -312,11 +341,17 @@ function Drawer({ detail, loading, onClose, onRefunded, onToggleContacted }: Dra
                 <KV k="Wallet credit" v={`${(detail.walletCreditCents / 100).toFixed(2)} €`} />
                 <KV k="Bonus credits" v={`${(detail.bonusCreditsCents / 100).toFixed(2)} €`} />
                 <KV k="Refunded so far" v={`${(detail.refundAmountCents / 100).toFixed(2)} €`} />
-                {/* WEC-894: editable final price (revenue) + discount. */}
-                <PriceEditor detail={detail} onSaved={onRefunded} />
+                {/* round-2 (4.3): current committed values, right above the editor,
+                    so after a save the admin sees the card update in place. */}
+                <div style={{ marginTop: 8, paddingTop: 8, borderTop: '1px solid var(--a-border)' }}>
+                  <KV k="Έκπτωση (τρέχουσα)" v={`${(detail.discountCents / 100).toFixed(2)} €`} />
+                  <KV k="Τελική τιμή (τρέχουσα)" v={`${(detail.amountToPayCents / 100).toFixed(2)} €`} />
+                </div>
+                {/* WEC-894: editable final price (revenue) + discount — reloads in place. */}
+                <PriceEditor detail={detail} onSaved={onReload} />
               </Section>
 
-              {/* WEC-893: invoice (Παραστατικό) folded into Payment. */}
+              {/* WEC-893: invoice + mark-paid + refund all folded into Payment. */}
               <Section title="Payment" col={6} icon={ICO.card}>
                 <KV k="Method" v={detail.paymentMethod ?? '—'} />
                 <KV k="Status" v={detail.paymentStatus} />
@@ -333,22 +368,44 @@ function Drawer({ detail, loading, onClose, onRefunded, onToggleContacted }: Dra
                     </>
                   )}
                 </div>
-              </Section>
 
-              <Section title="Customer" col={12} icon={ICO.user}>
-                <KV k="Name" v={detail.customerName ?? '—'} />
-                <KV k="Email" v={detail.customerEmail ?? '—'} />
-                <KV k="User ID" v={detail.userId ?? '—'} mono />
-                {detail.userId && (
-                  <Link to={`/admin/users?userId=${detail.userId}`} className="admin-od-link" style={{ marginTop: 6, display: 'inline-flex' }}>
-                    Προφίλ πελάτη →
-                  </Link>
+                {detail.paymentStatus === 'pending' && (detail.paymentMethod === 'transfer' || detail.paymentMethod === 'cash') && (
+                  <div style={{ marginTop: 10, paddingTop: 10, borderTop: '1px solid var(--a-border)' }}>
+                    <p className="admin-page-sub" style={{ margin: '0 0 8px' }}>
+                      {detail.paymentMethod === 'cash'
+                        ? `Courier collected the cash? Mark paid to credit ${(detail.amountToPayCents / 100).toFixed(2)} € (+ bonus) and activate.`
+                        : `Funds received? Mark paid to credit ${(detail.amountToPayCents / 100).toFixed(2)} € (+ bonus) and activate.`}
+                    </p>
+                    {markErr && <div className="admin-error-banner">{markErr}</div>}
+                    <button className="admin-btn-primary" onClick={doMarkPaid} disabled={marking}>
+                      {marking ? 'Marking…' : (detail.paymentMethod === 'cash' ? 'Mark cash as paid' : 'Mark transfer as paid')}
+                    </button>
+                  </div>
+                )}
+
+                {detail.paymentStatus === 'paid' && detail.refundAmountCents < detail.amountToPayCents && (
+                  <div style={{ marginTop: 10, paddingTop: 10, borderTop: '1px solid var(--a-border)' }}>
+                    <div style={{ fontSize: 11, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '.04em', color: 'var(--a-text-muted)', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 6 }}>
+                      {ICO.refund}Επιστροφή
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                      <input className="admin-input" style={{ width: '100%' }} placeholder="Reason (required)" value={refundReason} onChange={(e) => setRefundReason(e.target.value)} />
+                      <input className="admin-input" style={{ width: '100%' }} type="text" inputMode="decimal" onWheel={(e) => e.currentTarget.blur()}
+                        placeholder={`Amount in € (empty = full ${((detail.amountToPayCents - detail.refundAmountCents) / 100).toFixed(2)} €)`}
+                        value={refundAmount} onChange={(e) => setRefundAmount(e.target.value)} />
+                      {refundErr && <div className="admin-error-banner">{refundErr}</div>}
+                      <button className="admin-btn-danger" style={{ alignSelf: 'flex-start' }} onClick={doRefund} disabled={refunding || !refundReason}>
+                        {refunding ? 'Refunding…' : 'Refund via Viva'}
+                      </button>
+                    </div>
+                  </div>
                 )}
               </Section>
 
-              {/* WEC-893 Leg 1: plan management (editable). */}
+              {/* WEC-893 Leg 1: plan management (editable start + editable active-until). */}
               <Section title="Διαχείριση πλάνου" col={12} icon={ICO.calendar}>
-                <StartDateEditor detail={detail} onSaved={onRefunded} />
+                <StartDateEditor detail={detail} onSaved={onReload} />
+                <ActiveUntilEditor detail={detail} onSaved={onReload} />
                 <KV
                   k="Ημέρες (χρήση / σύνολο)"
                   v={
@@ -359,57 +416,16 @@ function Drawer({ detail, loading, onClose, onRefunded, onToggleContacted }: Dra
                       : '…'
                   }
                 />
-                <OpsFields detail={detail} onChanged={onRefunded} />
+                <div style={{ fontSize: 12, color: '#6b7280', marginTop: 10, lineHeight: 1.45 }}>
+                  Η «ενεργή έως» είναι μόνο για δική μας εικόνα — <strong>δεν μπλοκάρει</strong> τίποτα· ο πελάτης μπορεί να παραγγείλει ακόμη κι αν περάσει.
+                </div>
               </Section>
 
-              {/* WEC-893 Leg 5: read-only plan + macros via the shared panel
-                  (also covers the body characteristics — no separate snapshot card). */}
+              {/* WEC-893 Leg 5: read-only plan + macros via the shared panel. */}
               <div className="admin-od-card admin-od-col-12">
                 <div className="admin-od-card-head"><span className="admin-od-card-title">{ICO.activity}Πλάνο & μακροθρεπτικά</span></div>
                 <PlanDetailsPanel plan={toPlanDetails(detail)} />
               </div>
-
-              {detail.paymentStatus === 'pending' && (detail.paymentMethod === 'transfer' || detail.paymentMethod === 'cash') && (
-                <Section col={12} icon={ICO.check} title={detail.paymentMethod === 'cash' ? 'Cash on delivery (Αντικαταβολή)' : 'Bank transfer'}>
-                  <p className="admin-page-sub" style={{ margin: '0 0 8px' }}>
-                    {detail.paymentMethod === 'cash'
-                      ? `Courier collected the cash? Mark the plan paid to credit ${(detail.amountToPayCents / 100).toFixed(2)} € (+ bonus) to the customer's wallet and activate it.`
-                      : `Funds received? Mark the plan paid to credit ${(detail.amountToPayCents / 100).toFixed(2)} € (+ bonus) to the customer's wallet and activate it.`}
-                  </p>
-                  {markErr && <div className="admin-error-banner">{markErr}</div>}
-                  <button className="admin-btn-primary" onClick={doMarkPaid} disabled={marking}>
-                    {marking ? 'Marking…' : (detail.paymentMethod === 'cash' ? 'Mark cash as paid' : 'Mark transfer as paid')}
-                  </button>
-                </Section>
-              )}
-
-              {detail.paymentStatus === 'paid' && detail.refundAmountCents < detail.amountToPayCents && (
-                <Section title="Refund" col={12} icon={ICO.refund}>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxWidth: 420 }}>
-                    <input
-                      className="admin-input"
-                      style={{ width: '100%' }}
-                      placeholder="Reason (required)"
-                      value={refundReason}
-                      onChange={(e) => setRefundReason(e.target.value)}
-                    />
-                    <input
-                      className="admin-input"
-                      style={{ width: '100%' }}
-                      type="text"
-                      inputMode="decimal"
-                      onWheel={(e) => e.currentTarget.blur()}
-                      placeholder={`Amount in € (leave empty for full ${((detail.amountToPayCents - detail.refundAmountCents) / 100).toFixed(2)} €)`}
-                      value={refundAmount}
-                      onChange={(e) => setRefundAmount(e.target.value)}
-                    />
-                    {refundErr && <div className="admin-error-banner">{refundErr}</div>}
-                    <button className="admin-btn-danger" style={{ alignSelf: 'flex-start' }} onClick={doRefund} disabled={refunding || !refundReason}>
-                      {refunding ? 'Refunding…' : 'Refund via Viva'}
-                    </button>
-                  </div>
-                </Section>
-              )}
             </div></div>
               )}
             </>
@@ -448,20 +464,20 @@ const ICO = {
 function StartDateEditor({ detail, onSaved }: { detail: AdminWalletPlanDetail; onSaved: () => void }) {
   const sdAdmin = useAuthStore((s) => s.user)
   const [val, setVal] = useState(detail.startDate ?? '')
-  const [activeUntil, setActiveUntil] = useState<string | null>(detail.activeUntil)
   const [saving, setSaving] = useState(false)
   const [err, setErr] = useState<string | null>(null)
   const [ok, setOk] = useState(false)
   useEffect(() => {
-    setVal(detail.startDate ?? ''); setActiveUntil(detail.activeUntil); setErr(null); setOk(false)
-  }, [detail.id, detail.startDate, detail.activeUntil])
+    setVal(detail.startDate ?? ''); setErr(null); setOk(false)
+  }, [detail.id, detail.startDate])
 
   // WEC-817: this is an ADMIN edit on an EXISTING plan — an admin must be able to
   // backfill/correct a start date that has already passed. So NO forward minimum
   // (the wizard's "today + 2 business days" from WEC-798a applies only to a
   // customer buying a plan today, NOT here). Weekday-only still holds.
+  // Saving recomputes active_until (start + weeks) server-side; the drawer then
+  // reloads in place, so ActiveUntilEditor below reflects the new end date.
 
-  const fmt = (iso: string | null) => iso ? new Date(iso + 'T00:00:00').toLocaleDateString('el-GR') : '—'
   const dirty = val !== (detail.startDate ?? '')
 
   async function save() {
@@ -470,27 +486,97 @@ function StartDateEditor({ detail, onSaved }: { detail: AdminWalletPlanDetail; o
     const dow = new Date(val + 'T00:00:00').getDay()
     if (dow === 0 || dow === 6) { setErr('Μόνο εργάσιμες (Δευ–Παρ)'); return }
     setSaving(true)
-    const { activeUntil: newEnd, error } = await updateWalletPlanStartDate(detail.id, val, detail.planLengthWeeks, sdAdmin?.email ?? 'admin')
+    const { error } = await updateWalletPlanStartDate(detail.id, val, detail.planLengthWeeks, sdAdmin?.email ?? 'admin')
     setSaving(false)
     if (error) { setErr(error); return }
-    setActiveUntil(newEnd); setOk(true); onSaved()
+    setOk(true); onSaved()
   }
 
   return (
-    <>
-      <div className="admin-kv">
-        <span className="admin-kv-k">Start date (έναρξη)</span>
-        <span className="admin-kv-v" style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-          <input type="date" value={val} onChange={(e) => setVal(e.target.value)} />
-          <button type="button" className="admin-btn" disabled={saving || !dirty} onClick={save}>
-            {saving ? '…' : 'Save'}
-          </button>
-          {ok && <span style={{ color: '#0a7d2c' }}>✓ αποθηκεύτηκε</span>}
-          {err && <span style={{ color: '#c2410c' }}>{err}</span>}
-        </span>
+    <div className="admin-kv">
+      <span className="admin-kv-k">Έναρξη (start date)</span>
+      <span className="admin-kv-v" style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+        <input type="date" value={val} onChange={(e) => setVal(e.target.value)} />
+        <button type="button" className="admin-btn" disabled={saving || !dirty} onClick={save}>
+          {saving ? '…' : 'Save'}
+        </button>
+        {ok && <span style={{ color: '#0a7d2c' }}>✓</span>}
+        {err && <span style={{ color: '#c2410c' }}>{err}</span>}
+      </span>
+    </div>
+  )
+}
+
+// WEC-893 round-2 (2.5): «Ενεργή έως» is now a single editable field (same shape
+// as the start-date editor), replacing the old read-only KV + separate override.
+function ActiveUntilEditor({ detail, onSaved }: { detail: AdminWalletPlanDetail; onSaved: () => void }) {
+  const adminUser = useAuthStore((s) => s.user)
+  const [val, setVal] = useState(detail.activeUntil ?? '')
+  const [saving, setSaving] = useState(false)
+  const [ok, setOk] = useState(false)
+  const [err, setErr] = useState<string | null>(null)
+  useEffect(() => { setVal(detail.activeUntil ?? ''); setOk(false); setErr(null) }, [detail.id, detail.activeUntil])
+  const dirty = val !== (detail.activeUntil ?? '')
+
+  async function save() {
+    setSaving(true); setErr(null); setOk(false)
+    const { error } = await saveWalletPlanOpsFields(detail.id, { activeUntil: val || null }, adminUser?.email ?? 'admin')
+    setSaving(false)
+    if (error) { setErr(error); return }
+    setOk(true); onSaved()
+  }
+
+  return (
+    <div className="admin-kv">
+      <span className="admin-kv-k">Λήξη (ενεργή έως)</span>
+      <span className="admin-kv-v" style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+        <input type="date" value={val} onChange={(e) => setVal(e.target.value)} />
+        <button type="button" className="admin-btn" disabled={saving || !dirty} onClick={save}>
+          {saving ? '…' : 'Save'}
+        </button>
+        {ok && <span style={{ color: '#0a7d2c' }}>✓</span>}
+        {err && <span style={{ color: '#c2410c' }}>{err}</span>}
+      </span>
+    </div>
+  )
+}
+
+// WEC-893 round-2 (2.1): lifecycle status toggle, moved up into the top card.
+function StatusToggle({ detail, onChanged }: { detail: AdminWalletPlanDetail; onChanged: () => void }) {
+  const adminUser = useAuthStore((s) => s.user)
+  const [status, setStatus] = useState(detail.status ?? 'active')
+  const [busy, setBusy] = useState(false)
+  const [err, setErr] = useState<string | null>(null)
+  useEffect(() => { setStatus(detail.status ?? 'active'); setErr(null) }, [detail.id, detail.status])
+
+  async function change(nextS: 'active' | 'cancelled') {
+    if (nextS === status || busy) return
+    if (nextS === 'cancelled' && !window.confirm('Ακύρωση συνδρομής; Θα απενεργοποιηθεί το wallet (χωρίς επιστροφή χρημάτων). Μπορείς να την επαναφέρεις μετά.')) return
+    setBusy(true); setErr(null)
+    const { error } = await setWalletPlanStatus(detail.id, nextS, adminUser?.email ?? 'admin')
+    setBusy(false)
+    if (error) { setErr(error); return }
+    setStatus(nextS); onChanged()
+  }
+
+  return (
+    <div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        <span style={{ fontSize: 12, color: '#6b7280' }}>Κατάσταση:</span>
+        <button type="button" onClick={() => change('active')} disabled={busy}
+          style={{ padding: '4px 12px', borderRadius: 999, fontSize: 12, fontWeight: 700, cursor: 'pointer',
+            border: status === 'active' ? '1.5px solid #10b981' : '1px solid var(--a-border)',
+            background: status === 'active' ? '#10b98122' : 'transparent',
+            color: status === 'active' ? '#047857' : '#6b7280' }}>Ενεργή</button>
+        <button type="button" onClick={() => change('cancelled')} disabled={busy}
+          style={{ padding: '4px 12px', borderRadius: 999, fontSize: 12, fontWeight: 700, cursor: 'pointer',
+            border: status === 'cancelled' ? '1.5px solid #ef4444' : '1px solid var(--a-border)',
+            background: status === 'cancelled' ? '#ef444422' : 'transparent',
+            color: status === 'cancelled' ? '#b91c1c' : '#6b7280' }}>Ακυρωμένη</button>
+        {busy && <span style={{ fontSize: 12, color: '#6b7280' }}>…</span>}
       </div>
-      <KV k="Active until (ενεργή έως)" v={fmt(activeUntil)} />
-    </>
+      {err && <div className="admin-error-banner" style={{ marginTop: 8 }}>{err}</div>}
+    </div>
   )
 }
 
@@ -499,80 +585,6 @@ function KV({ k, v, mono }: { k: string; v: string; mono?: boolean }) {
     <div className="admin-kv">
       <span className="admin-kv-k">{k}</span>
       <span className={`admin-kv-v${mono ? ' mono' : ''}`}>{v}</span>
-    </div>
-  )
-}
-
-// WEC-893 Leg 1: ops management for a plan, moved here from the Users page.
-// Expiry override + lifecycle status (notes now live in the comments thread).
-// Deliberately toothless — a past
-// «Ενεργή έως» blocks nothing (the wallet never expires); it's for our own view.
-function OpsFields({ detail, onChanged }: { detail: AdminWalletPlanDetail; onChanged: () => void }) {
-  const adminUser = useAuthStore((s) => s.user)
-  const [until, setUntil] = useState(detail.activeUntil ?? '')
-  const [persisted, setPersisted] = useState({ until: detail.activeUntil ?? '' })
-  const [saving, setSaving] = useState(false)
-  const [saved, setSaved] = useState(false)
-  const [err, setErr] = useState<string | null>(null)
-  const [status, setStatus] = useState(detail.status ?? 'active')
-  const [statusBusy, setStatusBusy] = useState(false)
-
-  useEffect(() => {
-    setUntil(detail.activeUntil ?? '')
-    setPersisted({ until: detail.activeUntil ?? '' })
-    setStatus(detail.status ?? 'active'); setSaved(false)
-  }, [detail.id, detail.activeUntil, detail.status])
-
-  const dirty = persisted.until !== until
-
-  async function save() {
-    setSaving(true); setErr(null)
-    const { error } = await saveWalletPlanOpsFields(
-      detail.id, { activeUntil: until || null }, adminUser?.email ?? 'admin',
-    )
-    setSaving(false)
-    if (error) { setErr(error); return }
-    setPersisted({ until }); setSaved(true)
-  }
-
-  async function changeStatus(nextS: 'active' | 'cancelled') {
-    if (nextS === status || statusBusy) return
-    if (nextS === 'cancelled' && !window.confirm('Ακύρωση συνδρομής; Θα απενεργοποιηθεί το wallet (χωρίς επιστροφή χρημάτων). Μπορείς να την επαναφέρεις μετά.')) return
-    setStatusBusy(true); setErr(null)
-    const { error } = await setWalletPlanStatus(detail.id, nextS, adminUser?.email ?? 'admin')
-    setStatusBusy(false)
-    if (error) { setErr(error); return }
-    setStatus(nextS); onChanged()
-  }
-
-  return (
-    <div style={{ marginTop: 10, paddingTop: 10, borderTop: '1px solid var(--fp-border, #e2ece2)' }}>
-      <div style={{ fontSize: 12, color: '#6b7280', marginBottom: 10, lineHeight: 1.45 }}>
-        Μόνο για δική μας εικόνα. <strong>Δεν μπλοκάρει τίποτα</strong> — ο πελάτης μπορεί να
-        παραγγείλει ακόμη κι αν η ημερομηνία έχει περάσει.
-      </div>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
-        <span style={{ fontSize: 12, color: '#6b7280' }}>Κατάσταση:</span>
-        <button type="button" onClick={() => changeStatus('active')} disabled={statusBusy}
-          style={{ padding: '4px 12px', borderRadius: 999, fontSize: 12, fontWeight: 700, cursor: 'pointer',
-            border: status === 'active' ? '1.5px solid #10b981' : '1px solid var(--a-border)',
-            background: status === 'active' ? '#10b98122' : 'transparent',
-            color: status === 'active' ? '#047857' : '#6b7280' }}>Ενεργή</button>
-        <button type="button" onClick={() => changeStatus('cancelled')} disabled={statusBusy}
-          style={{ padding: '4px 12px', borderRadius: 999, fontSize: 12, fontWeight: 700, cursor: 'pointer',
-            border: status === 'cancelled' ? '1.5px solid #ef4444' : '1px solid var(--a-border)',
-            background: status === 'cancelled' ? '#ef444422' : 'transparent',
-            color: status === 'cancelled' ? '#b91c1c' : '#6b7280' }}>Ακυρωμένη</button>
-        {statusBusy && <span style={{ fontSize: 12, color: '#6b7280' }}>…</span>}
-      </div>
-      <label style={{ display: 'block', maxWidth: 220 }}>
-        <span style={{ display: 'block', fontSize: 12, color: '#6b7280', marginBottom: 3 }}>Ενεργή έως (override)</span>
-        <input type="date" className="admin-input" style={{ width: '100%' }} value={until} onChange={(e) => setUntil(e.target.value)} />
-      </label>
-      {err && <div className="admin-error-banner" style={{ marginTop: 10 }}>{err}</div>}
-      <button className="admin-btn" style={{ marginTop: 10 }} onClick={save} disabled={saving || !dirty}>
-        {saving ? 'Αποθήκευση…' : saved && !dirty ? '✓ Αποθηκεύτηκε' : 'Αποθήκευση'}
-      </button>
     </div>
   )
 }
@@ -719,6 +731,19 @@ function HistoryTab({ planId }: { planId: string }) {
   ].sort((a, b) => (a.t < b.t ? 1 : -1))
   const fmt = (iso: string) => new Date(iso).toLocaleString('el-GR')
 
+  // round-2 (4.5): money change-log fields are stored in cents — render them in
+  // euros (280,00 €), never raw cents (28000). Status gets a Greek label.
+  const MONEY_FIELDS = new Set(['amount_to_pay_cents', 'discount_cents', 'subtotal_cents'])
+  const fmtVal = (field: string, v: string | null | undefined) => {
+    if (v == null || v === '') return '—'
+    if (MONEY_FIELDS.has(field)) {
+      const n = Number(v)
+      return Number.isFinite(n) ? `${(n / 100).toFixed(2)} €` : v
+    }
+    if (field === 'status') return v === 'active' ? 'Ενεργή' : v === 'cancelled' ? 'Ακυρωμένη' : v
+    return v
+  }
+
   return (
     <div className="admin-od"><div className="admin-od-grid">
       <div className="admin-od-card admin-od-col-12">
@@ -750,7 +775,7 @@ function HistoryTab({ planId }: { planId: string }) {
             ) : (
               <div key={`h${e.c.id}`} style={{ borderLeft: '3px solid #cbd5e1', padding: '4px 10px', borderRadius: 6 }}>
                 <div style={{ fontSize: 12, color: '#6b7280' }}>{fmt(e.c.createdAt)} · {e.c.adminUser ?? 'system'}</div>
-                <div>{e.c.label ?? e.c.field}{(e.c.oldValue || e.c.newValue) ? `: ${e.c.oldValue || '—'} → ${e.c.newValue || '—'}` : ''}</div>
+                <div>{e.c.label ?? e.c.field}{(e.c.oldValue || e.c.newValue) ? `: ${fmtVal(e.c.field, e.c.oldValue)} → ${fmtVal(e.c.field, e.c.newValue)}` : ''}</div>
               </div>
             ))}
           </div>
