@@ -288,38 +288,51 @@ function Drawer({ detail, loading, onClose, onRefunded, onToggleContacted }: Dra
           ) : (
             <div className="admin-od"><div className="admin-od-grid">
               <label className="admin-od-card admin-od-col-12" style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
-                <input
-                  type="checkbox"
-                  checked={detail.contacted}
-                  onChange={(e) => onToggleContacted(e.target.checked)}
-                  style={{ width: 16, height: 16, cursor: 'pointer' }}
-                />
+                <input type="checkbox" checked={detail.contacted} onChange={(e) => onToggleContacted(e.target.checked)} style={{ width: 16, height: 16, cursor: 'pointer' }} />
                 <span style={{ fontWeight: 700 }}>Contacted</span>
               </label>
-              <Section title="Customer" col={6}>
+
+              {/* WEC-893: Pricing + Payment first. */}
+              <Section title="Pricing" col={6} icon={ICO.euro}>
+                <KV k="Subtotal" v={`${(detail.subtotalCents / 100).toFixed(2)} €`} />
+                <KV k="Discount" v={`${Math.round(detail.discountPct * 100)}% (−${(detail.discountCents / 100).toFixed(2)} €)`} />
+                {detail.voucherId && (
+                  <KV k="Voucher" v={`${detail.voucherCode ?? detail.voucherId}${detail.voucherAmountCents ? ` · −${(detail.voucherAmountCents / 100).toFixed(2)} €` : ''}`} />
+                )}
+                <KV k="Amount paid" v={`${(detail.amountToPayCents / 100).toFixed(2)} €`} />
+                <KV k="Wallet credit" v={`${(detail.walletCreditCents / 100).toFixed(2)} €`} />
+                <KV k="Bonus credits" v={`${(detail.bonusCreditsCents / 100).toFixed(2)} €`} />
+                <KV k="Refunded so far" v={`${(detail.refundAmountCents / 100).toFixed(2)} €`} />
+              </Section>
+
+              {/* WEC-893: invoice (Παραστατικό) folded into Payment. */}
+              <Section title="Payment" col={6} icon={ICO.card}>
+                <KV k="Method" v={detail.paymentMethod ?? '—'} />
+                <KV k="Status" v={detail.paymentStatus} />
+                <KV k="Viva orderCode" v={detail.vivaOrderCode ?? '—'} mono />
+                <KV k="Viva transactionId" v={detail.vivaTransactionId ?? '—'} mono />
+                <KV k="Created" v={new Date(detail.createdAt).toLocaleString('el-GR')} />
+                <KV k="Confirmed" v={detail.confirmedAt ? new Date(detail.confirmedAt).toLocaleString('el-GR') : '—'} />
+                <div style={{ marginTop: 8, paddingTop: 8, borderTop: '1px solid var(--a-border)' }}>
+                  <KV k="Παραστατικό" v={detail.invoiceType === 'invoice' ? 'Τιμολόγιο (invoice)' : 'Απόδειξη (receipt)'} />
+                  {detail.invoiceType === 'invoice' && (
+                    <>
+                      <KV k="Επωνυμία" v={detail.invoiceName ?? '—'} />
+                      <KV k="ΑΦΜ" v={detail.invoiceVat ?? '—'} mono />
+                    </>
+                  )}
+                </div>
+              </Section>
+
+              <Section title="Customer" col={12} icon={ICO.user}>
                 <KV k="Name" v={detail.customerName ?? '—'} />
                 <KV k="Email" v={detail.customerEmail ?? '—'} />
                 <KV k="User ID" v={detail.userId ?? '—'} mono />
               </Section>
 
-              {/* WEC-693: invoice request — 'invoice' means the customer asked for
-                  a τιμολόγιο and accounting must issue one. */}
-              <Section title="Παραστατικό (Invoice)" col={6}>
-                <KV k="Type" v={detail.invoiceType === 'invoice' ? 'Τιμολόγιο (invoice)' : 'Απόδειξη (receipt)'} />
-                {detail.invoiceType === 'invoice' && (
-                  <>
-                    <KV k="Επωνυμία (name)" v={detail.invoiceName ?? '—'} />
-                    <KV k="ΑΦΜ (VAT)" v={detail.invoiceVat ?? '—'} mono />
-                  </>
-                )}
-              </Section>
-
-              {/* WEC-893 Leg 1: plan management (editable) — start date, expiry
-                  override, ops note, lifecycle status — all in this drawer now. */}
-              <Section title="Διαχείριση πλάνου" col={12}>
-                {/* WEC-794 + WEC-798(c): chosen start date, editable — changing it recalculates «Ενεργή έως». */}
+              {/* WEC-893 Leg 1: plan management (editable). */}
+              <Section title="Διαχείριση πλάνου" col={12} icon={ICO.calendar}>
                 <StartDateEditor detail={detail} onSaved={onRefunded} />
-                {/* WEC-836: delivery-days ordered on the wallet within the plan window / plan total. */}
                 <KV
                   k="Ημέρες (χρήση / σύνολο)"
                   v={
@@ -333,46 +346,15 @@ function Drawer({ detail, loading, onClose, onRefunded, onToggleContacted }: Dra
                 <OpsFields detail={detail} onChanged={onRefunded} />
               </Section>
 
-              {/* WEC-893 Leg 5: the full read-only plan + macros via the shared
-                  panel (no more cramped "P30/C40/F30" line or squished table). */}
+              {/* WEC-893 Leg 5: read-only plan + macros via the shared panel
+                  (also covers the body characteristics — no separate snapshot card). */}
               <div className="admin-od-card admin-od-col-12">
-                <div className="admin-od-card-head"><span className="admin-od-card-title">Πλάνο & μακροθρεπτικά</span></div>
+                <div className="admin-od-card-head"><span className="admin-od-card-title">{ICO.activity}Πλάνο & μακροθρεπτικά</span></div>
                 <PlanDetailsPanel plan={toPlanDetails(detail)} />
               </div>
 
-              <Section title="Profile snapshot (at purchase)">
-                <KV k="Sex" v={detail.profileSnapshot.sex ?? '—'} />
-                <KV k="Age (from birth_year)" v={detail.profileSnapshot.birth_year ? String(new Date().getFullYear() - detail.profileSnapshot.birth_year) : '—'} />
-                <KV k="Height" v={detail.profileSnapshot.height_cm ? `${detail.profileSnapshot.height_cm} cm` : '—'} />
-                <KV k="Weight" v={detail.profileSnapshot.weight_kg ? `${detail.profileSnapshot.weight_kg} kg` : '—'} />
-                <KV k="Activity" v={detail.profileSnapshot.activity_level ?? '—'} />
-              </Section>
-
-              <Section title="Pricing" col={6}>
-                <KV k="Subtotal" v={`${(detail.subtotalCents / 100).toFixed(2)} €`} />
-                <KV k="Discount" v={`${Math.round(detail.discountPct * 100)}% (−${(detail.discountCents / 100).toFixed(2)} €)`} />
-                {detail.voucherId && (
-                  <KV k="Voucher" v={`${detail.voucherCode ?? detail.voucherId}${detail.voucherAmountCents ? ` · −${(detail.voucherAmountCents / 100).toFixed(2)} €` : ''}`} />
-                )}
-                <KV k="Amount paid" v={`${(detail.amountToPayCents / 100).toFixed(2)} €`} />
-                <KV k="Wallet credit" v={`${(detail.walletCreditCents / 100).toFixed(2)} €`} />
-                <KV k="Bonus credits" v={`${(detail.bonusCreditsCents / 100).toFixed(2)} €`} />
-                <KV k="Refunded so far" v={`${(detail.refundAmountCents / 100).toFixed(2)} €`} />
-              </Section>
-
-              <Section title="Payment" col={6}>
-                <KV k="Method" v={detail.paymentMethod ?? '—'} />
-                <KV k="Status" v={detail.paymentStatus} />
-                <KV k="Viva orderCode" v={detail.vivaOrderCode ?? '—'} mono />
-                <KV k="Viva transactionId" v={detail.vivaTransactionId ?? '—'} mono />
-                <KV k="Created" v={new Date(detail.createdAt).toLocaleString('el-GR')} />
-                <KV k="Confirmed" v={detail.confirmedAt ? new Date(detail.confirmedAt).toLocaleString('el-GR') : '—'} />
-              </Section>
-
-              {/* WEC-554: cash (Αντικαταβολή) plans are marked paid manually too
-                  — courier collects on first delivery. */}
               {detail.paymentStatus === 'pending' && (detail.paymentMethod === 'transfer' || detail.paymentMethod === 'cash') && (
-                <Section col={12} title={detail.paymentMethod === 'cash' ? 'Cash on delivery (Αντικαταβολή)' : 'Bank transfer'}>
+                <Section col={12} icon={ICO.check} title={detail.paymentMethod === 'cash' ? 'Cash on delivery (Αντικαταβολή)' : 'Bank transfer'}>
                   <p className="admin-page-sub" style={{ margin: '0 0 8px' }}>
                     {detail.paymentMethod === 'cash'
                       ? `Courier collected the cash? Mark the plan paid to credit ${(detail.amountToPayCents / 100).toFixed(2)} € (+ bonus) to the customer's wallet and activate it.`
@@ -386,16 +368,18 @@ function Drawer({ detail, loading, onClose, onRefunded, onToggleContacted }: Dra
               )}
 
               {detail.paymentStatus === 'paid' && detail.refundAmountCents < detail.amountToPayCents && (
-                <Section title="Refund" col={12}>
-                  <div className="admin-inline-form" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 8 }}>
+                <Section title="Refund" col={12} icon={ICO.refund}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxWidth: 420 }}>
                     <input
                       className="admin-input"
+                      style={{ width: '100%' }}
                       placeholder="Reason (required)"
                       value={refundReason}
                       onChange={(e) => setRefundReason(e.target.value)}
                     />
                     <input
                       className="admin-input"
+                      style={{ width: '100%' }}
                       type="text"
                       inputMode="decimal"
                       onWheel={(e) => e.currentTarget.blur()}
@@ -404,7 +388,7 @@ function Drawer({ detail, loading, onClose, onRefunded, onToggleContacted }: Dra
                       onChange={(e) => setRefundAmount(e.target.value)}
                     />
                     {refundErr && <div className="admin-error-banner">{refundErr}</div>}
-                    <button className="admin-btn-danger" onClick={doRefund} disabled={refunding || !refundReason}>
+                    <button className="admin-btn-danger" style={{ alignSelf: 'flex-start' }} onClick={doRefund} disabled={refunding || !refundReason}>
                       {refunding ? 'Refunding…' : 'Refund via Viva'}
                     </button>
                   </div>
@@ -420,13 +404,27 @@ function Drawer({ detail, loading, onClose, onRefunded, onToggleContacted }: Dra
 
 // WEC-893 Leg 5: sections render as cards in the orders-drawer grid system
 // (--fp-era component, two-era rule). `col` = span out of 12.
-function Section({ title, children, col = 12 }: { title: string; children: React.ReactNode; col?: number }) {
+function Section({ title, children, col = 12, icon }: { title: string; children: React.ReactNode; col?: number; icon?: React.ReactNode }) {
   return (
     <div className={`admin-od-card admin-od-col-${col}`}>
-      <div className="admin-od-card-head"><span className="admin-od-card-title">{title}</span></div>
+      <div className="admin-od-card-head"><span className="admin-od-card-title">{icon}{title}</span></div>
       {children}
     </div>
   )
+}
+
+// WEC-893: small title icons (same .admin-od-ico treatment as the orders drawer).
+const svgIco = (children: React.ReactNode) => (
+  <svg className="admin-od-ico" width={15} height={15} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">{children}</svg>
+)
+const ICO = {
+  euro: svgIco(<><path d="M15 6a6 6 0 1 0 0 12" /><path d="M4 10h8" /><path d="M4 14h8" /></>),
+  card: svgIco(<><rect x="2" y="5" width="20" height="14" rx="2" /><path d="M2 10h20" /></>),
+  user: svgIco(<><circle cx="12" cy="8" r="4" /><path d="M5.5 21a7.5 7.5 0 0 1 13 0" /></>),
+  calendar: svgIco(<><rect x="3" y="4" width="18" height="18" rx="2" /><path d="M8 2v4M16 2v4M3 10h18" /></>),
+  activity: svgIco(<path d="M22 12h-4l-3 9L9 3l-3 9H2" />),
+  check: svgIco(<path d="M20 6 9 17l-5-5" />),
+  refund: svgIco(<><path d="M3 7v6h6" /><path d="M21 17a9 9 0 0 0-15-6.7L3 13" /></>),
 }
 
 function StartDateEditor({ detail, onSaved }: { detail: AdminWalletPlanDetail; onSaved: () => void }) {
