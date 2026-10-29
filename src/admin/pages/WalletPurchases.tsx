@@ -2,11 +2,12 @@ import { useEffect, useState } from 'react'
 import {
   fetchAdminWalletPlans, fetchAdminWalletPlanDetail, refundAdminWalletPlan, markAdminWalletPlanPaid,
   updateWalletPlanStartDate, setWalletPlanContacted,
-  type AdminWalletPlanRow, type AdminWalletPlanDetail,
+  fetchWalletPlanComments, addWalletPlanComment, deleteWalletPlanComment, fetchWalletPlanChangeLog,
+  type AdminWalletPlanRow, type AdminWalletPlanDetail, type WalletPlanComment, type WalletPlanChangeEntry,
 } from '../../lib/api/adminWalletPlans'
 import { setWalletPlanStatus, saveWalletPlanOpsFields } from '../../lib/api/adminUsers'
 import { fetchPlanConsumption, planTotalDays, type PlanConsumption } from '../../lib/api/planConsumption'
-import { useSearchParams } from 'react-router-dom'
+import { useSearchParams, Link } from 'react-router-dom'
 import { PlanDetailsPanel } from '../../components/shared/PlanDetailsPanel'
 import type { PlanDetails } from '../../lib/api/planDetails'
 import { useAuthStore } from '../../store/useAuthStore'
@@ -228,6 +229,7 @@ interface DrawerProps {
 }
 
 function Drawer({ detail, loading, onClose, onRefunded, onToggleContacted }: DrawerProps) {
+  const [tab, setTab] = useState<'details' | 'history'>('details')
   const [refundReason, setRefundReason] = useState('')
   const [refundAmount, setRefundAmount] = useState('') // empty = full refund of remaining
   const [refunding, setRefunding] = useState(false)
@@ -286,6 +288,14 @@ function Drawer({ detail, loading, onClose, onRefunded, onToggleContacted }: Dra
           {loading || !detail ? (
             <div className="admin-loading">Loading…</div>
           ) : (
+            <>
+              <div style={{ display: 'flex', gap: 6, marginBottom: 12 }}>
+                <TabBtn active={tab === 'details'} onClick={() => setTab('details')}>Λεπτομέρειες</TabBtn>
+                <TabBtn active={tab === 'history'} onClick={() => setTab('history')}>Ιστορικό & σχόλια</TabBtn>
+              </div>
+              {tab === 'history' ? (
+                <HistoryTab planId={detail.id} />
+              ) : (
             <div className="admin-od"><div className="admin-od-grid">
               <label className="admin-od-card admin-od-col-12" style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
                 <input type="checkbox" checked={detail.contacted} onChange={(e) => onToggleContacted(e.target.checked)} style={{ width: 16, height: 16, cursor: 'pointer' }} />
@@ -328,6 +338,11 @@ function Drawer({ detail, loading, onClose, onRefunded, onToggleContacted }: Dra
                 <KV k="Name" v={detail.customerName ?? '—'} />
                 <KV k="Email" v={detail.customerEmail ?? '—'} />
                 <KV k="User ID" v={detail.userId ?? '—'} mono />
+                {detail.userId && (
+                  <Link to={`/admin/users?userId=${detail.userId}`} className="admin-od-link" style={{ marginTop: 6, display: 'inline-flex' }}>
+                    Προφίλ πελάτη →
+                  </Link>
+                )}
               </Section>
 
               {/* WEC-893 Leg 1: plan management (editable). */}
@@ -395,6 +410,8 @@ function Drawer({ detail, loading, onClose, onRefunded, onToggleContacted }: Dra
                 </Section>
               )}
             </div></div>
+              )}
+            </>
           )}
         </div>
       </div>
@@ -428,6 +445,7 @@ const ICO = {
 }
 
 function StartDateEditor({ detail, onSaved }: { detail: AdminWalletPlanDetail; onSaved: () => void }) {
+  const sdAdmin = useAuthStore((s) => s.user)
   const [val, setVal] = useState(detail.startDate ?? '')
   const [activeUntil, setActiveUntil] = useState<string | null>(detail.activeUntil)
   const [saving, setSaving] = useState(false)
@@ -451,7 +469,7 @@ function StartDateEditor({ detail, onSaved }: { detail: AdminWalletPlanDetail; o
     const dow = new Date(val + 'T00:00:00').getDay()
     if (dow === 0 || dow === 6) { setErr('Μόνο εργάσιμες (Δευ–Παρ)'); return }
     setSaving(true)
-    const { activeUntil: newEnd, error } = await updateWalletPlanStartDate(detail.id, val, detail.planLengthWeeks)
+    const { activeUntil: newEnd, error } = await updateWalletPlanStartDate(detail.id, val, detail.planLengthWeeks, sdAdmin?.email ?? 'admin')
     setSaving(false)
     if (error) { setErr(error); return }
     setActiveUntil(newEnd); setOk(true); onSaved()
@@ -485,13 +503,13 @@ function KV({ k, v, mono }: { k: string; v: string; mono?: boolean }) {
 }
 
 // WEC-893 Leg 1: ops management for a plan, moved here from the Users page.
-// Expiry override + note + lifecycle status. Deliberately toothless — a past
+// Expiry override + lifecycle status (notes now live in the comments thread).
+// Deliberately toothless — a past
 // «Ενεργή έως» blocks nothing (the wallet never expires); it's for our own view.
 function OpsFields({ detail, onChanged }: { detail: AdminWalletPlanDetail; onChanged: () => void }) {
   const adminUser = useAuthStore((s) => s.user)
   const [until, setUntil] = useState(detail.activeUntil ?? '')
-  const [note, setNote] = useState(detail.adminNote ?? '')
-  const [persisted, setPersisted] = useState({ until: detail.activeUntil ?? '', note: detail.adminNote ?? '' })
+  const [persisted, setPersisted] = useState({ until: detail.activeUntil ?? '' })
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
   const [err, setErr] = useState<string | null>(null)
@@ -499,21 +517,21 @@ function OpsFields({ detail, onChanged }: { detail: AdminWalletPlanDetail; onCha
   const [statusBusy, setStatusBusy] = useState(false)
 
   useEffect(() => {
-    setUntil(detail.activeUntil ?? ''); setNote(detail.adminNote ?? '')
-    setPersisted({ until: detail.activeUntil ?? '', note: detail.adminNote ?? '' })
+    setUntil(detail.activeUntil ?? '')
+    setPersisted({ until: detail.activeUntil ?? '' })
     setStatus(detail.status ?? 'active'); setSaved(false)
-  }, [detail.id, detail.activeUntil, detail.adminNote, detail.status])
+  }, [detail.id, detail.activeUntil, detail.status])
 
-  const dirty = persisted.until !== until || persisted.note !== note
+  const dirty = persisted.until !== until
 
   async function save() {
     setSaving(true); setErr(null)
     const { error } = await saveWalletPlanOpsFields(
-      detail.id, { activeUntil: until || null, adminNote: note || null }, adminUser?.email ?? 'admin',
+      detail.id, { activeUntil: until || null }, adminUser?.email ?? 'admin',
     )
     setSaving(false)
     if (error) { setErr(error); return }
-    setPersisted({ until, note }); setSaved(true)
+    setPersisted({ until }); setSaved(true)
   }
 
   async function changeStatus(nextS: 'active' | 'cancelled') {
@@ -546,17 +564,10 @@ function OpsFields({ detail, onChanged }: { detail: AdminWalletPlanDetail; onCha
             color: status === 'cancelled' ? '#b91c1c' : '#6b7280' }}>Ακυρωμένη</button>
         {statusBusy && <span style={{ fontSize: 12, color: '#6b7280' }}>…</span>}
       </div>
-      <div style={{ display: 'grid', gridTemplateColumns: '180px 1fr', gap: 10, alignItems: 'end' }}>
-        <label style={{ display: 'block' }}>
-          <span style={{ display: 'block', fontSize: 12, color: '#6b7280', marginBottom: 3 }}>Ενεργή έως (override)</span>
-          <input type="date" className="admin-input" style={{ width: '100%' }} value={until} onChange={(e) => setUntil(e.target.value)} />
-        </label>
-        <label style={{ display: 'block' }}>
-          <span style={{ display: 'block', fontSize: 12, color: '#6b7280', marginBottom: 3 }}>Σημείωση</span>
-          <input className="admin-input" style={{ width: '100%' }} placeholder="π.χ. παύση 12–19/10, παράταση 1 εβδομάδα"
-            value={note} onChange={(e) => setNote(e.target.value)} />
-        </label>
-      </div>
+      <label style={{ display: 'block', maxWidth: 220 }}>
+        <span style={{ display: 'block', fontSize: 12, color: '#6b7280', marginBottom: 3 }}>Ενεργή έως (override)</span>
+        <input type="date" className="admin-input" style={{ width: '100%' }} value={until} onChange={(e) => setUntil(e.target.value)} />
+      </label>
       {err && <div className="admin-error-banner" style={{ marginTop: 10 }}>{err}</div>}
       <button className="admin-btn" style={{ marginTop: 10 }} onClick={save} disabled={saving || !dirty}>
         {saving ? 'Αποθήκευση…' : saved && !dirty ? '✓ Αποθηκεύτηκε' : 'Αποθήκευση'}
@@ -595,4 +606,95 @@ function toPlanDetails(d: AdminWalletPlanDetail): PlanDetails {
     perMeal, dieticianManaged: !!d.services.dieticianManaged, bodyFatMeasurement: !!d.services.bodyFatMeasurement,
     goalBands: null,
   }
+}
+
+function TabBtn({ active, onClick, children }: { active: boolean; onClick: () => void; children: React.ReactNode }) {
+  return (
+    <button type="button" onClick={onClick} style={{
+      padding: '6px 14px', borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: 'pointer',
+      border: active ? '1.5px solid var(--a-primary)' : '1px solid var(--a-border)',
+      background: active ? 'var(--a-primary)' : 'transparent',
+      color: active ? '#fff' : 'var(--a-text-muted)',
+    }}>{children}</button>
+  )
+}
+
+// WEC-895: subscription action history + comments thread (admin).
+function HistoryTab({ planId }: { planId: string }) {
+  const adminUser = useAuthStore((s) => s.user)
+  const [comments, setComments] = useState<WalletPlanComment[]>([])
+  const [changes, setChanges] = useState<WalletPlanChangeEntry[]>([])
+  const [loading, setLoading] = useState(true)
+  const [body, setBody] = useState('')
+  const [visible, setVisible] = useState(false)
+  const [busy, setBusy] = useState(false)
+  const [err, setErr] = useState<string | null>(null)
+
+  async function load() {
+    setLoading(true)
+    const [c, ch] = await Promise.all([fetchWalletPlanComments(planId), fetchWalletPlanChangeLog(planId)])
+    setComments(c.data); setChanges(ch.data); setLoading(false)
+  }
+  useEffect(() => { load() /* eslint-disable-next-line */ }, [planId])
+
+  async function add() {
+    if (!body.trim()) return
+    setBusy(true); setErr(null)
+    const { error } = await addWalletPlanComment(planId, body.trim(), visible, adminUser?.email ?? 'admin')
+    setBusy(false)
+    if (error) { setErr(error); return }
+    setBody(''); setVisible(false); load()
+  }
+  async function remove(id: number) {
+    if (!window.confirm('Διαγραφή σχολίου;')) return
+    const { error } = await deleteWalletPlanComment(id)
+    if (error) { setErr(error); return }
+    load()
+  }
+
+  const feed = [
+    ...comments.map((c) => ({ t: c.createdAt, type: 'comment' as const, c })),
+    ...changes.map((c) => ({ t: c.createdAt, type: 'change' as const, c })),
+  ].sort((a, b) => (a.t < b.t ? 1 : -1))
+  const fmt = (iso: string) => new Date(iso).toLocaleString('el-GR')
+
+  return (
+    <div className="admin-od"><div className="admin-od-grid">
+      <div className="admin-od-card admin-od-col-12">
+        <div className="admin-od-card-head"><span className="admin-od-card-title">Νέο σχόλιο</span></div>
+        <textarea className="admin-input" style={{ width: '100%', minHeight: 60 }} placeholder="Σχόλιο…" value={body} onChange={(e) => setBody(e.target.value)} />
+        <label style={{ display: 'flex', alignItems: 'center', gap: 6, margin: '8px 0', fontSize: 13 }}>
+          <input type="checkbox" checked={visible} onChange={(e) => setVisible(e.target.checked)} /> Ορατό στον πελάτη
+        </label>
+        {err && <div className="admin-error-banner">{err}</div>}
+        <button className="admin-btn" onClick={add} disabled={busy || !body.trim()}>{busy ? '…' : 'Προσθήκη σχολίου'}</button>
+      </div>
+
+      <div className="admin-od-card admin-od-col-12">
+        <div className="admin-od-card-head"><span className="admin-od-card-title">Ιστορικό</span></div>
+        {loading ? (
+          <div className="admin-loading">…</div>
+        ) : feed.length === 0 ? (
+          <div className="admin-text-muted">Καμία ενέργεια ακόμη.</div>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {feed.map((e) => e.type === 'comment' ? (
+              <div key={`c${e.c.id}`} style={{ borderLeft: '3px solid #2563eb', padding: '4px 10px', background: '#f8fafc', borderRadius: 6 }}>
+                <div style={{ fontSize: 12, color: '#6b7280', display: 'flex', justifyContent: 'space-between', gap: 8 }}>
+                  <span>{fmt(e.c.createdAt)} · {e.c.author ?? '—'} · {e.c.visibleToCustomer ? 'ορατό στον πελάτη' : 'κρυφό'}</span>
+                  <button type="button" onClick={() => remove(e.c.id)} style={{ border: 'none', background: 'none', color: '#dc2626', cursor: 'pointer', fontSize: 12 }}>Διαγραφή</button>
+                </div>
+                <div style={{ whiteSpace: 'pre-wrap' }}>{e.c.body}</div>
+              </div>
+            ) : (
+              <div key={`h${e.c.id}`} style={{ borderLeft: '3px solid #cbd5e1', padding: '4px 10px', borderRadius: 6 }}>
+                <div style={{ fontSize: 12, color: '#6b7280' }}>{fmt(e.c.createdAt)} · {e.c.adminUser ?? 'system'}</div>
+                <div>{e.c.label ?? e.c.field}{(e.c.oldValue || e.c.newValue) ? `: ${e.c.oldValue || '—'} → ${e.c.newValue || '—'}` : ''}</div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div></div>
+  )
 }

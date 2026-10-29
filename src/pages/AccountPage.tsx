@@ -17,7 +17,7 @@ import { useImpersonationStore } from '../store/useImpersonationStore'
 import { fetchPastWalletPlans, fetchWallet, planReference, type PastWalletPlan } from '../lib/api/wallet'
 // WEC-702: reuse the shared plan-characteristics panel (same one the staff
 // impersonation strip uses) on the customer's own Συνδρομές tab.
-import { fetchActivePlanDetails, type PlanDetails } from '../lib/api/planDetails'
+import { fetchActivePlanDetails, fetchCustomerPlanTimeline, type PlanDetails, type CustomerPlanEvent } from '../lib/api/planDetails'
 import { PlanDetailsPanel } from '../components/shared/PlanDetailsPanel'
 import { COUNTRIES, DEFAULT_COUNTRY, isValidPhone, phoneLabels } from '../lib/phone'
 import { showGoalProgress, goalStatus, goalPct } from '../lib/goals'
@@ -1740,6 +1740,14 @@ function SubscriptionTab({ user, lang }: any) {
   // WEC-702: the customer's plan characteristics (same shared panel as the
   // staff strip). Fetched once when the tab mounts with an active plan.
   const [planDetails, setPlanDetails] = useState<PlanDetails | null>(null)
+  // WEC-895: customer-safe subscription timeline (plan events + visible comments).
+  const [timeline, setTimeline] = useState<CustomerPlanEvent[]>([])
+  useEffect(() => {
+    if (!wallet?.planId) { setTimeline([]); return }
+    let cancelled = false
+    fetchCustomerPlanTimeline(wallet.planId).then(({ data }) => { if (!cancelled) setTimeline(data) })
+    return () => { cancelled = true }
+  }, [wallet?.planId])
   useEffect(() => {
     if (!user?.id || !wallet?.active) return
     let cancelled = false
@@ -1962,6 +1970,23 @@ function SubscriptionTab({ user, lang }: any) {
         <div className="subs-card subs-plandetails">
           <div className="subs-card-title">{isEl ? 'Χαρακτηριστικά πλάνου' : 'Plan characteristics'}</div>
           <PlanDetailsPanel plan={planDetails} lang={lang} />
+        </div>
+      )}
+
+      {/* WEC-895: subscription history — curated plan events + visible comments. */}
+      {hasPlan && timeline.length > 0 && (
+        <div className="subs-card">
+          <div className="subs-card-title">{isEl ? 'Ιστορικό' : 'History'}</div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            {timeline.map((e, i) => (
+              <div key={i} style={{ borderLeft: '3px solid #d1d5db', paddingLeft: 10 }}>
+                <div style={{ fontSize: 12, color: '#6b7280' }}>
+                  {new Date(e.at).toLocaleDateString(isEl ? 'el-GR' : 'en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
+                </div>
+                <div>{e.kind === 'comment' ? e.body : (e.label ?? '')}</div>
+              </div>
+            ))}
+          </div>
         </div>
       )}
 

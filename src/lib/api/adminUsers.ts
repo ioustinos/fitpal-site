@@ -530,6 +530,7 @@ export async function setWalletPlanStatus(
   }
 
   const { error: logErr } = await supabase.from('admin_change_log').insert({
+    wallet_plan_id: planId,
     table_name: 'wallet_plans', field_name: 'status',
     old_value: String(prev.status ?? 'active'), new_value: next,
     label: `WEC-811 subscription status \u00b7 plan ${planId}`, admin_user: adminEmail,
@@ -563,6 +564,7 @@ export async function saveWalletPlanOpsFields(
   // failed log entry is not worth failing the save the admin just made.
   const prev = (before ?? {}) as { active_until?: string | null; admin_note?: string | null }
   const rows = Object.entries(payload).map(([field, value]) => ({
+    wallet_plan_id: planId,
     table_name: 'wallet_plans',
     field_name: field,
     old_value: String((prev as Record<string, unknown>)[field] ?? ''),

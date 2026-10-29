@@ -210,3 +210,12 @@ export async function fetchActivePlanDetails(
     return { data: null, error: err instanceof Error ? err.message : 'Plan lookup failed' }
   }
 }
+
+// ── WEC-895: customer-facing subscription timeline (curated plan events +
+// their own visible comments), via a SECURITY DEFINER RPC guarded on ownership.
+export interface CustomerPlanEvent { kind: string; at: string; label: string | null; body: string | null; author: string | null }
+export async function fetchCustomerPlanTimeline(planId: string): Promise<{ data: CustomerPlanEvent[]; error: string | null }> {
+  const { data, error } = await supabase.rpc('customer_wallet_plan_timeline', { p_plan: planId })
+  if (error) return { data: [], error: error.message }
+  return { data: (data ?? []) as CustomerPlanEvent[], error: null }
+}

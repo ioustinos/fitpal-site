@@ -318,6 +318,7 @@ Schema decisions tracked in Linear: WEC-82
 - `zone_time_slots` — zone_id, time_from (time), time_to (time), active
 - `settings` — key (PK), value (jsonb), description
 - `admin_change_log` — order/child_order/order_item ids, table_name, field_name, old/new value, label, admin_user
+  - **WEC-895:** `admin_change_log.wallet_plan_id uuid` links a log entry to a wallet plan (there is no `record_id`; use this column for subscription history). All 4 plan writers stamp it: contacted, ops/expiry, lifecycle status, start-date. Customer-facing subscription history = `customer_wallet_plan_timeline(plan_id)` RPC; comments live in `wallet_plan_comments` (hard delete; RLS: admin all, customer sees only own + `visible_to_customer`).
 
 ### Conventions
 - All money in cents (int)
