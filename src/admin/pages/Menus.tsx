@@ -30,6 +30,7 @@ import {
   fetchMenusOverlapping, fetchMenuDayDishes,
   createWeeklyMenu, deleteWeeklyMenu, setMenuActive, renameMenu, setMenuDateActive,
   addDishToDay, removeMenuDayDish, reorderMenuDayDishes, duplicateMenuContent,
+  addDishToWeek, removeMenuDayDishes,
   setMenuCategoryOrder, isoDaySpan, setMenuStore,
   fetchMenusForStore, countMenuAssignments,
   type AdminWeeklyMenu, type AdminMenuDayDish,
@@ -216,6 +217,25 @@ export function Menus() {
 
   const days = weekDays(monday).map(fmtIso)
 
+  // WEC-897: days the kitchen is actually open this week. A whole-week action
+  // must never write into a day marked inactive — same rule drag-drop follows.
+  const activeDays = useMemo(() => days.filter((d) => !inactiveDates.has(d)), [days, inactiveDates])
+
+  // Distinct ACTIVE dates each dish already covers. Distinct, not a count of
+  // assignments: the same dish can legitimately sit twice on one day, and that
+  // must not read as "already covers two days".
+  const weekDatesByDish = useMemo(() => {
+    const active = new Set(activeDays)
+    const m = new Map<string, Set<string>>()
+    for (const a of assignments) {
+      if (!active.has(a.date)) continue
+      const set = m.get(a.dishId) ?? new Set<string>()
+      set.add(a.date)
+      m.set(a.dishId, set)
+    }
+    return m
+  }, [assignments, activeDays])
+
   const dishUsage = useMemo(() => {
     const m = new Map<string, string[]>()
     for (const a of assignments) {
@@ -336,6 +356,33 @@ export function Menus() {
     if (error) { setError(error); return }
     if (data) setAssignments((prev) => [...prev, data])
   }
+  /** WEC-897 — put this dish on every open day it is not already on. */
+  async function handleAddDishToWeek(dishId: string) {
+    if (!selectedMenuId) { setError('Create a menu for this week first.'); return }
+    const already = weekDatesByDish.get(dishId) ?? new Set<string>()
+    const targets = activeDays.filter((d) => !already.has(d))
+    if (targets.length === 0) return
+    // sort_order is per day — append to the end of each column, not a shared number.
+    const rows = targets.map((date) => {
+      const maxForDay = assignments.reduce((m, a) => (a.date === date ? Math.max(m, a.sortOrder) : m), -1)
+      return { date, sortOrder: maxForDay + 1 }
+    })
+    const { data, error } = await addDishToWeek(selectedMenuId, dishId, rows)
+    if (error) { setError(error); return }
+    if (data && data.length) setAssignments((prev) => [...prev, ...data])
+  }
+
+  /** WEC-897 — take this dish off every day of the week shown. */
+  async function handleRemoveDishFromWeek(dishId: string) {
+    const doomed = assignments.filter((a) => a.dishId === dishId && days.includes(a.date))
+    if (doomed.length === 0) return
+    const ids = new Set(doomed.map((a) => a.id))
+    const prev = assignments
+    setAssignments(assignments.filter((a) => !ids.has(a.id)))
+    const { error } = await removeMenuDayDishes([...ids])
+    if (error) { setError(error); setAssignments(prev) }
+  }
+
   async function handleReorderAssignments(updated: AdminMenuDayDish[]) {
     setAssignments(updated)
     const changed = updated.filter((u, i) => {
@@ -941,7 +988,16 @@ export function Menus() {
               <div className="admin-menu-lib-body">
                 {filteredDishes.length === 0 && <div className="admin-text-muted" style={{ padding: 12 }}>No dishes match.</div>}
                 {filteredDishes.map((d) => (
-                  <LibraryCard key={d.id} dish={d} usedOn={dishUsage.get(d.id) ?? []} disabled={!selectedMenuId} />
+                  <LibraryCard
+                      key={d.id}
+                      dish={d}
+                      usedOn={dishUsage.get(d.id) ?? []}
+                      disabled={!selectedMenuId}
+                      activeDayCount={activeDays.length}
+                      coveredDayCount={weekDatesByDish.get(d.id)?.size ?? 0}
+                      onAddWeek={() => handleAddDishToWeek(d.id)}
+                      onRemoveWeek={() => handleRemoveDishFromWeek(d.id)}
+                    />
                 ))}
               </div>
             </aside>
@@ -993,7 +1049,17 @@ export function Menus() {
 
 // ─── Components ─────────────────────────────────────────────────────────────
 
-function LibraryCard({ dish, usedOn, disabled }: { dish: AdminDish; usedOn: string[]; disabled?: boolean }) {
+function LibraryCard({
+  dish, usedOn, disabled, activeDayCount, coveredDayCount, onAddWeek, onRemoveWeek,
+}: {
+  dish: AdminDish
+  usedOn: string[]
+  disabled?: boolean
+  activeDayCount: number
+  coveredDayCount: number
+  onAddWeek: () => void
+  onRemoveWeek: () => void
+}) {
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
     id: `lib:${dish.id}`,
     data: { type: 'library', dishId: dish.id },
@@ -1008,6 +1074,28 @@ function LibraryCard({ dish, usedOn, disabled }: { dish: AdminDish; usedOn: stri
     >
       <DishCardVisual dish={dish} />
       {usedOn.length > 0 && <div className="admin-dish-used-hint">used: {usedOn.join(', ')}</div>}
+      {!disabled && activeDayCount > 0 && (
+        <button
+          type="button"
+          className="admin-dish-week-btn"
+          /* The whole card is the drag handle, so the button has to swallow
+             pointerdown — otherwise dnd-kit starts a drag and the click never
+             lands. (WEC-897) */
+          onPointerDown={(e) => e.stopPropagation()}
+          onClick={(e) => {
+            e.stopPropagation()
+            if (coveredDayCount >= activeDayCount) onRemoveWeek()
+            else onAddWeek()
+          }}
+          title={
+            coveredDayCount >= activeDayCount
+              ? 'Remove this dish from every day of the week'
+              : `Add this dish to the ${activeDayCount - coveredDayCount} open day(s) it is missing from`
+          }
+        >
+          {coveredDayCount >= activeDayCount ? '− all days' : '+ all days'}
+        </button>
+      )}
     </div>
   )
 }

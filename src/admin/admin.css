@@ -1057,6 +1057,22 @@
   color: var(--a-text-soft);
   padding: 0 8px 4px;
 }
+/* WEC-897 — whole-week add/remove on a library dish card. */
+.admin-dish-week-btn {
+  margin: 0 8px 6px;
+  padding: 2px 6px;
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 1.4;
+  color: var(--a-text-soft);
+  background: var(--a-hover);
+  border: 1px solid var(--a-border);
+  border-radius: 4px;
+  cursor: pointer;
+  align-self: flex-start;
+}
+.admin-dish-week-btn:hover { color: var(--a-text); border-color: #c5cfd9; }
+
 .admin-dish-remove {
   width: 24px; height: 24px;
   border: none;
