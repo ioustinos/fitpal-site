@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import {
   fetchAdminWalletPlans, fetchAdminWalletPlanDetail, refundAdminWalletPlan, markAdminWalletPlanPaid,
-  updateWalletPlanStartDate, setWalletPlanContacted,
+  updateWalletPlanStartDate, setWalletPlanContacted, editWalletPlanPrice,
   fetchWalletPlanComments, addWalletPlanComment, deleteWalletPlanComment, fetchWalletPlanChangeLog,
   type AdminWalletPlanRow, type AdminWalletPlanDetail, type WalletPlanComment, type WalletPlanChangeEntry,
 } from '../../lib/api/adminWalletPlans'
@@ -305,14 +305,14 @@ function Drawer({ detail, loading, onClose, onRefunded, onToggleContacted }: Dra
               {/* WEC-893: Pricing + Payment first. */}
               <Section title="Pricing" col={6} icon={ICO.euro}>
                 <KV k="Subtotal" v={`${(detail.subtotalCents / 100).toFixed(2)} €`} />
-                <KV k="Discount" v={`${Math.round(detail.discountPct * 100)}% (−${(detail.discountCents / 100).toFixed(2)} €)`} />
                 {detail.voucherId && (
                   <KV k="Voucher" v={`${detail.voucherCode ?? detail.voucherId}${detail.voucherAmountCents ? ` · −${(detail.voucherAmountCents / 100).toFixed(2)} €` : ''}`} />
                 )}
-                <KV k="Amount paid" v={`${(detail.amountToPayCents / 100).toFixed(2)} €`} />
                 <KV k="Wallet credit" v={`${(detail.walletCreditCents / 100).toFixed(2)} €`} />
                 <KV k="Bonus credits" v={`${(detail.bonusCreditsCents / 100).toFixed(2)} €`} />
                 <KV k="Refunded so far" v={`${(detail.refundAmountCents / 100).toFixed(2)} €`} />
+                {/* WEC-894: editable final price (revenue) + discount. */}
+                <PriceEditor detail={detail} onSaved={onRefunded} />
               </Section>
 
               {/* WEC-893: invoice (Παραστατικό) folded into Payment. */}
@@ -571,6 +571,66 @@ function OpsFields({ detail, onChanged }: { detail: AdminWalletPlanDetail; onCha
       {err && <div className="admin-error-banner" style={{ marginTop: 10 }}>{err}</div>}
       <button className="admin-btn" style={{ marginTop: 10 }} onClick={save} disabled={saving || !dirty}>
         {saving ? 'Αποθήκευση…' : saved && !dirty ? '✓ Αποθηκεύτηκε' : 'Αποθήκευση'}
+      </button>
+    </div>
+  )
+}
+
+// WEC-894: editable final price (revenue) + discount. Changing the discount
+// PROPOSES a price (subtotal − discount); the admin can override it. Changing
+// the price does NOT touch the discount. Wallet balance/credits are untouched
+// (handled server-side). goalBands note below is unrelated.
+function PriceEditor({ detail, onSaved }: { detail: AdminWalletPlanDetail; onSaved: () => void }) {
+  const subtotal = detail.subtotalCents
+  const eur = (c: number) => (c / 100).toFixed(2)
+  const [discount, setDiscount] = useState(eur(detail.discountCents))
+  const [price, setPrice] = useState(eur(detail.amountToPayCents))
+  const [saving, setSaving] = useState(false)
+  const [ok, setOk] = useState(false)
+  const [err, setErr] = useState<string | null>(null)
+  useEffect(() => {
+    setDiscount(eur(detail.discountCents)); setPrice(eur(detail.amountToPayCents)); setOk(false); setErr(null)
+  }, [detail.id, detail.discountCents, detail.amountToPayCents])
+
+  const toCents = (v: string) => Math.round(parseFloat(v.replace(',', '.')) * 100)
+  function onDiscount(v: string) {
+    setDiscount(v); setOk(false)
+    const dc = toCents(v)
+    if (Number.isFinite(dc)) setPrice(eur(Math.max(0, subtotal - dc))) // proposal only
+  }
+  const dc = toCents(discount), pc = toCents(price)
+  const dirty = (Number.isFinite(dc) && dc !== detail.discountCents) || (Number.isFinite(pc) && pc !== detail.amountToPayCents)
+
+  async function save() {
+    if (!Number.isFinite(dc) || !Number.isFinite(pc) || dc < 0 || pc < 0) { setErr('Μη έγκυρο ποσό'); return }
+    setSaving(true); setErr(null)
+    const { error } = await editWalletPlanPrice(detail.id, pc, dc)
+    setSaving(false)
+    if (error) { setErr(error); return }
+    setOk(true); onSaved()
+  }
+
+  return (
+    <div style={{ marginTop: 10, paddingTop: 10, borderTop: '1px solid var(--a-border)' }}>
+      <div style={{ fontSize: 11, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '.04em', color: 'var(--a-text-muted)', marginBottom: 8 }}>
+        Επεξεργασία τιμής
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+        <label style={{ display: 'block' }}>
+          <span style={{ display: 'block', fontSize: 12, color: '#6b7280', marginBottom: 3 }}>Έκπτωση (€)</span>
+          <input className="admin-input" style={{ width: '100%' }} inputMode="decimal" value={discount} onChange={(e) => onDiscount(e.target.value)} />
+        </label>
+        <label style={{ display: 'block' }}>
+          <span style={{ display: 'block', fontSize: 12, color: '#6b7280', marginBottom: 3 }}>Τελική τιμή (€)</span>
+          <input className="admin-input" style={{ width: '100%' }} inputMode="decimal" value={price} onChange={(e) => { setPrice(e.target.value); setOk(false) }} />
+        </label>
+      </div>
+      <div style={{ fontSize: 11, color: '#6b7280', marginTop: 6 }}>
+        Η αλλαγή έκπτωσης προτείνει τιμή (υποσύνολο − έκπτωση)· μπορείς να την παρακάμψεις. Το υπόλοιπο wallet δεν αλλάζει.
+      </div>
+      {err && <div className="admin-error-banner" style={{ marginTop: 8 }}>{err}</div>}
+      <button className="admin-btn" style={{ marginTop: 10 }} onClick={save} disabled={saving || !dirty}>
+        {saving ? 'Αποθήκευση…' : ok && !dirty ? '✓ Αποθηκεύτηκε' : 'Αποθήκευση τιμής'}
       </button>
     </div>
   )

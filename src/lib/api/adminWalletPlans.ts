@@ -259,6 +259,26 @@ export async function refundAdminWalletPlan(
   return { data: await res.json(), error: null }
 }
 
+// WEC-894: admin edits the subscription's final price (revenue) + discount.
+// Server-authoritative — the browser only POSTs; is_admin() is checked there.
+export async function editWalletPlanPrice(
+  walletPlanId: string, amountToPayCents: number, discountCents: number,
+): Promise<{ error: string | null }> {
+  const { data: sessionData } = await supabase.auth.getSession()
+  const token = sessionData?.session?.access_token
+  if (!token) return { error: 'Not authenticated' }
+  const res = await fetch('/api/wallet-plan-edit-price', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ walletPlanId, amountToPayCents, discountCents }),
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: 'Request failed' }))
+    return { error: err.error ?? `HTTP ${res.status}` }
+  }
+  return { error: null }
+}
+
 // WEC-798(c): admin edits a plan's start date; «Ενεργή έως» (active_until)
 // recalculates from start_date + plan_length_weeks — the same formula
 // wallet-plan-purchase uses to prefill it. Informational, no gate (WEC-783).
