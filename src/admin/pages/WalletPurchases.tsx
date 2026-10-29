@@ -286,8 +286,8 @@ function Drawer({ detail, loading, onClose, onRefunded, onToggleContacted }: Dra
           {loading || !detail ? (
             <div className="admin-loading">Loading…</div>
           ) : (
-            <>
-              <label className="admin-drawer-section" style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
+            <div className="admin-od"><div className="admin-od-grid">
+              <label className="admin-od-card admin-od-col-12" style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
                 <input
                   type="checkbox"
                   checked={detail.contacted}
@@ -296,7 +296,7 @@ function Drawer({ detail, loading, onClose, onRefunded, onToggleContacted }: Dra
                 />
                 <span style={{ fontWeight: 700 }}>Contacted</span>
               </label>
-              <Section title="Customer">
+              <Section title="Customer" col={6}>
                 <KV k="Name" v={detail.customerName ?? '—'} />
                 <KV k="Email" v={detail.customerEmail ?? '—'} />
                 <KV k="User ID" v={detail.userId ?? '—'} mono />
@@ -304,7 +304,7 @@ function Drawer({ detail, loading, onClose, onRefunded, onToggleContacted }: Dra
 
               {/* WEC-693: invoice request — 'invoice' means the customer asked for
                   a τιμολόγιο and accounting must issue one. */}
-              <Section title="Παραστατικό (Invoice)">
+              <Section title="Παραστατικό (Invoice)" col={6}>
                 <KV k="Type" v={detail.invoiceType === 'invoice' ? 'Τιμολόγιο (invoice)' : 'Απόδειξη (receipt)'} />
                 {detail.invoiceType === 'invoice' && (
                   <>
@@ -316,7 +316,7 @@ function Drawer({ detail, loading, onClose, onRefunded, onToggleContacted }: Dra
 
               {/* WEC-893 Leg 1: plan management (editable) — start date, expiry
                   override, ops note, lifecycle status — all in this drawer now. */}
-              <Section title="Διαχείριση πλάνου">
+              <Section title="Διαχείριση πλάνου" col={12}>
                 {/* WEC-794 + WEC-798(c): chosen start date, editable — changing it recalculates «Ενεργή έως». */}
                 <StartDateEditor detail={detail} onSaved={onRefunded} />
                 {/* WEC-836: delivery-days ordered on the wallet within the plan window / plan total. */}
@@ -335,9 +335,10 @@ function Drawer({ detail, loading, onClose, onRefunded, onToggleContacted }: Dra
 
               {/* WEC-893 Leg 5: the full read-only plan + macros via the shared
                   panel (no more cramped "P30/C40/F30" line or squished table). */}
-              <section className="admin-drawer-section">
+              <div className="admin-od-card admin-od-col-12">
+                <div className="admin-od-card-head"><span className="admin-od-card-title">Πλάνο & μακροθρεπτικά</span></div>
                 <PlanDetailsPanel plan={toPlanDetails(detail)} />
-              </section>
+              </div>
 
               <Section title="Profile snapshot (at purchase)">
                 <KV k="Sex" v={detail.profileSnapshot.sex ?? '—'} />
@@ -347,7 +348,7 @@ function Drawer({ detail, loading, onClose, onRefunded, onToggleContacted }: Dra
                 <KV k="Activity" v={detail.profileSnapshot.activity_level ?? '—'} />
               </Section>
 
-              <Section title="Pricing">
+              <Section title="Pricing" col={6}>
                 <KV k="Subtotal" v={`${(detail.subtotalCents / 100).toFixed(2)} €`} />
                 <KV k="Discount" v={`${Math.round(detail.discountPct * 100)}% (−${(detail.discountCents / 100).toFixed(2)} €)`} />
                 {detail.voucherId && (
@@ -359,7 +360,7 @@ function Drawer({ detail, loading, onClose, onRefunded, onToggleContacted }: Dra
                 <KV k="Refunded so far" v={`${(detail.refundAmountCents / 100).toFixed(2)} €`} />
               </Section>
 
-              <Section title="Payment">
+              <Section title="Payment" col={6}>
                 <KV k="Method" v={detail.paymentMethod ?? '—'} />
                 <KV k="Status" v={detail.paymentStatus} />
                 <KV k="Viva orderCode" v={detail.vivaOrderCode ?? '—'} mono />
@@ -371,7 +372,7 @@ function Drawer({ detail, loading, onClose, onRefunded, onToggleContacted }: Dra
               {/* WEC-554: cash (Αντικαταβολή) plans are marked paid manually too
                   — courier collects on first delivery. */}
               {detail.paymentStatus === 'pending' && (detail.paymentMethod === 'transfer' || detail.paymentMethod === 'cash') && (
-                <Section title={detail.paymentMethod === 'cash' ? 'Cash on delivery (Αντικαταβολή)' : 'Bank transfer'}>
+                <Section col={12} title={detail.paymentMethod === 'cash' ? 'Cash on delivery (Αντικαταβολή)' : 'Bank transfer'}>
                   <p className="admin-page-sub" style={{ margin: '0 0 8px' }}>
                     {detail.paymentMethod === 'cash'
                       ? `Courier collected the cash? Mark the plan paid to credit ${(detail.amountToPayCents / 100).toFixed(2)} € (+ bonus) to the customer's wallet and activate it.`
@@ -385,7 +386,7 @@ function Drawer({ detail, loading, onClose, onRefunded, onToggleContacted }: Dra
               )}
 
               {detail.paymentStatus === 'paid' && detail.refundAmountCents < detail.amountToPayCents && (
-                <Section title="Refund">
+                <Section title="Refund" col={12}>
                   <div className="admin-inline-form" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 8 }}>
                     <input
                       className="admin-input"
@@ -409,7 +410,7 @@ function Drawer({ detail, loading, onClose, onRefunded, onToggleContacted }: Dra
                   </div>
                 </Section>
               )}
-            </>
+            </div></div>
           )}
         </div>
       </div>
@@ -417,12 +418,14 @@ function Drawer({ detail, loading, onClose, onRefunded, onToggleContacted }: Dra
   )
 }
 
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
+// WEC-893 Leg 5: sections render as cards in the orders-drawer grid system
+// (--fp-era component, two-era rule). `col` = span out of 12.
+function Section({ title, children, col = 12 }: { title: string; children: React.ReactNode; col?: number }) {
   return (
-    <section className="admin-drawer-section">
-      <h3>{title}</h3>
+    <div className={`admin-od-card admin-od-col-${col}`}>
+      <div className="admin-od-card-head"><span className="admin-od-card-title">{title}</span></div>
       {children}
-    </section>
+    </div>
   )
 }
 
