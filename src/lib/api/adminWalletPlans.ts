@@ -52,6 +52,10 @@ export interface AdminWalletPlanDetail extends AdminWalletPlanRow {
   discountPct: number
   voucherId: string | null
   voucherAmountCents: number
+  // WEC-893 Leg 4: human voucher code (looked up from voucher_id) for the drawer.
+  voucherCode: string | null
+  // WEC-893 Leg 1: ops note moved into the plan drawer.
+  adminNote: string | null
 }
 
 interface AdminWalletPlanFilters {
@@ -139,6 +143,14 @@ export async function fetchAdminWalletPlanDetail(
   if (error) return { data: null, error: error.message }
   if (!data) return { data: null, error: 'Not found' }
   const row = data as Record<string, unknown>
+  // WEC-893 Leg 4: resolve the human voucher code from voucher_id (the Airtable
+  // push does the same lookup — pushWalletPlan.ts).
+  let voucherCode: string | null = null
+  const vId = row.voucher_id as string | null
+  if (vId) {
+    const { data: vRow } = await supabase.from('vouchers').select('code').eq('id', vId).maybeSingle()
+    voucherCode = (vRow as { code?: string } | null)?.code ?? null
+  }
   return {
     data: {
       ...rowToBase(row),
@@ -152,6 +164,8 @@ export async function fetchAdminWalletPlanDetail(
       discountPct: (row.discount_pct as number) ?? 0,
       voucherId: row.voucher_id as string | null,
       voucherAmountCents: (row.voucher_amount_cents as number) ?? 0,
+      voucherCode,
+      adminNote: (row.admin_note as string | null) ?? null,
     },
     error: null,
   }

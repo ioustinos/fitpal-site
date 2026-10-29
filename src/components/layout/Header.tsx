@@ -117,7 +117,7 @@ export function Header() {
             WalletModal, but there are no self-serve wallet purchases yet (balance
             comes only from subscriptions). To re-enable later, make this a <button>
             again with onClick={goToWalletPage} (NOT the old openWalletModal). */}
-        {user?.wallet?.active && walletEnabled && (
+        {user?.wallet?.active && walletEnabled && !user.wallet.adminManaged && (
           <div
             className="wallet-hdr-badge"
             style={{ cursor: 'default' }}

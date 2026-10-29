@@ -4,8 +4,11 @@ import {
   updateWalletPlanStartDate, setWalletPlanContacted,
   type AdminWalletPlanRow, type AdminWalletPlanDetail,
 } from '../../lib/api/adminWalletPlans'
-import { setWalletPlanStatus } from '../../lib/api/adminUsers'
+import { setWalletPlanStatus, saveWalletPlanOpsFields } from '../../lib/api/adminUsers'
 import { fetchPlanConsumption, planTotalDays, type PlanConsumption } from '../../lib/api/planConsumption'
+import { useSearchParams } from 'react-router-dom'
+import { PlanDetailsPanel } from '../../components/shared/PlanDetailsPanel'
+import type { PlanDetails } from '../../lib/api/planDetails'
 import { useAuthStore } from '../../store/useAuthStore'
 
 const STATUS_LABELS: Record<string, string> = {
@@ -68,6 +71,11 @@ export function WalletPurchases() {
     setLoading(false)
   }
   useEffect(() => { refresh() /* eslint-disable-next-line */ }, [status, planLength, goal, lifecycle])
+
+  // WEC-893 Leg 1: deep-link from the customer card — /admin/wallet-purchases?planId=…
+  const [searchParams] = useSearchParams()
+  const deepLinkPlanId = searchParams.get('planId')
+  useEffect(() => { if (deepLinkPlanId) openDrawer(deepLinkPlanId) /* eslint-disable-next-line */ }, [deepLinkPlanId])
 
   async function openDrawer(id: string) {
     setOpenId(id); setDetail(null); setDetailLoading(true)
@@ -306,9 +314,9 @@ function Drawer({ detail, loading, onClose, onRefunded, onToggleContacted }: Dra
                 )}
               </Section>
 
-              <Section title="Plan">
-                <KV k="Goal" v={detail.goal ?? '—'} />
-                <KV k="Length" v={`${detail.planLength ?? '?'} (${detail.daysPerWeek ?? '?'} days/wk · ${detail.selectedMeals.join(' + ') || '—'})`} />
+              {/* WEC-893 Leg 1: plan management (editable) — start date, expiry
+                  override, ops note, lifecycle status — all in this drawer now. */}
+              <Section title="Διαχείριση πλάνου">
                 {/* WEC-794 + WEC-798(c): chosen start date, editable — changing it recalculates «Ενεργή έως». */}
                 <StartDateEditor detail={detail} onSaved={onRefunded} />
                 {/* WEC-836: delivery-days ordered on the wallet within the plan window / plan total. */}
@@ -322,12 +330,14 @@ function Drawer({ detail, loading, onClose, onRefunded, onToggleContacted }: Dra
                       : '…'
                   }
                 />
-                <KV k="Daily kcal" v={String(detail.dailyKcal ?? '—')} />
-                <KV k="Macro split" v={`P ${detail.macroSplit.p ?? 0}% / C ${detail.macroSplit.c ?? 0}% / F ${detail.macroSplit.f ?? 0}%`} />
-                <KV k="Dietitian-managed" v={detail.services.dieticianManaged ? 'Yes' : 'No'} />
-                {/* WEC-553: λιπομέτρηση add-on + its fee. */}
-                <KV k="Body-fat measurement (λιπομέτρηση)" v={detail.services.bodyFatMeasurement ? `Yes · ${((detail.services.bodyFatFeeCents ?? 0) / 100).toFixed(2)} €` : 'No'} />
+                <OpsFields detail={detail} onChanged={onRefunded} />
               </Section>
+
+              {/* WEC-893 Leg 5: the full read-only plan + macros via the shared
+                  panel (no more cramped "P30/C40/F30" line or squished table). */}
+              <section className="admin-drawer-section">
+                <PlanDetailsPanel plan={toPlanDetails(detail)} />
+              </section>
 
               <Section title="Profile snapshot (at purchase)">
                 <KV k="Sex" v={detail.profileSnapshot.sex ?? '—'} />
@@ -337,25 +347,12 @@ function Drawer({ detail, loading, onClose, onRefunded, onToggleContacted }: Dra
                 <KV k="Activity" v={detail.profileSnapshot.activity_level ?? '—'} />
               </Section>
 
-              <Section title="Per-meal breakdown">
-                <table className="admin-table-tight">
-                  <thead><tr><th>Meal</th><th>kcal</th><th>P/C/F (g)</th><th>Price</th></tr></thead>
-                  <tbody>
-                    {Object.entries(detail.pricingBreakdown).map(([meal, mb]) => (
-                      <tr key={meal}>
-                        <td><b>{meal}</b></td>
-                        <td>{mb.kcal}</td>
-                        <td>{mb.grams.p}/{mb.grams.c}/{mb.grams.f}</td>
-                        <td>{mb.price.toFixed(2)} €</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </Section>
-
               <Section title="Pricing">
                 <KV k="Subtotal" v={`${(detail.subtotalCents / 100).toFixed(2)} €`} />
                 <KV k="Discount" v={`${Math.round(detail.discountPct * 100)}% (−${(detail.discountCents / 100).toFixed(2)} €)`} />
+                {detail.voucherId && (
+                  <KV k="Voucher" v={`${detail.voucherCode ?? detail.voucherId}${detail.voucherAmountCents ? ` · −${(detail.voucherAmountCents / 100).toFixed(2)} €` : ''}`} />
+                )}
                 <KV k="Amount paid" v={`${(detail.amountToPayCents / 100).toFixed(2)} €`} />
                 <KV k="Wallet credit" v={`${(detail.walletCreditCents / 100).toFixed(2)} €`} />
                 <KV k="Bonus credits" v={`${(detail.bonusCreditsCents / 100).toFixed(2)} €`} />
@@ -484,4 +481,117 @@ function KV({ k, v, mono }: { k: string; v: string; mono?: boolean }) {
       <span className={`admin-kv-v${mono ? ' mono' : ''}`}>{v}</span>
     </div>
   )
+}
+
+// WEC-893 Leg 1: ops management for a plan, moved here from the Users page.
+// Expiry override + note + lifecycle status. Deliberately toothless — a past
+// «Ενεργή έως» blocks nothing (the wallet never expires); it's for our own view.
+function OpsFields({ detail, onChanged }: { detail: AdminWalletPlanDetail; onChanged: () => void }) {
+  const adminUser = useAuthStore((s) => s.user)
+  const [until, setUntil] = useState(detail.activeUntil ?? '')
+  const [note, setNote] = useState(detail.adminNote ?? '')
+  const [persisted, setPersisted] = useState({ until: detail.activeUntil ?? '', note: detail.adminNote ?? '' })
+  const [saving, setSaving] = useState(false)
+  const [saved, setSaved] = useState(false)
+  const [err, setErr] = useState<string | null>(null)
+  const [status, setStatus] = useState(detail.status ?? 'active')
+  const [statusBusy, setStatusBusy] = useState(false)
+
+  useEffect(() => {
+    setUntil(detail.activeUntil ?? ''); setNote(detail.adminNote ?? '')
+    setPersisted({ until: detail.activeUntil ?? '', note: detail.adminNote ?? '' })
+    setStatus(detail.status ?? 'active'); setSaved(false)
+  }, [detail.id, detail.activeUntil, detail.adminNote, detail.status])
+
+  const dirty = persisted.until !== until || persisted.note !== note
+
+  async function save() {
+    setSaving(true); setErr(null)
+    const { error } = await saveWalletPlanOpsFields(
+      detail.id, { activeUntil: until || null, adminNote: note || null }, adminUser?.email ?? 'admin',
+    )
+    setSaving(false)
+    if (error) { setErr(error); return }
+    setPersisted({ until, note }); setSaved(true)
+  }
+
+  async function changeStatus(nextS: 'active' | 'cancelled') {
+    if (nextS === status || statusBusy) return
+    if (nextS === 'cancelled' && !window.confirm('Ακύρωση συνδρομής; Θα απενεργοποιηθεί το wallet (χωρίς επιστροφή χρημάτων). Μπορείς να την επαναφέρεις μετά.')) return
+    setStatusBusy(true); setErr(null)
+    const { error } = await setWalletPlanStatus(detail.id, nextS, adminUser?.email ?? 'admin')
+    setStatusBusy(false)
+    if (error) { setErr(error); return }
+    setStatus(nextS); onChanged()
+  }
+
+  return (
+    <div style={{ marginTop: 10, paddingTop: 10, borderTop: '1px solid var(--fp-border, #e2ece2)' }}>
+      <div style={{ fontSize: 12, color: '#6b7280', marginBottom: 10, lineHeight: 1.45 }}>
+        Μόνο για δική μας εικόνα. <strong>Δεν μπλοκάρει τίποτα</strong> — ο πελάτης μπορεί να
+        παραγγείλει ακόμη κι αν η ημερομηνία έχει περάσει.
+      </div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+        <span style={{ fontSize: 12, color: '#6b7280' }}>Κατάσταση:</span>
+        <button type="button" onClick={() => changeStatus('active')} disabled={statusBusy}
+          style={{ padding: '4px 12px', borderRadius: 999, fontSize: 12, fontWeight: 700, cursor: 'pointer',
+            border: status === 'active' ? '1.5px solid #10b981' : '1px solid var(--a-border)',
+            background: status === 'active' ? '#10b98122' : 'transparent',
+            color: status === 'active' ? '#047857' : '#6b7280' }}>Ενεργή</button>
+        <button type="button" onClick={() => changeStatus('cancelled')} disabled={statusBusy}
+          style={{ padding: '4px 12px', borderRadius: 999, fontSize: 12, fontWeight: 700, cursor: 'pointer',
+            border: status === 'cancelled' ? '1.5px solid #ef4444' : '1px solid var(--a-border)',
+            background: status === 'cancelled' ? '#ef444422' : 'transparent',
+            color: status === 'cancelled' ? '#b91c1c' : '#6b7280' }}>Ακυρωμένη</button>
+        {statusBusy && <span style={{ fontSize: 12, color: '#6b7280' }}>…</span>}
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: '180px 1fr', gap: 10, alignItems: 'end' }}>
+        <label style={{ display: 'block' }}>
+          <span style={{ display: 'block', fontSize: 12, color: '#6b7280', marginBottom: 3 }}>Ενεργή έως (override)</span>
+          <input type="date" className="admin-input" style={{ width: '100%' }} value={until} onChange={(e) => setUntil(e.target.value)} />
+        </label>
+        <label style={{ display: 'block' }}>
+          <span style={{ display: 'block', fontSize: 12, color: '#6b7280', marginBottom: 3 }}>Σημείωση</span>
+          <input className="admin-input" style={{ width: '100%' }} placeholder="π.χ. παύση 12–19/10, παράταση 1 εβδομάδα"
+            value={note} onChange={(e) => setNote(e.target.value)} />
+        </label>
+      </div>
+      {err && <div className="admin-error-banner" style={{ marginTop: 10 }}>{err}</div>}
+      <button className="admin-btn" style={{ marginTop: 10 }} onClick={save} disabled={saving || !dirty}>
+        {saving ? 'Αποθήκευση…' : saved && !dirty ? '✓ Αποθηκεύτηκε' : 'Αποθήκευση'}
+      </button>
+    </div>
+  )
+}
+
+// WEC-893 Leg 5: adapt the admin plan detail into the shared PlanDetailsPanel
+// input, so the macros/characteristics/per-meal render through the same proven
+// component instead of a cramped one-liner + squished table. goalBands are the
+// customer's live account bands — not shown here (plan-intrinsic only).
+function toPlanDetails(d: AdminWalletPlanDetail): PlanDetails {
+  const pct = { p: d.macroSplit.p ?? null, c: d.macroSplit.c ?? null, f: d.macroSplit.f ?? null }
+  const K = { p: 4, c: 4, f: 9 } as const
+  const g = (m: 'p' | 'c' | 'f') =>
+    d.dailyKcal != null && pct[m] != null ? Math.round((d.dailyKcal * (pct[m] as number)) / 100 / K[m]) : null
+  const sn = d.profileSnapshot
+  const perMeal = Object.entries(d.pricingBreakdown).map(([key, mb]) => ({
+    key: key as unknown as PlanDetails['meals'][number],
+    kcal: Math.round(mb.kcal ?? 0),
+    protein: Math.round(mb.grams?.p ?? 0),
+    carbs: Math.round(mb.grams?.c ?? 0),
+    fat: Math.round(mb.grams?.f ?? 0),
+    priceEur: typeof mb.price === 'number' ? mb.price : null,
+  }))
+  return {
+    planId: d.id, goal: d.goal, planLength: d.planLength, planLengthWeeks: d.planLengthWeeks,
+    daysPerWeek: d.daysPerWeek, meals: d.selectedMeals as unknown as PlanDetails['meals'],
+    startDate: d.startDate, createdAt: d.createdAt, activeUntil: d.activeUntil,
+    adminNote: d.adminNote, status: d.status,
+    sex: sn.sex ?? null,
+    age: sn.birth_year ? new Date().getFullYear() - sn.birth_year : null,
+    heightCm: sn.height_cm ?? null, weightKg: sn.weight_kg ?? null, activityLevel: sn.activity_level ?? null,
+    dailyKcal: d.dailyKcal, macroPct: pct, macroGrams: { p: g('p'), c: g('c'), f: g('f') },
+    perMeal, dieticianManaged: !!d.services.dieticianManaged, bodyFatMeasurement: !!d.services.bodyFatMeasurement,
+    goalBands: null,
+  }
 }

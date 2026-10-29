@@ -18,7 +18,6 @@ import { fetchPastWalletPlans, fetchWallet, planReference, type PastWalletPlan }
 // WEC-702: reuse the shared plan-characteristics panel (same one the staff
 // impersonation strip uses) on the customer's own Συνδρομές tab.
 import { fetchActivePlanDetails, type PlanDetails } from '../lib/api/planDetails'
-import { fetchPlanConsumption, type PlanConsumption } from '../lib/api/planConsumption'
 import { PlanDetailsPanel } from '../components/shared/PlanDetailsPanel'
 import { COUNTRIES, DEFAULT_COUNTRY, isValidPhone, phoneLabels } from '../lib/phone'
 import { showGoalProgress, goalStatus, goalPct } from '../lib/goals'
@@ -1741,8 +1740,6 @@ function SubscriptionTab({ user, lang }: any) {
   // WEC-702: the customer's plan characteristics (same shared panel as the
   // staff strip). Fetched once when the tab mounts with an active plan.
   const [planDetails, setPlanDetails] = useState<PlanDetails | null>(null)
-  // WEC-836: delivery-days this subscription has consumed vs its total.
-  const [consumption, setConsumption] = useState<PlanConsumption | null>(null)
   useEffect(() => {
     if (!user?.id || !wallet?.active) return
     let cancelled = false
@@ -1750,16 +1747,6 @@ function SubscriptionTab({ user, lang }: any) {
       const { data } = await fetchActivePlanDetails(user.id)
       if (cancelled) return
       setPlanDetails(data)
-      if (data) {
-        const { data: cons } = await fetchPlanConsumption(user.id, {
-          planLengthWeeks: data.planLengthWeeks,
-          daysPerWeek: data.daysPerWeek,
-          startDate: data.startDate,
-          activeUntil: data.activeUntil,
-          createdAt: data.createdAt,
-        })
-        if (!cancelled) setConsumption(cons)
-      }
     })()
     return () => { cancelled = true }
   }, [user?.id, wallet?.active])
@@ -1848,7 +1835,8 @@ function SubscriptionTab({ user, lang }: any) {
     if (!iso) return null
     return new Date(iso + 'T12:00:00').toLocaleDateString(isEl ? 'el-GR' : 'en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
   }
-  const renewDate = fmtDate(wallet.nextRenewal)
+  // WEC-893 Leg 1: show the plan's real end date (active_until), not a days estimate.
+  const expiryDateStr = fmtDate(wallet.activeUntil)
   const eur = (n: number | undefined | null) => (typeof n === 'number' ? `${n.toFixed(2)} €` : '—')
 
   const baseBalance = wallet.baseBalance ?? wallet.balance
@@ -1923,21 +1911,21 @@ function SubscriptionTab({ user, lang }: any) {
         </div>
       )}
 
-      {/* 2. Live balance card (promoted) — rendered ONCE here */}
-      <div className="acct-wallet-card">
-        <div className="aw-label">{t('acAvailableBalance')}</div>
-        <div className="aw-balance">{wallet.balance.toFixed(2)} €</div>
-        <div className="aw-detail">
-          {isEl
-            ? `Βάση: ${baseBalance.toFixed(2)} € · Bonus: ${bonusBalance.toFixed(2)} €`
-            : `Base: ${baseBalance.toFixed(2)} € · Bonus: ${bonusBalance.toFixed(2)} €`}
-        </div>
-        {hasPlan && renewDate && (
-          <div className="aw-detail" style={{ marginTop: 6 }}>
-            {isEl ? `Επόμενη ανανέωση: ${renewDate}` : `Next renewal: ${renewDate}`}
+      {/* 2. Live balance card (promoted) — rendered ONCE here.
+             WEC-893 Leg 2: hidden entirely for admin-managed wallets — they buy a
+             service, not a package, so a visible balance invites "refund my €8".
+             Leg 3: the "next renewal" line is gone (next_renewal is never written). */}
+      {!wallet.adminManaged && (
+        <div className="acct-wallet-card">
+          <div className="aw-label">{t('acAvailableBalance')}</div>
+          <div className="aw-balance">{wallet.balance.toFixed(2)} €</div>
+          <div className="aw-detail">
+            {isEl
+              ? `Βάση: ${baseBalance.toFixed(2)} € · Bonus: ${bonusBalance.toFixed(2)} €`
+              : `Base: ${baseBalance.toFixed(2)} € · Bonus: ${bonusBalance.toFixed(2)} €`}
           </div>
-        )}
-      </div>
+        </div>
+      )}
 
       {/* 3. WEC-663: slimmed subscription details — exactly the eight fields the
              team asked for; everything else on the old plan cards is removed. */}
@@ -1946,7 +1934,7 @@ function SubscriptionTab({ user, lang }: any) {
           <div className="subs-card-title">{isEl ? 'Στοιχεία συνδρομής' : 'Subscription details'}</div>
           <div className="subs-rows">
             <div className="subs-row"><span className="subs-row-key">{isEl ? 'Ημερομηνία έναρξης' : 'Start date'}</span><span className="subs-row-val">{startDateStr ?? TODO_DASH}</span></div>
-            <div className="subs-row"><span className="subs-row-key">{isEl ? 'Επόμενη ανανέωση' : 'Next renewal'}</span><span className="subs-row-val">{renewDate ?? TODO_DASH}</span></div>
+            <div className="subs-row"><span className="subs-row-key">{isEl ? 'Ημερομηνία λήξης' : 'Expiry date'}</span><span className="subs-row-val">{expiryDateStr ?? TODO_DASH}</span></div>
             <div className="subs-row"><span className="subs-row-key">{isEl ? 'Κόστος πλάνου' : 'Plan cost'}</span><span className="subs-row-val">{eur(cycleCost)}</span></div>
             <div className="subs-row"><span className="subs-row-key">{isEl ? 'Ημερομηνία αγοράς' : 'Purchase date'}</span><span className="subs-row-val">{purchaseDateStr ?? TODO_DASH}</span></div>
             <div className="subs-row">
@@ -1954,18 +1942,6 @@ function SubscriptionTab({ user, lang }: any) {
               <span className="subs-row-val">{selectedMeals.length > 0 ? `${selectedMeals.length} (${selectedMeals.map((m) => m.label).join(', ')})` : TODO_DASH}</span>
             </div>
             <div className="subs-row"><span className="subs-row-key">{isEl ? 'Ημέρες εβδομάδας' : 'Days per week'}</span><span className="subs-row-val">{wallet.daysPerWeek ?? TODO_DASH}</span></div>
-            {/* WEC-836: delivery-days ordered on the subscription so far vs its total. */}
-            {consumption && consumption.totalDays != null && (
-              <div className="subs-row">
-                <span className="subs-row-key">{isEl ? 'Ημέρες που χρησιμοποιήθηκαν' : 'Days used'}</span>
-                <span className="subs-row-val">
-                  {consumption.usedDays} / {consumption.totalDays}
-                  {consumption.daysLeft != null
-                    ? ` · ${consumption.daysLeft} ${isEl ? 'απομένουν' : 'left'}`
-                    : ''}
-                </span>
-              </div>
-            )}
             <div className="subs-row"><span className="subs-row-key">{isEl ? 'Τύπος πλάνου' : 'Plan type'}</span><span className="subs-row-val">{goalLabel}</span></div>
             <div className="subs-row"><span className="subs-row-key">{isEl ? 'Λιπομέτρηση' : 'Body-fat measurement'}</span><span className="subs-row-val">{wallet.bodyFatMeasurement ? (isEl ? 'Ναι' : 'Yes') : (isEl ? 'Όχι' : 'No')}</span></div>
           </div>
