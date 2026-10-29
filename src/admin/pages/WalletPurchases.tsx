@@ -463,6 +463,7 @@ const ICO = {
   activity: svgIco(<path d="M22 12h-4l-3 9L9 3l-3 9H2" />),
   check: svgIco(<path d="M20 6 9 17l-5-5" />),
   refund: svgIco(<><path d="M3 7v6h6" /><path d="M21 17a9 9 0 0 0-15-6.7L3 13" /></>),
+  renew: svgIco(<><path d="M21 2v6h-6" /><path d="M3 12a9 9 0 0 1 15-6.7L21 8" /><path d="M3 22v-6h6" /><path d="M21 12a9 9 0 0 1-15 6.7L3 16" /></>),
 }
 
 function StartDateEditor({ detail, onSaved }: { detail: AdminWalletPlanDetail; onSaved: () => void }) {
@@ -598,8 +599,8 @@ function RenewalLink({ planId }: { planId: string }) {
   }
   return (
     <div style={{ marginTop: 12, paddingTop: 10, borderTop: '1px solid var(--a-border)' }}>
-      <div style={{ fontSize: 11, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '.04em', color: 'var(--a-text-muted)', marginBottom: 6 }}>
-        Σύνδεσμος ανανέωσης
+      <div style={{ fontSize: 11, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '.04em', color: 'var(--a-text-muted)', marginBottom: 6, display: 'flex', alignItems: 'center', gap: 6 }}>
+        {ICO.renew}Σύνδεσμος ανανέωσης
       </div>
       <div style={{ fontSize: 12, color: '#6b7280', marginBottom: 6, lineHeight: 1.45 }}>
         Στείλ’ τον στον πελάτη για να ξανανοίξει τον wizard με το ίδιο πακέτο προσυμπληρωμένο.
