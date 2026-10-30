@@ -221,6 +221,15 @@ function VoucherEditor({
             placeholder="WELCOME10"
             disabled={!!voucher}  // codes are immutable post-creation
           />
+          {/* WEC-898: non-blocking warning only — a code that mixes Greek and
+              Latin look-alike letters (e.g. a Greek keyboard left the «ΚΑ» in
+              KASTANAS20 as Greek) works via copy-paste but fails when the
+              customer types it. No conversion, no enforcement — just a heads-up. */}
+          {/[A-Za-z]/.test(form.code) && /[Ͱ-Ͽἀ-῿]/.test(form.code) && (
+            <div style={{ marginTop: 6, fontSize: 12, lineHeight: 1.45, color: '#92400e', background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 6, padding: '7px 10px' }}>
+              ⚠ Ο κωδικός περιέχει <strong>ανάμειξη ελληνικών και λατινικών</strong> χαρακτήρων. Δουλεύει με αντιγραφή/επικόλληση αλλά <strong>αποτυγχάνει όταν τον πληκτρολογεί ο πελάτης</strong>. (Δεν εμποδίζει την αποθήκευση.)
+            </div>
+          )}
         </div>
 
         <div className="admin-form-row">
