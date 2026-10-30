@@ -210,3 +210,60 @@ export async function fetchActivePlanDetails(
     return { data: null, error: err instanceof Error ? err.message : 'Plan lookup failed' }
   }
 }
+
+// ── WEC-895: customer-facing subscription timeline (curated plan events +
+// their own visible comments), via a SECURITY DEFINER RPC guarded on ownership.
+export interface CustomerPlanEvent { kind: string; at: string; label: string | null; body: string | null; author: string | null }
+export async function fetchCustomerPlanTimeline(planId: string): Promise<{ data: CustomerPlanEvent[]; error: string | null }> {
+  const { data, error } = await supabase.rpc('customer_wallet_plan_timeline', { p_plan: planId })
+  if (error) return { data: [], error: error.message }
+  return { data: (data ?? []) as CustomerPlanEvent[], error: null }
+}
+
+// WEC-896 — renewal prefill. A «renew» deep-link (`?view=subscription&renew=<planId>`)
+// reopens the wizard with the customer's previous package already filled in. This
+// reads the config off the OLD wallet_plans row (RLS: owner during the customer's
+// session, admin from the panel) and shapes it for the wizard's restore keys.
+// Everything here is config the customer chose — nothing financial, no credits.
+export interface RenewalPrefill {
+  goal: string | null
+  sex: string | null
+  age: string            // wizard keeps age/height/weight as strings
+  heightCm: string
+  weightKg: string
+  activity: string | null
+  meals: { breakfast: boolean; lunch: boolean; dinner: boolean; snack: boolean }
+  planLength: string | null
+  daysPerWeek: number | null
+}
+export async function fetchRenewalPrefill(planId: string): Promise<{ data: RenewalPrefill | null; error: string | null }> {
+  const { data, error } = await supabase
+    .from('wallet_plans')
+    .select('goal, plan_length, days_per_week, meal_breakfast, meal_lunch, meal_dinner, meal_snack, profile_snapshot')
+    .eq('id', planId)
+    .maybeSingle()
+  if (error) return { data: null, error: error.message }
+  if (!data) return { data: null, error: null }
+  const row = data as Record<string, unknown>
+  const snap = (row.profile_snapshot ?? {}) as { sex?: string; birth_year?: number; height_cm?: number; weight_kg?: number; activity_level?: string }
+  const age = snap.birth_year ? String(new Date().getFullYear() - snap.birth_year) : ''
+  return {
+    data: {
+      goal: (row.goal as string) ?? null,
+      sex: snap.sex ?? null,
+      age,
+      heightCm: snap.height_cm != null ? String(snap.height_cm) : '',
+      weightKg: snap.weight_kg != null ? String(snap.weight_kg) : '',
+      activity: snap.activity_level ?? null,
+      meals: {
+        breakfast: !!row.meal_breakfast,
+        lunch: !!row.meal_lunch,
+        dinner: !!row.meal_dinner,
+        snack: !!row.meal_snack,
+      },
+      planLength: (row.plan_length as string) ?? null,
+      daysPerWeek: (row.days_per_week as number) ?? null,
+    },
+    error: null,
+  }
+}

@@ -72,6 +72,7 @@ export const EVT = {
   PaymentLinkSent:       'Payment Link Sent',
   SubscriptionPurchased: 'Subscription Purchased',
   WalletCreditGranted:   'Wallet Credit Granted',
+  SubscriptionRenewalInvite: 'Subscription Renewal Invitation', // WEC-896
 } as const
 
 /**

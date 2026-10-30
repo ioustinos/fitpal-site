@@ -3,14 +3,13 @@ import {
   fetchAdminUsers, fetchAdminUserDetail, saveAdminUserNotes, setWalletAdminManaged, setWalletActive, setCustomerPaysMonthly,
   grantWalletCredit,
   // WEC-770
-  createAdminCustomer, sendCustomerInvite, saveWalletPlanOpsFields, setWalletPlanStatus, type NewCustomerInput,
+  createAdminCustomer, sendCustomerInvite, type NewCustomerInput,
   type AdminUserRow, type AdminUserDetail, type WalletGrantType,
 } from '../../lib/api/adminUsers'
 import { fetchAdminZones, type AdminZone } from '../../lib/api/adminZones'
 import { useImpersonationStore } from '../../store/useImpersonationStore'
-import { useSearchParams } from 'react-router-dom'
+import { useSearchParams, useNavigate } from 'react-router-dom'
 import { fetchActivePlanDetails, type PlanDetails } from '../../lib/api/planDetails'
-import { PlanDetailsPanel } from '../../components/shared/PlanDetailsPanel'
 import { useAdminFilters } from '../../lib/useAdminFilters'
 import { useAuthStore } from '../../store/useAuthStore'
 
@@ -257,6 +256,7 @@ function UserDetail({
   // per-meal targets) inside the customer, not filed under Wallet purchases.
   // Same renderer as the impersonation strip so the two can't drift.
   const [plan, setPlan] = useState<PlanDetails | null>(null)
+  const navigate = useNavigate()
 
   useEffect(() => {
     setDietician(detail.dietician ?? '')
@@ -468,13 +468,18 @@ function UserDetail({
         </div>
       </div>
 
-      {/* WEC-684: Διατροφικό πλάνο — the active plan the customer bought. */}
-      {plan && (
+      {/* WEC-684 → WEC-893 Leg 1: plan details + ops (λήξη/σημείωση/κατάσταση) now
+          live ONLY in the wallet-purchases drawer. Here we keep a single link. */}
+      {plan && plan.planId && (
         <>
           <h3 className="admin-page-sub" style={{ marginTop: 24, marginBottom: 8 }}>Διατροφικό πλάνο (active)</h3>
           <div style={{ padding: 14, background: 'var(--a-bg)', border: '1px solid var(--a-border)', borderRadius: 8 }}>
-            <PlanDetailsPanel plan={plan} />
-            <SubscriptionOpsFields plan={plan} />
+            <button className="admin-btn-primary" onClick={() => navigate(`/admin/wallet-purchases?planId=${plan.planId}`)}>
+              Άνοιγμα συνδρομής →
+            </button>
+            <span className="admin-text-muted" style={{ marginLeft: 10, fontSize: 12 }}>
+              Όλα τα στοιχεία & η διαχείριση του πλάνου (λήξη, σημείωση, κατάσταση) είναι εκεί.
+            </span>
           </div>
         </>
       )}
@@ -878,122 +883,6 @@ function InviteButton({ email, name }: { email: string; name: string | null }) {
       {state === 'error' && msg && (
         <span style={{ fontSize: 11, color: '#b91c1c', maxWidth: 240, textAlign: 'right' }}>{msg}</span>
       )}
-    </div>
-  )
-}
-
-
-/* ────────────────────────────────────────────────────────────────────────────
- *  WEC-783 · «Ενεργή έως» + ops note
- *
- *  Maria asked for a way to record «this customer is away for a week». There is
- *  no expiry in the system to extend — the wallet never expires and nothing
- *  stops it being spent — so what she actually needs is a place to WRITE IT
- *  DOWN, not a mechanism.
- *
- *  ⚠️ Deliberately toothless. Ioustinos: «αν θελήσει ο πελάτης να φάει
- *  νωρίτερα δεν θα πρέπει να υπάρχει blocker». A date in the past changes
- *  nothing; the customer keeps ordering and keeps spending their wallet.
- * ──────────────────────────────────────────────────────────────────────────── */
-
-function SubscriptionOpsFields({ plan }: { plan: PlanDetails }) {
-  const adminUser = useAuthStore((s) => s.user)
-  const [until, setUntil] = useState(plan.activeUntil ?? '')
-  const [note, setNote] = useState(plan.adminNote ?? '')
-  // What is persisted right now. The `plan` prop is not refetched after a save,
-  // so comparing against it would leave the button permanently "dirty".
-  const [persisted, setPersisted] = useState({ until: plan.activeUntil ?? '', note: plan.adminNote ?? '' })
-  const [saving, setSaving] = useState(false)
-  const [saved, setSaved] = useState(false)
-  const [err, setErr] = useState<string | null>(null)
-  // WEC-811: subscription lifecycle status.
-  const [status, setStatus] = useState(plan.status ?? 'active')
-  const [statusBusy, setStatusBusy] = useState(false)
-
-  useEffect(() => {
-    setUntil(plan.activeUntil ?? '')
-    setNote(plan.adminNote ?? '')
-    setPersisted({ until: plan.activeUntil ?? '', note: plan.adminNote ?? '' })
-    setStatus(plan.status ?? 'active')
-    setSaved(false)
-  }, [plan.planId, plan.activeUntil, plan.adminNote])
-
-  const dirty = persisted.until !== until || persisted.note !== note
-
-  async function save() {
-    if (!plan.planId) return
-    setSaving(true); setErr(null)
-    const { error } = await saveWalletPlanOpsFields(
-      plan.planId,
-      { activeUntil: until || null, adminNote: note || null },
-      adminUser?.email ?? 'admin',
-    )
-    setSaving(false)
-    if (error) { setErr(error); return }
-    setPersisted({ until, note }); setSaved(true)
-  }
-
-  async function changeStatus(nextS: 'active' | 'cancelled') {
-    if (!plan.planId || nextS === status || statusBusy) return
-    if (nextS === 'cancelled' && !window.confirm('Ακύρωση συνδρομής; Θα απενεργοποιηθεί το wallet (χωρίς επιστροφή χρημάτων). Μπορείς να την επαναφέρεις μετά.')) return
-    setStatusBusy(true); setErr(null)
-    const { error } = await setWalletPlanStatus(plan.planId, nextS, adminUser?.email ?? 'admin')
-    setStatusBusy(false)
-    if (error) { setErr(error); return }
-    setStatus(nextS)
-  }
-
-  return (
-    <div style={{ marginTop: 14, paddingTop: 12, borderTop: '1px solid var(--a-border)' }}>
-      <div style={{ fontSize: 12, fontWeight: 700, color: '#6b7280', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 2 }}>
-        Διαχείριση (δεν το βλέπει ο πελάτης)
-      </div>
-      <div style={{ fontSize: 12, color: '#6b7280', marginBottom: 10, lineHeight: 1.45 }}>
-        Μόνο για δική μας εικόνα. <strong>Δεν μπλοκάρει τίποτα</strong> — ο πελάτης μπορεί να
-        παραγγείλει και να ξοδέψει το πορτοφόλι του ακόμη κι αν η ημερομηνία έχει περάσει.
-      </div>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
-        <span style={{ fontSize: 12, color: '#6b7280' }}>Κατάσταση:</span>
-        <button
-          type="button"
-          onClick={() => changeStatus('active')}
-          disabled={statusBusy || !plan.planId}
-          style={{ padding: '4px 12px', borderRadius: 999, fontSize: 12, fontWeight: 700, cursor: 'pointer',
-            border: status === 'active' ? '1.5px solid #10b981' : '1px solid var(--a-border)',
-            background: status === 'active' ? '#10b98122' : 'transparent',
-            color: status === 'active' ? '#047857' : '#6b7280' }}
-        >Ενεργή</button>
-        <button
-          type="button"
-          onClick={() => changeStatus('cancelled')}
-          disabled={statusBusy || !plan.planId}
-          style={{ padding: '4px 12px', borderRadius: 999, fontSize: 12, fontWeight: 700, cursor: 'pointer',
-            border: status === 'cancelled' ? '1.5px solid #ef4444' : '1px solid var(--a-border)',
-            background: status === 'cancelled' ? '#ef444422' : 'transparent',
-            color: status === 'cancelled' ? '#b91c1c' : '#6b7280' }}
-        >Ακυρωμένη</button>
-        {statusBusy && <span style={{ fontSize: 12, color: '#6b7280' }}>…</span>}
-      </div>
-      <div style={{ display: 'grid', gridTemplateColumns: '180px 1fr', gap: 10, alignItems: 'end' }}>
-        <label style={{ display: 'block' }}>
-          <span style={{ display: 'block', fontSize: 12, color: '#6b7280', marginBottom: 3 }}>Ενεργή έως</span>
-          <input type="date" className="admin-input" style={{ width: '100%' }} value={until} onChange={(e) => setUntil(e.target.value)} />
-        </label>
-        <label style={{ display: 'block' }}>
-          <span style={{ display: 'block', fontSize: 12, color: '#6b7280', marginBottom: 3 }}>Σημείωση</span>
-          <input
-            className="admin-input"
-            style={{ width: '100%' }}
-            placeholder="π.χ. παύση 12–19/10, παράταση 1 εβδομάδα"
-            value={note}
-            onChange={(e) => setNote(e.target.value)}
-          />
-        </label>
-      </div>
-      {err && <div className="admin-error-banner" style={{ marginTop: 10 }}>{err}</div>}
-      <button className="admin-btn-primary" style={{ marginTop: 10 }} onClick={save} disabled={saving || !dirty || !plan.planId}>
-        {saving ? 'Αποθήκευση…' : saved && !dirty ? '✓ Αποθηκεύτηκε' : 'Αποθήκευση'}
-      </button>
     </div>
   )
 }

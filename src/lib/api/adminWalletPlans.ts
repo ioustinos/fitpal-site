@@ -52,6 +52,10 @@ export interface AdminWalletPlanDetail extends AdminWalletPlanRow {
   discountPct: number
   voucherId: string | null
   voucherAmountCents: number
+  // WEC-893 Leg 4: human voucher code (looked up from voucher_id) for the drawer.
+  voucherCode: string | null
+  // WEC-893 Leg 1: ops note moved into the plan drawer.
+  adminNote: string | null
 }
 
 interface AdminWalletPlanFilters {
@@ -139,6 +143,14 @@ export async function fetchAdminWalletPlanDetail(
   if (error) return { data: null, error: error.message }
   if (!data) return { data: null, error: 'Not found' }
   const row = data as Record<string, unknown>
+  // WEC-893 Leg 4: resolve the human voucher code from voucher_id (the Airtable
+  // push does the same lookup — pushWalletPlan.ts).
+  let voucherCode: string | null = null
+  const vId = row.voucher_id as string | null
+  if (vId) {
+    const { data: vRow } = await supabase.from('vouchers').select('code').eq('id', vId).maybeSingle()
+    voucherCode = (vRow as { code?: string } | null)?.code ?? null
+  }
   return {
     data: {
       ...rowToBase(row),
@@ -152,6 +164,8 @@ export async function fetchAdminWalletPlanDetail(
       discountPct: (row.discount_pct as number) ?? 0,
       voucherId: row.voucher_id as string | null,
       voucherAmountCents: (row.voucher_amount_cents as number) ?? 0,
+      voucherCode,
+      adminNote: (row.admin_note as string | null) ?? null,
     },
     error: null,
   }
@@ -245,6 +259,26 @@ export async function refundAdminWalletPlan(
   return { data: await res.json(), error: null }
 }
 
+// WEC-894: admin edits the subscription's final price (revenue) + discount.
+// Server-authoritative — the browser only POSTs; is_admin() is checked there.
+export async function editWalletPlanPrice(
+  walletPlanId: string, amountToPayCents: number, discountCents: number,
+): Promise<{ error: string | null }> {
+  const { data: sessionData } = await supabase.auth.getSession()
+  const token = sessionData?.session?.access_token
+  if (!token) return { error: 'Not authenticated' }
+  const res = await fetch('/api/wallet-plan-edit-price', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ walletPlanId, amountToPayCents, discountCents }),
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: 'Request failed' }))
+    return { error: err.error ?? `HTTP ${res.status}` }
+  }
+  return { error: null }
+}
+
 // WEC-798(c): admin edits a plan's start date; «Ενεργή έως» (active_until)
 // recalculates from start_date + plan_length_weeks — the same formula
 // wallet-plan-purchase uses to prefill it. Informational, no gate (WEC-783).
@@ -252,14 +286,26 @@ export async function updateWalletPlanStartDate(
   id: string,
   startDateIso: string,
   planLengthWeeks: number | null,
+  adminEmail?: string,
 ): Promise<{ activeUntil: string | null; error: string | null }> {
   const days = Math.round((planLengthWeeks ?? 0) * 7)
   const end = new Date(new Date(`${startDateIso}T00:00:00Z`).getTime() + days * 86400000)
   const activeUntil = end.toISOString().slice(0, 10)
+  // WEC-895: record the change so «who moved the start date» is answerable.
+  const { data: beforeRow } = await supabase
+    .from('wallet_plans').select('start_date').eq('id', id).maybeSingle()
   const { error } = await supabase
     .from('wallet_plans')
     .update({ start_date: startDateIso, active_until: activeUntil })
     .eq('id', id)
+  if (!error) {
+    await supabase.from('admin_change_log').insert({
+      wallet_plan_id: id, table_name: 'wallet_plans', field_name: 'start_date',
+      old_value: String((beforeRow as { start_date?: string | null } | null)?.start_date ?? ''),
+      new_value: startDateIso, label: `WEC-798 start date · plan ${id}`,
+      admin_user: adminEmail ?? '(admin)',
+    })
+  }
   return { activeUntil, error: error ? error.message : null }
 }
 
@@ -280,6 +326,7 @@ export async function setWalletPlanContacted(
   if (error) return { error: error.message }
   await supabase.from('admin_change_log').insert({
     order_id: null,
+    wallet_plan_id: id,
     table_name: 'wallet_plans',
     field_name: 'contacted',
     old_value: String(!contacted),
@@ -288,4 +335,66 @@ export async function setWalletPlanContacted(
     admin_user: adminUser,
   })
   return { error: null }
+}
+
+// ── WEC-895: subscription comments + change-log (admin) ──────────────────────
+export interface WalletPlanComment { id: number; body: string; visibleToCustomer: boolean; author: string | null; createdAt: string }
+export interface WalletPlanChangeEntry { id: number; field: string; oldValue: string | null; newValue: string | null; label: string | null; adminUser: string | null; createdAt: string }
+
+export async function fetchWalletPlanComments(planId: string): Promise<{ data: WalletPlanComment[]; error: string | null }> {
+  const { data, error } = await supabase
+    .from('wallet_plan_comments')
+    .select('id, body, visible_to_customer, author, created_at')
+    .eq('wallet_plan_id', planId)
+    .order('created_at', { ascending: false })
+  if (error) return { data: [], error: error.message }
+  return {
+    data: (data ?? []).map((r) => {
+      const row = r as Record<string, unknown>
+      return {
+        id: row.id as number, body: row.body as string,
+        visibleToCustomer: !!row.visible_to_customer,
+        author: (row.author as string | null) ?? null,
+        createdAt: row.created_at as string,
+      }
+    }),
+    error: null,
+  }
+}
+
+export async function addWalletPlanComment(
+  planId: string, body: string, visibleToCustomer: boolean, author: string,
+): Promise<{ error: string | null }> {
+  const { error } = await supabase.from('wallet_plan_comments').insert({
+    wallet_plan_id: planId, body, visible_to_customer: visibleToCustomer, author,
+  })
+  return { error: error ? error.message : null }
+}
+
+export async function deleteWalletPlanComment(id: number): Promise<{ error: string | null }> {
+  const { error } = await supabase.from('wallet_plan_comments').delete().eq('id', id)
+  return { error: error ? error.message : null }
+}
+
+export async function fetchWalletPlanChangeLog(planId: string): Promise<{ data: WalletPlanChangeEntry[]; error: string | null }> {
+  const { data, error } = await supabase
+    .from('admin_change_log')
+    .select('id, field_name, old_value, new_value, label, admin_user, created_at')
+    .eq('wallet_plan_id', planId)
+    .order('created_at', { ascending: false })
+  if (error) return { data: [], error: error.message }
+  return {
+    data: (data ?? []).map((r) => {
+      const row = r as Record<string, unknown>
+      return {
+        id: row.id as number, field: row.field_name as string,
+        oldValue: (row.old_value as string | null) ?? null,
+        newValue: (row.new_value as string | null) ?? null,
+        label: (row.label as string | null) ?? null,
+        adminUser: (row.admin_user as string | null) ?? null,
+        createdAt: row.created_at as string,
+      }
+    }),
+    error: null,
+  }
 }
