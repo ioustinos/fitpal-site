@@ -20,6 +20,9 @@
 
 import { createClient, SupabaseClient } from '@supabase/supabase-js'
 import { track, subscribeProfileToMarketing, EVT } from './klaviyo'
+import { calculateWalletPlan } from '../../src/lib/wallet/calculator'
+import { loadWalletConfig } from './wallet/loadSettings'
+import type { WalletCalcInput, MealsSelection } from '../../src/lib/wallet/types'
 
 const SUPABASE_URL = process.env.VITE_SUPABASE_URL ?? ''
 const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY ?? ''
@@ -76,6 +79,13 @@ export async function runRenewalInvites(
   const candidates = (data ?? []) as Candidate[]
   result.candidates = candidates.length
 
+  // WEC-896: the «renewal amount» row shows the plan's price at TODAY's rates
+  // (Ioustinos' decision). Load pricing settings once; if unavailable, the
+  // amount is omitted and the template shows «—» (its author preferred nothing
+  // over a wrong/placeholder figure).
+  let walletSettings: Awaited<ReturnType<typeof loadWalletConfig>>['settings'] | null = null
+  try { walletSettings = (await loadWalletConfig()).settings } catch (e) { console.warn('[renewal-invite] wallet config load failed:', e) }
+
   for (const plan of candidates) {
     if (Date.now() - startedAt > deadlineMs) break // leave the rest for tomorrow
     try {
@@ -107,6 +117,38 @@ export async function runRenewalInvites(
       const renewUrl = `${siteBase()}/?view=subscription&renew=${plan.id}`
       const expiryFormatted = plan.active_until ? plan.active_until.split('-').reverse().join('/') : null
 
+      // WEC-896: recompute the plan's current price from its stored config +
+      // body snapshot. Guard everything: a missing/partial snapshot or a calc
+      // error simply leaves the amount null → the template renders «—».
+      let renewalAmount: number | null = null
+      if (walletSettings) {
+        try {
+          const { data: full } = await supabase.from('wallet_plans')
+            .select('profile_snapshot, services, goal, plan_length, days_per_week, meal_breakfast, meal_lunch, meal_dinner, meal_snack')
+            .eq('id', plan.id).maybeSingle()
+          const row = (full ?? {}) as Record<string, unknown>
+          const snap = (row.profile_snapshot ?? {}) as { sex?: string; birth_year?: number; height_cm?: number; weight_kg?: number; activity_level?: string }
+          const svc = (row.services ?? {}) as { dieticianManaged?: boolean; bodyFatMeasurement?: boolean }
+          if (snap.sex && snap.birth_year && snap.height_cm && snap.weight_kg && snap.activity_level && row.goal && row.plan_length && row.days_per_week) {
+            const input: WalletCalcInput = {
+              sex: snap.sex as WalletCalcInput['sex'],
+              age: new Date().getFullYear() - snap.birth_year,
+              heightCm: snap.height_cm,
+              weightKg: snap.weight_kg,
+              activity: snap.activity_level as WalletCalcInput['activity'],
+              goal: row.goal as WalletCalcInput['goal'],
+              meals: { breakfast: !!row.meal_breakfast, lunch: !!row.meal_lunch, dinner: !!row.meal_dinner, snack: !!row.meal_snack } as MealsSelection,
+              planLength: row.plan_length as WalletCalcInput['planLength'],
+              daysPerWeek: row.days_per_week as WalletCalcInput['daysPerWeek'],
+              services: { dieticianManaged: !!svc.dieticianManaged, bodyFatMeasurement: !!svc.bodyFatMeasurement },
+            }
+            const r = calculateWalletPlan(input, walletSettings)
+            if (Number.isFinite(r.amountToPay) && r.amountToPay > 0) renewalAmount = r.amountToPay
+          }
+        } catch (e) { console.warn('[renewal-invite] price calc failed for', plan.id, e) }
+      }
+      const amountFormatted = renewalAmount != null ? `${renewalAmount.toFixed(2)} €` : null
+
       // snake_case (template-expected) + camelCase (downstream), same as the
       // Subscription Purchased email.
       const props = {
@@ -121,6 +163,11 @@ export async function runRenewalInvites(
         goal_label: goalLabel,
         meals_label: mealsLabel,
         daily_kcal: plan.daily_kcal ?? null,
+        // WEC-896: renewal amount = current plan price; charge-date row = expiry.
+        next_charge_amount: renewalAmount,
+        next_charge_amount_formatted: amountFormatted,
+        next_charge_date: plan.active_until,
+        next_charge_date_formatted: expiryFormatted,
         // camelCase
         walletPlanId: plan.id,
         renewalUrl: renewUrl,
