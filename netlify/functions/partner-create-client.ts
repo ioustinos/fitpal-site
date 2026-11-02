@@ -71,7 +71,7 @@ export default async (request: Request): Promise<Response> => {
 
   // Caller must be an active partner user (my_partner() reads auth.uid()).
   const { data: partner, error: pErr } = await callerClient.rpc('my_partner')
-  const p = partner as { id: string; is_internal: boolean; default_commission_bps: number; default_discount_bps: number } | null
+  const p = partner as { id: string; name: string; is_internal: boolean; default_commission_bps: number; default_discount_bps: number } | null
   if (pErr || !p?.id) {
     return Response.json({ error: 'Δεν είστε συνεργάτης διαιτολόγος. · Not a partner account.' }, { status: 403, headers: cors })
   }
@@ -170,7 +170,7 @@ export default async (request: Request): Promise<Response> => {
   console.info('[partner-create-client] partner %s created client %s', p.id, userId)
   let inviteError: string | null = null
   if (body.sendInvite) {
-    inviteError = await sendPartnerWelcome({ email, name: name || undefined }, userId)
+    inviteError = await sendPartnerWelcome({ email, name: name || undefined }, userId, p.name ?? '')
     if (inviteError) console.error('[partner-create-client] welcome email failed for %s: %s', userId, inviteError)
   }
   return Response.json({ userId, status: 'active', existing: false, inviteSent: !!body.sendInvite && !inviteError, inviteError }, { status: 200, headers: cors })

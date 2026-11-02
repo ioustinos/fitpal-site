@@ -55,16 +55,17 @@ function esc(s: string): string {
   return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
 }
 
-function html(url: string): string {
+function html(url: string, dietitian: string): string {
   const u = esc(url)
+  const d = dietitian.trim()
   const logo = 'https://rhwetztxwjxfstffalwl.supabase.co/storage/v1/object/public/email-assets/logo-on-cream.png'
-  return `<!doctype html><html lang="el"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Καλώς ήρθες στα Fitpal Meals!</title></head>
+  return `<!doctype html><html lang="el"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Fitpal Meals - Πρόσκληση από διατροφολόγο${d ? ` - ${esc(d)}` : ''}</title></head>
 <body style="margin:0;padding:0;background:#f9f2e1;font-family:Arial,Helvetica,sans-serif;color:#1c2b1c">
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f9f2e1"><tr><td align="center" style="padding:32px 16px">
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:560px;background:#ffffff;border-radius:16px">
 <tr><td align="center" style="padding:32px 32px 8px"><img src="${logo}" width="160" alt="Fitpal Meals" style="display:block;border:0;height:auto"></td></tr>
 <tr><td style="padding:16px 32px 0;font-size:26px;line-height:1.25;font-weight:bold;color:#004739">Καλώς ήρθες στα Fitpal Meals!</td></tr>
-<tr><td style="padding:16px 32px 0;font-size:16px;line-height:1.55">Η σύνδεσή σου με τον/τη διατροφολόγο σου ολοκληρώθηκε.</td></tr>
+<tr><td style="padding:16px 32px 0;font-size:16px;line-height:1.55">Η σύνδεσή σου με τον/τη διατροφολόγο σου${d ? `, <b>${esc(d)}</b>,` : ''} ολοκληρώθηκε.</td></tr>
 <tr><td style="padding:24px 32px 0">
   <table role="presentation" cellpadding="0" cellspacing="0"><tr><td style="border-radius:10px;background:#006647">
     <a href="${u}" style="display:inline-block;padding:14px 28px;font-size:16px;font-weight:bold;color:#ffffff;text-decoration:none;border-radius:10px">Πάτα εδώ</a>
@@ -77,7 +78,12 @@ function html(url: string): string {
 }
 
 /** Send the welcome email. Returns null on success, or the failure reason. */
-export async function sendPartnerWelcome(to: { email: string; name?: string }, userId: string): Promise<string | null> {
+export function welcomeSubject(dietitian: string): string {
+  const d = dietitian.trim()
+  return `Fitpal Meals - Πρόσκληση από διατροφολόγο${d ? ` - ${d}` : ''}`
+}
+
+export async function sendPartnerWelcome(to: { email: string; name?: string }, userId: string, dietitian: string): Promise<string | null> {
   if (!BREVO_API_KEY) return 'BREVO_API_KEY is not set'
   try {
     const res = await fetch('https://api.brevo.com/v3/smtp/email', {
@@ -86,8 +92,8 @@ export async function sendPartnerWelcome(to: { email: string; name?: string }, u
       body: JSON.stringify({
         sender: SENDER,
         to: [{ email: to.email, ...(to.name ? { name: to.name } : {}) }],
-        subject: 'Καλώς ήρθες στα Fitpal Meals!',
-        htmlContent: html(welcomeUrl(userId)),
+        subject: welcomeSubject(dietitian),
+        htmlContent: html(welcomeUrl(userId), dietitian),
         tags: ['partner-welcome'],
       }),
     })
