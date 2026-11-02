@@ -13,12 +13,15 @@
 //
 // 🟢 No «pending welcome» status — Ioustinos: the welcome call is not a real
 // process; the client can order immediately.
-// The login email ("set a password if you want") is sent by the portal with
-// the normal OTP email, like admin «Στείλε πρόσκληση».
+// WEC-899: the welcome email (own text, no OTP, 7-day one-click link to the
+// site) is sent HERE, server-side, when the portal asks for it. It used to be
+// the generic OTP email sent from the dietitian's browser, which linked back
+// to /partner and showed the client a 403.
 
 import { toE164 } from '../../src/lib/phoneNormalize'
 import { createClient } from '@supabase/supabase-js'
 import { corsHeaders } from '../lib/cors'
+import { sendPartnerWelcome } from '../lib/partnerWelcome'
 
 const SUPABASE_URL = process.env.VITE_SUPABASE_URL ?? ''
 const SUPABASE_ANON_KEY = process.env.VITE_SUPABASE_ANON_KEY ?? ''
@@ -29,6 +32,8 @@ interface Body {
   name?: string
   phone?: string
   address?: { street?: string; area?: string; zip?: string; floor?: string; doorbell?: string; notes?: string }
+  /** WEC-899: send the welcome email (new accounts only). */
+  sendInvite?: boolean
 }
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/
@@ -163,5 +168,10 @@ export default async (request: Request): Promise<Response> => {
   }
 
   console.info('[partner-create-client] partner %s created client %s', p.id, userId)
-  return Response.json({ userId, status: 'active', existing: false }, { status: 200, headers: cors })
+  let inviteError: string | null = null
+  if (body.sendInvite) {
+    inviteError = await sendPartnerWelcome({ email, name: name || undefined }, userId)
+    if (inviteError) console.error('[partner-create-client] welcome email failed for %s: %s', userId, inviteError)
+  }
+  return Response.json({ userId, status: 'active', existing: false, inviteSent: !!body.sendInvite && !inviteError, inviteError }, { status: 200, headers: cors })
 }
