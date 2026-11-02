@@ -126,6 +126,7 @@ export function Orders() {
       payment: [] as PaymentStatus[],
       method: [] as PaymentMethod[],
       type: [] as OrderTypeCode[],
+      paysMonthly: '' as '' | 'yes' | 'no',
     },
   )
   const [preset, setPreset] = useState<Preset>(initFilters.preset)
@@ -137,19 +138,24 @@ export function Orders() {
   // WEC-528: Order Type is DERIVED (payment_method × admin_order_id), no DB
   // column — so this filter is applied client-side on the loaded list.
   const [filterType, setFilterType] = useState<OrderTypeCode[]>(initFilters.type)
+  // WEC-900: monthly-billed segment — '' all / 'yes' only monthly / 'no' exclude.
+  // Server-side (profiles.pays_monthly), so ops can keep subscription customers
+  // out of the queue and avoid sending them payment links.
+  const [filterPaysMonthly, setFilterPaysMonthly] = useState<'' | 'yes' | 'no'>(initFilters.paysMonthly as '' | 'yes' | 'no')
 
   // WEC-687: reflect the current filter set into the URL + per-admin storage on
   // every change (replace: true — no history spam while typing search).
   useEffect(() => {
     persistFilters({
       preset, search, status: filterStatus, payment: filterPayment, method: filterMethod, type: filterType,
+      paysMonthly: filterPaysMonthly,
     })
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [preset, search, filterStatus, filterPayment, filterMethod, filterType])
+  }, [preset, search, filterStatus, filterPayment, filterMethod, filterType, filterPaysMonthly])
 
   function clearAllFilters() {
     setPreset('all'); setSearch(''); setFilterStatus([]); setFilterPayment([])
-    setFilterMethod([]); setFilterType([]); clearSavedFilters()
+    setFilterMethod([]); setFilterType([]); setFilterPaysMonthly(''); clearSavedFilters()
   }
   // WEC-557: order ids with an unhandled customer change request — drives the
   // per-row pending indicator + a count pill so ops notices without opening drawers.
@@ -201,13 +207,16 @@ export function Orders() {
     // money owed in one direction or the other until someone signs it off.
     if (preset === 'price-changed') { filters.priceNeedsReview = true }
     if (storeFilter) filters.storeId = storeFilter
+    // WEC-900: monthly-billed segment.
+    if (filterPaysMonthly === 'yes') filters.paysMonthly = true
+    else if (filterPaysMonthly === 'no') filters.paysMonthly = false
     const { data, error } = await listAdminOrders(filters)
     if (error) setErr(error)
     setOrders(data ?? [])
     setLoading(false)
   }
 
-  useEffect(() => { refresh() /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [preset, filterStatus.join(','), filterPayment.join(','), filterMethod.join(','), storeFilter])
+  useEffect(() => { refresh() /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [preset, filterStatus.join(','), filterPayment.join(','), filterMethod.join(','), storeFilter, filterPaysMonthly])
 
   async function refreshDetail(id: string) {
     setDetailLoading(true)
@@ -356,6 +365,20 @@ export function Orders() {
           </div>
         </details>
 
+        {/* WEC-900: monthly-billed customer segment. Lets ops hide subscription
+            customers from the queue so they don't get sent a payment link. */}
+        <select
+          className="admin-btn-ghost"
+          value={filterPaysMonthly}
+          onChange={(e) => setFilterPaysMonthly(e.target.value as '' | 'yes' | 'no')}
+          title="Μηνιαία χρέωση (συνδρομητές) — μην στέλνετε payment link"
+          style={{ padding: '6px 10px' }}
+        >
+          <option value="">Όλοι οι πελάτες</option>
+          <option value="yes">Μόνο μηνιαίοι</option>
+          <option value="no">Χωρίς μηνιαίους</option>
+        </select>
+
         {/* WEC-715: Store filter. Only worth showing once a second storefront
             exists — on a retail-only install this is invisible. */}
         {storeOptions.length > 1 && (
@@ -372,7 +395,7 @@ export function Orders() {
         )}
 
         {/* WEC-687: explicit clear — wipes URL + this admin's saved set. */}
-        {(preset !== 'all' || search || filterStatus.length || filterPayment.length || filterMethod.length || filterType.length || storeFilter) && (
+        {(preset !== 'all' || search || filterStatus.length || filterPayment.length || filterMethod.length || filterType.length || storeFilter || filterPaysMonthly) && (
           <button className="admin-btn-ghost" onClick={() => { setStoreFilter(''); clearAllFilters() }} title="Καθαρισμός φίλτρων">
             ✕ Clear filters
           </button>
@@ -463,7 +486,18 @@ export function Orders() {
                     )}
                   </td>
                   <td>
-                    <div>{o.customerName || '—'}</div>
+                    <div>
+                      {o.customerName || '—'}
+                      {/* WEC-900: monthly-billed customer — do NOT send a payment link. */}
+                      {o.customerPaysMonthly && (
+                        <span
+                          title="Μηνιαία χρέωση — μην στέλνετε payment link"
+                          style={{ marginLeft: 6, fontSize: 10, fontWeight: 700, padding: '1px 6px', borderRadius: 6, background: '#f59e0b22', color: '#b45309', border: '1px solid #fcd34d', whiteSpace: 'nowrap', verticalAlign: 'middle' }}
+                        >
+                          Μηνιαία
+                        </span>
+                      )}
+                    </div>
                     <div className="admin-sub">{o.customerEmail}</div>
                   </td>
                   <td style={{ textAlign: 'center' }}>

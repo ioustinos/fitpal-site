@@ -231,6 +231,11 @@ export interface OrderFilters {
   /** WEC-814: only orders whose total moved after submit and that no admin has
    *  signed off yet — the review queue. Omitted → no filtering on price at all. */
   priceNeedsReview?: boolean
+  /** WEC-900: segment by monthly-billed customers (profiles.pays_monthly).
+   *  true → only monthly customers; false → exclude them (guests kept);
+   *  omitted → no segmentation. Lets ops avoid sending payment links to
+   *  monthly-billed / subscription customers. */
+  paysMonthly?: boolean
 }
 
 // ─── Queries ──────────────────────────────────────────────────────────────
@@ -289,6 +294,18 @@ export async function listAdminOrders(f: OrderFilters): Promise<{ data: AdminOrd
   if (f.search) {
     const s = f.search.trim()
     q = q.or(`order_number.ilike.%${s}%,customer_name.ilike.%${s}%,customer_email.ilike.%${s}%,customer_phone.ilike.%${s}%`)
+  }
+  // WEC-900: the monthly-billed flag lives on profiles, not orders. Resolve the
+  // (small) set of monthly customer ids once — used both to constrain the query
+  // when the filter is active and to tag every returned row for the list badge.
+  const { data: monthlyProfiles } = await supabase.from('profiles').select('id').eq('pays_monthly', true)
+  const monthlyUserIds = new Set((monthlyProfiles ?? []).map((r) => (r as { id: string }).id))
+  if (f.paysMonthly === true) {
+    if (monthlyUserIds.size === 0) return { data: [], error: null }
+    q = q.in('user_id', Array.from(monthlyUserIds))
+  } else if (f.paysMonthly === false && monthlyUserIds.size > 0) {
+    // Exclude monthly customers; keep guests (null user_id) and everyone else.
+    q = q.or(`user_id.is.null,user_id.not.in.(${Array.from(monthlyUserIds).join(',')})`)
   }
   q = q.limit(200)
   const { data, error } = await q
@@ -366,6 +383,9 @@ export async function listAdminOrders(f: OrderFilters): Promise<{ data: AdminOrd
   }
 
   const result: AdminOrder[] = (data ?? []).map((r) => mapOrderRow(r, childrenByOrder.get(r.id as string) ?? [], [], []))
+  // WEC-900: tag monthly-billed customers so the list can show a flag without a
+  // per-row profile fetch (set resolved once above).
+  for (const o of result) o.customerPaysMonthly = o.userId ? monthlyUserIds.has(o.userId) : false
   await attachStores(result)
   return { data: result, error: null }
 }
