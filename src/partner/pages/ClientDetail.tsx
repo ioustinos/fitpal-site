@@ -5,7 +5,7 @@
 import { useEffect, useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import {
-  fetchClientDetail, saveClient, addMeasurement, setClientDiscount,
+  fetchClientDetail, saveClient, addMeasurement, setClientDiscount, resendWelcome,
   type ClientDetail, type MealKey, eur, pct, fmtDate,
 } from '../api'
 import { usePartner } from '../context'
@@ -40,6 +40,15 @@ export function ClientDetailPage() {
   const [err, setErr] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [acting, setActing] = useState<string | null>(null)
+  const [welcomeMsg, setWelcomeMsg] = useState<string | null>(null)
+
+  // WEC-899: (re)send the welcome email with a fresh 7-day login link.
+  async function sendWelcome() {
+    setActing('welcome'); setWelcomeMsg(null)
+    const res = await resendWelcome(userId)
+    setActing(null)
+    setWelcomeMsg(res.ok ? `✓ Το email καλωσορίσματος στάλθηκε στο ${res.email}.` : `✗ Δεν στάλθηκε: ${res.error}`)
+  }
 
   // silent=true refreshes after a save without unmounting the cards, so the
   // card's «✓ Αποθηκεύτηκε» message stays visible.
@@ -89,8 +98,15 @@ export function ClientDetailPage() {
           <button className="admin-btn-ghost" disabled={!!acting} onClick={() => actAs('account')}>
             {acting === 'account' ? '…' : 'Λογαριασμός πελάτη'}
           </button>
+          {d.link?.status === 'active' && (
+            <button className="admin-btn-ghost" disabled={!!acting} onClick={sendWelcome}
+              title="Στέλνει στον πελάτη το email καλωσορίσματος με σύνδεσμο εισόδου (ισχύει 7 ημέρες)">
+              {acting === 'welcome' ? 'Αποστολή…' : 'Email καλωσορίσματος'}
+            </button>
+          )}
         </div>
       </div>
+      {welcomeMsg && <div className={welcomeMsg.startsWith('✓') ? 'admin-ok-banner' : 'admin-error-banner'} style={{ marginBottom: 10 }}>{welcomeMsg}</div>}
       <p className="admin-text-muted" style={{ fontSize: 12, marginTop: -6 }}>
         «Ως πελάτης» ανοίγει <strong>νέα καρτέλα</strong> με το κανονικό site στον λογαριασμό του πελάτη (διευθύνσεις, αλλεργίες, προτιμήσεις, παραγγελία). Πληρωμή με κάρτα δεν γίνεται από εσάς — επιλέξτε «Link πληρωμής» για να πληρώσει ο πελάτης.
         Αυτή η καρτέλα μένει ως έχει. Μία καρτέλα πελάτη τη φορά: αν ανοίξετε άλλον πελάτη, η προηγούμενη καρτέλα κλειδώνει. Λήγει σε 2 ώρες.
