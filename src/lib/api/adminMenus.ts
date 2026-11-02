@@ -290,6 +290,41 @@ export async function removeMenuDayDish(id: string): Promise<{ error: string | n
   return { error: error?.message ?? null }
 }
 
+/**
+ * WEC-897: add ONE dish to many days of a week in a single round trip.
+ *
+ * Deliberately not a loop over addDishToDay(): that helper purges the menu
+ * cache on every call, so a five-day week would fire five purges for one
+ * admin action. Caller decides which days (it owns `inactive_dates` and the
+ * per-day sort order) and passes them in; this just writes them as one insert.
+ */
+export async function addDishToWeek(
+  menuId: string,
+  dishId: string,
+  rows: Array<{ date: string; sortOrder: number }>,
+): Promise<{ data: AdminMenuDayDish[] | null; error: string | null }> {
+  if (rows.length === 0) return { data: [], error: null }
+  const { data, error } = await supabase
+    .from('menu_day_dishes')
+    .insert(rows.map((r) => ({ menu_id: menuId, date: r.date, dish_id: dishId, sort_order: r.sortOrder })))
+    .select('*')
+  if (error) return { data: null, error: error.message }
+  void purgeMenuCache()
+  const out = (data ?? []) as Array<{ id: string; menu_id: string; date: string; dish_id: string; sort_order: number | null }>
+  return {
+    data: out.map((row) => ({ id: row.id, menuId: row.menu_id, date: row.date, dishId: row.dish_id, sortOrder: row.sort_order ?? 0 })),
+    error: null,
+  }
+}
+
+/** WEC-897: drop a set of assignments in one delete + one cache purge. */
+export async function removeMenuDayDishes(ids: string[]): Promise<{ error: string | null }> {
+  if (ids.length === 0) return { error: null }
+  const { error } = await supabase.from('menu_day_dishes').delete().in('id', ids)
+  void purgeMenuCache()
+  return { error: error?.message ?? null }
+}
+
 /** Replace sort_order of a list of assignments (called after drag-drop reorder). */
 export async function reorderMenuDayDishes(items: Array<{ id: string; date: string; sortOrder: number }>): Promise<{ error: string | null }> {
   // Bulk update via Promise.all — PostgREST doesn't support bulk update by PK natively
