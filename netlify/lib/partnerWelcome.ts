@@ -72,7 +72,7 @@ function html(url: string, dietitian: string): string {
   </td></tr></table>
 </td></tr>
 <tr><td style="padding:12px 32px 0;font-size:16px;line-height:1.55">για να μπεις στο προφίλ σου και να ξεκινήσεις τις παραγγελίες σου.</td></tr>
-<tr><td style="padding:28px 32px 32px;font-size:12px;line-height:1.5;color:#6b7280">Ο σύνδεσμος ισχύει ${WELCOME_TTL_DAYS} ημέρες. Αν δεν δουλεύει, άνοιξε το <a href="${esc(siteBase())}" style="color:#006647">${esc(siteBase().replace('https://', ''))}</a> και συνδέσου με το email σου.</td></tr>
+<tr><td style="padding:28px 32px 32px;font-size:12px;line-height:1.5;color:#6b7280">Ο σύνδεσμος ισχύει ${WELCOME_TTL_DAYS} ημέρες. Μετά, άνοιξε το <a href="${esc(siteBase())}" style="color:#006647">${esc(siteBase().replace('https://', ''))}</a>, πάτα «Σύνδεση» και μπες με τον λογαριασμό σου Google (με αυτό το email) ή γράψε το email σου για να λάβεις 6ψήφιο κωδικό. Δεν χρειάζεσαι συνθηματικό.</td></tr>
 </table>
 </td></tr></table></body></html>`
 }
