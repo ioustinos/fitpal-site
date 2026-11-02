@@ -168,6 +168,25 @@ export async function createClientAccount(input: {
   return json as { userId: string; status: string; existing: boolean; message?: string; inviteError?: string | null }
 }
 
+/** WEC-899: (re)send the welcome email — own dietitian or an admin viewing as one. */
+export async function resendWelcome(clientUserId: string): Promise<{ ok: boolean; email?: string; error?: string }> {
+  const { data: { session } } = await supabase.auth.getSession()
+  if (!session?.access_token) return { ok: false, error: 'Not signed in' }
+  const res = await fetch('/api/partner-resend-welcome', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${session.access_token}`,
+      ...(getViewAs() ? { 'x-partner-view': getViewAs()! } : {}),
+    },
+    body: JSON.stringify({ clientUserId }),
+  })
+  let json: Record<string, unknown> = {}
+  try { json = await res.json() } catch { /* empty */ }
+  if (!res.ok) return { ok: false, error: (json.error as string) ?? `HTTP ${res.status}` }
+  return { ok: true, email: json.email as string }
+}
+
 export const eur = (cents: number | null | undefined) =>
   `${((cents ?? 0) / 100).toFixed(2).replace('.', ',')} €`
 export const pct = (bps: number | null | undefined) => {
