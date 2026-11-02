@@ -149,7 +149,8 @@ export async function fetchFinance(from?: string | null, to?: string | null) {
 export async function createClientAccount(input: {
   email: string; name: string; phone: string
   address?: { street?: string; area?: string; zip?: string; floor?: string; doorbell?: string }
-}): Promise<{ userId?: string; status?: string; existing?: boolean; message?: string; error?: string }> {
+  sendInvite?: boolean
+}): Promise<{ userId?: string; status?: string; existing?: boolean; message?: string; error?: string; inviteError?: string | null }> {
   const { data: { session } } = await supabase.auth.getSession()
   if (!session?.access_token) return { error: 'Not signed in' }
   const res = await fetch('/.netlify/functions/partner-create-client', {
@@ -164,7 +165,7 @@ export async function createClientAccount(input: {
   let json: Record<string, unknown> = {}
   try { json = await res.json() } catch { /* empty body */ }
   if (!res.ok) return { error: (json.error as string) ?? `HTTP ${res.status}` }
-  return json as { userId: string; status: string; existing: boolean; message?: string }
+  return json as { userId: string; status: string; existing: boolean; message?: string; inviteError?: string | null }
 }
 
 export const eur = (cents: number | null | undefined) =>

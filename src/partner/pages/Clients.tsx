@@ -7,7 +7,6 @@ import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { fetchClients, createClientAccount, type ClientRow, eur, pct, fmtDate } from '../api'
 import { usePartner } from '../context'
-import { sendEmailOtp } from '../../lib/api/auth'
 import { PlacesAutocomplete } from '../../components/ui/PlacesAutocomplete'
 import { googleMapsAvailable } from '../../lib/googleMaps'
 import { supabase } from '../../lib/supabase'
@@ -187,13 +186,13 @@ function AddClientModal({ onClose, onDone }: { onClose: () => void; onDone: (use
     const res = await createClientAccount({
       email: f.email, name: emailExists ? '' : f.name, phone: emailExists ? '' : f.phone,
       address: emailExists ? {} : { street: f.street, area: f.area, zip: f.zip, floor: f.floor, doorbell: f.doorbell },
+      sendInvite,
     })
     if (res.error || !res.userId) { setBusy(false); setErr(res.error ?? 'Απέτυχε'); return }
-    // 🟢 «Ο πελάτης λαμβάνει email για να βάλει κωδικό, αν θέλει» — the
-    // normal login-code email, same as admin «Στείλε πρόσκληση».
-    if (sendInvite && !res.existing) {
-      const inv = await sendEmailOtp(f.email.trim().toLowerCase(), f.name || undefined)
-      if (!inv.ok) setInfo(`Ο πελάτης δημιουργήθηκε, αλλά το email σύνδεσης απέτυχε: ${inv.error ?? ''}`)
+    // WEC-899: the welcome email is sent server-side by partner-create-client
+    // (own text, no OTP, one-click link to the site — not to /partner).
+    if (sendInvite && !res.existing && res.inviteError) {
+      setInfo(`Ο πελάτης δημιουργήθηκε, αλλά το email καλωσορίσματος απέτυχε: ${res.inviteError}`)
     }
     setBusy(false)
     if (res.existing && res.status === 'pending') {
