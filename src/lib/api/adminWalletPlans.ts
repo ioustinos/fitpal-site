@@ -39,6 +39,9 @@ export interface AdminWalletPlanRow {
   planLengthWeeks: number | null
   // Contacted: admin-set yes/no flag — has the team reached out about this purchase.
   contacted: boolean
+  /** WEC-903: true when a strictly-later PAID plan exists for the same wallet —
+   *  i.e. the customer has already renewed/bought again. Computed per page. */
+  renewed: boolean
 }
 
 export interface AdminWalletPlanDetail extends AdminWalletPlanRow {
@@ -63,8 +66,14 @@ interface AdminWalletPlanFilters {
   planLength?: string         // '2w' | '1mo' | '3mo'
   goal?: string               // 'lose' | 'maintain' | 'gain'
   lifecycle?: string          // wallet_plans.status: 'active' | 'cancelled'
-  fromDate?: string           // ISO date
-  toDate?: string             // ISO date
+  fromDate?: string           // ISO date — created_at
+  toDate?: string             // ISO date — created_at
+  // WEC-903: start_date (Έναρξη) + active_until (Λήξη) ranges, από–έως.
+  startFrom?: string          // start_date >=
+  startTo?: string            // start_date <=
+  endFrom?: string            // active_until >=
+  endTo?: string              // active_until <=
+  renewed?: boolean           // WEC-903: true = only renewed, false = only not-renewed
   search?: string             // matches customer email or name (substring)
   limit?: number
 }
@@ -108,6 +117,7 @@ function rowToBase(row: Record<string, unknown>): AdminWalletPlanRow {
     activeUntil:(row.active_until as string | null) ?? null,
     planLengthWeeks: (row.plan_length_weeks as number | null) ?? null,
     contacted: (row.contacted as boolean) ?? false,
+    renewed: false, // filled in by fetchAdminWalletPlans (per-page computation)
   }
 }
 
@@ -126,10 +136,40 @@ export async function fetchAdminWalletPlans(
   if (filters.lifecycle)  q = q.eq('status',         filters.lifecycle)
   if (filters.fromDate)   q = q.gte('created_at', filters.fromDate)
   if (filters.toDate)     q = q.lte('created_at', filters.toDate)
+  // WEC-903: Έναρξη / Λήξη date ranges (από–έως), server-side.
+  if (filters.startFrom)  q = q.gte('start_date',  filters.startFrom)
+  if (filters.startTo)    q = q.lte('start_date',  filters.startTo)
+  if (filters.endFrom)    q = q.gte('active_until', filters.endFrom)
+  if (filters.endTo)      q = q.lte('active_until', filters.endTo)
 
   const { data, error } = await q
   if (error) return { data: null, error: error.message }
-  return { data: (data ?? []).map((r) => rowToBase(r as Record<string, unknown>)), error: null }
+  const rows = (data ?? []).map((r) => rowToBase(r as Record<string, unknown>))
+
+  // WEC-903: mark «renewed» — a strictly-later PAID plan exists for the same
+  // wallet. One extra query over the page's wallets; the lookup is NOT subject to
+  // the date filters above (a plan filtered to this week may be renewed next month).
+  const walletIds = [...new Set(rows.map((r) => r.walletId).filter(Boolean))]
+  if (walletIds.length) {
+    const { data: paid } = await supabase
+      .from('wallet_plans')
+      .select('wallet_id, created_at')
+      .in('wallet_id', walletIds)
+      .eq('payment_status', 'paid')
+    const byWallet = new Map<string, string[]>()
+    for (const p of (paid ?? []) as Array<{ wallet_id: string; created_at: string }>) {
+      const arr = byWallet.get(p.wallet_id) ?? []
+      arr.push(p.created_at)
+      byWallet.set(p.wallet_id, arr)
+    }
+    for (const r of rows) {
+      const others = byWallet.get(r.walletId) ?? []
+      r.renewed = others.some((ts) => ts > r.createdAt)
+    }
+  }
+
+  const filtered = filters.renewed === undefined ? rows : rows.filter((r) => r.renewed === filters.renewed)
+  return { data: filtered, error: null }
 }
 
 export async function fetchAdminWalletPlanDetail(
