@@ -18,34 +18,39 @@ import { fetchAdminCategories, type AdminCategory } from '../../lib/api/adminDis
  */
 export function Vouchers() {
   const [vouchers, setVouchers] = useState<AdminVoucher[]>([])
-  const [selectedId, setSelectedId] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [err, setErr] = useState<string | null>(null)
-  const [filter, setFilter] = useState('')
-  const [showInactive, setShowInactive] = useState(false)
-  const [creatingNew, setCreatingNew] = useState(false)
+  // WEC-904: Orders-style filter bar.
+  const [search, setSearch] = useState('')
+  const [fType, setFType] = useState<'' | VoucherType>('')
+  const [fScope, setFScope] = useState<'' | 'orders' | 'subscriptions'>('')
+  const [fStatus, setFStatus] = useState<'active' | 'inactive' | 'all'>('active')
+  // Drawer: an existing voucher, 'new', or null (closed).
+  const [drawer, setDrawer] = useState<AdminVoucher | 'new' | null>(null)
 
-  async function refresh(keepId?: string | null) {
+  async function refresh(keepOpen?: AdminVoucher | 'new' | null) {
     setLoading(true); setErr(null)
     const { data, error } = await fetchAdminVouchers()
     if (error) setErr(error)
     setVouchers(data ?? [])
-    if (keepId !== undefined) setSelectedId(keepId)
+    if (keepOpen !== undefined) setDrawer(keepOpen)
     setLoading(false)
   }
-
   useEffect(() => { refresh() }, [])
 
   const filtered = useMemo(() => {
-    const q = filter.trim().toUpperCase()
+    const q = search.trim().toUpperCase()
     return vouchers.filter((v) => {
-      if (!showInactive && !v.active) return false
+      if (fStatus === 'active' && !v.active) return false
+      if (fStatus === 'inactive' && v.active) return false
+      if (fType && v.type !== fType) return false
+      if (fScope && v.appliesTo !== fScope) return false
       if (q && !v.code.includes(q)) return false
       return true
     })
-  }, [vouchers, filter, showInactive])
+  }, [vouchers, search, fType, fScope, fStatus])
 
-  const selected = vouchers.find((v) => v.id === selectedId) ?? null
+  const today = new Date().toISOString().slice(0, 10)
 
   return (
     <div className="admin-page">
@@ -56,72 +61,135 @@ export function Vouchers() {
             {vouchers.length} total · {vouchers.filter((v) => v.active).length} active
           </p>
         </div>
-        <button className="admin-btn-primary" onClick={() => { setCreatingNew(true); setSelectedId(null) }}>
-          + New voucher
-        </button>
+        <button className="admin-btn-primary" onClick={() => setDrawer('new')}>+ New voucher</button>
       </div>
 
       {err && <div className="admin-error-banner">{err}</div>}
-      {loading && <div className="admin-loading">Loading…</div>}
 
-      {!loading && (
-        <div className="admin-zones-layout">
-          <aside className="admin-zones-list">
-            <div style={{ padding: 10, display: 'flex', flexDirection: 'column', gap: 6 }}>
-              <input
-                className="admin-input"
-                placeholder="Filter by code…"
-                value={filter}
-                onChange={(e) => setFilter(e.target.value)}
-              />
-              <label style={{ display: 'flex', gap: 6, alignItems: 'center', fontSize: 12, color: '#6b7280' }}>
-                <input type="checkbox" checked={showInactive} onChange={(e) => setShowInactive(e.target.checked)} />
-                Show inactive
-              </label>
+      <div className="admin-filter-bar">
+        <input className="admin-input" placeholder="Αναζήτηση κωδικού…" value={search}
+          onChange={(e) => setSearch(e.target.value)} style={{ minWidth: 200 }} />
+        <select className="admin-select" value={fType} onChange={(e) => setFType(e.target.value as '' | VoucherType)}>
+          <option value="">Όλοι οι τύποι</option>
+          <option value="pct">Ποσοστό %</option>
+          <option value="fixed">Σταθερό €</option>
+          <option value="credit">Credit €</option>
+        </select>
+        <select className="admin-select" value={fScope} onChange={(e) => setFScope(e.target.value as '' | 'orders' | 'subscriptions')}>
+          <option value="">Όλα τα πεδία</option>
+          <option value="orders">Παραγγελίες</option>
+          <option value="subscriptions">Συνδρομές</option>
+        </select>
+        <select className="admin-select" value={fStatus} onChange={(e) => setFStatus(e.target.value as 'active' | 'inactive' | 'all')}>
+          <option value="active">Ενεργά</option>
+          <option value="inactive">Ανενεργά</option>
+          <option value="all">Όλα</option>
+        </select>
+        {(search || fType || fScope || fStatus !== 'active') && (
+          <button className="admin-btn-secondary admin-btn-sm" onClick={() => { setSearch(''); setFType(''); setFScope(''); setFStatus('active') }}>✕ Καθαρισμός</button>
+        )}
+        <button className="admin-btn-secondary" onClick={() => refresh()}>Refresh</button>
+      </div>
+
+      {loading ? (
+        <div className="admin-loading">Loading…</div>
+      ) : filtered.length === 0 ? (
+        <div className="admin-empty">No vouchers match those filters.</div>
+      ) : (
+        <table className="admin-table">
+          <thead>
+            <tr>
+              <th>Code</th>
+              <th>Type</th>
+              <th>Value</th>
+              <th>Scope</th>
+              <th>Uses</th>
+              <th>Min order</th>
+              <th>Expires</th>
+              <th>Status</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            {filtered.map((v) => {
+              const expired = v.expiresAt != null && v.expiresAt < today
+              return (
+                <tr key={v.id} onClick={() => setDrawer(v)} style={{ cursor: 'pointer', ...(v.active ? {} : { opacity: 0.55 }) }}>
+                  <td>
+                    <strong>{v.code}</strong>
+                    {v.userId && <span className="admin-text-muted" title="Linked to a specific customer" style={{ marginLeft: 6 }}>🔒</span>}
+                    {v.registeredOnly && <VPill bg="#eef2ff" fg="#3730a3" bd="#c7d2fe">registered</VPill>}
+                  </td>
+                  <td><VoucherTypeBadge type={v.type} /></td>
+                  <td style={{ whiteSpace: 'nowrap' }}>
+                    {labelForType(v.type, v.value)}
+                    {v.type === 'credit' && v.remaining != null && (
+                      <div className="admin-text-muted" style={{ fontSize: 11 }}>{(v.remaining / 100).toFixed(2)} € left</div>
+                    )}
+                  </td>
+                  <td><VoucherScopeBadge scope={v.appliesTo} /></td>
+                  <td style={{ whiteSpace: 'nowrap' }}>{v.usesCount}{v.maxUses != null ? ` / ${v.maxUses}` : ' / ∞'}</td>
+                  <td style={{ whiteSpace: 'nowrap' }}>{v.minOrder > 0 ? `${(v.minOrder / 100).toFixed(2)} €` : '—'}</td>
+                  <td style={{ whiteSpace: 'nowrap' }}>
+                    {v.expiresAt
+                      ? <span style={expired ? { color: '#b91c1c', fontWeight: 700 } : undefined}>{v.expiresAt.split('-').reverse().join('/')}{expired ? ' (ληγμένο)' : ''}</span>
+                      : '—'}
+                  </td>
+                  <td>
+                    {v.active
+                      ? <VPill bg="#10b98122" fg="#047857" bd="#a7f3d0">Ενεργό</VPill>
+                      : <VPill bg="#6b728022" fg="#4b5563" bd="#d1d5db">Ανενεργό</VPill>}
+                  </td>
+                  <td onClick={(e) => e.stopPropagation()}>
+                    <button className="admin-btn-secondary admin-btn-sm" onClick={() => setDrawer(v)}>Edit</button>
+                  </td>
+                </tr>
+              )
+            })}
+          </tbody>
+        </table>
+      )}
+
+      {drawer && (
+        <div className="admin-drawer-overlay" onClick={() => setDrawer(null)}>
+          <div className="admin-drawer" onClick={(e) => e.stopPropagation()}>
+            <div className="admin-drawer-head">
+              <span className="admin-drawer-head-title">{drawer === 'new' ? 'New voucher' : `Edit ${drawer.code}`}</span>
+              <button className="admin-drawer-close" onClick={() => setDrawer(null)}>×</button>
             </div>
-            {filtered.length === 0 && (
-              <div className="admin-text-muted" style={{ padding: 14 }}>No vouchers match.</div>
-            )}
-            {filtered.map((v) => (
-              <button
-                key={v.id}
-                className={`admin-zone-item${selectedId === v.id ? ' selected' : ''}${!v.active ? ' inactive' : ''}`}
-                onClick={() => { setSelectedId(v.id); setCreatingNew(false) }}
-              >
-                <div className="admin-zone-item-name">{v.code}</div>
-                <div className="admin-zone-item-meta">
-                  {labelForType(v.type, v.value)} · {v.usesCount}{v.maxUses != null ? `/${v.maxUses}` : ''} uses
-                  {v.appliesTo === 'subscriptions' && <> · <em>subscriptions</em></>}
-                  {!v.active && <> · <em>inactive</em></>}
-                </div>
-              </button>
-            ))}
-          </aside>
-
-          <div className="admin-zones-editor">
-            {creatingNew ? (
+            <div className="admin-drawer-body">
               <VoucherEditor
-                key="new"
-                voucher={null}
-                onSaved={(v) => { setCreatingNew(false); refresh(v?.id ?? null) }}
-                onCancel={() => setCreatingNew(false)}
+                key={drawer === 'new' ? 'new' : drawer.id}
+                voucher={drawer === 'new' ? null : drawer}
+                onSaved={(v) => refresh(v ?? null)}
+                onCancel={() => setDrawer(null)}
               />
-            ) : selected ? (
-              <VoucherEditor
-                key={selected.id}
-                voucher={selected}
-                onSaved={(v) => refresh(v?.id ?? selected.id)}
-              />
-            ) : (
-              <div className="admin-text-muted" style={{ padding: 40, textAlign: 'center' }}>
-                Pick a voucher to edit, or create a new one.
-              </div>
-            )}
+            </div>
           </div>
         </div>
       )}
     </div>
   )
+}
+
+// WEC-904: small pill helpers to match the Orders page badges.
+function VPill({ bg, fg, bd, children }: { bg: string; fg: string; bd: string; children: string }) {
+  return (
+    <span style={{ display: 'inline-block', marginLeft: 6, padding: '1px 7px', borderRadius: 999, fontSize: 10, fontWeight: 800, background: bg, color: fg, border: `1px solid ${bd}`, verticalAlign: 'middle', whiteSpace: 'nowrap' }}>{children}</span>
+  )
+}
+function VoucherTypeBadge({ type }: { type: VoucherType }) {
+  const m: Record<VoucherType, [string, string, string, string]> = {
+    pct:    ['#eef2ff', '#3730a3', '#c7d2fe', 'Ποσοστό %'],
+    fixed:  ['#ecfdf5', '#047857', '#a7f3d0', 'Σταθερό €'],
+    credit: ['#fffbeb', '#b45309', '#fde68a', 'Credit €'],
+  }
+  const [bg, fg, bd, label] = m[type]
+  return <span style={{ display: 'inline-block', padding: '2px 8px', borderRadius: 999, fontSize: 11, fontWeight: 800, background: bg, color: fg, border: `1px solid ${bd}`, whiteSpace: 'nowrap' }}>{label}</span>
+}
+function VoucherScopeBadge({ scope }: { scope: 'orders' | 'subscriptions' }) {
+  const sub = scope === 'subscriptions'
+  return <span style={{ display: 'inline-block', padding: '2px 8px', borderRadius: 999, fontSize: 11, fontWeight: 700, background: sub ? '#f5f3ff' : '#eff6ff', color: sub ? '#6d28d9' : '#1d4ed8', border: `1px solid ${sub ? '#ddd6fe' : '#bfdbfe'}`, whiteSpace: 'nowrap' }}>{sub ? 'Συνδρομές' : 'Παραγγελίες'}</span>
 }
 
 function labelForType(type: VoucherType, value: number): string {
@@ -205,10 +273,6 @@ function VoucherEditor({
 
   return (
     <div className="admin-voucher-editor">
-      <h2 className="admin-page-title" style={{ marginTop: 0 }}>
-        {voucher ? `Edit ${voucher.code}` : 'New voucher'}
-      </h2>
-
       {err && <div className="admin-error-banner">{err}</div>}
 
       <div className="admin-form-grid">
