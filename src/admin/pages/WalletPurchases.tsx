@@ -169,6 +169,7 @@ export function WalletPurchases() {
       ) : rows.length === 0 ? (
         <div className="admin-empty">No wallet purchases match those filters.</div>
       ) : (
+        <div style={{ overflowX: 'auto' }}>
         <table className="admin-table">
           <thead>
             <tr>
@@ -265,6 +266,7 @@ export function WalletPurchases() {
             )})}
           </tbody>
         </table>
+        </div>
       )}
 
       {openId && (
