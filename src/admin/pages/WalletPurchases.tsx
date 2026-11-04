@@ -30,6 +30,12 @@ export function WalletPurchases() {
   const [planLength, setPlanLength] = useState<string>('')
   const [goal, setGoal] = useState<string>('')
   const [lifecycle, setLifecycle] = useState<string>('')
+  // WEC-903: Έναρξη / Λήξη date ranges (από–έως) + renewed segment.
+  const [startFrom, setStartFrom] = useState<string>('')
+  const [startTo, setStartTo] = useState<string>('')
+  const [endFrom, setEndFrom] = useState<string>('')
+  const [endTo, setEndTo] = useState<string>('')
+  const [renewed, setRenewed] = useState<'' | 'yes' | 'no'>('')
 
   // Drawer
   const [openId, setOpenId] = useState<string | null>(null)
@@ -67,12 +73,17 @@ export function WalletPurchases() {
       planLength: planLength || undefined,
       goal: goal || undefined,
       lifecycle: lifecycle || undefined,
+      startFrom: startFrom || undefined,
+      startTo: startTo || undefined,
+      endFrom: endFrom || undefined,
+      endTo: endTo || undefined,
+      renewed: renewed === 'yes' ? true : renewed === 'no' ? false : undefined,
     })
     if (error) setErr(error)
     setRows(data ?? [])
     setLoading(false)
   }
-  useEffect(() => { refresh() /* eslint-disable-next-line */ }, [status, planLength, goal, lifecycle])
+  useEffect(() => { refresh() /* eslint-disable-next-line */ }, [status, planLength, goal, lifecycle, startFrom, startTo, endFrom, endTo, renewed])
 
   // WEC-893 Leg 1: deep-link from the customer card — /admin/wallet-purchases?planId=…
   const [searchParams] = useSearchParams()
@@ -129,6 +140,27 @@ export function WalletPurchases() {
           <option value="active">Ενεργή</option>
           <option value="cancelled">Ακυρωμένη</option>
         </select>
+        {/* WEC-903: renewed segment. */}
+        <select className="admin-select" value={renewed} onChange={(e) => setRenewed(e.target.value as '' | 'yes' | 'no')} title="Ανανεωμένες συνδρομές">
+          <option value="">Όλες (ανανέωση)</option>
+          <option value="yes">Μόνο ανανεωμένες</option>
+          <option value="no">Χωρίς ανανέωση</option>
+        </select>
+        {/* WEC-903: Έναρξη από–έως. */}
+        <label className="admin-text-muted" style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 12 }}>
+          Έναρξη
+          <input type="date" className="admin-input" value={startFrom} onChange={(e) => setStartFrom(e.target.value)} title="Έναρξη από" style={{ width: 140 }} />
+          <input type="date" className="admin-input" value={startTo} onChange={(e) => setStartTo(e.target.value)} title="Έναρξη έως" style={{ width: 140 }} />
+        </label>
+        {/* WEC-903: Λήξη από–έως. */}
+        <label className="admin-text-muted" style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 12 }}>
+          Λήξη
+          <input type="date" className="admin-input" value={endFrom} onChange={(e) => setEndFrom(e.target.value)} title="Λήξη από" style={{ width: 140 }} />
+          <input type="date" className="admin-input" value={endTo} onChange={(e) => setEndTo(e.target.value)} title="Λήξη έως" style={{ width: 140 }} />
+        </label>
+        {(startFrom || startTo || endFrom || endTo || renewed) && (
+          <button className="admin-btn-secondary admin-btn-sm" onClick={() => { setStartFrom(''); setStartTo(''); setEndFrom(''); setEndTo(''); setRenewed('') }}>✕ Ημ/νίες</button>
+        )}
         <button className="admin-btn-secondary" onClick={refresh}>Refresh</button>
       </div>
 
@@ -145,6 +177,8 @@ export function WalletPurchases() {
               <th>Customer</th>
               <th>Goal</th>
               <th>Plan</th>
+              <th>Έναρξη</th>
+              <th>Λήξη</th>
               <th>Method</th>
               <th>Payment Status</th>
               <th>Κατάσταση</th>
@@ -190,6 +224,17 @@ export function WalletPurchases() {
                     <div className="admin-text-muted" style={{ fontSize: 11 }}>
                       {planTotalDays(r.planLengthWeeks, r.daysPerWeek)} ημέρες σύνολο
                     </div>
+                  )}
+                </td>
+                {/* WEC-903: Έναρξη / Λήξη (DD/MM/YYYY) + «ανανεώθηκε» badge. */}
+                <td style={{ whiteSpace: 'nowrap' }}>{r.startDate ? r.startDate.split('-').reverse().join('/') : '—'}</td>
+                <td style={{ whiteSpace: 'nowrap' }}>
+                  {r.activeUntil ? r.activeUntil.split('-').reverse().join('/') : '—'}
+                  {r.renewed && (
+                    <span title="Ο πελάτης έχει ήδη ανανεώσει (νεότερη πληρωμένη συνδρομή)"
+                      style={{ display: 'inline-block', marginLeft: 6, fontSize: 10, fontWeight: 800, padding: '1px 6px', borderRadius: 999, background: '#6366f122', color: '#4338ca', border: '1px solid #c7d2fe', verticalAlign: 'middle' }}>
+                      ↻ ανανεώθηκε
+                    </span>
                   )}
                 </td>
                 <td>{r.paymentMethod ?? '—'}</td>
