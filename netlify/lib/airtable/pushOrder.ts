@@ -117,7 +117,7 @@ export async function pushOrderToAirtable(
   // set and becomes stale → removed by the reconcile.
   const { data: children, error: cErr } = await supabase
     .from('child_orders')
-    .select('id, delivery_date, time_from, time_to, address_street, address_area, address_zip, address_floor, address_doorbell, address_notes, cancelled_at, day_total')
+    .select('id, delivery_date, time_from, time_to, address_street, address_area, address_zip, address_floor, address_doorbell, address_notes, delivery_comment, cancelled_at, day_total')
     .eq('order_id', orderId)
   const allChildren = children ?? []
   const childList = allChildren.filter((c: any) => c.cancelled_at == null) // active days only
@@ -313,6 +313,9 @@ export async function pushOrderToAirtable(
       // B2B migrates — mixed semantics in Airtable during the transition.)
       Doorbell: c.address_doorbell ?? '',
       'Address Comment': c.address_notes ?? '',
+      // WEC-901: admin-only per-day delivery comment (distinct from the
+      // customer's Address Comment). Empty string when unset (never 'null').
+      'Σχόλιο Παράδοσης': (c as any).delivery_comment ?? '',
       'Parent Order Id': [orderRecId],
       // WEC-886: per-day order cost from our DB (Σ order_items.total_price, cents →
       // euros). Authoritative platform value; mirror stays in sync because any item
