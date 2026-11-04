@@ -101,6 +101,9 @@ export interface AdminChildOrder {
   addressZip: string | null
   addressFloor: string | null
   addressDoorbell: string | null
+  /** WEC-901: admin-only per-day delivery comment. Never shown to the customer;
+   *  distinct from address_notes (the customer's "Address Comment"). */
+  deliveryComment: string | null
   /** WEC-389: set when this delivery day has been soft-cancelled. */
   cancelledAt: string | null
   /** WEC-886: stored per-day cost in cents (Σ order_items.total_price), maintained by DB trigger. */
@@ -365,6 +368,7 @@ export async function listAdminOrders(f: OrderFilters): Promise<{ data: AdminOrd
       time_from: string | null; time_to: string | null;
       address_street: string | null; address_area: string | null; address_zip: string | null; address_floor: string | null;
       address_doorbell: string | null;
+      delivery_comment: string | null;
       cancelled_at: string | null;
       day_total: number | null;
     }
@@ -375,6 +379,7 @@ export async function listAdminOrders(f: OrderFilters): Promise<{ data: AdminOrd
       addressStreet: row.address_street, addressArea: row.address_area,
       addressZip: row.address_zip, addressFloor: row.address_floor,
       addressDoorbell: row.address_doorbell,
+      deliveryComment: row.delivery_comment ?? null,
       cancelledAt: row.cancelled_at,
       dayTotal: row.day_total ?? 0,
       items: itemsByChild.get(row.id) ?? [],
@@ -462,6 +467,7 @@ export async function getAdminOrder(id: string): Promise<{ data: AdminOrder | nu
       time_from: string | null; time_to: string | null;
       address_street: string | null; address_area: string | null; address_zip: string | null; address_floor: string | null;
       address_doorbell: string | null;
+      delivery_comment: string | null;
       cancelled_at: string | null;
       day_total: number | null;
     }
@@ -471,6 +477,7 @@ export async function getAdminOrder(id: string): Promise<{ data: AdminOrder | nu
       addressStreet: row.address_street, addressArea: row.address_area,
       addressZip: row.address_zip, addressFloor: row.address_floor,
       addressDoorbell: row.address_doorbell,
+      deliveryComment: row.delivery_comment ?? null,
       cancelledAt: row.cancelled_at,
       dayTotal: row.day_total ?? 0,
       items: itemsByChild.get(row.id) ?? [],
@@ -1408,6 +1415,26 @@ export async function updateChildOrderAddress(childId: string, orderId: string, 
     tableName: 'child_orders', fieldName: 'address',
     oldValue: fmtAddr(b.address_street, b.address_area), newValue: JSON.stringify(patch),
     label: withDay(`Address: ${oldStr} → ${newStr}`, day), adminUser,
+  })
+  return { error: null }
+}
+
+// WEC-901: admin-only per-day delivery comment. Separate from address_notes
+// (the customer's "Address Comment"). Audit-logged; the child_orders dirty
+// trigger re-pushes the parent order so it reaches Airtable's «Σχόλιο Παράδοσης»
+// field on the next reconcile cycle.
+export async function updateChildOrderDeliveryComment(
+  childId: string, orderId: string, oldComment: string | null, newComment: string | null, adminUser: string,
+): Promise<{ error: string | null }> {
+  const value = (newComment ?? '').trim() || null
+  const { error } = await supabase.from('child_orders').update({ delivery_comment: value }).eq('id', childId)
+  if (error) return { error: error.message }
+  const day = await deliveryDayTag(childId)
+  await writeChangeLog({
+    orderId, childOrderId: childId,
+    tableName: 'child_orders', fieldName: 'delivery_comment',
+    oldValue: oldComment ?? '', newValue: value ?? '',
+    label: withDay('Delivery comment updated', day), adminUser,
   })
   return { error: null }
 }

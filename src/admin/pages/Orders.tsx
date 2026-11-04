@@ -5,7 +5,7 @@ import { useAdminFilters } from '../../lib/useAdminFilters'
 import {
   listAdminOrders, getAdminOrder,
   setOrderStatus, setOrderPaymentStatus, markPaymentLinkExpired, setOrderManualDiscount,
-  updateOrderItemQuantity, updateChildOrderAddress, updateChildOrderTime,
+  updateOrderItemQuantity, updateChildOrderAddress, updateChildOrderTime, updateChildOrderDeliveryComment,
   refundOrder, chargeWalletExtraForOrder, sendPaymentLinkLogged,
   sendOrderUpdateEmail,
   addOrderItem, fetchOnMenuDishIds,
@@ -1835,6 +1835,10 @@ function DayCard({
               <div><span className="admin-od-addr-k">City</span><span>{child.addressArea || '—'}</span></div>
               <div><span className="admin-od-addr-k">Floor</span><span>{child.addressFloor || '—'}</span></div>
               <div><span className="admin-od-addr-k">Κουδούνι / Doorbell</span><span>{child.addressDoorbell || '—'}</span></div>
+              {/* WEC-901: admin-only per-day delivery comment. Shown only when set. */}
+              {child.deliveryComment && (
+                <div><span className="admin-od-addr-k">Σχόλιο παράδοσης</span><span style={{ whiteSpace: 'pre-wrap' }}>{child.deliveryComment}</span></div>
+              )}
               {!cancelled && <button className="admin-row-btn admin-od-addr-edit" onClick={() => setEditingAddr(true)}>Edit address &amp; time</button>}
             </div>
           ) : (
@@ -2241,6 +2245,9 @@ function AddressTimeEditor({ child, orderId, adminUser, onDone, onCancel }: {
   const [zip, setZip] = useState(child.addressZip ?? '')
   const [floor, setFloor] = useState(child.addressFloor ?? '')
   const [doorbell, setDoorbell] = useState(child.addressDoorbell ?? '')
+  // WEC-901: admin-only delivery comment for this day (separate from the
+  // customer's address notes). Saved alongside the day's other fields.
+  const [deliveryComment, setDeliveryComment] = useState(child.deliveryComment ?? '')
   // WEC-668: one clickable 2-hour window instead of two raw time fields.
   // Value shape "HH:MM–HH:MM" (en dash), matching slotsForZone().
   const initialSlot = child.timeFrom && child.timeTo
@@ -2270,6 +2277,11 @@ function AddressTimeEditor({ child, orderId, adminUser, onDone, onCancel }: {
     await updateChildOrderAddress(child.id, orderId, { street, area, zip, floor, doorbell }, adminUser)
     const [f, tt] = slot ? slot.split('–') : [null, null]
     await updateChildOrderTime(child.id, orderId, f ? `${f}:00` : null, tt ? `${tt}:00` : null, adminUser)
+    // WEC-901: only write the comment when it actually changed (avoid a needless
+    // audit row + Airtable re-push on every address save).
+    if (((deliveryComment.trim() || null)) !== (child.deliveryComment ?? null)) {
+      await updateChildOrderDeliveryComment(child.id, orderId, child.deliveryComment ?? null, deliveryComment, adminUser)
+    }
     setWorking(false)
     onDone()
   }
@@ -2295,6 +2307,11 @@ function AddressTimeEditor({ child, orderId, adminUser, onDone, onCancel }: {
         <div><label className="admin-form-label">City</label><input className="admin-input" value={area} onChange={(e) => setArea(e.target.value)} /></div>
         <div><label className="admin-form-label">Floor</label><input className="admin-input" value={floor} onChange={(e) => setFloor(e.target.value)} /></div>
         <div><label className="admin-form-label">Κουδούνι / Doorbell</label><input className="admin-input" value={doorbell} onChange={(e) => setDoorbell(e.target.value)} /></div>
+        {/* WEC-901: admin-only delivery comment — never shown to the customer. */}
+        <div style={{ gridColumn: '1 / -1' }}>
+          <label className="admin-form-label">Σχόλιο παράδοσης (admin only)</label>
+          <textarea className="admin-input" rows={2} value={deliveryComment} onChange={(e) => setDeliveryComment(e.target.value)} placeholder="Ορατό μόνο εσωτερικά / στο Airtable — όχι στον πελάτη" />
+        </div>
         <div style={{ gridColumn: '1 / -1' }}>
           <label className="admin-form-label">Delivery window</label>
           <select className="admin-input" value={slot} onChange={(e) => setSlot(e.target.value)}>
@@ -2310,7 +2327,7 @@ function AddressTimeEditor({ child, orderId, adminUser, onDone, onCancel }: {
       </div>
       <div className="admin-od-addr-edit-actions">
         <button className="admin-btn-ghost" disabled={working} onClick={onCancel}>Cancel</button>
-        <button className="admin-btn-primary" disabled={working} onClick={saveAll}>{working ? 'Saving…' : 'Save address & time'}</button>
+        <button className="admin-btn-primary" disabled={working} onClick={saveAll}>{working ? 'Saving…' : 'Save day details'}</button>
       </div>
     </div>
   )
