@@ -173,7 +173,7 @@ export function WalletPurchases() {
           <thead>
             <tr>
               <th>Contacted</th>
-              <th>When</th>
+              <th>Wallet Created</th>
               <th>Customer</th>
               <th>Goal</th>
               <th>Plan</th>
@@ -204,7 +204,10 @@ export function WalletPurchases() {
                     style={{ width: 16, height: 16, cursor: 'pointer' }}
                   />
                 </td>
-                <td>{new Date(r.createdAt).toLocaleString('el-GR')}</td>
+                <td style={{ whiteSpace: 'nowrap' }}>
+                  <div>{new Date(r.createdAt).toLocaleDateString('el-GR')}</div>
+                  <div className="admin-text-muted" style={{ fontSize: 11 }}>{new Date(r.createdAt).toLocaleTimeString('el-GR', { hour: '2-digit', minute: '2-digit' })}</div>
+                </td>
                 <td>
                   <div>
                     {r.customerName ?? '—'}
