@@ -77,6 +77,17 @@ grep -r "@github.com" "$W/.git/config"           # must print nothing — never 
 
 `cp -rf` (never `rm -rf`) — FUSE blocks deletes. Copying the clone's `.git/index` is the step people forget; without it every file reads as staged-deleted.
 
+## ⚠️ RULE #0c-bis — main DELIBERATELY LACKS COSTING (since 2026-10-23)
+
+On 23/10 the dietitian epic (WEC-838 incl. 868/869/870/877) went to production **without the costing
+panel** (WEC-857..866) — 🟢 Ioustinos: «Dietitians only». Costing's database exists only on dev.
+So main's tree = dev's tree **minus** costing files (`src/admin/pages/costing/`, `src/admin/costing/`,
+`src/lib/api/adminCosting.ts`, `netlify/functions/costing-nightly-check.ts`, costing migrations/seed/tests),
+the costing routes in `AdminApp.tsx`, the Costing group in `Sidebar.tsx`, and the costing bits of
+`Dashboard.tsx` / `Dishes.tsx` (main has its own versions). **Do NOT promote dev's tree verbatim** (the
+recipe below would ship costing): either apply costing's migrations to production first and get
+Ioustinos's go, or strip the same pieces again. Promotion commit: 152489d.
+
 ## ⚠️ RULE #0c — MERGING dev INTO main CAN SILENTLY SHIP NOTHING
 
 `main` contains **`b6ac715`, a revert of merge `10107bd`**. Any commit that was inside that merge is still an *ancestor* of `main`, so `git merge dev` considers it already merged and re-applies **nothing** — the reverted content stays gone. On 2026-09-17 WEC-774, WEC-776 and WEC-777 were sitting undone on production for exactly this reason, invisible in the log.
@@ -161,6 +172,46 @@ git remote set-url origin "https://github.com/${GITHUB_USER}/${FITPAL_REPO}.git"
 Branches:
 - `dev` → https://dev--fitpal-order.netlify.app
 - `main` → https://fitpal-order.netlify.app (production)
+
+## ⚠️ DEV HAS ITS OWN DATABASE (since 2026-10-10)
+
+`dev` deploys (Netlify **branch-deploy** context) talk to the Supabase **branch** `dev`, ref
+**`jrxxsixhxgawucorfyjt`** (persistent), NOT production `rhwetztxwjxfstffalwl`.
+- Netlify: `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY` and `SUPABASE_SERVICE_ROLE_KEY` have a separate
+  branch-deploy value pointing at the branch. Production values untouched.
+- Every DB change must now be applied to **both** projects (dev first, test, then prod) — the MCP
+  `execute_sql` takes the ref as `project_id`.
+- How it was built: Supabase branching replays migration history only, and ours fails at #40
+  (a May data migration), so the branch was brought to parity by hand on 2026-10-10 — structure
+  fingerprinted equal to prod (columns, functions, constraints, indexes, policies, triggers, grants).
+  `supabase/dev_branch_catchup.sql` holds the DELETE/DROP-bearing part the MCP refuses.
+  **Table GRANTS were missing** at first (new Supabase DBs give anon/authenticated/service_role
+  only `Dxtm`, not `arwd`) → every API call 403'd, menu failed to load. Fixed 2026-10-11 by
+  `supabase/dev_branch_grants.sql`. Any future branch/project: compare `pg_class.relacl` +
+  `pg_default_acl` with prod, not just functions/policies.
+- Dev-only trigger `devsync_bootstrap_owner` on auth.users: when ioustinos.sarris@gmail.com signs
+  up on dev he becomes admin owner + owner of the TEST dietitian (b8317e66…) automatically.
+- Auth email on the branch needs the **Brevo SMTP key re-entered** in the branch's
+  Authentication → Emails → SMTP (prod's is encrypted and doesn't copy). Until then OTP login
+  fails with «Error sending confirmation email» (Brevo 535).
+- Data: reference data only (dishes, variants, menus, zones, settings, stores, public vouchers),
+  pulled through prod's public REST API by `devsync.fetch()` / `devsync.rows()` (schema `devsync`,
+  dev only, uses pg_net). Re-sync: `select devsync.fetch('<table>','<order cols>',<pages>)`, wait, then
+  `insert … from jsonb_populate_recordset(null::public.<table>, devsync.rows('<table>'))`.
+  Plus an anonymized production sample (2026-10-11, `supabase/dev_seed_loader.sql`, payload in
+  `devsync.seed_parts`): 25 customers «Πελάτης Δοκιμής N» / ioustinos.sarris+devNN@gmail.com /
+  phones 6900000NNN (no password — sign in with the email code), real streets, 103 orders numbered
+  `SD-…` (21 days), 310 days, 1014 items, 10 wallets, 8 plans. All left airtable_dirty=false.
+- Known leftovers on dev only: `user_prefs.vegetarian/gluten_free/low_carb` (unused, nullable) and
+  policy "Public read wallet plans" neutralised to `using (false)`.
+- Auth on the branch: Site URL = dev URL; code-only Magic Link template + Brevo host/username
+  inherited, but NOT the SMTP password (see below).
+- **Airtable stays ON for dev** (Ioustinos: "airtable integration matters") and writes to the SAME
+  live base. Dev rows are tagged in code, keyed off `VITE_FITPAL_ENV=dev` (branch-deploy) and never
+  when `CONTEXT=production`: Orders «Store Id» = 900000 + real id (dev retail **909999**, dev company
+  6423 → 906423); Subscriptions «Admin Note» starts with `[DEV] `. See `airtableStoreId()` in
+  `netlify/lib/airtable/env.ts`. Upserts key on the order/plan UUID, so dev can never overwrite a
+  production row — only the visible «Admin Order ID» (FP-YYMMDD-NNNNN) can repeat across envs.
 
 ## Demo Account
 - Email: `demo@fitpal.gr` / Password: `1234`
@@ -267,6 +318,7 @@ Schema decisions tracked in Linear: WEC-82
 - `zone_time_slots` — zone_id, time_from (time), time_to (time), active
 - `settings` — key (PK), value (jsonb), description
 - `admin_change_log` — order/child_order/order_item ids, table_name, field_name, old/new value, label, admin_user
+  - **WEC-895:** `admin_change_log.wallet_plan_id uuid` links a log entry to a wallet plan (there is no `record_id`; use this column for subscription history). All 4 plan writers stamp it: contacted, ops/expiry, lifecycle status, start-date. Customer-facing subscription history = `customer_wallet_plan_timeline(plan_id)` RPC; comments live in `wallet_plan_comments` (hard delete; RLS: admin all, customer sees only own + `visible_to_customer`).
 
 ### Conventions
 - All money in cents (int)
