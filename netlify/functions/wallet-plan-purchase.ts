@@ -24,6 +24,7 @@ import { createWalletPlanVivaOrder } from '../lib/wallet/createWalletPlanOrder'
 import { track } from '../lib/klaviyo'
 import { notifySubscriptionAdmins } from '../lib/notifySubscriptionAdmins'
 import { corsHeaders } from '../lib/cors'
+import { workingDaysEnd } from '../../src/lib/planDates' // WEC-905
 import { checkClientSession, sessionReasonText } from '../lib/clientSession' // WEC-868
 import type { WalletCalcInput, PaymentMethod } from '../../src/lib/wallet/types'
 import { isValidGreekVat } from '../../src/lib/vat'
@@ -154,10 +155,11 @@ export default async (request: Request) => {
     // WEC-783 — never trust the client with a date either.
     const rawStart = typeof body.startDate === 'string' ? body.startDate.trim() : ''
     const startDateIso = /^\d{4}-\d{2}-\d{2}$/.test(rawStart) ? rawStart : null
-    const activeUntilIso = startDateIso
-      ? new Date(new Date(`${startDateIso}T00:00:00Z`).getTime()
-          + Math.round((result.planLengthWeeks ?? 0) * 7) * 86400000)
-          .toISOString().slice(0, 10)
+    // WEC-905: end date = count of delivery days (weeks × days/week) on working
+    // days (Mon–Fri), not calendar weeks×7.
+    const totalDeliveryDays = Math.round((result.planLengthWeeks ?? 0) * (body.daysPerWeek ?? 0))
+    const activeUntilIso = startDateIso && totalDeliveryDays > 0
+      ? workingDaysEnd(startDateIso, totalDeliveryDays)
       : null
 
     const bodyFatSelected = !!body.services?.bodyFatMeasurement

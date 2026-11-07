@@ -541,7 +541,7 @@ function StartDateEditor({ detail, onSaved }: { detail: AdminWalletPlanDetail; o
     const dow = new Date(val + 'T00:00:00').getDay()
     if (dow === 0 || dow === 6) { setErr('Μόνο εργάσιμες (Δευ–Παρ)'); return }
     setSaving(true)
-    const { error } = await updateWalletPlanStartDate(detail.id, val, detail.planLengthWeeks, sdAdmin?.email ?? 'admin')
+    const { error } = await updateWalletPlanStartDate(detail.id, val, detail.planLengthWeeks, detail.daysPerWeek, sdAdmin?.email ?? 'admin')
     setSaving(false)
     if (error) { setErr(error); return }
     setOk(true); onSaved()

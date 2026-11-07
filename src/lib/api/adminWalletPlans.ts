@@ -4,6 +4,8 @@
 
 import { supabase } from '../supabase'
 
+import { workingDaysEnd } from '../planDates' // WEC-905
+
 export interface AdminWalletPlanRow {
   id: string
   walletId: string
@@ -326,11 +328,12 @@ export async function updateWalletPlanStartDate(
   id: string,
   startDateIso: string,
   planLengthWeeks: number | null,
+  daysPerWeek: number | null,
   adminEmail?: string,
 ): Promise<{ activeUntil: string | null; error: string | null }> {
-  const days = Math.round((planLengthWeeks ?? 0) * 7)
-  const end = new Date(new Date(`${startDateIso}T00:00:00Z`).getTime() + days * 86400000)
-  const activeUntil = end.toISOString().slice(0, 10)
+  // WEC-905: end = Nth working day (weeks × days/week delivery days), not weeks×7.
+  const totalDeliveryDays = Math.round((planLengthWeeks ?? 0) * (daysPerWeek ?? 0))
+  const activeUntil = totalDeliveryDays > 0 ? workingDaysEnd(startDateIso, totalDeliveryDays) : startDateIso
   // WEC-895: record the change so «who moved the start date» is answerable.
   const { data: beforeRow } = await supabase
     .from('wallet_plans').select('start_date').eq('id', id).maybeSingle()
