@@ -56,7 +56,9 @@ export async function createWalletPlanVivaOrder(
     .single()
 
   if (error || !plan) throw new Error(`wallet_plan ${args.walletPlanId} not found`)
-  if (plan.payment_status !== 'pending') {
+  // WEC-799: 'pending_link_sent' is still unpaid — an admin may regenerate the
+  // link (mirrors viva-regenerate-link's WEC-599 rule for orders).
+  if (plan.payment_status !== 'pending' && plan.payment_status !== 'pending_link_sent') {
     throw new Error(`wallet_plan ${args.walletPlanId} is not pending (status=${plan.payment_status})`)
   }
   if (plan.amount_to_pay_cents !== args.amountCents) {

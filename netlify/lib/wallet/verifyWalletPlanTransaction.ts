@@ -145,7 +145,9 @@ export async function verifyWalletPlanTransaction(
     // Purchase). Fire only when THIS verification is the pending→paid transition
     // (plan.payment_status was 'pending' when fetched above) so duplicate webhook
     // / reconcile re-verifies don't re-fire; also deduped at Meta by event_id.
-    if (plan.payment_status === 'pending') {
+    // WEC-799: a plan paid via an admin-sent link is 'pending_link_sent' here —
+    // still the first pending→paid transition, so the side effects must fire.
+    if (plan.payment_status === 'pending' || plan.payment_status === 'pending_link_sent') {
       await fireSubscribeCapi(supabase, walletPlanId, amountCents)
       // Fire Klaviyo "Subscription Purchased" event (card/link paid path).
       // Mirror of the transfer-path fire in wallet-plan-purchase.ts. Fail-soft.

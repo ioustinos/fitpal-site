@@ -209,7 +209,7 @@ export async function fetchWallet(userId: string): Promise<{
       .from('wallet_plans')
       .select('id, payment_method, amount_to_pay_cents, cost, created_at')
       .eq('wallet_id', w.id)
-      .eq('payment_status', 'pending')
+      .in('payment_status', ['pending', 'pending_link_sent']) // WEC-799: a link-sent plan still owes money
       .order('created_at', { ascending: false })
       .limit(1)
       .maybeSingle()

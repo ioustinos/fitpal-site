@@ -2049,7 +2049,7 @@ function SubscriptionTab({ user, lang }: any) {
                           no longer the active plan — the link lets the customer
                           return to the IBAN + reference they may have lost. */}
                       <a className="subs-view-link" href={`/subscription/success/${planReference(pp.id)}`}>
-                        {pp.paymentStatus === 'pending'
+                        {(pp.paymentStatus === 'pending' || pp.paymentStatus === 'pending_link_sent') // WEC-799
                           ? (isEl ? 'Στοιχεία πληρωμής →' : 'Payment details →')
                           : (isEl ? 'Δες λεπτομέρειες →' : 'View details →')}
                       </a>

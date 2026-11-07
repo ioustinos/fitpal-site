@@ -4,6 +4,7 @@ import {
   fetchAdminWalletPlans, fetchAdminWalletPlanDetail, refundAdminWalletPlan, markAdminWalletPlanPaid,
   updateWalletPlanStartDate, setWalletPlanContacted, editWalletPlanPrice,
   fetchWalletPlanComments, addWalletPlanComment, deleteWalletPlanComment, fetchWalletPlanChangeLog,
+  updateWalletPlanPaymentMethod, sendWalletPlanPaymentLink, vivaCheckoutUrl, // WEC-799
   type AdminWalletPlanRow, type AdminWalletPlanDetail, type WalletPlanComment, type WalletPlanChangeEntry,
 } from '../../lib/api/adminWalletPlans'
 import { setWalletPlanStatus, saveWalletPlanOpsFields } from '../../lib/api/adminUsers'
@@ -12,12 +13,17 @@ import { useSearchParams, Link } from 'react-router-dom'
 import { PlanDetailsPanel } from '../../components/shared/PlanDetailsPanel'
 import type { PlanDetails } from '../../lib/api/planDetails'
 import { useAuthStore } from '../../store/useAuthStore'
+// WEC-799 [Refactor A]: the same payment UI the order drawer uses.
+import { PaymentBadge, PaymentMethodSelect, PaymentLinkPanel } from '../components/PaymentPanel'
+import { PAYMENT_METHOD_IDS } from '../../lib/paymentMethods'
+import type { PaymentMethod, PaymentStatus } from '../../lib/api/adminOrders'
 
 const STATUS_LABELS: Record<string, string> = {
   pending:  'Pending',
   paid:     'Paid',
   failed:   'Failed',
   refunded: 'Refunded',
+  pending_link_sent: 'Pending (link sent)', // WEC-799
 }
 
 export function WalletPurchases() {
@@ -243,7 +249,7 @@ export function WalletPurchases() {
                 </td>
                 <td>{r.paymentMethod ?? '—'}</td>
                 <td>
-                  <span className={`admin-pill-${r.paymentStatus}`}>{STATUS_LABELS[r.paymentStatus] ?? r.paymentStatus}</span>
+                  <span className={`admin-pill-${r.paymentStatus === 'pending_link_sent' ? 'pending' : r.paymentStatus}`}>{STATUS_LABELS[r.paymentStatus] ?? r.paymentStatus}</span>
                   {abandoned && <div className="admin-text-muted" style={{ fontSize: 10, fontStyle: 'italic' }}>abandoned checkout</div>}
                 </td>
                 <td>
@@ -406,8 +412,12 @@ function Drawer({ detail, loading, onClose, onRefunded, onReload, onToggleContac
 
               {/* WEC-893: invoice + mark-paid + refund all folded into Payment. */}
               <Section title="Payment" col={6} icon={ICO.card}>
-                <KV k="Method" v={detail.paymentMethod ?? '—'} />
-                <KV k="Status" v={detail.paymentStatus} />
+                {/* WEC-799: inline-editable method (no 'wallet') + status badge, like orders. */}
+                <PlanPaymentMethodRow detail={detail} onSaved={onReload} />
+                <div className="admin-kv">
+                  <span className="admin-kv-k">Status</span>
+                  <span className="admin-kv-v"><PaymentBadge status={detail.paymentStatus as PaymentStatus} /></span>
+                </div>
                 <KV k="Viva orderCode" v={detail.vivaOrderCode ?? '—'} mono />
                 <KV k="Viva transactionId" v={detail.vivaTransactionId ?? '—'} mono />
                 <KV k="Created" v={new Date(detail.createdAt).toLocaleString('el-GR')} />
@@ -422,7 +432,7 @@ function Drawer({ detail, loading, onClose, onRefunded, onReload, onToggleContac
                   )}
                 </div>
 
-                {detail.paymentStatus === 'pending' && (detail.paymentMethod === 'transfer' || detail.paymentMethod === 'cash') && (
+                {(detail.paymentStatus === 'pending' || detail.paymentStatus === 'pending_link_sent') && (detail.paymentMethod === 'transfer' || detail.paymentMethod === 'cash') && (
                   <div style={{ marginTop: 10, paddingTop: 10, borderTop: '1px solid var(--a-border)' }}>
                     <p className="admin-page-sub" style={{ margin: '0 0 8px' }}>
                       {detail.paymentMethod === 'cash'
@@ -453,6 +463,9 @@ function Drawer({ detail, loading, onClose, onRefunded, onReload, onToggleContac
                     </div>
                   </div>
                 )}
+
+                {/* WEC-799: Viva payment link — visually distinct from the renewal link below. */}
+                <PlanPaymentLink detail={detail} onSaved={onReload} />
               </Section>
 
               {/* WEC-893 Leg 1: plan management (editable start + editable active-until). */}
@@ -659,6 +672,69 @@ function RenewalLink({ planId }: { planId: string }) {
         <input className="admin-input" readOnly value={url} onFocus={(e) => e.currentTarget.select()} style={{ flex: '1 1 260px', minWidth: 220, fontSize: 12 }} />
         <button type="button" className="admin-btn" onClick={copy}>{copied ? '✓ Αντιγράφηκε' : 'Αντιγραφή'}</button>
       </div>
+    </div>
+  )
+}
+
+// ─── WEC-799: plan payment adapters for the shared PaymentPanel ──────────
+
+/** Plans offer every method EXCEPT 'wallet' — a plan credits the wallet. */
+const PLAN_PAYMENT_METHODS = PAYMENT_METHOD_IDS.filter((m) => m !== 'wallet') as PaymentMethod[]
+
+function PlanPaymentMethodRow({ detail, onSaved }: { detail: AdminWalletPlanDetail; onSaved: () => void }) {
+  const admin = useAuthStore((s) => s.user)
+  const [saving, setSaving] = useState(false)
+  const [err, setErr] = useState<string | null>(null)
+  async function change(next: PaymentMethod) {
+    if (next === detail.paymentMethod) return
+    setSaving(true); setErr(null)
+    const { error } = await updateWalletPlanPaymentMethod(detail.id, detail.paymentMethod, next, admin?.email ?? 'admin')
+    setSaving(false)
+    if (error) { setErr(`Couldn't change payment method: ${error}`); return }
+    onSaved()
+  }
+  return (
+    <>
+      {err && <div className="admin-error-banner" style={{ marginBottom: 6 }}>{err}</div>}
+      <div className="admin-kv">
+        <span className="admin-kv-k">Method</span>
+        <span className="admin-kv-v">
+          <PaymentMethodSelect
+            value={(detail.paymentMethod as PaymentMethod | null) ?? null}
+            allowed={PLAN_PAYMENT_METHODS}
+            disabled={saving}
+            onChange={change}
+          />
+        </span>
+      </div>
+    </>
+  )
+}
+
+function PlanPaymentLink({ detail, onSaved }: { detail: AdminWalletPlanDetail; onSaved: () => void }) {
+  const code = detail.vivaOrderCode
+  // A plan holds one Viva order on the row itself (no payment_links table).
+  const link = code && (detail.paymentMethod === 'link' || detail.paymentMethod === 'card') ? {
+    status: (detail.paymentStatus === 'paid' ? 'success' : detail.paymentStatus === 'failed' ? 'failure' : 'pending') as 'pending' | 'success' | 'failure',
+    paymentUrl: vivaCheckoutUrl(code),
+    vivaOrderCode: code,
+    createdAt: detail.linkSentAt ?? detail.createdAt,
+    lastVerifiedAt: null,
+  } : null
+  const unpaid = detail.paymentStatus === 'pending' || detail.paymentStatus === 'pending_link_sent'
+  return (
+    <div style={{ marginTop: 10 }}>
+      <PaymentLinkPanel
+        variant="plan"
+        hidden={detail.paymentStatus === 'paid' || detail.paymentStatus === 'refunded' || (!link && detail.status === 'cancelled')}
+        link={link}
+        canGenerate={unpaid && detail.status !== 'cancelled'}
+        remainingCents={detail.amountToPayCents}
+        editableAmount={false}
+        cardAutoNote={detail.paymentMethod === 'card'}
+        onSend={(_amount, _over, firstTime) => sendWalletPlanPaymentLink(detail.id, firstTime)}
+        onChanged={onSaved}
+      />
     </div>
   )
 }
