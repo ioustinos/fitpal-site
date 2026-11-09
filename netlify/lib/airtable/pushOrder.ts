@@ -237,6 +237,21 @@ export async function pushOrderToAirtable(
   if (inv) orderFields['Τιμολόγιο/Απόδειξη'] = inv
   if (order.invoice_vat) orderFields['ΑΦΜ'] = order.invoice_vat
   if (custLink) orderFields['Customer'] = custLink
+  // WEC-907: link the order to the subscription whose wallet credit paid it
+  // (Orders.«Subscription» → Subscriptions, matched on «Plan Id»). Only wallet
+  // money links to a plan; the plan is stamped on the debit row by the
+  // trg_wallet_tx_stamp_plan trigger. A plan that isn't in Airtable (yet / any
+  // more) just leaves the field alone — never blocks the order mirror.
+  try {
+    const { data: wpId } = await supabase.rpc('order_wallet_plan_id', { p_order_id: order.id })
+    if (wpId) {
+      const subRecId = await findRecordId(TABLES.subscriptions, `{Plan Id}='${esc(String(wpId))}'`)
+      if (subRecId) orderFields['Subscription'] = [subRecId]
+      else console.warn('[pushOrder] WEC-907: plan %s not in Airtable — order %s left unlinked', wpId, order.id)
+    }
+  } catch (e) {
+    console.warn('[pushOrder] WEC-907 subscription link skipped:', (e as Error).message)
+  }
   // WEC-537: mirror order status + (on cancel) the admin reason so cancelled
   // orders don't look active in Airtable. draft never reaches here.
   const statusOpt = mapOrderStatus(order.status)
