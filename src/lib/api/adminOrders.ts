@@ -140,6 +140,9 @@ export interface AdminOrder {
   /** Pays Monthly: customer-level flag (profiles.pays_monthly); set only in the
    *  order detail (getAdminOrder) for the drawer's payment card. */
   customerPaysMonthly?: boolean
+  /** WEC-907: the subscription (wallet plan) whose credit paid this order —
+   *  from its first wallet debit. Set only in getAdminOrder (drawer). */
+  walletPlanId?: string | null
   subtotal: number
   discountAmount: number
   /** WEC-803: admin-added manual discount in cents (part of discountAmount). */
@@ -552,6 +555,11 @@ export async function getAdminOrder(id: string): Promise<{ data: AdminOrder | nu
   if (mapped.userId) {
     const { data: prof } = await supabase.from('profiles').select('pays_monthly').eq('id', mapped.userId).maybeSingle()
     mapped.customerPaysMonthly = !!(prof as { pays_monthly?: boolean } | null)?.pays_monthly
+  }
+  // WEC-907: which subscription paid it (wallet orders only; null otherwise).
+  {
+    const { data: wp } = await supabase.rpc('order_wallet_plan_id', { p_order_id: id })
+    mapped.walletPlanId = (wp as string | null) ?? null
   }
   return { data: mapped, error: null }
 }

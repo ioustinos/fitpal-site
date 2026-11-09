@@ -1320,6 +1320,14 @@ function OverviewTab({ order, adminUser, onChanged }: { order: AdminOrder; admin
               />
             </dd></div>
             <div><dt>Status</dt><dd><PaymentBadge status={order.paymentStatus} /></dd></div>
+            {/* WEC-907: the subscription whose wallet credit paid this order. */}
+            {order.walletPlanId && (
+              <div><dt>Subscription</dt><dd>
+                <Link to={`/admin/wallet-purchases?planId=${order.walletPlanId}`}>
+                  WP-{order.walletPlanId.slice(0, 8).toUpperCase()}
+                </Link>
+              </dd></div>
+            )}
             {/* WEC-606: actually-collected + still-to-collect, from the payment ledger. */}
             {order.payment.paid > 0 && (
               <div><dt>Paid</dt><dd>{(order.payment.paid / 100).toFixed(2)} €</dd></div>
