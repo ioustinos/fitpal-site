@@ -44,6 +44,8 @@ export interface AdminWalletPlanRow {
   /** WEC-903: true when a strictly-later PAID plan exists for the same wallet —
    *  i.e. the customer has already renewed/bought again. Computed per page. */
   renewed: boolean
+  /** WEC-799: when an admin last sent a Viva payment link (null = never). */
+  linkSentAt: string | null
 }
 
 export interface AdminWalletPlanDetail extends AdminWalletPlanRow {
@@ -120,6 +122,7 @@ function rowToBase(row: Record<string, unknown>): AdminWalletPlanRow {
     planLengthWeeks: (row.plan_length_weeks as number | null) ?? null,
     contacted: (row.contacted as boolean) ?? false,
     renewed: false, // filled in by fetchAdminWalletPlans (per-page computation)
+    linkSentAt: (row.link_sent_at as string | null) ?? null,
   }
 }
 
@@ -319,6 +322,53 @@ export async function editWalletPlanPrice(
     return { error: err.error ?? `HTTP ${res.status}` }
   }
   return { error: null }
+}
+
+// ─── WEC-799: payment method + Viva payment link (same as orders) ─────────
+
+/** Viva hosted-checkout URL for an order code (client side). Dev deploys talk to
+ *  the Viva demo merchant; production to the live one — mirrors netlify/lib/viva/env. */
+export function vivaCheckoutUrl(orderCode: string): string {
+  const isDev = import.meta.env.VITE_FITPAL_ENV === 'dev'
+    || (typeof window !== 'undefined' && (window.location.hostname.startsWith('dev--') || window.location.hostname === 'localhost'))
+  return `https://${isDev ? 'demo.vivapayments.com' : 'www.vivapayments.com'}/web/checkout?ref=${orderCode}`
+}
+
+/** WEC-799: change a plan's payment method — a plain field write + audit row,
+ *  exactly like updateOrderPaymentMethod (no switch-away guard, by decision).
+ *  'wallet' is refused: a plan CREDITS the wallet, it can't be paid from it. */
+export async function updateWalletPlanPaymentMethod(
+  id: string, current: string | null, next: string, adminUser: string,
+): Promise<{ error: string | null }> {
+  if (next === 'wallet') return { error: 'A subscription cannot be paid from the wallet.' }
+  const { error } = await supabase.from('wallet_plans').update({ payment_method: next }).eq('id', id)
+  if (error) return { error: error.message }
+  const { error: logErr } = await supabase.from('admin_change_log').insert({
+    wallet_plan_id: id, table_name: 'wallet_plans', field_name: 'payment_method',
+    old_value: current ?? '', new_value: next, label: `payment method: ${current ?? '—'} → ${next}`,
+    admin_user: adminUser,
+  })
+  if (logErr) console.error('[updateWalletPlanPaymentMethod] change_log failed:', logErr)
+  return { error: null }
+}
+
+/** WEC-799: send / regenerate the Viva payment link for a plan (shared endpoint).
+ *  Server cuts an 18h link, flips method → link, sets pending_link_sent +
+ *  link_sent_at, logs the timeline and fires the «Payment Link Sent» email. */
+export async function sendWalletPlanPaymentLink(
+  id: string, firstTime: boolean,
+): Promise<{ data: { orderCode: string; paymentUrl: string } | null; error: string | null }> {
+  const { data: sessionData } = await supabase.auth.getSession()
+  const token = sessionData?.session?.access_token
+  if (!token) return { data: null, error: 'Not authenticated' }
+  const res = await fetch('/api/viva-payment-link', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ kind: 'plan', id, firstTime }),
+  })
+  const json = await res.json().catch(() => ({}))
+  if (!res.ok) return { data: null, error: (json as { error?: string }).error ?? `Payment link failed (${res.status})` }
+  return { data: json as { orderCode: string; paymentUrl: string }, error: null }
 }
 
 // WEC-798(c): admin edits a plan's start date; «Ενεργή έως» (active_until)

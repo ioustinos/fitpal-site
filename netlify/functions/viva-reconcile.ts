@@ -456,8 +456,10 @@ export default async (request?: Request) => {
     .from('wallet_plans')
     .select('id, viva_order_code')
     .in('payment_method', ['card', 'link'])
-    .eq('payment_status', 'pending')
-    .lt('created_at', abandonThreshold)
+    // WEC-799: a link-sent plan is still an unpaid orphan candidate, but its
+    // clock starts at link_sent_at — a fresh link on an old plan is NOT stale.
+    .in('payment_status', ['pending', 'pending_link_sent'])
+    .or(`and(link_sent_at.is.null,created_at.lt.${abandonThreshold}),link_sent_at.lt.${abandonThreshold}`)
     : { data: [] as any[] })
   let cancelledWalletTimeout = 0
   for (const plan of (orphanPlans ?? []) as Array<{ id: string; viva_order_code: string | null }>) {
@@ -491,7 +493,7 @@ export default async (request?: Request) => {
       .from('wallet_plans')
       .update({ payment_status: 'failed', updated_at: new Date().toISOString() })
       .eq('id', plan.id)
-      .eq('payment_status', 'pending')
+      .in('payment_status', ['pending', 'pending_link_sent']) // WEC-799
     if (upErr) {
       errors++
       errorNotes.push(`cancel wp/${plan.id}: ${upErr.message}`)

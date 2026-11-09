@@ -37,6 +37,8 @@ import { unitPriceCents, type PricingChannel } from '../../lib/pricing'
 import { supabase } from '../../lib/supabase'
 // WEC-577/499: single source of truth for payment-method labels
 import { paymentShort, PAYMENT_METHOD_IDS } from '../../lib/paymentMethods'
+// WEC-799 [Refactor A]: shared payment UI (orders + subscriptions).
+import { PaymentBadge, PaymentMethodBadge, PaymentMethodSelect, PaymentLinkPanel } from '../components/PaymentPanel'
 // WEC-557: customer «Αίτημα αλλαγής» requests surfaced in the drawer + list.
 import {
   fetchOrderChangeRequests, markChangeRequestHandled, fetchOrderIdsWithPendingRequests,
@@ -50,14 +52,6 @@ const STATUS_COLOURS: Record<OrderStatus, string> = {
   draft: '#f97316',
   pending: '#f59e0b', confirmed: '#3b82f6', preparing: '#8b5cf6',
   delivering: '#14b8a6', delivered: '#10b981', cancelled: '#ef4444',
-}
-const PAYMENT_COLOURS: Record<PaymentStatus, string> = {
-  // WEC-599: pending_link_sent leans more orange than plain amber pending.
-  pending: '#f59e0b', pending_link_sent: '#ea580c', paid: '#10b981', failed: '#ef4444', refunded: '#6b7280',
-}
-// WEC-599: friendly labels for the badge (raw enum otherwise). English admin.
-const PAYMENT_STATUS_LABEL: Partial<Record<PaymentStatus, string>> = {
-  pending_link_sent: 'Pending (link sent)',
 }
 
 // WEC-370: only pending + confirmed are in active use for now. Cancel stays
@@ -565,27 +559,7 @@ export function Orders() {
 function StatusBadge({ status }: { status: OrderStatus }) {
   return <span className="admin-badge" style={{ background: `${STATUS_COLOURS[status]}22`, color: STATUS_COLOURS[status] }}>{status}</span>
 }
-function PaymentBadge({ status }: { status: PaymentStatus }) {
-  return <span className="admin-badge" style={{ background: `${PAYMENT_COLOURS[status]}22`, color: PAYMENT_COLOURS[status] }}>{PAYMENT_STATUS_LABEL[status] ?? status}</span>
-}
-// WEC-577: raw payment-method badge. Distinct subtle colour per method
-// (WEC-520 lesson: same-colour pills read as one). Labels from the single
-// source of truth (paymentShort, WEC-499). Non-clickable look.
-const PAYMENT_METHOD_COLOURS: Record<PaymentMethod, string> = {
-  cash: '#059669', card: '#2563eb', link: '#7c3aed', transfer: '#0891b2', wallet: '#d97706',
-}
-function PaymentMethodBadge({ method }: { method: PaymentMethod | null }) {
-  if (!method) return <span className="admin-sub">—</span>
-  return (
-    <span
-      className="admin-badge"
-      style={{ background: `${PAYMENT_METHOD_COLOURS[method]}22`, color: PAYMENT_METHOD_COLOURS[method], whiteSpace: 'nowrap' }}
-      title="Payment method (raw)"
-    >
-      {paymentShort(method, 'el')}
-    </span>
-  )
-}
+// WEC-799: PaymentBadge / PaymentMethodBadge now live in ../components/PaymentPanel (shared with subscriptions).
 
 // WEC-528: derived Order Type badge — payment source × who placed it.
 // Distinct colour per type (WEC-520 lesson: same-colour pills read as one).
@@ -1338,16 +1312,12 @@ function OverviewTab({ order, adminUser, onChanged }: { order: AdminOrder; admin
           <dl className="admin-od-kv">
             <div><dt>Method</dt><dd className="admin-od-method">
               {/* WEC-668: inline-editable payment method. */}
-              <select
-                className="admin-input"
-                value={order.paymentMethod ?? ''}
+              <PaymentMethodSelect
+                value={order.paymentMethod}
+                allowed={PAYMENT_METHOD_IDS}
                 disabled={savingField === 'method'}
-                onChange={(e) => editPaymentMethod(e.target.value as PaymentMethod)}
-                style={{ padding: '2px 6px', fontSize: 13 }}
-              >
-                {order.paymentMethod == null && <option value="">—</option>}
-                {PAYMENT_METHOD_IDS.map((m) => <option key={m} value={m}>{m}</option>)}
-              </select>
+                onChange={editPaymentMethod}
+              />
             </dd></div>
             <div><dt>Status</dt><dd><PaymentBadge status={order.paymentStatus} /></dd></div>
             {/* WEC-606: actually-collected + still-to-collect, from the payment ledger. */}
@@ -2532,191 +2502,35 @@ function RefundTab({ order, adminUser, onChanged }: { order: AdminOrder; adminUs
 }
 
 /** WEC-176 / WEC-598 — Payment link, inside the Payment area of the drawer.
- *  Generate is gated on a confirmed order (with the reason shown inline); once a
- *  link exists the primary action is Copy and a "sent" state + timestamp + code
- *  are unmistakable; generating logs a timeline entry. */
+ *  WEC-799 [Refactor A]: the UI now lives in the shared <PaymentLinkPanel>; this
+ *  is the ORDER adapter (same rules as before, unchanged). */
 function PaymentLinkBlock({ order, adminUser, onChanged }: { order: AdminOrder; adminUser: string; onChanged: () => void }) {
-  const [err, setErr] = useState<string | null>(null)
-  const [working, setWorking] = useState(false)
-  const [copied, setCopied] = useState(false)
-  // WEC-607: admin-chosen amount, prefilled with the remaining balance.
-  const remaining = order.payment.remaining || order.total
-  const [amountEuros, setAmountEuros] = useState((remaining / 100).toFixed(2))
-  const [amountDirty, setAmountDirty] = useState(false)
-  const [confirmOver, setConfirmOver] = useState(false)
-  // WEC-678 Bug 2: the drawer can stay open while items are removed, which
-  // recomputes `remaining`. Re-sync the amount field to the new remaining
-  // UNLESS the admin has typed a value (don't clobber deliberate input).
-  useEffect(() => {
-    if (!amountDirty) setAmountEuros((remaining / 100).toFixed(2))
-  }, [remaining, amountDirty])
-
   const link = order.paymentLink
-  // WEC-598 / WEC-181: nothing left to collect on a paid order — hide entirely.
-  if (order.paymentStatus === 'paid' || order.paymentStatus === 'refunded') return null
-  // Nothing to show on a cancelled order that never got a link.
-  if (!link && order.status === 'cancelled') return null
-
   // WEC-598 #2: only a CONFIRMED (or further) order may collect money. A pending
   // order that nobody has accepted must not send a payment request.
-  // WEC-607: also allow generating while «pending_link_sent» so a SECOND link
-  // (for the remaining balance) can be sent after the first.
-  const collectableStatuses: OrderStatus[] = ['confirmed', 'preparing', 'delivering', 'delivered']
   // WEC-806: any confirmed & unpaid order can (re)send a payment link — the old
   // link may be dead/expired and a leftover payment_status='failed' must not
-  // block collecting. paid/refunded already returned null above.
-  const canGenerate = collectableStatuses.includes(order.status)
-  const blockedByPending = order.status === 'pending'
-  const linkExpired = link?.status === 'expired'
-
-  const amountCents = Math.round((parseFloat(amountEuros.replace(',', '.')) || 0) * 100)
-  const overAmount = amountCents > remaining
-
-  async function copy() {
-    if (!link?.paymentUrl) return
-    try {
-      await navigator.clipboard.writeText(link.paymentUrl)
-      setCopied(true)
-      setTimeout(() => setCopied(false), 2000)
-    } catch {
-      setErr('Copy failed — browser blocked clipboard access.')
-    }
-  }
-
-  async function generate() {
-    setErr(null)
-    // WEC-607: validate the admin-entered amount; over-amount needs an explicit tick.
-    if (amountCents <= 0) { setErr('Enter an amount greater than 0.'); return }
-    if (overAmount && !confirmOver) {
-      setErr(`Amount exceeds the remaining ${(remaining / 100).toFixed(2)} € — tick the box to confirm an extra charge.`)
-      return
-    }
-    setWorking(true)
-    // firstTime distinguishes "sent" from "regenerated" in the timeline label.
-    const { error } = await sendPaymentLinkLogged(order.id, adminUser, !link, amountCents, confirmOver)
-    setWorking(false)
-    if (error) { setErr(error); return }
-    onChanged()
-  }
-
-  // WEC-806: flip a dead 'pending' link to 'expired' so the fresh-link control appears.
-  async function markExpired() {
-    setErr(null); setWorking(true)
-    const { error } = await markPaymentLinkExpired(order.id, adminUser)
-    setWorking(false)
-    if (error) { setErr(error); return }
-    onChanged()
-  }
-
-  // WEC-607: shared amount input + send button (first link and "send another").
-  const amountControls = (btnLabel: string) => (
-    <div style={{ marginTop: 4 }}>
-      <label className="admin-form-label" style={{ fontSize: 12 }}>
-        Amount (€) · remaining {(remaining / 100).toFixed(2)} €
-      </label>
-      <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-        <input
-          className="admin-input" inputMode="decimal" value={amountEuros}
-          onChange={(e) => { setAmountEuros(e.target.value); setAmountDirty(true) }} style={{ width: 120 }}
-        />
-        <button className="admin-btn-primary" disabled={working} onClick={generate}>
-          {working ? 'Sending…' : btnLabel}
-        </button>
-      </div>
-      {overAmount && (
-        <label className="admin-recipe-selectable" style={{ marginTop: 6 }}>
-          <input type="checkbox" checked={confirmOver} onChange={(e) => setConfirmOver(e.target.checked)} />{' '}
-          Charge more than the remaining balance (extra charge on request)
-        </label>
-      )}
-    </div>
-  )
-
+  // block collecting.
+  const collectableStatuses: OrderStatus[] = ['confirmed', 'preparing', 'delivering', 'delivered']
   return (
-    <section className="admin-form-section">
-      <h3 className="admin-section-title" style={{ marginTop: 0 }}>Payment link</h3>
-      {err && <div className="admin-error-banner">{err}</div>}
-
-      {!link && (
-        <>
-          {blockedByPending ? (
-            <>
-              <button className="admin-btn-primary" disabled title="Confirm the order first">
-                Generate payment link
-              </button>
-              {/* WEC-598 #2: explain the disabled state — bilingual per ticket. */}
-              <p className="admin-text-muted" style={{ marginTop: 8, fontSize: 12, lineHeight: 1.4 }}>
-                Επιβεβαίωσε πρώτα την παραγγελία για να στείλεις link πληρωμής.
-                <br />
-                <span style={{ opacity: 0.75 }}>Confirm the order first to send a payment link.</span>
-              </p>
-            </>
-          ) : canGenerate ? (
-            <>
-              <p className="admin-text-muted" style={{ marginBottom: 8 }}>Set the amount and send a payment link.</p>
-              {amountControls('Generate payment link')}
-            </>
-          ) : (
-            <p className="admin-text-muted">No payment link for this order.</p>
-          )}
-        </>
-      )}
-
-      {link && (
-        <>
-          {/* WEC-598 #3: unmistakable "sent" state. */}
-          <div className="admin-paylink-sent" style={{ marginBottom: 8 }}>
-            <span className="admin-pill-ok">✓ Payment link sent</span>
-            <span className="admin-text-muted" style={{ marginLeft: 8, fontSize: 12 }}>
-              {new Date(link.createdAt).toLocaleString('en-GB', { dateStyle: 'short', timeStyle: 'short' })}
-            </span>
-          </div>
-          {/* WEC-800: on a card order this link isn't admin-sent — it's the one
-              auto-created by the customer's card checkout. Say so, so ops don't
-              read it as a manually issued payment request. */}
-          {order.paymentMethod === 'card' && (
-            <p className="admin-text-muted" style={{ marginTop: -4, marginBottom: 8, fontSize: 12, lineHeight: 1.4 }}>
-              Αυτόματος σύνδεσμος πληρωμής — ο πελάτης επέλεξε πληρωμή με κάρτα.
-              <br />
-              <span style={{ opacity: 0.75 }}>Auto-generated payment link — the customer chose to pay by card.</span>
-            </p>
-          )}
-          <dl className="admin-od-kv" style={{ marginBottom: 8 }}>
-            {link.vivaOrderCode && <div><dt>Viva code</dt><dd style={{ fontFamily: 'monospace' }}>{link.vivaOrderCode}</dd></div>}
-            <div><dt>Status</dt><dd>
-              <span className={`admin-pill-${link.status === 'success' ? 'ok' : link.status === 'failure' ? 'err' : 'warn'}`}>{link.status}</span>
-            </dd></div>
-          </dl>
-          {link.paymentUrl && (
-            <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 8 }}>
-              <input className="admin-input" type="text" value={link.paymentUrl} readOnly style={{ flex: 1, fontFamily: 'monospace', fontSize: 12 }} />
-              {/* WEC-598 #4: Copy is the PRIMARY action when a link exists. */}
-              <button className="admin-btn-primary" onClick={copy}>{copied ? 'Copied! ✓' : 'Copy'}</button>
-            </div>
-          )}
-          {/* WEC-806: a pending link may be dead (Viva orders expire) — let the
-              admin mark it expired, which unlocks sending a fresh link below. */}
-          {link.status === 'pending' && (
-            <button className="admin-btn" disabled={working} onClick={markExpired} style={{ marginBottom: 8 }}>
-              {working ? '…' : 'Μαρκάρισμα ως expired (ο σύνδεσμος έληξε)'}
-            </button>
-          )}
-          {/* WEC-806/WEC-607: (re)send a link on any confirmed unpaid order —
-              adaptive copy for an expired link vs a remaining-balance top-up. */}
-          {canGenerate && (
-            <div style={{ marginTop: 4 }}>
-              <p className="admin-text-muted" style={{ fontSize: 12, marginBottom: 4 }}>
-                {linkExpired ? 'Ο σύνδεσμος έληξε — στείλε νέο:' : 'Στείλε (νέο) link πληρωμής — π.χ. για το υπόλοιπο:'}
-              </p>
-              {amountControls(linkExpired ? 'Send new link' : 'Send another link')}
-            </div>
-          )}
-          <p className="admin-text-muted" style={{ marginTop: 8, fontSize: 12 }}>
-            Last verified: {link.lastVerifiedAt ? new Date(link.lastVerifiedAt).toLocaleString('en-GB') : 'never'}
-          </p>
-        </>
-      )}
-    </section>
+    <PaymentLinkPanel
+      // WEC-598 / WEC-181: nothing left to collect on a paid order — hide entirely;
+      // nothing to show on a cancelled order that never got a link.
+      hidden={order.paymentStatus === 'paid' || order.paymentStatus === 'refunded' || (!link && order.status === 'cancelled')}
+      link={link ? {
+        status: link.status, paymentUrl: link.paymentUrl, vivaOrderCode: link.vivaOrderCode,
+        createdAt: link.createdAt, lastVerifiedAt: link.lastVerifiedAt,
+      } : null}
+      canGenerate={collectableStatuses.includes(order.status)}
+      blockedByPending={order.status === 'pending'}
+      // WEC-607: admin-chosen amount, prefilled with the remaining balance.
+      remainingCents={order.payment.remaining || order.total}
+      editableAmount
+      cardAutoNote={order.paymentMethod === 'card'}
+      onSend={(amountCents, allowOver, firstTime) => sendPaymentLinkLogged(order.id, adminUser, firstTime, amountCents, allowOver)}
+      onExpire={() => markPaymentLinkExpired(order.id, adminUser)}
+      onChanged={onChanged}
+    />
   )
 }
 

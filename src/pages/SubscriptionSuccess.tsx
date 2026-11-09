@@ -193,7 +193,7 @@ export function SubscriptionSuccess() {
   const d = state.details
   const isTransfer = d.paymentMethod === 'transfer'
   const isCash = d.paymentMethod === 'cash'
-  const isPending = d.paymentStatus === 'pending'
+  const isPending = d.paymentStatus === 'pending' || d.paymentStatus === 'pending_link_sent' // WEC-799
 
   return (
     <div className="order-return-page">
