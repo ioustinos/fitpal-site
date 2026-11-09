@@ -115,6 +115,7 @@ export default async (): Promise<Response> => {
             .from('orders')
             .update({ airtable_dirty: false })
             .eq('id', r.id)
+            .eq('airtable_dirty', true) // WEC-909: no-op if already cleared (see plans below)
         }
       }
       const d = res.deletions
@@ -158,8 +159,16 @@ export default async (): Promise<Response> => {
         // must have its flag retired, or the sweep re-checks it every five
         // minutes forever — the WEC-789 loop, which ran unnoticed from 10 to
         // 18 September because `errors` stayed 0 the whole time.
+        // WEC-909: ONLY if still dirty. pushWalletPlanToAirtable's not_eligible
+        // path already clears + stamps the row itself. A second, unconditional
+        // `airtable_dirty=false` write then reaches flag_wallet_plan_airtable_dirty
+        // as old=false/new=false on an already-synced row — which the trigger
+        // reads as "an edit to a mirrored plan" and sets dirty back to TRUE.
+        // Every failed+cancelled plan that had ever been synced looped like that
+        // forever, eating 2 of the ~3 push slots of every run.
         if (res.skipped === 'not_eligible' || res.skipped === 'not_found') {
-          await supabase.from('wallet_plans').update({ airtable_dirty: false }).eq('id', r.id)
+          await supabase.from('wallet_plans').update({ airtable_dirty: false })
+            .eq('id', r.id).eq('airtable_dirty', true)
         }
       }
     } catch (err) {
