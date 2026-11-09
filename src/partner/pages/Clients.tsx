@@ -151,7 +151,8 @@ function StatusPill({ r }: { r: ClientRow }) {
   }
   return (
     <span className="admin-pill-pending" title="Υπάρχων πελάτης της Fitpal">
-      {r.needsClientConfirm ? 'Αναμονή αποδοχής πελάτη' : r.needsFitpalApproval ? 'Αναμονή έγκρισης Fitpal' : 'Σε αναμονή'}
+      {/* WEC-908: Fitpal approval alone activates the link, so a pending link is always waiting on Fitpal. */}
+      {r.needsFitpalApproval ? 'Αναμονή έγκρισης Fitpal' : r.needsClientConfirm ? 'Αναμονή αποδοχής πελάτη' : 'Σε αναμονή'}
     </span>
   )
 }
