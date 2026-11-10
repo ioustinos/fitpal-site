@@ -11,6 +11,7 @@ import { setWalletPlanStatus, saveWalletPlanOpsFields } from '../../lib/api/admi
 import { fetchPlanConsumption, planTotalDays, type PlanConsumption } from '../../lib/api/planConsumption'
 import { useSearchParams, Link } from 'react-router-dom'
 import { PlanDetailsPanel } from '../../components/shared/PlanDetailsPanel'
+import { pushWalletPlanToAirtableSoon } from '../../lib/api/airtablePush'  // WEC-914
 import type { PlanDetails } from '../../lib/api/planDetails'
 import { useAuthStore } from '../../store/useAuthStore'
 // WEC-799 [Refactor A]: the same payment UI the order drawer uses.
@@ -87,6 +88,8 @@ export function WalletPurchases() {
       setErr(error)
       setRows((rs) => rs.map((r) => (r.id === id ? { ...r, contacted: !next } : r)))
       setDetail((d) => (d && d.id === id ? { ...d, contacted: !next } : d))
+    } else {
+      pushWalletPlanToAirtableSoon(id)  // WEC-914
     }
   }
 
@@ -126,6 +129,7 @@ export function WalletPurchases() {
   // without the drawer closing. Also refreshes the list behind it.
   async function reloadDetail() {
     if (!openId) return
+    pushWalletPlanToAirtableSoon(openId)  // WEC-914: every drawer save lands here
     const { data, error } = await fetchAdminWalletPlanDetail(openId)
     if (error) setErr(error)
     if (data) setDetail(data)

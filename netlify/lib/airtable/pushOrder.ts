@@ -6,7 +6,7 @@ import { toE164 } from '../../../src/lib/phoneNormalize'
 
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { TABLES, RETAIL_STORE_ID, airtableDeleteEnabled, airtableInvoiceNameField, airtableStoreId } from './env'
-import { findRecordId, upsertRecords, createRecord, listRecords, deleteRecords } from './client'
+import { findRecordId, upsertRecords, createRecord, listRecords, deleteRecords, airtableCallCount } from './client'
 import { mapPaid, mapPaymentMethod, mapInvoice, mapOrderType, mapOrderStatus, toEuros, athensIso, esc } from './maps'
 
 export interface PushResult {
@@ -86,10 +86,36 @@ async function findOrCreateCustomer(
   })
 }
 
+/**
+ * WEC-914: resolve many Μenu Reference codes in one query (OR of equalities,
+ * chunked so the formula stays short). Same semantics as the old per-code
+ * findRecordId: a code with no row maps to nothing and the item is mirrored
+ * without the link. A failed lookup throws — the order stays dirty and is
+ * retried, exactly like the old per-item lookup did.
+ */
+async function findMenuRefs(codes: string[]): Promise<Map<string, string>> {
+  const out = new Map<string, string>()
+  for (let i = 0; i < codes.length; i += 40) {
+    const chunk = codes.slice(i, i + 40)
+    const formula = chunk.length === 1
+      ? `{Κωδικός}='${esc(chunk[0])}'`
+      : `OR(${chunk.map((c) => `{Κωδικός}='${esc(c)}'`).join(',')})`
+    const recs = await listRecords(TABLES.menuReference, formula, ['Κωδικός'])
+    for (const r of recs) {
+      const code = String((r.fields as Record<string, unknown>)['Κωδικός'] ?? '')
+      // first row wins, as with findRecordId(maxRecords=1)
+      if (code && !out.has(code)) out.set(code, r.id)
+    }
+  }
+  return out
+}
+
 export async function pushOrderToAirtable(
   supabase: SupabaseClient,
   orderId: string,
 ): Promise<PushResult> {
+  const t0 = Date.now()
+  const calls0 = airtableCallCount()
   // 1. Load order
   const { data: order, error: oErr } = await supabase
     .from('orders')
@@ -102,23 +128,60 @@ export async function pushOrderToAirtable(
 
   if (!isMirrorEligible(order)) return { ok: true, orderId, skipped: 'not_eligible' }
 
-  // Pays Monthly: customer-level flag (profiles.pays_monthly) mirrored onto the order.
-  let paysMonthly = false
-  if (order.user_id) {
-    const { data: prof } = await supabase.from('profiles').select('pays_monthly').eq('id', order.user_id).maybeSingle()
-    paysMonthly = !!(prof as { pays_monthly?: boolean } | null)?.pays_monthly
-  }
+  // WEC-914: every independent read below runs in parallel, and the Airtable
+  // side is batched. Before this, one push made ~1 + 1 + 1 + days×(1 + items + 1)
+  // + 2 Airtable calls ONE AFTER ANOTHER (~4–5 s for a normal multi-day order),
+  // which capped the 5-min sweep at 2–3 orders. Now: 3 lookups in parallel,
+  // 1 order upsert, 1 upsert for all days, 1 per 10 items, + the 2 delete-check
+  // reads — the same writes, a fraction of the round-trips.
 
-  // 2. Load children + items.
-  // WEC-697: capture the read error explicitly — a FAILED read must never be
-  // treated as "no rows" (that would make the delete-reconcile wipe everything).
-  // Also fetch cancelled_at: a soft-cancelled day must NOT be mirrored as a live
-  // day (it was being re-pushed with its items), so it's excluded from the upsert
-  // set and becomes stale → removed by the reconcile.
-  const { data: children, error: cErr } = await supabase
-    .from('child_orders')
-    .select('id, delivery_date, time_from, time_to, address_street, address_area, address_zip, address_floor, address_doorbell, address_notes, delivery_comment, cancelled_at, day_total')
-    .eq('order_id', orderId)
+  // 2. DB reads that only need the order: pays-monthly flag, days, vouchers,
+  //    and the subscription that paid it (WEC-907).
+  //
+  // WEC-697: capture the child read error explicitly — a FAILED read must never
+  // be treated as "no rows" (that would make the delete-reconcile wipe
+  // everything). cancelled_at: a soft-cancelled day must NOT be mirrored as a
+  // live day, so it's excluded from the upsert set and becomes stale → removed
+  // by the reconcile.
+  const [profRes, childRes, voucherCodes, walletPlanId] = await Promise.all([
+    order.user_id
+      ? supabase.from('profiles').select('pays_monthly').eq('id', order.user_id).maybeSingle()
+      : Promise.resolve({ data: null }),
+    supabase
+      .from('child_orders')
+      .select('id, delivery_date, time_from, time_to, address_street, address_area, address_zip, address_floor, address_doorbell, address_notes, delivery_comment, cancelled_at, day_total')
+      .eq('order_id', orderId),
+    // WEC-846: voucher code(s) used on this order, so ops can filter/measure
+    // promo codes. voucher_uses is the source of truth and supports stacked
+    // vouchers — join multiple codes. Empty string clears the field when the
+    // voucher is later removed. Non-fatal: never block the mirror on it.
+    (async () => {
+      try {
+        const { data: vUses } = await supabase
+          .from('voucher_uses')
+          .select('vouchers(code)')
+          .eq('order_id', order.id)
+        const codes = (vUses ?? [])
+          .map((r: any) => (Array.isArray(r.vouchers) ? r.vouchers[0]?.code : r.vouchers?.code))
+          .filter(Boolean) as string[]
+        return [...new Set(codes)].join(', ')
+      } catch { return '' }
+    })(),
+    // WEC-907: only wallet money links to a plan; the plan is stamped on the
+    // debit row by trg_wallet_tx_stamp_plan. Never blocks the order mirror.
+    (async () => {
+      try {
+        const { data } = await supabase.rpc('order_wallet_plan_id', { p_order_id: order.id })
+        return (data as string | null) ?? null
+      } catch (e) {
+        console.warn('[pushOrder] WEC-907 subscription link skipped:', (e as Error).message)
+        return null
+      }
+    })(),
+  ])
+  // Pays Monthly: customer-level flag (profiles.pays_monthly) mirrored onto the order.
+  const paysMonthly = !!(profRes.data as { pays_monthly?: boolean } | null)?.pays_monthly
+  const { data: children, error: cErr } = childRes
   const allChildren = children ?? []
   const childList = allChildren.filter((c: any) => c.cancelled_at == null) // active days only
   const activeChildIds = childList.map((c: any) => c.id)
@@ -132,42 +195,50 @@ export async function pushOrderToAirtable(
   // Reads must both have SUCCEEDED before we're allowed to delete anything.
   const readsOk = !cErr && !iErr
 
-  // 3. Resolve variant external_id + category per dish (one query each)
+  // 3. Resolve variant external_id + category per dish (in parallel)
   const variantIds = [...new Set(itemList.map((i: any) => i.variant_id).filter(Boolean))]
   const dishIds = [...new Set(itemList.map((i: any) => i.dish_id).filter(Boolean))]
   const extByVariant = new Map<string, string>()
-  if (variantIds.length) {
-    const { data: vrows } = await supabase
-      .from('dish_variants')
-      .select('id, external_id')
-      .in('id', variantIds)
-    for (const v of vrows ?? []) extByVariant.set(v.id, v.external_id ?? v.id)
-  }
   const catByDish = new Map<string, string>()
   const descByDish = new Map<string, string>()
-  if (dishIds.length) {
-    const { data: drows } = await supabase
-      .from('dishes')
-      .select('id, desc_el, category_id, categories(name_el)')
-      .in('id', dishIds)
-    for (const d of (drows ?? []) as any[]) {
-      const cat = Array.isArray(d.categories) ? d.categories[0]?.name_el : d.categories?.name_el
-      if (cat) catByDish.set(d.id, cat)
-      if (d.desc_el) descByDish.set(d.id, d.desc_el)
-    }
+  const [vRes, dRes] = await Promise.all([
+    variantIds.length
+      ? supabase.from('dish_variants').select('id, external_id').in('id', variantIds)
+      : Promise.resolve({ data: [] as any[] }),
+    dishIds.length
+      ? supabase.from('dishes').select('id, desc_el, category_id, categories(name_el)').in('id', dishIds)
+      : Promise.resolve({ data: [] as any[] }),
+  ])
+  for (const v of (vRes.data ?? []) as any[]) extByVariant.set(v.id, v.external_id ?? v.id)
+  for (const d of (dRes.data ?? []) as any[]) {
+    const cat = Array.isArray(d.categories) ? d.categories[0]?.name_el : d.categories?.name_el
+    if (cat) catByDish.set(d.id, cat)
+    if (d.desc_el) descByDish.set(d.id, d.desc_el)
+  }
+  const itemCode = (it: any): string | null => {
+    const c = extByVariant.get(it.variant_id) ?? it.variant_id
+    return c ? String(c) : null
   }
 
-  // 4. Customer (find-or-create by phone)
-  const customerRecId = await findOrCreateCustomer(order.customer_phone, order.customer_name, order.customer_email)
+  // 4 + 5. Airtable lookups, in parallel:
+  //   • Customer (find-or-create by phone)
+  //   • the Subscription this order was paid from (WEC-907, by «Plan Id»)
+  //   • every Μenu Reference this order needs, in ONE OR() query instead of
+  //     one query per item code.
+  const codes = [...new Set(itemList.map(itemCode).filter(Boolean) as string[])]
+  const [customerRecId, subRecId, menuRefByCode] = await Promise.all([
+    findOrCreateCustomer(order.customer_phone, order.customer_name, order.customer_email),
+    walletPlanId
+      ? findRecordId(TABLES.subscriptions, `{Plan Id}='${esc(String(walletPlanId))}'`).catch((e) => {
+          console.warn('[pushOrder] WEC-907 subscription lookup failed:', (e as Error).message)
+          return null
+        })
+      : Promise.resolve(null),
+    findMenuRefs(codes),
+  ])
   const custLink = customerRecId ? [customerRecId] : undefined
-
-  // 5. Resolve Μenu Reference record ids by external code (cached)
-  const menuRefCache = new Map<string, string | null>()
-  async function menuRefId(code: string): Promise<string | null> {
-    if (menuRefCache.has(code)) return menuRefCache.get(code)!
-    const id = await findRecordId(TABLES.menuReference, `{Κωδικός}='${esc(code)}'`)
-    menuRefCache.set(code, id)
-    return id
+  if (walletPlanId && !subRecId) {
+    console.warn('[pushOrder] WEC-907: plan %s not in Airtable — order %s left unlinked', walletPlanId, order.id)
   }
 
   // 6. Upsert Orders
@@ -184,21 +255,6 @@ export async function pushOrderToAirtable(
   const storeAirtableId = storeSlug && storeSlug !== 'main'
     ? (storeEmbed?.airtable_store_id ?? null)
     : null
-  // WEC-846: mirror the voucher code(s) used on this order into Airtable so ops
-  // can filter/measure promo codes. voucher_uses is the source of truth and
-  // supports stacked vouchers — join multiple codes. Empty string clears the
-  // field when no voucher, keeping Airtable in sync if one is later removed.
-  let voucherCodes = ''
-  try {
-    const { data: vUses } = await supabase
-      .from('voucher_uses')
-      .select('vouchers(code)')
-      .eq('order_id', order.id)
-    const codes = (vUses ?? [])
-      .map((r: any) => (Array.isArray(r.vouchers) ? r.vouchers[0]?.code : r.vouchers?.code))
-      .filter(Boolean) as string[]
-    voucherCodes = [...new Set(codes)].join(', ')
-  } catch { /* non-fatal: never block the mirror on the voucher lookup */ }
 
   const orderFields: Record<string, unknown> = {
     'Order Id': order.id,
@@ -240,21 +296,9 @@ export async function pushOrderToAirtable(
   if (inv) orderFields['Τιμολόγιο/Απόδειξη'] = inv
   if (order.invoice_vat) orderFields['ΑΦΜ'] = order.invoice_vat
   if (custLink) orderFields['Customer'] = custLink
-  // WEC-907: link the order to the subscription whose wallet credit paid it
-  // (Orders.«Subscription» → Subscriptions, matched on «Plan Id»). Only wallet
-  // money links to a plan; the plan is stamped on the debit row by the
-  // trg_wallet_tx_stamp_plan trigger. A plan that isn't in Airtable (yet / any
-  // more) just leaves the field alone — never blocks the order mirror.
-  try {
-    const { data: wpId } = await supabase.rpc('order_wallet_plan_id', { p_order_id: order.id })
-    if (wpId) {
-      const subRecId = await findRecordId(TABLES.subscriptions, `{Plan Id}='${esc(String(wpId))}'`)
-      if (subRecId) orderFields['Subscription'] = [subRecId]
-      else console.warn('[pushOrder] WEC-907: plan %s not in Airtable — order %s left unlinked', wpId, order.id)
-    }
-  } catch (e) {
-    console.warn('[pushOrder] WEC-907 subscription link skipped:', (e as Error).message)
-  }
+  // WEC-907: link the order to the subscription whose wallet credit paid it.
+  // A plan that isn't in Airtable (yet / any more) leaves the field alone.
+  if (subRecId) orderFields['Subscription'] = [subRecId]
   // WEC-537: mirror order status + (on cancel) the admin reason so cancelled
   // orders don't look active in Airtable. draft never reaches here.
   const statusOpt = mapOrderStatus(order.status)
@@ -314,10 +358,15 @@ export async function pushOrderToAirtable(
     }
   }
 
-  for (const c of childList as any[]) {
+  // WEC-914: all days in ONE upsert (10 per request), then all items in one
+  // more. The child record ids come back keyed by «Child/Day Order Id», so
+  // each item still links to its own day.
+  const childKeyById = new Map<string, string>()
+  const childRecords = (childList as any[]).map((c) => {
     const wishIso = athensIso(c.delivery_date, c.time_from)
     const childKey = `${order.id}#${wishIso}`
     currentChildKeys.add(childKey)
+    childKeyById.set(c.id, childKey)
     const childFields: Record<string, unknown> = {
       'Child/Day Order Id': childKey,
       'Order Wish Time': wishIso,
@@ -341,34 +390,47 @@ export async function pushOrderToAirtable(
       'Daily Price': toEuros(netDailyByChild.get(c.id) ?? ((c as any).day_total ?? 0)),
     }
     if (custLink) childFields['Customer'] = custLink
-    const [childRec] = await upsertRecords(TABLES.childOrders, ['Child/Day Order Id'], [{ fields: childFields }])
-    const childRecId = childRec.id
-
-    const childItems = itemList.filter((i: any) => i.child_order_id === c.id)
-    const itemRecords = []
-    for (const it of childItems as any[]) {
-      currentItemUuids.add(String(it.id))
-      const code = extByVariant.get(it.variant_id) ?? it.variant_id
-      const refId = code ? await menuRefId(code) : null
-      const fields: Record<string, unknown> = {
-        uuid: it.id,
-        'Item Name': it.name_el ?? '',
-        'Item Variant': it.variant_label_el ?? '',
-        'Item Fitpal ID': code ? String(code) : '',
-        Quantity: it.quantity,
-        'Item Price': toEuros(it.unit_price),
-        'Items Full Price': toEuros(it.total_price),
-        'Item Comment': it.comment ?? '',
-        'Item Long Description': descByDish.get(it.dish_id) ?? '',
-        Category: catByDish.get(it.dish_id) ?? '',
-        'Child/Day Order ID': [childRecId],
-      }
-      if (refId) fields['Item'] = [refId]
-      if (custLink) fields['Customer'] = custLink
-      itemRecords.push({ fields })
+    return { fields: childFields }
+  })
+  const childRecIdByKey = new Map<string, string>()
+  if (childRecords.length) {
+    const recs = await upsertRecords(TABLES.childOrders, ['Child/Day Order Id'], childRecords)
+    for (const r of recs) {
+      const k = String((r.fields as Record<string, unknown>)['Child/Day Order Id'] ?? '')
+      if (k) childRecIdByKey.set(k, r.id)
     }
-    if (itemRecords.length) await upsertRecords(TABLES.orderItems, ['uuid'], itemRecords)
   }
+
+  const itemRecords = []
+  for (const it of itemList as any[]) {
+    const childKey = childKeyById.get(it.child_order_id)
+    const childRecId = childKey ? childRecIdByKey.get(childKey) : undefined
+    if (!childRecId) {
+      // Should never happen (the upsert returns every day it was given). Fail
+      // loudly rather than mirror an item with no day: the order stays dirty.
+      throw new Error(`child record id missing for day ${it.child_order_id}`)
+    }
+    currentItemUuids.add(String(it.id))
+    const code = itemCode(it)
+    const refId = code ? menuRefByCode.get(code) ?? null : null
+    const fields: Record<string, unknown> = {
+      uuid: it.id,
+      'Item Name': it.name_el ?? '',
+      'Item Variant': it.variant_label_el ?? '',
+      'Item Fitpal ID': code ?? '',
+      Quantity: it.quantity,
+      'Item Price': toEuros(it.unit_price),
+      'Items Full Price': toEuros(it.total_price),
+      'Item Comment': it.comment ?? '',
+      'Item Long Description': descByDish.get(it.dish_id) ?? '',
+      Category: catByDish.get(it.dish_id) ?? '',
+      'Child/Day Order ID': [childRecId],
+    }
+    if (refId) fields['Item'] = [refId]
+    if (custLink) fields['Customer'] = custLink
+    itemRecords.push({ fields })
+  }
+  if (itemRecords.length) await upsertRecords(TABLES.orderItems, ['uuid'], itemRecords)
 
   // 8. WEC-697: reconcile the Airtable side against ours — remove day/item rows
   // the customer/admin deleted or cancelled, so the kitchen never preps food
@@ -409,6 +471,9 @@ export async function pushOrderToAirtable(
     )
   }
 
+  // WEC-914: one line per push so the cost is visible in the function logs.
+  console.log('[airtable-timing] order %s: %dms, %d Airtable calls, %d days, %d items',
+    orderId, Date.now() - t0, airtableCallCount() - calls0, childList.length, itemList.length)
   return { ok: true, orderId, deletions }
 }
 

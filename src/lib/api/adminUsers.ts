@@ -296,7 +296,9 @@ export async function setCustomerPaysMonthly(
 ): Promise<{ error: string | null }> {
   const { error } = await supabase.from('profiles').update({ pays_monthly: paysMonthly }).eq('id', userId)
   if (error) return { error: error.message }
-  await supabase.from('orders').update({ airtable_dirty: true }).eq('user_id', userId)
+  // WEC-914: never flag drafts — they are never mirrored, so the flag just sat
+  // on them forever (6 abandoned checkouts were found stuck this way).
+  await supabase.from('orders').update({ airtable_dirty: true }).eq('user_id', userId).neq('status', 'draft')
   return { error: null }
 }
 
