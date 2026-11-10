@@ -233,7 +233,10 @@ export async function pushOrderToAirtable(
   // using the existing 'Freeba' Payment Method option (no Airtable schema
   // change) so the kitchen/reporting tell it apart from a genuinely-paid order.
   if (Number(order.total) === 0) orderFields['Payment Method'] = 'Freeba'
-  const inv = mapInvoice(order.invoice_type)
+  // WEC-910: a wallet-paid order is ALWAYS «Δελτίο Αποστολής» (it was invoiced
+  // when the wallet was topped up), decided off payment_method FIRST so no
+  // stale invoice_type can ever overwrite the manual Airtable edits.
+  const inv = order.payment_method === 'wallet' ? 'Δελτίο Αποστολής' : mapInvoice(order.invoice_type)
   if (inv) orderFields['Τιμολόγιο/Απόδειξη'] = inv
   if (order.invoice_vat) orderFields['ΑΦΜ'] = order.invoice_vat
   if (custLink) orderFields['Customer'] = custLink
@@ -264,7 +267,7 @@ export async function pushOrderToAirtable(
   // WEC-697: invoice company name («Επωνυμία»). Sent as an ISOLATED, best-effort
   // upsert so a wrong/missing field name can never 422 the main order mirror
   // above (acceptance: "No regression on the upsert path"). Merges on Order Id.
-  if (order.invoice_name && order.invoice_type && mapInvoice(order.invoice_type) === 'Τιμολόγιο') {
+  if (order.payment_method !== 'wallet' && order.invoice_name && order.invoice_type && mapInvoice(order.invoice_type) === 'Τιμολόγιο') {
     try {
       await upsertRecords(TABLES.orders, ['Order Id'], [{
         fields: { 'Order Id': order.id, [airtableInvoiceNameField()]: order.invoice_name },

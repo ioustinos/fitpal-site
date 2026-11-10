@@ -84,11 +84,14 @@ export function mapOrderStatus(status: string): string | undefined {
   return ORDER_STATUS_AIRTABLE[status]
 }
 
-// Orders.Τιμολόγιο/Απόδειξη choices: Απόδειξη | Τιμολόγιο
+// Orders.Τιμολόγιο/Απόδειξη choices: Απόδειξη | Τιμολόγιο | Δελτίο Αποστολής
+// WEC-910: explicit 1:1 mapping of orders.invoice_type. Legacy `none` / null
+// (pre-WEC-910 rows) still read as «Απόδειξη» — the old convention, kept only
+// as a default so nothing un-mapped is ever sent.
 export function mapInvoice(invoiceType?: string | null): string | undefined {
-  if (!invoiceType) return undefined
-  const v = invoiceType.toLowerCase()
-  if (v.includes('invoice') || v.includes('τιμ')) return 'Τιμολόγιο'
+  const v = (invoiceType ?? '').toLowerCase()
+  if (v === 'invoice') return 'Τιμολόγιο'
+  if (v === 'delivery_note') return 'Δελτίο Αποστολής'
   return 'Απόδειξη'
 }
 

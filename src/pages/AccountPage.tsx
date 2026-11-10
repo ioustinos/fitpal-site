@@ -1469,13 +1469,22 @@ function OrdersTab({ user, lang }: any) {
                         </div>
                       )
                     })}
-                  {/* WEC-698: show the recorded Τιμολόγιο details on the customer's order. */}
-                  {order.invoiceType === 'invoice' && (
+                  {/* WEC-698 / WEC-910: the order's document type — receipt, invoice (+ details) or delivery note. */}
+                  {order.invoiceType === 'invoice' ? (
                     <div className="order-invoice-row">
                       <span className="order-invoice-label">{lang === 'el' ? 'Τιμολόγιο' : 'Invoice'}</span>
                       <span className="order-invoice-val">
                         {order.invoiceName || '—'}
                         {order.invoiceVat ? ` · ${lang === 'el' ? 'ΑΦΜ' : 'VAT'} ${order.invoiceVat}` : ''}
+                      </span>
+                    </div>
+                  ) : (
+                    <div className="order-invoice-row">
+                      <span className="order-invoice-label">{lang === 'el' ? 'Παραστατικό' : 'Document'}</span>
+                      <span className="order-invoice-val">
+                        {order.invoiceType === 'delivery_note'
+                          ? (lang === 'el' ? 'Δελτίο Αποστολής' : 'Delivery note')
+                          : (lang === 'el' ? 'Απόδειξη' : 'Receipt')}
                       </span>
                     </div>
                   )}

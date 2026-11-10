@@ -321,6 +321,14 @@ export async function fireOrderConfirmationFromDb(
       invoice_type: order.invoice_type ?? null,
       invoice_name: order.invoice_name ?? null,
       invoice_vat: order.invoice_vat ?? null,
+      // WEC-910: the order's document type as a ready-to-print label, so the
+      // template renders the three-way without re-implementing the mapping.
+      // Wallet orders are always a delivery note.
+      document_type: order.payment_method === 'wallet' || order.invoice_type === 'delivery_note'
+        ? (lang === 'en' ? 'Delivery note' : 'Δελτίο Αποστολής')
+        : order.invoice_type === 'invoice'
+          ? (lang === 'en' ? 'Invoice' : 'Τιμολόγιο')
+          : (lang === 'en' ? 'Receipt' : 'Απόδειξη'),
       placed_by_admin: placedByAdmin,
       admin_user_id: order.admin_order_id ?? null,
       day_count: klaviyoDays.length,
