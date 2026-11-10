@@ -128,7 +128,8 @@ export default async (request: Request) => {
     customer_phone: body.customer?.phone ?? null,
     payment_method: body.payment_method ?? null,
     cutlery: body.cutlery ?? false,
-    invoice_type: body.invoice?.type ?? 'none',
+    // WEC-910: explicit document type, never the old `none` convention.
+    invoice_type: body.payment_method === 'wallet' ? 'delivery_note' : (body.invoice?.type === 'invoice' ? 'invoice' : 'receipt'),
     invoice_name: body.invoice?.name ?? null,
     invoice_vat: body.invoice?.vat ?? null,
     notes: body.notes ?? null,

@@ -1436,6 +1436,22 @@ function OverviewTab({ order, adminUser, onChanged }: { order: AdminOrder; admin
     VAT — legally unusable. Now flipping to «Τιμολόγιο» requires a name + valid
     ΑΦΜ (same isValidGreekVat/vatDigits the checkout uses) before it can save. */
 function InvoiceEditor({ order, adminUser, onChanged }: { order: AdminOrder; adminUser: string; onChanged: () => void }) {
+  // WEC-910: a wallet-paid order is a «Δελτίο Αποστολής» (it was invoiced at
+  // wallet top-up). Shown read-only — no receipt/invoice flip (WEC-911 closes
+  // the write paths for good).
+  if (order.paymentMethod === 'wallet' || order.invoiceType === 'delivery_note') {
+    return (
+      <div className="admin-od-chips" style={{ marginTop: 8 }}>
+        <span className="admin-od-chip" title="Wallet-paid order — invoiced when the wallet was topped up">
+          <Ico name="doc" />{' '}Δελτίο Αποστολής
+        </span>
+      </div>
+    )
+  }
+  return <InvoiceEditorInner order={order} adminUser={adminUser} onChanged={onChanged} />
+}
+
+function InvoiceEditorInner({ order, adminUser, onChanged }: { order: AdminOrder; adminUser: string; onChanged: () => void }) {
   const isInvoice = order.invoiceType === 'invoice'
   const [editing, setEditing] = useState(false)
   const [type, setType] = useState<'invoice' | 'receipt'>(isInvoice ? 'invoice' : 'receipt')
