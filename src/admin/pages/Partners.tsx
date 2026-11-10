@@ -8,7 +8,7 @@
  */
 import { useEffect, useMemo, useState } from 'react'
 import {
-  fetchPartners, savePartner, fetchPartnerUsers, addPartnerUser, fetchPartnerClients,
+  fetchPartners, savePartner, fetchPartnerUsers, addPartnerUser, autoLinkPartnerLogin, fetchPartnerClients,
   updateClientTerms, approveLink, adminLinkClient, fetchPartnerLines, markPaid, fetchPayouts,
   type AdminPartner, type PartnerBalance, type AdminPartnerUser, type AdminPartnerClient,
   type AdminCommissionLine, type AdminPayout,
@@ -159,9 +159,23 @@ function PartnerForm({ partner, onSaved, onCancel }: { partner: AdminPartner | n
       active: f.active, features: { progress_tracking: f.progress_tracking, referral: f.referral, notifications: f.notifications },
       referral_code: f.referral_code.trim() || null, agreement_date: f.agreement_date || null, notes: f.notes || null,
     })
+    if (error) { setBusy(false); setMsg(`✗ ${error}`); return }
+    // WEC-912: the email on the profile also becomes the portal login, if an
+    // account with that email exists and the dietitian has no login yet.
+    let note = ''
+    if (data && f.email.trim()) {
+      const { status } = await autoLinkPartnerLogin(data.id)
+      if (status === 'linked') {
+        note = ` · login linked (${f.email.trim()})`
+        setUsers((await fetchPartnerUsers(data.id)).data)
+      } else if (status === 'no_account') {
+        note = ' · no account with this email yet: it will be linked automatically when she/he first signs in'
+      } else if (status === 'account_taken') {
+        note = ' · this email\'s account is already the login of another dietitian'
+      }
+    }
     setBusy(false)
-    if (error) { setMsg(`✗ ${error}`); return }
-    setMsg('✓ Saved'); onSaved(data)
+    setMsg(`✓ Saved${note}`); onSaved(data)
   }
 
   async function linkUser() {
