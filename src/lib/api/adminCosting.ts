@@ -344,8 +344,22 @@ export interface ComponentDetail {
 export const fetchComponentDetail = (id: string, date?: string | null) =>
   rpc<ComponentDetail>('admin_cost_component_detail', { p_id: id, p_date: date ?? null })
 
+/** WEC-864 cooking method keys → Greek label (shown in parentheses after the item name). */
+export const COOKING_METHODS: Array<[CookingMethod, string]> = [
+  ['raw', 'ωμό'], ['boiled', 'βραστό'], ['steamed', 'ατμού'], ['sauteed', 'σωτέ'], ['roasted', 'ψητό'],
+  ['baked', 'φούρνου'], ['pot', 'κατσαρόλας'], ['fried', 'τηγανητό'], ['cooked', 'μαγειρεμένο'], ['other', 'άλλο…'],
+]
+export type CookingMethod = 'raw' | 'boiled' | 'steamed' | 'sauteed' | 'roasted' | 'baked' | 'pot' | 'fried' | 'cooked' | 'other'
+export function cookingLabel(m: CookingMethod | null | undefined, other?: string | null): string | null {
+  if (!m) return null
+  if (m === 'other') return other?.trim() || null
+  return COOKING_METHODS.find(([k]) => k === m)?.[1] ?? null
+}
+
 export interface ComponentSaveInput {
   component_id?: string | null
+  cooking_method?: CookingMethod | null
+  cooking_method_other?: string | null
   /** set to create a component, or to rename an existing one */
   name?: string
   category?: string | null

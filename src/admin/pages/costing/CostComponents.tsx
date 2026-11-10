@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import type { ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import {
   fetchComponents, fetchComponentDetail, fetchComponentOptions, fetchCostItemOptions,
-  saveComponentVersion, setComponentActive,
+  saveComponentVersion, setComponentActive, COOKING_METHODS, cookingLabel,
 } from '../../../lib/api/adminCosting'
 import type {
-  ComponentRow, ComponentDetail, ComponentVersion, ComponentOption, CostItemOption, YieldMode, BaseUnit,
+  ComponentRow, ComponentDetail, ComponentBreakdown, ComponentVersion, ComponentOption, CostItemOption, YieldMode, BaseUnit, CookingMethod,
 } from '../../../lib/api/adminCosting'
 import {
   CostingTabs, FlagBadges, HistoryChart, NumText, SearchPick, SourceBadge,
@@ -92,8 +93,12 @@ export function CostComponents() {
   const [opts, setOpts] = useState<Options | null>(null)
   const [optsErr, setOptsErr] = useState<string | null>(null)
   const [editor, setEditor] = useState<EditorInit | null>(null)
-  const [quick, setQuick] = useState(false)
+  const [quickItem, setQuickItem] = useUrlState('quick') // cost item id from «Make component» on /items
+  const [quick, setQuickRaw] = useState(!!quickItem)
+  const setQuick = (v: boolean) => { setQuickRaw(v); if (!v && quickItem) setQuickItem('') }
   const [detailKey, setDetailKey] = useState(0)
+  // drawer «back» trail when drilling from a recipe line into a sub-component
+  const [trail, setTrail] = useState<Array<{ id: string; name: string }>>([])
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -112,6 +117,8 @@ export function CostComponents() {
     setOptsErr(null)
     setOpts({ items: i.data ?? [], comps: c.data ?? [] })
   }, [opts])
+  // arriving from «Make component» on a cost item: the quick form is already open, load its pickers
+  useEffect(() => { if (quickItem) void loadOptions() }, [quickItem, loadOptions])
 
   const categories = useMemo(
     () => [...new Set(rows.map((r) => r.category).filter((c): c is string => !!c))].sort((a, b) => a.localeCompare(b, 'el')),
@@ -183,7 +190,7 @@ export function CostComponents() {
           <p className="admin-page-sub">Anything that goes on a plate, costed per cooked gram. Versions with an effective date.</p>
         </div>
         <div className="admin-page-actions">
-          <button className="admin-btn admin-btn-secondary admin-btn-sm" onClick={openQuick}>Quick: item + yield</button>
+          <button className="admin-btn admin-btn-secondary admin-btn-sm" onClick={openQuick}>+ From a cost item</button>
           <button className="admin-btn admin-btn-primary admin-btn-sm" onClick={openNew}>+ New component</button>
         </div>
       </div>
@@ -224,7 +231,7 @@ export function CostComponents() {
             {!loading && !filtered.length && <tr><td colSpan={8} className="cst-muted">No matches.</td></tr>}
             {shown.map(({ r, ch }) => (
               <tr key={r.id} className={`cst-click${r.id === id ? ' cst-sel' : ''}`} style={r.active ? undefined : { opacity: 0.5 }}
-                  onClick={() => setId(r.id)}>
+                  onClick={() => { setTrail([]); setId(r.id) }}>
                 <td className="cst-strong">{r.name}{!r.active && <span className="cst-badge" style={{ marginLeft: 6 }}>inactive</span>}</td>
                 <td>{r.category ?? <span className="cst-muted">—</span>}</td>
                 <td className="num">{fmtPerKg(r.cost_per_g)}</td>
@@ -255,8 +262,10 @@ export function CostComponents() {
         <ComponentDrawer
           key={`${id}:${detailKey}`}
           id={id}
-          onClose={() => setId('')}
-          onOpen={(cid) => setId(cid)}
+          back={trail.length ? trail[trail.length - 1] : null}
+          onBack={() => { const t = trail[trail.length - 1]; setTrail(trail.slice(0, -1)); if (t) setId(t.id) }}
+          onClose={() => { setTrail([]); setId('') }}
+          onOpen={(cid, fromName) => { setTrail([...trail, { id, name: fromName }]); setId(cid) }}
           onEdit={(init) => { void loadOptions(); setEditor(init) }}
           onActiveChanged={() => void load()}
         />
@@ -275,6 +284,7 @@ export function CostComponents() {
 
       {quick && (
         <QuickForm
+          presetItemId={quickItem || null}
           opts={opts}
           optsErr={optsErr}
           categories={categories}
@@ -287,8 +297,44 @@ export function CostComponents() {
 }
 
 // ── detail drawer ────────────────────────────────────────────────────────────
-function ComponentDrawer({ id, onClose, onOpen, onEdit, onActiveChanged }: {
-  id: string; onClose: () => void; onOpen: (id: string) => void
+type CompKind = 'recipe' | 'single' | 'fixed' | 'empty'
+
+function componentKind(b: ComponentBreakdown): CompKind {
+  if (b.yield_mode === 'fixed') return 'fixed'
+  if (!b.lines.length) return 'empty'
+  return b.lines.length === 1 && b.lines[0].kind === 'item' ? 'single' : 'recipe'
+}
+
+const KIND_BADGE: Record<CompKind, [string, string]> = {
+  recipe: ['cst-ok', 'Recipe'],
+  single: ['', 'Single ingredient'],
+  fixed: ['cst-warn', 'Fixed estimate — no recipe'],
+  empty: ['cst-err', 'No lines'],
+}
+
+/** chip list that shows the first 12 and a «+N more» toggle */
+function Chips({ items, more, onMore }: { items: ReactNode[]; more: boolean; onMore: () => void }) {
+  const LIMIT = 12
+  const shown = more ? items : items.slice(0, LIMIT)
+  return (
+    <div className="cst-chips">
+      {shown}
+      {!more && items.length > LIMIT && (
+        <button className="cst-chip cst-chip-more" onClick={onMore}>+{items.length - LIMIT} more</button>
+      )}
+    </div>
+  )
+}
+
+const round1 = (v: number | null | undefined) => (v === null || v === undefined ? null : Math.round(Number(v) * 10) / 10)
+const fmtG = (v: number | null | undefined) => {
+  const r = round1(v)
+  return r === null ? '—' : `${r.toLocaleString('el-GR')} g`
+}
+
+function ComponentDrawer({ id, back, onBack, onClose, onOpen, onEdit, onActiveChanged }: {
+  id: string; back: { id: string; name: string } | null; onBack: () => void
+  onClose: () => void; onOpen: (id: string, fromName: string) => void
   onEdit: (init: EditorInit) => void; onActiveChanged: () => void
 }) {
   const [asOf, setAsOf] = useState('')
@@ -297,6 +343,7 @@ function ComponentDrawer({ id, onClose, onOpen, onEdit, onActiveChanged }: {
   const [err, setErr] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const [tick, setTick] = useState(0)
+  const [showAll, setShowAll] = useState(false)
 
   useEffect(() => {
     let alive = true
@@ -325,163 +372,222 @@ function ComponentDrawer({ id, onClose, onOpen, onEdit, onActiveChanged }: {
   const b = d?.breakdown
   const total = b ? (b.total_cost ?? b.lines.reduce((s, l) => s + Number(l.line_cost || 0), 0)) : 0
   const versions = d?.versions ?? []
-  const latestPublished = versions.find((v) => v.status === 'published')
+  const published = versions.filter((v) => v.status === 'published')
+  const latestPublished = published[0]
   const comp = d?.component
   const meta = comp ? { componentId: comp.id, name: comp.name, category: comp.category, notes: comp.notes } : null
+  const kind = b ? componentKind(b) : null
 
+  // the ledger starts at 1900 with «no version yet» = 0 €/kg; that is not a price, drop it
   const histRows = useMemo(
-    () => (d?.history ?? []).map((h) => ({ date: h.date, cost_per_g: Number(h.cost_per_g), cause: chartCause(h.cause) })),
+    () => (d?.history ?? [])
+      .filter((h) => !h.flags?.no_version)
+      .map((h) => ({ date: h.date, cost_per_g: Number(h.cost_per_g), cause: chartCause(h.cause) })),
     [d])
+
+  const lines = useMemo(() => [...(b?.lines ?? [])].sort((x, y) => Number(y.line_cost) - Number(x.line_cost)), [b])
+  const maxShare = total > 0 ? Math.max(...lines.map((l) => Number(l.line_cost) / total), 0) : 0
 
   return (
     <div className="admin-drawer-overlay" onClick={onClose}>
       <div className="admin-drawer cst-drawer-wide" onClick={(e) => e.stopPropagation()}>
         <header className="admin-drawer-head">
-          <div className="admin-drawer-head-title">
-            <h2>{comp?.name ?? 'Component'}</h2>
-            {comp?.category && <span className="admin-drawer-placed">{comp.category}</span>}
-            {comp && !comp.active && <span className="cst-badge cst-warn">inactive</span>}
+          <div className="admin-drawer-head-title" style={{ flexDirection: 'column', alignItems: 'flex-start', gap: 4 }}>
+            {back && (
+              <a href="#" className="cst-back" onClick={(e) => { e.preventDefault(); onBack() }}>← {back.name}</a>
+            )}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+              <h2 style={{ margin: 0 }}>{comp?.name ?? 'Component'}</h2>
+              {kind && <span className={`cst-badge ${KIND_BADGE[kind][0]}`}>{KIND_BADGE[kind][1]}</span>}
+              {comp && !comp.active && <span className="cst-badge cst-warn">inactive</span>}
+            </div>
+            {comp?.category && <span className="cst-note">{comp.category}</span>}
           </div>
           <button className="admin-drawer-close" onClick={onClose}>×</button>
         </header>
-        <div className="admin-drawer-body" style={{ padding: '10px 16px' }}>
+        <div className="admin-drawer-body" style={{ padding: '12px 18px 24px' }}>
           {err && <div className="admin-error-banner" style={{ marginBottom: 8 }}>{err}</div>}
           {loading && !d && <div className="admin-loading">Loading…</div>}
-          {d && b && meta && (
+          {d && b && meta && kind && (
             <>
-              <div className="cst-toolbar">
-                <label>As of
-                  <input type="date" className="admin-input" value={asOf || d.as_of} onChange={(e) => setAsOf(e.target.value)} style={{ width: 150 }} />
+              <div className="cst-toolbar" style={{ marginBottom: 12 }}>
+                <label>Costs as of
+                  <input type="date" className="admin-input" value={asOf || d.as_of} onChange={(e) => setAsOf(e.target.value)} style={{ width: 145 }} />
                 </label>
                 {asOf && <button className="admin-btn admin-btn-ghost admin-btn-sm" onClick={() => setAsOf('')}>Today</button>}
                 {loading && <span className="cst-count">Loading…</span>}
                 <span className="cst-spacer" />
                 <button className="admin-btn admin-btn-primary admin-btn-sm"
                         onClick={() => onEdit({ mode: 'version', meta, from: latestPublished ?? versions[0] })}>
-                  New version
+                  {kind === 'fixed' ? 'Add recipe' : 'Edit recipe (new version)'}
                 </button>
                 <button className="admin-btn admin-btn-ghost admin-btn-sm" disabled={busy} onClick={toggleActive}>
                   {comp!.active ? 'Deactivate' : 'Activate'}
                 </button>
               </div>
 
-              <div className="cst-section">
-                <div className="cst-kv" style={{ gridTemplateColumns: '130px 1fr 130px 1fr' }}>
-                  <div>Cost / cooked kg</div><div className="cst-strong">{fmtPerKg(b.cost_per_g)} <FlagBadges flags={b.flags} /></div>
-                  <div>Version</div>
-                  <div>{b.version_no ? `v${b.version_no} · from ${fmtDate(b.effective_from)}` : <span className="cst-badge cst-err">no published version</span>}</div>
-                  <div>Total batch cost</div><div>{b.yield_mode === 'fixed' ? '—' : fmtEurFine(total)}</div>
-                  <div>Yield</div><div>{yieldLabel(b.yield_mode, b.yield_pct, b.output_weight_g)}</div>
-                  <div>Raw weight</div><div>{b.raw_weight_g !== undefined && b.raw_weight_g !== null ? `${Math.round(Number(b.raw_weight_g) * 10) / 10} g` : '—'}</div>
-                  <div>Output (cooked)</div><div>{b.output_g !== undefined && b.output_g !== null ? `${Math.round(Number(b.output_g) * 10) / 10} g` : '—'}</div>
+              {/* ── summary ── */}
+              <div className="cst-tiles cst-tiles-tight">
+                <div className="cst-tile">
+                  <div className="cst-tile-k">Cost per cooked kg</div>
+                  <div className="cst-tile-v">{fmtPerKg(b.cost_per_g)}</div>
+                  <div className="cst-tile-s"><FlagBadges flags={b.flags} />{!b.flags?.estimated && !b.flags?.unpriced && 'from purchases'}</div>
+                </div>
+                <div className="cst-tile">
+                  {kind === 'single' ? (<>
+                    <div className="cst-tile-k">Yield</div>
+                    <div className="cst-tile-v">{Number(b.yield_pct)}%</div>
+                    <div className="cst-tile-s">{fmtG(b.raw_weight_g)} raw → {fmtG(b.output_g)} cooked</div>
+                  </>) : kind === 'fixed' ? (<>
+                    <div className="cst-tile-k">Batch</div>
+                    <div className="cst-tile-v cst-muted">—</div>
+                    <div className="cst-tile-s">no recipe lines</div>
+                  </>) : (<>
+                    <div className="cst-tile-k">Batch</div>
+                    <div className="cst-tile-v">{fmtEurFine(total, 3)}</div>
+                    <div className="cst-tile-s">
+                      {b.yield_mode === 'pct'
+                        ? `${fmtG(b.raw_weight_g)} raw → ${fmtG(b.output_g)} cooked (${Number(b.yield_pct)}%)`
+                        : `${b.lines.length} lines → ${fmtG(b.output_g)} cooked`}
+                    </div>
+                  </>)}
+                </div>
+                <div className="cst-tile">
+                  <div className="cst-tile-k">Version in force</div>
+                  <div className="cst-tile-v">{b.version_no ? `v${b.version_no}` : '—'}</div>
+                  <div className="cst-tile-s">{b.version_no ? `since ${fmtDate(b.effective_from)} · ${published.length} published` : 'no published version'}</div>
+                </div>
+                <div className="cst-tile">
+                  <div className="cst-tile-k">Used in</div>
+                  <div className="cst-tile-v">{d.dishes.length}</div>
+                  <div className="cst-tile-s">{d.dishes.length === 1 ? 'dish line' : 'dish lines'} · {d.parents.length} recipes</div>
                 </div>
               </div>
 
+              {/* ── ingredients ── */}
               <div className="cst-section">
-                <h4>Breakdown at {fmtDate(d.as_of)}</h4>
-                {b.yield_mode === 'fixed' && !b.lines.length
-                  ? <div className="cst-note">Fixed cost per cooked kg (no recipe lines).</div>
-                  : (
-                    <div className="cst-wrap" style={{ maxHeight: 'none' }}>
-                      <table className="cst-table">
-                        <thead><tr>
-                          <th>Line</th><th className="num">Qty</th><th className="num">Unit cost</th><th>Price source</th>
-                          <th className="num">Line cost</th><th className="num">Share</th><th>Flags</th>
-                        </tr></thead>
-                        <tbody>
-                          {b.lines.map((l, i) => (
+                <h4>{kind === 'single' ? 'Raw ingredient' : 'Ingredients'} <span className="cst-muted" style={{ fontWeight: 400 }}>· priced at {fmtDate(d.as_of)}</span></h4>
+                {kind === 'fixed' ? (
+                  <div className="cst-empty">
+                    <div className="cst-strong">No recipe yet.</div>
+                    <div>The cost is a fixed estimate of <b>{fmtPerKg(b.cost_per_g)}</b> carried over from the kitchen Excel.
+                      It will not follow ingredient prices until a version with recipe lines is added.</div>
+                  </div>
+                ) : (
+                  <div className="cst-wrap" style={{ maxHeight: 'none' }}>
+                    <table className="cst-table cst-recipe">
+                      <thead><tr>
+                        <th>Ingredient</th><th className="num">Qty</th><th className="num">Price</th>
+                        <th className="num">Cost</th><th style={{ width: 130 }}>Share</th>
+                      </tr></thead>
+                      <tbody>
+                        {lines.map((l, i) => {
+                          const share = total > 0 ? Number(l.line_cost) / total : 0
+                          return (
                             <tr key={`${l.kind}:${l.id}:${i}`}>
                               <td>
                                 {l.kind === 'component'
-                                  ? <a href="#" onClick={(e) => { e.preventDefault(); onOpen(l.id) }}>{l.name}</a>
-                                  : l.name}
-                                {l.kind === 'component' && <span className="cst-badge" style={{ marginLeft: 4 }}>component</span>}
+                                  ? <a href="#" onClick={(e) => { e.preventDefault(); onOpen(l.id, comp!.name) }}>{l.name}</a>
+                                  : <Link to={`/admin/costing/items?item=${l.id}`}>{l.name}</Link>}
+                                <FlagBadges flags={l.flags} />
                               </td>
-                              <td className="num">{Number(l.qty)} {l.kind === 'component' ? 'g cooked' : l.unit}</td>
-                              <td className="num">{l.kind === 'component' ? fmtPerKg(l.unit_cost) : fmtUnitCost(l.unit_cost, l.unit as BaseUnit)}</td>
-                              <td>{l.kind === 'item' ? <SourceBadge source={l.source} date={l.price_date} /> : <span className="cst-muted">ledger</span>}</td>
-                              <td className="num">{fmtEurFine(l.line_cost)}</td>
-                              <td className="num">{total > 0 ? fmtPct(Number(l.line_cost) / total) : '—'}</td>
-                              <td><FlagBadges flags={l.flags} /></td>
+                              <td className="num">{Number(l.qty).toLocaleString('el-GR')} {l.kind === 'component' ? 'g' : l.unit}</td>
+                              <td className="num">
+                                {l.kind === 'component' ? fmtPerKg(l.unit_cost) : fmtUnitCost(l.unit_cost, l.unit as BaseUnit)}
+                                {l.kind === 'item' && <div><SourceBadge source={l.source} date={l.price_date} /></div>}
+                              </td>
+                              <td className="num cst-strong">{fmtEurFine(l.line_cost)}</td>
+                              <td>
+                                <div className="cst-share">
+                                  <span style={{ width: `${maxShare > 0 ? (share / maxShare) * 100 : 0}%` }} />
+                                  <em>{fmtPct(share, 0)}</em>
+                                </div>
+                              </td>
                             </tr>
-                          ))}
-                          {!b.lines.length && <tr><td colSpan={7} className="cst-muted">No lines.</td></tr>}
-                        </tbody>
-                      </table>
-                    </div>
-                  )}
+                          )
+                        })}
+                        {!lines.length && <tr><td colSpan={5} className="cst-muted">No lines.</td></tr>}
+                      </tbody>
+                      {lines.length > 0 && (
+                        <tfoot><tr>
+                          <td className="cst-strong">Total</td>
+                          <td className="num cst-muted">→ {fmtG(b.output_g)} cooked</td>
+                          <td className="num cst-strong">{fmtPerKg(b.cost_per_g)}</td>
+                          <td className="num cst-strong">{fmtEurFine(total)}</td>
+                          <td />
+                        </tr></tfoot>
+                      )}
+                    </table>
+                  </div>
+                )}
+                {kind === 'recipe' && <div className="cst-note" style={{ marginTop: 4 }}>Quantities are cooked grams. Click a line to open it.</div>}
               </div>
 
+              {/* ── history ── */}
               <div className="cst-section">
-                <h4>Cost history (per cooked g)</h4>
-                <HistoryChart rows={histRows} valueKey="cost_per_g" fmt={fmtPerKg} />
-                <div className="cst-legend">
-                  <span><i style={{ background: '#2563eb' }} />price change (purchase / standard cost)</span>
-                  <span><i style={{ background: '#f59e0b' }} />version change</span>
+                <h4>Cost history <span className="cst-muted" style={{ fontWeight: 400 }}>· per cooked kg</span></h4>
+                {histRows.length <= 1
+                  ? <div className="cst-note">{histRows.length ? `No change since ${fmtDate(histRows[0].date)} — ${fmtPerKg(histRows[0].cost_per_g)}.` : 'No history yet.'}</div>
+                  : <HistoryChart rows={histRows} valueKey="cost_per_g" fmt={fmtPerKg} />}
+                {histRows.length > 1 && <div className="cst-legend">
+                  <span><i style={{ background: '#2563eb' }} />price change</span>
+                  <span><i style={{ background: '#f59e0b' }} />new version</span>
                   <span><i style={{ background: '#6b7280' }} />other</span>
-                </div>
+                </div>}
               </div>
 
-              <div className="cst-section">
-                <h4>Versions ({versions.length})</h4>
-                <div className="cst-wrap" style={{ maxHeight: 'none' }}>
+              {/* ── used in ── */}
+              {(d.dishes.length > 0 || d.parents.length > 0) && (
+                <div className="cst-section">
+                  {d.dishes.length > 0 && (<>
+                    <h4>Dishes <span className="cst-muted" style={{ fontWeight: 400 }}>· {d.dishes.length}</span></h4>
+                    <Chips more={showAll} onMore={() => setShowAll(true)} items={d.dishes.map((x, i) => (
+                      <Link key={`d:${x.id}:${i}`} className="cst-chip" to={`/admin/costing/dishes?dish=${encodeURIComponent(x.id)}`}
+                            title={`dish line «${x.ingredient}» · ${x.source}`}>{x.name}</Link>))} />
+                  </>)}
+                  {d.parents.length > 0 && (<>
+                    <h4 style={{ marginTop: d.dishes.length ? 10 : 0 }}>Inside recipes <span className="cst-muted" style={{ fontWeight: 400 }}>· {d.parents.length}</span></h4>
+                    <Chips more={showAll} onMore={() => setShowAll(true)} items={d.parents.map((p) => (
+                      <a key={`c:${p.id}`} href="#" className="cst-chip cst-chip-comp" title="recipe that contains this component"
+                         onClick={(e) => { e.preventDefault(); onOpen(p.id, comp!.name) }}>{p.name}</a>))} />
+                  </>)}
+                </div>
+              )}
+
+              {/* ── versions ── */}
+              <details className="cst-section cst-details" open={versions.length > 1}>
+                <summary><h4 style={{ display: 'inline' }}>Versions ({versions.length})</h4></summary>
+                <div className="cst-wrap" style={{ maxHeight: 'none', marginTop: 6 }}>
                   <table className="cst-table">
                     <thead><tr>
-                      <th>Ver.</th><th>Status</th><th>Effective from</th><th>Yield</th><th>What changed</th><th>Who / when</th><th />
+                      <th>Ver.</th><th>From</th><th>Yield</th><th>What changed</th><th />
                     </tr></thead>
                     <tbody>
                       {versions.map((v, i) => (
                         <tr key={v.id} className={b.version_id === v.id ? 'cst-sel' : undefined}>
-                          <td className="cst-strong">v{v.version_no}</td>
-                          <td>{v.status === 'draft' ? <span className="cst-badge cst-warn">draft</span> : <span className="cst-badge cst-ok">published</span>}</td>
-                          <td>{fmtDate(v.effective_from)}</td>
-                          <td>{yieldLabel(v.yield_mode, v.yield_pct, v.output_weight_g)}{v.yield_mode === 'fixed' && ` ${fmtPerKg(v.fixed_cost_per_g)}`}</td>
-                          <td style={{ fontSize: 12 }}>
-                            {versionDiff(v, versions.slice(i + 1).find((p) => p.status === 'published') ?? versions[i + 1]).map((t, j) => <div key={j}>{t}</div>)}
-                            {v.notes && <div className="cst-note">«{v.notes}»</div>}
+                          <td className="cst-strong" style={{ whiteSpace: 'nowrap' }}>
+                            v{v.version_no}{v.status === 'draft' && <span className="cst-badge cst-warn" style={{ marginLeft: 4 }}>draft</span>}
+                            {b.version_id === v.id && <div className="cst-note">in force</div>}
                           </td>
-                          <td style={{ fontSize: 12, whiteSpace: 'nowrap' }}>
-                            {v.created_by ?? <span className="cst-muted">system</span>}
-                            <div className="cst-muted">{new Date(v.created_at).toLocaleString('en-GB', { dateStyle: 'short', timeStyle: 'short' })}</div>
+                          <td style={{ whiteSpace: 'nowrap' }}>{fmtDate(v.effective_from)}</td>
+                          <td style={{ whiteSpace: 'nowrap' }}>{yieldLabel(v.yield_mode, v.yield_pct, v.output_weight_g)}{v.yield_mode === 'fixed' && ` ${fmtPerKg(v.fixed_cost_per_g)}`}</td>
+                          <td style={{ fontSize: 12 }}>
+                            {versionDiff(v, versions.slice(i + 1).find((p) => p.status === 'published') ?? versions[i + 1]).slice(0, 6).map((t, j) => <div key={j}>{t}</div>)}
+                            {v.notes && <div className="cst-note">{v.notes}</div>}
+                            <div className="cst-note">{v.created_by ?? 'system'} · {new Date(v.created_at).toLocaleString('en-GB', { dateStyle: 'short', timeStyle: 'short' })}</div>
                           </td>
                           <td style={{ whiteSpace: 'nowrap', textAlign: 'right' }}>
                             {v.status === 'draft'
                               ? <button className="admin-btn admin-btn-secondary admin-btn-sm" onClick={() => onEdit({ mode: 'draft', meta, from: v })}>Edit draft</button>
-                              : <button className="admin-btn admin-btn-ghost admin-btn-sm" onClick={() => onEdit({ mode: 'version', meta, from: v })}>New version from this</button>}
+                              : <button className="admin-btn admin-btn-ghost admin-btn-sm" onClick={() => onEdit({ mode: 'version', meta, from: v })}>Copy to new</button>}
                           </td>
                         </tr>
                       ))}
-                      {!versions.length && <tr><td colSpan={7} className="cst-muted">No versions yet.</td></tr>}
+                      {!versions.length && <tr><td colSpan={5} className="cst-muted">No versions yet.</td></tr>}
                     </tbody>
                   </table>
                 </div>
-              </div>
-
-              <div className="cst-section" style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 16 }}>
-                <div>
-                  <h4>Used in dishes ({d.dishes.length})</h4>
-                  {!d.dishes.length && <div className="cst-muted" style={{ fontSize: 12 }}>Not linked to any dish.</div>}
-                  <div style={{ fontSize: 12.5, maxHeight: 260, overflow: 'auto' }}>
-                    {d.dishes.map((x, i) => (
-                      <div key={`${x.id}:${i}`} style={{ padding: '2px 0' }}>
-                        <Link to={`/admin/costing/dishes?dish=${encodeURIComponent(x.id)}`}>{x.name}</Link>
-                        <span className="cst-muted"> · {x.ingredient} · {x.source}</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-                <div>
-                  <h4>Used in components ({d.parents.length})</h4>
-                  {!d.parents.length && <div className="cst-muted" style={{ fontSize: 12 }}>None.</div>}
-                  <div style={{ fontSize: 12.5 }}>
-                    {d.parents.map((p) => (
-                      <div key={p.id} style={{ padding: '2px 0' }}>
-                        <a href="#" onClick={(e) => { e.preventDefault(); onOpen(p.id) }}>{p.name}</a>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </div>
+              </details>
             </>
           )}
         </div>
@@ -671,12 +777,15 @@ function VersionEditor({ init, opts, optsErr, categories, onClose, onSaved }: {
 }
 
 // ── quick form: one raw item + yield % ───────────────────────────────────────
-function QuickForm({ opts, optsErr, categories, onClose, onSaved }: {
-  opts: Options | null; optsErr: string | null; categories: string[]
+function QuickForm({ opts, optsErr, categories, presetItemId, onClose, onSaved }: {
+  opts: Options | null; optsErr: string | null; categories: string[]; presetItemId?: string | null
   onClose: () => void; onSaved: (componentId: string) => void
 }) {
-  const [itemId, setItemId] = useState<string | null>(null)
-  const [name, setName] = useState('')
+  const [itemId, setItemId] = useState<string | null>(presetItemId ?? null)
+  // '' = not picked yet, 'na' = no cooking method (no parenthesis in the name)
+  const [method, setMethod] = useState<CookingMethod | 'na' | ''>('')
+  const [base, setBase] = useState<string | null>(null) // null = follow the item name
+  const [other, setOther] = useState('')
   const [category, setCategory] = useState('')
   const [pct, setPct] = useState<number | null>(null)
   const [effective, setEffective] = useState(todayAthens())
@@ -687,15 +796,21 @@ function QuickForm({ opts, optsErr, categories, onClose, onSaved }: {
     () => (opts?.items ?? []).filter((i) => i.kind === 'food').map((i) => ({ id: i.id, label: i.name, hint: `${i.base_unit}${i.active ? '' : ' · inactive'}` })),
     [opts])
   const item = opts?.items.find((i) => i.id === itemId) ?? null
+  const label = method && method !== 'na' ? cookingLabel(method, other) : null
+  const baseName = (base ?? item?.name ?? '').trim()
+  const name = baseName ? (label ? `${baseName} (${label})` : baseName) : ''
 
   const save = async () => {
     if (!item) { setErr('Pick the raw item.'); return }
-    if (!name.trim()) { setErr('Name is required.'); return }
+    if (!method) { setErr('Pick the cooking method (or N/A).'); return }
+    if (!baseName) { setErr('Name is required.'); return }
+    if (method === 'other' && !other.trim()) { setErr('Type the cooking method.'); return }
     if (pct === null || pct <= 0) { setErr('Yield % must be greater than 0.'); return }
     if (!effective) { setErr('Effective date is required.'); return }
     setSaving(true); setErr(null)
     const res = await saveComponentVersion({
-      name: name.trim(), category: category.trim() || null, effective_from: effective,
+      name, category: category.trim() || null, effective_from: effective,
+      cooking_method: method === 'na' ? null : method, cooking_method_other: method === 'other' ? other.trim() : null,
       yield_mode: 'pct', yield_pct: pct, publish: true,
       lines: [{ cost_item_id: item.id, qty: 100 }],
     })
@@ -708,22 +823,38 @@ function QuickForm({ opts, optsErr, categories, onClose, onSaved }: {
     <div className="admin-modal-overlay" style={{ zIndex: 110 }} onClick={() => !saving && onClose()}>
       <div className="admin-modal" style={{ maxWidth: 560 }} onClick={(e) => e.stopPropagation()}>
         <header className="admin-drawer-head">
-          <h2>Quick component — raw item + yield</h2>
+          <h2>New component from a cost item</h2>
           <button className="admin-drawer-close" onClick={() => !saving && onClose()}>×</button>
         </header>
         <div className="admin-drawer-body" style={{ padding: '10px 16px' }}>
           <p className="cst-note" style={{ marginTop: 0 }}>
-            For simple prepared items (e.g. Καρότα, 60%): creates a published component with one line of 100 {item?.base_unit ?? 'units'} of the item and the yield %.
+            One raw item + how it is cooked + yield (e.g. Καρότα, βραστό, 70%). Creates a published component with one line of 100 {item?.base_unit ?? 'units'} of the item.
           </p>
           {optsErr && <div className="cst-inline-err">Could not load items: {optsErr}</div>}
           <div className="cst-grid-form" style={{ gridTemplateColumns: '1fr 1fr' }}>
             <label style={{ gridColumn: '1 / -1' }}>Raw item *
               {opts
-                ? <SearchPick options={itemOpts} value={itemId} autoFocus width="100%"
-                    onChange={(v, o) => { setItemId(v); if (o && !name.trim()) setName(o.label) }} placeholder="Search cost item…" />
+                ? <SearchPick options={itemOpts} value={itemId} autoFocus={!presetItemId} width="100%"
+                    onChange={(v) => setItemId(v)} placeholder="Search cost item…" />
                 : <span className="cst-note">Loading…</span>}
             </label>
-            <label>Name *<input className="admin-input cst-input" value={name} onChange={(e) => setName(e.target.value)} /></label>
+            <label>Cooking method *
+              <select className="admin-input cst-input" value={method} onChange={(e) => setMethod(e.target.value as CookingMethod | 'na' | '')}>
+                <option value="">— pick —</option>
+                <option value="na">N/A (no method)</option>
+                {COOKING_METHODS.map(([k, l]) => <option key={k} value={k}>{l}</option>)}
+              </select>
+            </label>
+            {method === 'other'
+              ? <label>Which method? *<input className="admin-input cst-input" value={other} autoFocus onChange={(e) => setOther(e.target.value)} placeholder="e.g. καπνιστό" /></label>
+              : <div />}
+            <label style={{ gridColumn: '1 / -1' }}>Name (defaults to the item name)
+              <input className="admin-input cst-input" value={base ?? item?.name ?? ''} onChange={(e) => setBase(e.target.value)} placeholder="pick an item" />
+            </label>
+            <div style={{ gridColumn: '1 / -1', fontSize: 13 }}>
+              <span className="cst-note">Will be saved as: </span>
+              {name ? <b>{name}</b> : <span className="cst-muted">pick an item and a method</span>}
+            </div>
             <label>Category<input className="admin-input cst-input" list="cst-comp-cats-q" value={category} onChange={(e) => setCategory(e.target.value)} /></label>
             <label>Yield % *<NumText value={pct} onChange={setPct} width={100} placeholder="e.g. 60" /></label>
             <label>Effective from *<input type="date" className="admin-input cst-input" value={effective} onChange={(e) => setEffective(e.target.value)} /></label>

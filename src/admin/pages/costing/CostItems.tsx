@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { Link } from 'react-router-dom'
 import {
   fetchCostItems, fetchCostItemDetail, saveCostItem,
   type BaseUnit, type CostItemDetail, type CostItemInput, type CostItemRow, type ItemKind,
@@ -315,7 +316,15 @@ function ItemDrawer({ row, categories, onClose, onSaved }: {
               </span>
             )}
           </div>
-          <button className="admin-drawer-close" onClick={() => !saving && onClose()}>×</button>
+          <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+            {row && row.kind === 'food' && (
+              <Link className="admin-btn admin-btn-secondary admin-btn-sm" to={`/admin/costing/components?quick=${row.id}`}
+                    title="Create a single-ingredient component from this item (pick the cooking method and yield)">
+                Make component
+              </Link>
+            )}
+            <button className="admin-drawer-close" onClick={() => !saving && onClose()}>×</button>
+          </div>
         </header>
 
         <div className="admin-drawer-body">

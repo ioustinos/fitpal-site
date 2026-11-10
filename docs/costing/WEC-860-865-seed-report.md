@@ -85,3 +85,19 @@ See the list in `/admin/costing/links` (it filters to exactly these). The 5 with
 ## Production
 
 Nothing has run on production. To seed production after approval: apply the costing migrations, then load the same chunks, run `run_match()`, `seed(<date>)` and `cost_rebuild_all()`.
+
+## Composite recipes + prices as purchases — 10/11/2026 (dev)
+
+Source: Google Sheet «Groups» (one tab per composite, last edited 30/10) and its «New Index Υλικών» tab (live prices).
+Scripts: `scripts/costing-seed/groups/` (parse → match → plan → build_payload), `04_groups_staging.sql`, `05_groups_import.sql`.
+
+- The sheet's tab cost = Σ cooked g × ingredient cost per 100 g cooked. Recomputed: 232/232 tabs reproduce the sheet's own total.
+- 233 tabs → 229 matched to our 230 composites (2 set by hand because the tab's «Τίτλος» was a stale copy). 2,077/2,081 lines match by exact name.
+- **226 composites got v2 = real recipe**, effective 12/10/2026 (v1 fixed cost kept as history). 2,010 lines, 13 of them nested composites; no cycles, max depth 3.
+  At October prices, 216/226 are within 2% of the old fixed cost. Today, 190/226 are within 0.5% of the sheet; the rest differ because the sheet uses pasted values for nested sub-recipes while ours are live.
+- **Kept on fixed cost** (broken in the sheet): Pulled pork (street) — pork line cooked g `#N/A`; Bisque — «Καρκάσες γαρίδας» at €0; ΨΑΡΟΣΟΥΠΑ ΒΕΛΟΥΤΕ (λιανική) — drops €0.49 → €0.10/100 g.
+- **Not imported** (no component of ours, no dish uses them): Πουρέ πατάτας wecook, Στρογκανοφ WeCook, Μους κατσικίσιου τυριού, Σάλτσα για γιουβέτσι μοσχάρι. New ingredients not in our index: Μουστάρδα dijon, Φέτα κατσικίσια, Καρκάσες γαρίδας, Χοιρινή σπάλα (⚠ priced from raw item «Παστέλι» in the sheet).
+- **Prices are now purchases** (🟢 Ioustinos: «add the prices (previous and current) as purchases … one general supplier per category»):
+  8 suppliers «Γενικός προμηθευτής · <category>», invoices `ΤΙΜΕΣ-2026-10-12` (428 lines = every priced item incl. packaging, the seed's Excel prices) and `ΤΙΜΕΣ-2026-11-10` (390 food items, the sheet's current prices). 90 simple components changed price; Φέτα light yield 80% → 100% (v2 from 10/11).
+- Checks after `cost_rebuild_all()`: nightly check 0 mismatches (4,936 values); recipe-tree Σ leaves = food cost for a 300-variant sample; 0 composites still «estimated» among the 226.
+- Dish impact today vs before: 1,369 variants — 353 same to the cent, 389 up, 627 down, average −€0.033, median 0%.
