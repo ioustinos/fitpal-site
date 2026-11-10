@@ -300,7 +300,14 @@ function ItemDrawer({ row, categories, onClose, onSaved }: {
   }
 
   const chartRows = useMemo(
-    () => (detail?.history ?? []).map((h) => ({ date: h.date, unit_cost: h.unit_cost, cause: h.cause })),
+    () => {
+      // ledger rows + every (non-excluded) purchase as its own point, in date order
+      const rows = (detail?.history ?? []).map((h) => ({ date: h.date, unit_cost: Number(h.unit_cost), cause: h.cause }))
+      for (const p of detail?.purchases ?? []) {
+        if (!p.exclude_from_costing) rows.push({ date: p.invoice_date, unit_cost: Number(p.unit_cost), cause: `purchase:${p.invoice_number ?? ''}` })
+      }
+      return rows.sort((a, b) => a.date.localeCompare(b.date) || (a.cause?.startsWith('purchase') ? 1 : -1))
+    },
     [detail])
   const unitChanged = !!row && row.base_unit !== form.base_unit && (row.purchases > 0 || row.used_in_components > 0)
 

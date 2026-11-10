@@ -10,7 +10,7 @@ import type {
 } from '../../../lib/api/adminCosting'
 import {
   CostingTabs, FlagBadges, HistoryChart, NumText, SearchPick, SourceBadge,
-  fmtDate, fmtEurFine, fmtPct, fmtPerKg, fmtUnitCost, skey, todayAthens, useUrlState,
+  fmtCompCost, fmtDate, fmtEurFine, fmtPct, fmtPerKg, fmtQtyUnit, fmtUnitCost, skey, todayAthens, useUrlState,
 } from '../../costing/shared'
 import type { PickOption } from '../../costing/shared'
 
@@ -23,9 +23,9 @@ import type { PickOption } from '../../costing/shared'
 const PAGE = 300
 
 // ── helpers ──────────────────────────────────────────────────────────────────
-function yieldLabel(mode: YieldMode | null | undefined, pct: number | null | undefined, out: number | null | undefined): string {
+function yieldLabel(mode: YieldMode | null | undefined, pct: number | null | undefined, out: number | null | undefined, unit: BaseUnit = 'g'): string {
   if (mode === 'pct') return pct === null || pct === undefined ? '—' : `${Number(pct)}%`
-  if (mode === 'output_weight') return out === null || out === undefined ? 'out —' : `out ${Number(out)} g`
+  if (mode === 'output_weight') return out === null || out === undefined ? 'out —' : `out ${Number(out)} ${unit === 'pcs' ? 'pcs' : unit}`
   if (mode === 'fixed') return 'fixed'
   return '—'
 }
@@ -191,7 +191,7 @@ export function CostComponents() {
       <div className="admin-page-head">
         <div>
           <h1 className="admin-page-title">Components</h1>
-          <p className="admin-page-sub">Anything that goes on a plate, costed per cooked gram. Versions with an effective date.</p>
+          <p className="admin-page-sub">Anything that goes on a plate, costed per cooked gram — or per piece. Versions with an effective date.</p>
         </div>
         <div className="admin-page-actions">
           <button className="admin-btn admin-btn-secondary admin-btn-sm" onClick={openQuick}>+ From a cost item</button>
@@ -229,7 +229,7 @@ export function CostComponents() {
               {th('type', 'Type')}
               {th('method', 'Cooking')}
               {th('category', 'Category')}
-              {th('cost', 'Cost / cooked kg', true)}
+              {th('cost', 'Cost', true)}
               {th('yield', 'Yield')}
               {th('versions', 'Versions', true)}
               {th('change', 'vs 30d', true)}
@@ -249,8 +249,8 @@ export function CostComponents() {
                   : <span className="cst-badge cst-ok" title={r.yield_mode === 'fixed' ? 'Fixed estimate, no recipe lines yet' : `${r.lines} recipe lines`}>Σύνθετο{r.yield_mode === 'fixed' ? ' · fixed' : ''}</span>}</td>
                 <td>{cookingLabel(r.cooking_method, r.cooking_method_other) ?? <span className="cst-muted">—</span>}</td>
                 <td>{r.category ?? <span className="cst-muted">—</span>}</td>
-                <td className="num">{fmtPerKg(r.cost_per_g)}</td>
-                <td>{yieldLabel(r.yield_mode, r.yield_pct, r.output_weight_g)}</td>
+                <td className="num">{fmtCompCost(r.cost_per_g, r.base_unit)}</td>
+                <td>{yieldLabel(r.yield_mode, r.yield_pct, r.output_weight_g, r.base_unit)}</td>
                 <td className="num">
                   {r.versions}{r.drafts > 0 && <span className="cst-badge cst-warn" style={{ marginLeft: 4 }}>+{r.drafts} draft</span>}
                 </td>
@@ -390,8 +390,12 @@ function ComponentDrawer({ id, back, onBack, onClose, onOpen, onEdit, onActiveCh
   const published = versions.filter((v) => v.status === 'published')
   const latestPublished = published[0]
   const comp = d?.component
-  const meta = comp ? { componentId: comp.id, name: comp.name, category: comp.category, notes: comp.notes } : null
+  const meta = comp ? { componentId: comp.id, name: comp.name, category: comp.category, notes: comp.notes, baseUnit: (comp.base_unit ?? 'g') as BaseUnit, gpu: comp.grams_per_unit ?? null } : null
   const kind = b ? componentKind(b) : null
+  const U = (b?.unit ?? comp?.base_unit ?? 'g') as BaseUnit
+  const fmtC = (v: number | null | undefined) => fmtCompCost(v, U)
+  const fmtOut = (v: number | null | undefined) => (U === 'g' ? fmtG(v) : fmtQtyUnit(v, U))
+  const perLabel = U === 'pcs' ? 'piece' : U === 'ml' ? 'litre' : 'cooked kg'
 
   // the ledger starts at 1900 with «no version yet» = 0 €/kg; that is not a price, drop it
   const histRows = useMemo(
@@ -444,15 +448,15 @@ function ComponentDrawer({ id, back, onBack, onClose, onOpen, onEdit, onActiveCh
               {/* ── summary ── */}
               <div className="cst-tiles cst-tiles-tight">
                 <div className="cst-tile">
-                  <div className="cst-tile-k">Cost per cooked kg</div>
-                  <div className="cst-tile-v">{fmtPerKg(b.cost_per_g)}</div>
+                  <div className="cst-tile-k">Cost per {perLabel}</div>
+                  <div className="cst-tile-v">{fmtC(b.cost_per_g)}</div>
                   <div className="cst-tile-s"><FlagBadges flags={b.flags} />{!b.flags?.estimated && !b.flags?.unpriced && 'from purchases'}</div>
                 </div>
                 <div className="cst-tile">
                   {kind === 'single' ? (<>
                     <div className="cst-tile-k">Yield</div>
                     <div className="cst-tile-v">{Number(b.yield_pct)}%</div>
-                    <div className="cst-tile-s">{fmtG(b.raw_weight_g)} raw → {fmtG(b.output_g)} cooked</div>
+                    <div className="cst-tile-s">{U === 'pcs' ? `${fmtQtyUnit(b.raw_pieces, 'pcs')} in → ${fmtOut(b.output_g)} out` : `${fmtG(b.raw_weight_g)} raw → ${fmtG(b.output_g)} cooked`}</div>
                   </>) : kind === 'fixed' ? (<>
                     <div className="cst-tile-k">Batch</div>
                     <div className="cst-tile-v cst-muted">—</div>
@@ -462,8 +466,8 @@ function ComponentDrawer({ id, back, onBack, onClose, onOpen, onEdit, onActiveCh
                     <div className="cst-tile-v">{fmtEurFine(total, 3)}</div>
                     <div className="cst-tile-s">
                       {b.yield_mode === 'pct'
-                        ? `${fmtG(b.raw_weight_g)} raw → ${fmtG(b.output_g)} cooked (${Number(b.yield_pct)}%)`
-                        : `${b.lines.length} lines → ${fmtG(b.output_g)} cooked`}
+                        ? (U === 'pcs' ? `${fmtQtyUnit(b.raw_pieces, 'pcs')} in → ${fmtOut(b.output_g)} (${Number(b.yield_pct)}%)` : `${fmtG(b.raw_weight_g)} raw → ${fmtG(b.output_g)} cooked (${Number(b.yield_pct)}%)`)
+                        : `${b.lines.length} lines → ${fmtOut(b.output_g)}${U === 'g' ? ' cooked' : ''}`}
                     </div>
                   </>)}
                 </div>
@@ -485,7 +489,7 @@ function ComponentDrawer({ id, back, onBack, onClose, onOpen, onEdit, onActiveCh
                 {kind === 'fixed' ? (
                   <div className="cst-empty">
                     <div className="cst-strong">No recipe yet.</div>
-                    <div>The cost is a fixed estimate of <b>{fmtPerKg(b.cost_per_g)}</b> carried over from the kitchen Excel.
+                    <div>The cost is a fixed estimate of <b>{fmtC(b.cost_per_g)}</b> carried over from the kitchen Excel.
                       It will not follow ingredient prices until a version with recipe lines is added.</div>
                   </div>
                 ) : (
@@ -506,9 +510,9 @@ function ComponentDrawer({ id, back, onBack, onClose, onOpen, onEdit, onActiveCh
                                   : <Link to={`/admin/costing/items?item=${l.id}`}>{l.name}</Link>}
                                 <FlagBadges flags={l.flags} />
                               </td>
-                              <td className="num">{Number(l.qty).toLocaleString('el-GR')} {l.kind === 'component' ? 'g' : l.unit}</td>
+                              <td className="num">{fmtQtyUnit(l.qty, l.unit)}</td>
                               <td className="num">
-                                {l.kind === 'component' ? fmtPerKg(l.unit_cost) : fmtUnitCost(l.unit_cost, l.unit as BaseUnit)}
+                                {fmtUnitCost(l.unit_cost, l.unit as BaseUnit)}
                                 {l.kind === 'item' && <div><SourceBadge source={l.source} date={l.price_date} /></div>}
                               </td>
                               <td className="num cst-strong">{fmtEurFine(l.line_cost)}</td>
@@ -526,8 +530,8 @@ function ComponentDrawer({ id, back, onBack, onClose, onOpen, onEdit, onActiveCh
                       {lines.length > 0 && (
                         <tfoot><tr>
                           <td className="cst-strong">Total</td>
-                          <td className="num cst-muted">→ {fmtG(b.output_g)} cooked</td>
-                          <td className="num cst-strong">{fmtPerKg(b.cost_per_g)}</td>
+                          <td className="num cst-muted">→ {fmtOut(b.output_g)}{U === 'g' ? ' cooked' : ''}</td>
+                          <td className="num cst-strong">{fmtC(b.cost_per_g)}</td>
                           <td className="num cst-strong">{fmtEurFine(total)}</td>
                           <td />
                         </tr></tfoot>
@@ -535,13 +539,13 @@ function ComponentDrawer({ id, back, onBack, onClose, onOpen, onEdit, onActiveCh
                     </table>
                   </div>
                 )}
-                {kind === 'recipe' && <div className="cst-note" style={{ marginTop: 4 }}>Quantities are cooked grams. Click a line to open it.</div>}
+                {kind === 'recipe' && <div className="cst-note" style={{ marginTop: 4 }}>Component lines are in that component's unit (cooked grams, or pieces). Click a line to open it.</div>}
               </div>
 
               {/* ── history ── */}
               <div className="cst-section">
-                <h4>Cost history <span className="cst-muted" style={{ fontWeight: 400 }}>· per cooked kg</span></h4>
-                <HistoryChart rows={histRows} valueKey="cost_per_g" fmt={fmtPerKg} />
+                <h4>Cost history <span className="cst-muted" style={{ fontWeight: 400 }}>· per {perLabel}</span></h4>
+                <HistoryChart rows={histRows} valueKey="cost_per_g" fmt={fmtC} />
                 <div className="cst-legend">
                   <span><i style={{ background: '#2563eb' }} />price change</span>
                   <span><i style={{ background: '#f59e0b' }} />new version</span>
@@ -583,7 +587,7 @@ function ComponentDrawer({ id, back, onBack, onClose, onOpen, onEdit, onActiveCh
                             {b.version_id === v.id && <div className="cst-note">in force</div>}
                           </td>
                           <td style={{ whiteSpace: 'nowrap' }}>{fmtDate(v.effective_from)}</td>
-                          <td style={{ whiteSpace: 'nowrap' }}>{yieldLabel(v.yield_mode, v.yield_pct, v.output_weight_g)}{v.yield_mode === 'fixed' && ` ${fmtPerKg(v.fixed_cost_per_g)}`}</td>
+                          <td style={{ whiteSpace: 'nowrap' }}>{yieldLabel(v.yield_mode, v.yield_pct, v.output_weight_g, U)}{v.yield_mode === 'fixed' && ` ${fmtC(v.fixed_cost_per_g)}`}</td>
                           <td style={{ fontSize: 12 }}>
                             {versionDiff(v, versions.slice(i + 1).find((p) => p.status === 'published') ?? versions[i + 1]).slice(0, 6).map((t, j) => <div key={j}>{t}</div>)}
                             {v.notes && <div className="cst-note">{v.notes}</div>}
@@ -610,7 +614,7 @@ function ComponentDrawer({ id, back, onBack, onClose, onOpen, onEdit, onActiveCh
 }
 
 // ── version editor ───────────────────────────────────────────────────────────
-interface CompMeta { componentId: string; name: string; category: string | null; notes: string | null }
+interface CompMeta { componentId: string; name: string; category: string | null; notes: string | null; baseUnit: BaseUnit; gpu: number | null }
 type EditorInit =
   | { mode: 'new' }
   | { mode: 'version'; meta: CompMeta; from?: ComponentVersion }
@@ -633,14 +637,21 @@ function VersionEditor({ init, opts, optsErr, categories, onClose, onSaved }: {
   const [pct, setPct] = useState<number | null>(from?.yield_pct ?? (from ? null : 100))
   const [outW, setOutW] = useState<number | null>(from?.output_weight_g ?? null)
   const [fixedKg, setFixedKg] = useState<number | null>(
-    from?.fixed_cost_per_g !== null && from?.fixed_cost_per_g !== undefined ? Math.round(Number(from.fixed_cost_per_g) * 1000 * 10000) / 10000 : null)
+    from?.fixed_cost_per_g !== null && from?.fixed_cost_per_g !== undefined
+      ? Math.round(Number(from.fixed_cost_per_g) * ((meta?.baseUnit ?? 'g') === 'pcs' ? 1 : 1000) * 10000) / 10000 : null)
   const [vnotes, setVnotes] = useState(init.mode === 'draft' ? from!.notes ?? '' : '')
+  const [unit, setUnit] = useState<BaseUnit>(meta?.baseUnit ?? 'g')
+  const [gpu, setGpu] = useState<number | null>(meta?.gpu ?? null)
+  const outWord = unit === 'pcs' ? 'pieces' : unit === 'ml' ? 'ml' : 'cooked g'
+  const perWord = unit === 'pcs' ? 'piece' : unit === 'ml' ? 'litre' : 'cooked kg'
+  const fixedFactor = unit === 'pcs' ? 1 : 1000
   const [lines, setLines] = useState<EdLine[]>(() =>
     (from?.lines ?? []).map((l) => ({ key: lineSeq++, ref: lineKey(l), qty: Number(l.qty), note: l.note ?? '' })))
   const [saving, setSaving] = useState(false)
   const [err, setErr] = useState<string | null>(null)
 
   const unitOf = useMemo(() => new Map((opts?.items ?? []).map((i) => [i.id, i.base_unit])), [opts])
+  const compUnitOf = useMemo(() => new Map((opts?.comps ?? []).map((c) => [c.id, c.base_unit ?? 'g'])), [opts])
   const pickOpts = useMemo<PickOption[]>(() => {
     if (!opts) return []
     const self = meta?.componentId
@@ -648,24 +659,25 @@ function VersionEditor({ init, opts, optsErr, categories, onClose, onSaved }: {
       id: `i:${i.id}`, label: i.name, hint: `item · ${i.base_unit}${i.kind === 'packaging' ? ' · packaging' : ''}${i.active ? '' : ' · inactive'}`,
     }))
     const comps = opts.comps.filter((c) => c.id !== self).map((c) => ({
-      id: `c:${c.id}`, label: c.name, hint: `component${c.category ? ` · ${c.category}` : ''}${c.active ? '' : ' · inactive'}`,
+      id: `c:${c.id}`, label: c.name, hint: `component${(c.base_unit ?? 'g') === 'pcs' ? ' · per piece' : ''}${c.category ? ` · ${c.category}` : ''}${c.active ? '' : ' · inactive'}`,
     }))
     return [...items, ...comps].sort((a, b) => a.label.localeCompare(b.label, 'el'))
   }, [opts, meta?.componentId])
 
   const setLine = (key: number, patch: Partial<EdLine>) => setLines((ls) => ls.map((l) => (l.key === key ? { ...l, ...patch } : l)))
   const unitLabel = (ref: string | null) =>
-    !ref ? '' : ref.startsWith('c:') ? 'g cooked' : (unitOf.get(ref.slice(2)) ?? '')
+    !ref ? '' : ref.startsWith('c:') ? ((compUnitOf.get(ref.slice(2)) ?? 'g') === 'pcs' ? 'pieces' : (compUnitOf.get(ref.slice(2)) === 'ml' ? 'ml' : 'g cooked')) : (unitOf.get(ref.slice(2)) ?? '')
 
   const validate = (): string | null => {
     if (init.mode === 'new' && !name.trim()) return 'Name is required.'
     if (!effective) return 'Effective date is required.'
     if (mode === 'fixed') {
-      if (fixedKg === null || fixedKg < 0) return 'Enter the fixed € per cooked kg.'
+      if (fixedKg === null || fixedKg < 0) return `Enter the fixed € per ${perWord}.`
       return null
     }
     if (mode === 'pct' && (pct === null || pct <= 0)) return 'Yield % must be greater than 0.'
-    if (mode === 'output_weight' && (outW === null || outW <= 0)) return 'Batch cooked grams must be greater than 0.'
+    if (mode === 'output_weight' && (outW === null || outW <= 0)) return `Batch output (${outWord}) must be greater than 0.`
+    if (unit === 'pcs' && gpu !== null && gpu <= 0) return 'Grams per piece must be greater than 0.'
     const used = lines.filter((l) => l.ref || l.qty !== null)
     if (!used.length) return 'Add at least one line.'
     for (const [i, l] of used.entries()) {
@@ -693,7 +705,9 @@ function VersionEditor({ init, opts, optsErr, categories, onClose, onSaved }: {
       yield_mode: mode,
       yield_pct: mode === 'pct' ? pct : null,
       output_weight_g: mode === 'output_weight' ? outW : null,
-      fixed_cost_per_g: mode === 'fixed' ? (fixedKg ?? 0) / 1000 : null,
+      fixed_cost_per_g: mode === 'fixed' ? (fixedKg ?? 0) / fixedFactor : null,
+      base_unit: unit,
+      grams_per_unit: unit === 'pcs' ? gpu : null,
       publish,
       version_notes: vnotes.trim() || null,
       lines: used.map((l) => ({
@@ -730,16 +744,29 @@ function VersionEditor({ init, opts, optsErr, categories, onClose, onSaved }: {
             <label>Effective from *
               <input type="date" className="admin-input cst-input" value={effective} onChange={(e) => setEffective(e.target.value)} />
             </label>
-            <label>Yield mode
-              <select className="admin-input cst-input" value={mode} onChange={(e) => setMode(e.target.value as YieldMode)}>
-                <option value="pct">Yield % of raw weight</option>
-                <option value="output_weight">Batch output (cooked g)</option>
-                <option value="fixed">Fixed € per cooked kg</option>
+            <label>Unit
+              <select className="admin-input cst-input" value={unit} onChange={(e) => setUnit(e.target.value as BaseUnit)}>
+                <option value="g">per gram (cooked)</option>
+                <option value="ml">per ml</option>
+                <option value="pcs">per piece</option>
               </select>
             </label>
-            {mode === 'pct' && <label>Yield %<NumText value={pct} onChange={setPct} width={100} placeholder="e.g. 60" /></label>}
-            {mode === 'output_weight' && <label>Batch cooked grams<NumText value={outW} onChange={setOutW} width={110} placeholder="e.g. 350" /></label>}
-            {mode === 'fixed' && <label>€ per cooked kg<NumText value={fixedKg} onChange={setFixedKg} width={110} placeholder="e.g. 4,20" /></label>}
+            {unit === 'pcs' && (
+              <label>Grams per piece
+                <NumText value={gpu} onChange={setGpu} width={100} placeholder="e.g. 80" />
+                <span className="cst-note">Turns a dish's grams into pieces (80 g ÷ 80 = 1). Empty = that dish line costs €0 and is flagged.</span>
+              </label>
+            )}
+            <label>Yield mode
+              <select className="admin-input cst-input" value={mode} onChange={(e) => setMode(e.target.value as YieldMode)}>
+                <option value="pct">{unit === 'pcs' ? 'Yield % of the pieces put in' : 'Yield % of raw weight'}</option>
+                <option value="output_weight">Batch output ({outWord})</option>
+                <option value="fixed">Fixed € per {perWord}</option>
+              </select>
+            </label>
+            {mode === 'pct' && <label>Yield %<NumText value={pct} onChange={setPct} width={100} placeholder={unit === 'pcs' ? 'e.g. 100' : 'e.g. 60'} /></label>}
+            {mode === 'output_weight' && <label>Batch output ({outWord})<NumText value={outW} onChange={setOutW} width={110} placeholder={unit === 'pcs' ? 'e.g. 40' : 'e.g. 350'} /></label>}
+            {mode === 'fixed' && <label>€ per {perWord}<NumText value={fixedKg} onChange={setFixedKg} width={110} placeholder="e.g. 4,20" /></label>}
           </div>
           <datalist id="cst-comp-cats">{categories.map((c) => <option key={c} value={c} />)}</datalist>
 
@@ -824,8 +851,10 @@ function QuickForm({ opts, optsErr, categories, presetItemId, onClose, onSaved }
     const res = await saveComponentVersion({
       name, category: category.trim() || null, effective_from: effective,
       cooking_method: method === 'na' ? null : method, cooking_method_other: method === 'other' ? other.trim() : null,
+      // per-piece item → per-piece component (1 piece in, yield % of pieces out); g / ml → per gram / ml
+      base_unit: item.base_unit, grams_per_unit: item.base_unit === 'pcs' ? (item.grams_per_unit ?? null) : null,
       yield_mode: 'pct', yield_pct: pct, publish: true,
-      lines: [{ cost_item_id: item.id, qty: 100 }],
+      lines: [{ cost_item_id: item.id, qty: item.base_unit === 'pcs' ? 1 : 100 }],
     })
     setSaving(false)
     if (res.error) { setErr(res.error); return }
@@ -841,7 +870,7 @@ function QuickForm({ opts, optsErr, categories, presetItemId, onClose, onSaved }
         </header>
         <div className="admin-drawer-body" style={{ padding: '10px 16px' }}>
           <p className="cst-note" style={{ marginTop: 0 }}>
-            One raw item + how it is cooked + yield (e.g. Καρότα, βραστό, 70%). Creates a published component with one line of 100 {item?.base_unit ?? 'units'} of the item.
+            One raw item + how it is cooked + yield (e.g. Καρότα, βραστό, 70%). Creates a published component with one line of {item?.base_unit === 'pcs' ? '1 piece' : `100 ${item?.base_unit ?? 'units'}`} of the item{item?.base_unit === 'pcs' ? ', costed per piece' : ''}.
           </p>
           {optsErr && <div className="cst-inline-err">Could not load items: {optsErr}</div>}
           <div className="cst-grid-form" style={{ gridTemplateColumns: '1fr 1fr' }}>

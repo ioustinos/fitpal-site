@@ -35,6 +35,8 @@ export type CostFlags = {
   zero_output?: boolean
   no_packaging?: boolean
   cycle?: boolean
+  /** dish line linked to a per-piece component that has no «grams per piece» */
+  no_piece_weight?: boolean
 }
 export type BaseUnit = 'g' | 'ml' | 'pcs'
 export type ItemKind = 'food' | 'packaging'
@@ -158,14 +160,14 @@ export const fetchPricesAt = (ids: string[], date: string, excludeInvoice?: stri
 
 /** Light list for pickers: id, name, kind, unit, defaults. */
 export interface CostItemOption {
-  id: string; name: string; kind: ItemKind; base_unit: BaseUnit; active: boolean
+  id: string; name: string; kind: ItemKind; base_unit: BaseUnit; grams_per_unit?: number | null; active: boolean
   default_pack_label: string | null; default_base_qty_per_pack: number; default_vat_rate: number
 }
 export async function fetchCostItemOptions(): Promise<Res<CostItemOption[]>> {
   const out: CostItemOption[] = []
   for (let from = 0; ; from += 1000) {
     const { data, error } = await supabase.from('cost_items')
-      .select('id, name, kind, base_unit, active, default_pack_label, default_base_qty_per_pack, default_vat_rate')
+      .select('id, name, kind, base_unit, grams_per_unit, active, default_pack_label, default_base_qty_per_pack, default_vat_rate')
       .order('name').range(from, from + 999)
     if (error) return { data: null, error: error.message }
     out.push(...(data as CostItemOption[]).map((r) => ({
@@ -315,6 +317,8 @@ export interface ComponentRow {
   versions: number; drafts: number; used_in_dishes: number; used_in_components: number
   /** derived from the version in force: single = one cost-item line (απλό), multi = anything else (σύνθετο) */
   type: 'single' | 'multi'; lines: number
+  /** component unit — cost_per_g is € per this unit */
+  base_unit: BaseUnit; grams_per_unit: number | null
   cooking_method: CookingMethod | null; cooking_method_other: string | null
 }
 export const fetchComponents = () => rpc<ComponentRow[]>('admin_cost_components_overview')
@@ -324,6 +328,8 @@ export interface ComponentBreakdownLine {
   unit_cost: number; source?: CostSource; price_date?: string | null; line_cost: number; flags?: CostFlags
 }
 export interface ComponentBreakdown {
+  /** component unit; cost_per_g is € per this unit */
+  unit?: BaseUnit; grams_per_unit?: number | null; raw_pieces?: number
   cost_per_g: number; total_cost?: number; raw_weight_g?: number; output_g?: number
   version_id?: string; version_no?: number; effective_from?: string
   yield_mode?: YieldMode; yield_pct?: number | null; output_weight_g?: number | null
@@ -336,7 +342,8 @@ export interface ComponentVersion {
   lines: Array<{ id: string; cost_item_id: string | null; child_component_id: string | null; name: string; unit: string; qty: number; note: string | null }>
 }
 export interface ComponentDetail {
-  component: { id: string; name: string; category: string | null; active: boolean; notes: string | null; source_ref: string | null }
+  component: { id: string; name: string; category: string | null; active: boolean; notes: string | null; source_ref: string | null
+    base_unit: BaseUnit; grams_per_unit: number | null; cooking_method: CookingMethod | null; cooking_method_other: string | null }
   as_of: string
   breakdown: ComponentBreakdown
   versions: ComponentVersion[]
@@ -363,6 +370,8 @@ export interface ComponentSaveInput {
   component_id?: string | null
   cooking_method?: CookingMethod | null
   cooking_method_other?: string | null
+  base_unit?: BaseUnit
+  grams_per_unit?: number | null
   /** set to create a component, or to rename an existing one */
   name?: string
   category?: string | null
@@ -394,11 +403,11 @@ export async function setComponentActive(id: string, active: boolean): Promise<R
   return { data: true, error: null }
 }
 
-export interface ComponentOption { id: string; name: string; category: string | null; active: boolean }
+export interface ComponentOption { id: string; name: string; category: string | null; active: boolean; base_unit: BaseUnit }
 export async function fetchComponentOptions(): Promise<Res<ComponentOption[]>> {
   const out: ComponentOption[] = []
   for (let from = 0; ; from += 1000) {
-    const { data, error } = await supabase.from('cost_components').select('id, name, category, active')
+    const { data, error } = await supabase.from('cost_components').select('id, name, category, active, base_unit')
       .order('name').range(from, from + 999)
     if (error) return { data: null, error: error.message }
     out.push(...(data as ComponentOption[]))
@@ -529,7 +538,8 @@ export interface RecipeItemNode {
 /** A component used at `grams` (cooked) in this portion, with its recipe below it. */
 export interface RecipeComponentNode {
   kind: 'component'; id: string; name: string
-  grams: number; cost_per_g: number; cost: number
+  /** qty in the component's unit (grams unless unit = pcs / ml) */
+  grams: number; unit?: BaseUnit; cost_per_g: number; cost: number
   yield_mode: YieldMode | null; yield_pct: number | null; output_weight_g: number | null
   raw_weight_g: number | null; output_g: number | null; version_no: number | null; effective_from: string | null
   /** nothing below it: fixed-cost Excel estimate, no version, or zero output */
@@ -543,12 +553,14 @@ export interface VariantTree {
   food_cost: number; packaging_cost: number; product_cost: number
   lines: Array<{
     ingredient_id: string; ingredient: string; grams: number; link_source: string | null
+    /** grams converted to the linked component's unit (pieces for per-piece components) */
+    qty?: number | null; unit?: BaseUnit; flags?: CostFlags
     unlinked: boolean; line_cost: number | null; tree: RecipeComponentNode | null
   }>
   /** whole portion, summed per purchased cost item */
   items: Array<{ id: string; name: string; unit: string; qty: number; cost: number; unit_cost: number; source: CostSource; price_date: string | null }>
   /** components with no recipe below them (e.g. Excel fixed-cost estimates) */
-  leaf_components: Array<{ id: string; name: string; grams: number; cost: number; yield_mode: YieldMode | null; flags: CostFlags }>
+  leaf_components: Array<{ id: string; name: string; grams: number; unit?: BaseUnit; cost: number; yield_mode: YieldMode | null; flags: CostFlags }>
 }
 export const fetchVariantTree = (variantId: string, date?: string | null) =>
   rpc<VariantTree>('admin_cost_variant_tree', { p_variant: variantId, p_date: date ?? null })

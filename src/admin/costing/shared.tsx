@@ -31,6 +31,16 @@ export function fmtUnitCost(unitCost: number | null | undefined, unit: BaseUnit 
   if (unit === 'ml') return `${EUR2.format(v * 1000)}/L`
   return `${v < 1 ? EUR4.format(v) : EUR2.format(v)}/pc`
 }
+/** Component cost in its own unit: g → €/kg (cooked), ml → €/L, pcs → €/pc. */
+export const fmtCompCost = (v: number | null | undefined, unit: BaseUnit | string | null | undefined) =>
+  fmtUnitCost(v, unit || 'g')
+/** «2 pcs» / «120 g» / «50 ml» */
+export function fmtQtyUnit(q: number | null | undefined, unit: BaseUnit | string | null | undefined): string {
+  if (q === null || q === undefined) return '—'
+  const r = Math.round(Number(q) * 100) / 100
+  const u = unit || 'g'
+  return `${r.toLocaleString('el-GR')} ${u === 'pcs' ? (r === 1 ? 'pc' : 'pcs') : u}`
+}
 /** Component cost per cooked g → €/kg. */
 export const fmtPerKg = (perG: number | null | undefined) =>
   perG === null || perG === undefined ? '—' : `${EUR2.format(Number(perG) * 1000)}/kg`
@@ -76,6 +86,7 @@ export function FlagBadges({ flags }: { flags: CostFlags | null | undefined }) {
   if (flags.no_weight) out.push(<span key="nw" className="cst-badge cst-warn" title="A pcs line has no grams per piece — yield % cannot weigh it">weight?</span>)
   if (flags.zero_output) out.push(<span key="zo" className="cst-badge cst-err">zero output</span>)
   if (flags.cycle) out.push(<span key="cy" className="cst-badge cst-err">cycle</span>)
+  if (flags.no_piece_weight) out.push(<span key="pw" className="cst-badge cst-err" title="Per-piece component without «grams per piece»: the plate's grams cannot be turned into pieces (counted as €0)">g per piece?</span>)
   return <>{out}</>
 }
 
@@ -104,7 +115,7 @@ export function Sparkline({ points, current, days = 90, width = 90, height = 22 
 
 /** Step chart for a cost history with cause markers (item / component / variant detail).
  *  - drops the 1900 «no data yet» baseline (it is not a price of 0)
- *  - collapses consecutive rows with the same value (a re-save that changed nothing)
+ *  - keeps every purchase as a point; merges other same-value repeats (a re-save that changed nothing)
  *  - y-axis fitted to the data with padding; a flat history is drawn mid-height
  *  - real pixel width (ResizeObserver) so text and dots are never stretched
  *  - hover anywhere to read the value in force on that date */
@@ -132,8 +143,12 @@ export function HistoryChart({ rows, valueKey, height = 150, fmt }: {
       if (r.date < '2000-01-01') continue
       const v = Number(r[valueKey])
       if (!Number.isFinite(v)) continue
-      if (out.length && Math.abs(out[out.length - 1].v - v) < 1e-9) continue
-      out.push({ t: new Date(r.date + 'T00:00:00').getTime(), v, cause: r.cause ?? '', date: r.date })
+      const cause = r.cause ?? ''
+      // a purchase is always a point, even at the same price; other repeats (re-saves, rebuilds) are merged
+      const isPurchase = /^(purchase|invoice|item)/.test(cause)
+      if (!isPurchase && out.length && Math.abs(out[out.length - 1].v - v) < 1e-9) continue
+      if (out.length && out[out.length - 1].date === r.date) { out[out.length - 1] = { ...out[out.length - 1], v, cause: isPurchase ? cause : out[out.length - 1].cause }; continue }
+      out.push({ t: new Date(r.date + 'T00:00:00').getTime(), v, cause, date: r.date })
     }
     return out
   }, [rows, valueKey])

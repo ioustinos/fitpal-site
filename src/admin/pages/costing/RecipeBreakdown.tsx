@@ -6,7 +6,7 @@ import {
   type RecipeNode,
   type VariantTree,
 } from '../../../lib/api/adminCosting'
-import { FlagBadges, SourceBadge, fmtEur, fmtEurFine, fmtPct, fmtPerKg, fmtUnitCost } from '../../costing/shared'
+import { FlagBadges, SourceBadge, fmtCompCost, fmtEur, fmtEurFine, fmtPct, fmtQtyUnit, fmtUnitCost } from '../../costing/shared'
 
 /**
  * Dish recipe with cost per ingredient / cost item (WEC-866 follow-up,
@@ -73,10 +73,12 @@ export function RecipeBreakdown({ variantId, asOf, rev, dishId }: { variantId: s
     if (node.kind === 'item') {
       rows.push(
         <tr key={path} className="cst-sub">
-          <td style={pad}><span className="cst-muted">•</span> {node.name}</td>
+          <td style={pad}><span className="cst-muted">•</span>{' '}
+            <Link to={`/admin/costing/items?item=${encodeURIComponent(node.id)}`}>{node.name}</Link></td>
           <td className="cst-muted">cost item</td>
           <td className="num">{fmtQty(node.qty, node.unit)} <span className="cst-muted">raw</span></td>
-          <td className="num">{fmtUnitCost(node.unit_cost, node.unit)} <SourceBadge source={node.source} date={node.price_date} /></td>
+          <td className="num">{fmtUnitCost(node.unit_cost, node.unit)}</td>
+          <td><SourceBadge source={node.source} date={node.price_date} /></td>
           <td className="num">{fmtEurFine(node.cost, 3)}</td>
           <td className="num cst-muted">{fmtPct(share(node.cost))}</td>
         </tr>,
@@ -96,8 +98,11 @@ export function RecipeBreakdown({ variantId, asOf, rev, dishId }: { variantId: s
           <span style={{ marginLeft: 4 }}><FlagBadges flags={node.flags} /></span>
         </td>
         <td className="cst-muted" style={{ fontSize: 11.5 }}>{yieldLabel(node)}</td>
-        <td className="num">{fmtQty(node.grams, 'g')} <span className="cst-muted">cooked</span></td>
-        <td className="num">{fmtPerKg(node.cost_per_g)}</td>
+        <td className="num">{fmtQtyUnit(node.grams, node.unit)}{(node.unit ?? 'g') === 'g' && <span className="cst-muted"> cooked</span>}</td>
+        <td className="num">{fmtCompCost(node.cost_per_g, node.unit)}</td>
+        <td>{node.version_no
+          ? <span className="cst-badge" title="Recipe version in force on this date">v{node.version_no} · from {node.effective_from ? new Date(node.effective_from).toLocaleDateString('el-GR') : '—'}</span>
+          : <span className="cst-muted">—</span>}</td>
         <td className="num">{fmtEurFine(node.cost, 3)}</td>
         <td className="num cst-muted">{fmtPct(share(node.cost))}</td>
       </tr>,
@@ -110,8 +115,9 @@ export function RecipeBreakdown({ variantId, asOf, rev, dishId }: { variantId: s
       const path = `L${i}`
       rows.push(
         <tr key={`h${path}`} style={{ background: 'var(--admin-bg-soft, #f9fafb)' }}>
-          <td colSpan={6} style={{ fontWeight: 600, paddingTop: 7 }}>
-            {l.ingredient} <span className="cst-muted" style={{ fontWeight: 400 }}>· {Number(l.grams)} g on the plate</span>
+          <td colSpan={7} style={{ fontWeight: 600, paddingTop: 7 }}>
+            {l.ingredient} <span className="cst-muted" style={{ fontWeight: 400 }}>· {Number(l.grams)} g on the plate{l.unit === 'pcs' && <> = {l.qty === null || l.qty === undefined ? '? pieces' : fmtQtyUnit(l.qty, 'pcs')}</>}</span>
+            {l.flags?.no_piece_weight && <span className="cst-inline-err" style={{ marginLeft: 6, fontWeight: 400 }}>set «grams per piece» on the component — counted €0</span>}
             <span style={{ marginLeft: 6 }}>{linkBadge(l.link_source)}</span>
             {l.unlinked && (
               <Link to={`/admin/costing/links?dish=${encodeURIComponent(dishId)}`} className="cst-inline-err" style={{ marginLeft: 6, fontWeight: 400 }}>
@@ -151,12 +157,12 @@ export function RecipeBreakdown({ variantId, asOf, rev, dishId }: { variantId: s
           <table className="cst-table">
             <thead>
               <tr><th>Ingredient / component / cost item</th><th>Recipe</th><th className="num">Qty in this portion</th>
-                <th className="num">Unit cost</th><th className="num">Cost</th><th className="num">Share of food</th></tr>
+                <th className="num">Unit cost</th><th>Reference</th><th className="num">Cost</th><th className="num">Share of food</th></tr>
             </thead>
             <tbody>
               {rows}
-              {!t.lines.length && <tr><td colSpan={6} className="cst-muted">No ingredient lines with grams.</td></tr>}
-              <tr><td colSpan={4} style={{ fontWeight: 600 }}>Food cost</td><td className="num" style={{ fontWeight: 600 }}>{fmtEur(t.food_cost)}</td><td /></tr>
+              {!t.lines.length && <tr><td colSpan={7} className="cst-muted">No ingredient lines with grams.</td></tr>}
+              <tr><td colSpan={5} style={{ fontWeight: 600 }}>Food cost</td><td className="num" style={{ fontWeight: 600 }}>{fmtEur(t.food_cost)}</td><td /></tr>
             </tbody>
           </table>
           <p className="cst-note" style={{ marginTop: 4 }}>
@@ -193,8 +199,8 @@ export function RecipeBreakdown({ variantId, asOf, rev, dishId }: { variantId: s
                     <Fragment key={c.id}>
                       <tr className="cst-sub">
                         <td><Link to={`/admin/costing/components?id=${encodeURIComponent(c.id)}`}>{c.name}</Link>{' '}<FlagBadges flags={c.flags} /></td>
-                        <td className="num">{fmtQty(c.grams, 'g')} <span className="cst-muted">cooked</span></td>
-                        <td className="num">{fmtPerKg(Number(c.cost) / Math.max(Number(c.grams), 1e-9))}</td>
+                        <td className="num">{fmtQtyUnit(c.grams, c.unit)}{(c.unit ?? 'g') === 'g' && <span className="cst-muted"> cooked</span>}</td>
+                        <td className="num">{fmtCompCost(Number(c.cost) / Math.max(Number(c.grams), 1e-9), c.unit)}</td>
                         <td className="cst-muted" style={{ fontSize: 11.5 }}>{c.yield_mode === 'fixed' ? 'fixed (Excel)' : 'no recipe'}</td>
                         <td className="num">{fmtEurFine(c.cost, 3)}</td>
                         <td className="num cst-muted">{fmtPct(share(Number(c.cost)))}</td>
