@@ -60,7 +60,7 @@ export function skey(s: string | null | undefined): string {
 // ── badges ───────────────────────────────────────────────────────────────────
 export function SourceBadge({ source, date }: { source: CostSource | null | undefined; date?: string | null }) {
   if (source === 'purchase') return <span className="cst-badge cst-ok" title="Last purchase on or before the date">purchase {fmtDate(date)}</span>
-  if (source === 'standard') return <span className="cst-badge cst-est" title="Standard cost (estimate) — no purchase yet">estimated</span>
+  if (source === 'standard') return <span className="cst-badge cst-est" title="Fallback price (estimate) — no purchase yet">estimated</span>
   if (source === 'unpriced') return <span className="cst-badge cst-err" title="No price — counts as €0">unpriced</span>
   return <span className="cst-badge">—</span>
 }
@@ -71,7 +71,7 @@ export function FlagBadges({ flags }: { flags: CostFlags | null | undefined }) {
   if (flags.unlinked) out.push(<span key="ul" className="cst-badge cst-err" title="Dish lines without a costing component">{flags.unlinked} unlinked</span>)
   if (flags.unpriced) out.push(<span key="up" className="cst-badge cst-err" title="Contains unpriced items (counted as €0)">unpriced</span>)
   if (flags.no_version) out.push(<span key="nv" className="cst-badge cst-err" title="No published version on this date">no version</span>)
-  if (flags.estimated) out.push(<span key="es" className="cst-badge cst-est" title="Contains estimated costs (Excel / standard cost)">estimated</span>)
+  if (flags.estimated) out.push(<span key="es" className="cst-badge cst-est" title="Contains estimated costs (Excel / fallback price)">estimated</span>)
   if (flags.no_packaging) out.push(<span key="np" className="cst-badge cst-warn" title="No packaging set for this dish">no packaging</span>)
   if (flags.no_weight) out.push(<span key="nw" className="cst-badge cst-warn" title="A pcs line has no grams per piece — yield % cannot weigh it">weight?</span>)
   if (flags.zero_output) out.push(<span key="zo" className="cst-badge cst-err">zero output</span>)

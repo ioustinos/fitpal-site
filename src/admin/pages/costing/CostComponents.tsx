@@ -45,7 +45,7 @@ function ChangeCell({ v }: { v: number | null }) {
 function chartCause(c: string | null): string {
   if (!c) return 'other'
   if (c.startsWith('purchase') || c.startsWith('invoice')) return c
-  if (c.startsWith('item:')) return `purchase/standard cost change (${c})`
+  if (c.startsWith('item:')) return `purchase / fallback price change (${c})`
   if (c.startsWith('version') || c.startsWith('component')) return c
   return `other (${c})`
 }

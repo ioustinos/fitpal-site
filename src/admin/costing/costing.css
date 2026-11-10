@@ -107,3 +107,8 @@
 .cst-details > summary { cursor: pointer; list-style: revert; }
 .cst-chip-more { cursor: pointer; color: #15803d; border-color: #bbf7d0; background: #f0fdf4; font-weight: 600; }
 .cst-table td.cst-name > div { max-width: 240px; min-width: 120px; white-space: normal; overflow-wrap: anywhere; line-height: 1.3; }
+.cst-price-tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); margin-bottom: 14px; }
+.cst-price-tiles .cst-tile-s { line-height: 1.4; }
+.cst-tile-dim { background: #f9fafb; }
+.cst-tile-dim .cst-tile-v { color: #6b7280; }
+@media (max-width: 560px) { .cst-price-tiles { grid-template-columns: 1fr; } }

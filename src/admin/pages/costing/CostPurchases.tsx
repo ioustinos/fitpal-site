@@ -544,7 +544,7 @@ function LineRow({ l, idx, item, prev, itemOptions, autoFocus, error, onPick, on
       const big = Math.abs(d) > 0.15
       const txt = `${d >= 0 ? '+' : '−'}${Math.abs(d * 100).toFixed(1)}%`
       delta = (
-        <span title={`Previous: ${fmtUnitCost(prev.unit_cost, unit)}${prev.source === 'purchase' ? ` (purchase ${fmtDate(prev.price_date)})` : ' (estimated standard cost)'}`}>
+        <span title={`Previous: ${fmtUnitCost(prev.unit_cost, unit)}${prev.source === 'purchase' ? ` (purchase ${fmtDate(prev.price_date)})` : ' (fallback price, estimated)'}`}>
           <span className={big ? `${d > 0 ? 'cst-pos' : 'cst-neg'} cst-strong` : undefined}>{txt}</span>
           {prev.source === 'standard' && <span className="cst-muted" style={{ fontSize: 11 }}> vs est.</span>}
         </span>

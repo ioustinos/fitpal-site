@@ -268,7 +268,7 @@ function ItemDrawer({ row, categories, onClose, onSaved }: {
     if (!form.name.trim()) return 'Name is required.'
     if (form.default_base_qty_per_pack === null || form.default_base_qty_per_pack <= 0) return `Default pack size must be a positive number of ${form.base_unit}.`
     if (form.vat_pct === null || form.vat_pct < 0 || form.vat_pct > 100) return 'VAT must be a percentage between 0 and 100 (e.g. 13).'
-    if (form.std_human !== null && form.std_human < 0) return 'Standard cost cannot be negative.'
+    if (form.std_human !== null && form.std_human < 0) return 'Fallback price cannot be negative.'
     if (form.grams_per_unit !== null && form.grams_per_unit <= 0) return 'Grams per piece must be positive (or empty).'
     return null
   }
@@ -328,6 +328,35 @@ function ItemDrawer({ row, categories, onClose, onSaved }: {
         </header>
 
         <div className="admin-drawer-body">
+          {row && (() => {
+            const cur = detail?.current
+            const curLine = cur?.purchase_line_id ? detail?.purchases.find((p) => p.line_id === cur.purchase_line_id) : undefined
+            const src = cur?.source ?? row.source
+            const fallbackInUse = src === 'standard'
+            return (
+              <div className="cst-tiles cst-price-tiles">
+                <div className="cst-tile">
+                  <div className="cst-tile-k">Current price</div>
+                  <div className="cst-tile-v">{fmtUnitCost(cur?.unit_cost ?? row.unit_cost, row.base_unit)}</div>
+                  <div className="cst-tile-s">
+                    {src === 'purchase' && <>From the latest purchase, {fmtDate(cur?.price_date ?? row.price_date)}
+                      {curLine && <> · {curLine.supplier ?? 'no supplier'}{curLine.invoice_number ? ` · ${curLine.invoice_number}` : ''}</>}</>}
+                    {src === 'standard' && <span className="cst-badge cst-warn">estimated</span>}
+                    {src === 'standard' && ' No purchase yet, so the fallback price is used.'}
+                    {src === 'unpriced' && <><span className="cst-badge cst-err">unpriced</span> No purchase and no fallback price: counted as €0.</>}
+                  </div>
+                </div>
+                <div className={`cst-tile${fallbackInUse ? '' : ' cst-tile-dim'}`}>
+                  <div className="cst-tile-k">Fallback price {fallbackInUse ? '· in use' : '· not in use'}</div>
+                  <div className="cst-tile-v">{row.standard_cost_per_unit === null ? <span className="cst-muted">not set</span> : fmtUnitCost(row.standard_cost_per_unit, row.base_unit)}</div>
+                  <div className="cst-tile-s">
+                    Used only for dates with no purchase on or before them, e.g. a new item before its first invoice.
+                    Costs that use it are marked «estimated». As soon as a purchase exists, the latest purchase wins.
+                  </div>
+                </div>
+              </div>
+            )
+          })()}
           <div className="cst-grid-form">
             <label style={{ gridColumn: '1 / -1' }}>Name *
               <input className="admin-input cst-input" value={form.name} autoFocus={!row} onChange={(e) => set('name', e.target.value)} />
@@ -364,13 +393,13 @@ function ItemDrawer({ row, categories, onClose, onSaved }: {
             <label>Default VAT (%) *
               <NumText value={form.vat_pct} onChange={(v) => set('vat_pct', v)} width={80} align="left" placeholder="13" />
             </label>
-            <label>Standard cost ({human.label}, net)
+            <label>Fallback price ({human.label}, net)
               <NumText value={form.std_human} onChange={(v) => set('std_human', v)} width={120} align="left" placeholder="empty = none" />
               <span className="cst-note">
                 {form.base_unit === 'pcs'
                   ? 'Stored as € per piece'
                   : <>Stored per {form.base_unit}: {human.label} ÷ 1000{stdBase !== null ? <> = {stdBase.toFixed(6)} €/{form.base_unit}</> : null}</>}
-                {'. '}Used only until the first purchase.
+                {'. '}Used only when there is no purchase yet.
               </span>
             </label>
             <label style={{ flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'end' }}>
@@ -402,7 +431,7 @@ function ItemDrawer({ row, categories, onClose, onSaved }: {
                   <div className="cst-section">
                     <h4>Purchases ({detail.purchases.length})</h4>
                     {detail.purchases.length === 0
-                      ? <div className="cst-muted">No purchases yet — cost comes from the standard cost{row.source === 'unpriced' ? ' (none set: counted as €0)' : ''}.</div>
+                      ? <div className="cst-muted">No purchases yet — cost comes from the fallback price{row.source === 'unpriced' ? ' (none set: counted as €0)' : ''}.</div>
                       : (
                         <div className="cst-wrap" style={{ maxHeight: 260 }}>
                           <table className="cst-table">
