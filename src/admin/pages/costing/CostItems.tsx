@@ -191,7 +191,7 @@ export function CostItems() {
             {visible.map((r) => (
               <tr key={r.id} className={`cst-click${r.id === openId ? ' cst-sel' : ''}`} style={r.active ? undefined : { opacity: 0.5 }}
                   onClick={() => setOpenId(r.id)}>
-                <td className="cst-strong">{r.name}{!r.active && <span className="cst-badge" style={{ marginLeft: 6 }}>inactive</span>}</td>
+                <td className="cst-strong cst-name"><div>{r.name}{!r.active && <span className="cst-badge" style={{ marginLeft: 6 }}>inactive</span>}</div></td>
                 <td>{r.kind === 'packaging' ? <span className="cst-badge">packaging</span> : 'food'}</td>
                 <td>{r.category ?? <span className="cst-muted">—</span>}</td>
                 <td>{r.base_unit}{r.base_unit === 'pcs' && r.grams_per_unit ? <span className="cst-muted"> ({Number(r.grams_per_unit)} g)</span> : null}</td>

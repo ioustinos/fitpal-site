@@ -74,7 +74,7 @@ function versionDiff(v: ComponentVersion, prev: ComponentVersion | undefined): s
   return out.length ? out : ['no changes']
 }
 
-type SortKey = 'name' | 'category' | 'cost' | 'yield' | 'versions' | 'change' | 'used'
+type SortKey = 'name' | 'type' | 'method' | 'category' | 'cost' | 'yield' | 'versions' | 'change' | 'used'
 
 interface Options { items: CostItemOption[]; comps: ComponentOption[] }
 
@@ -87,6 +87,7 @@ export function CostComponents() {
   const [cat, setCat] = useUrlState('cat')
   const [est, setEst] = useUrlState('est')
   const [fixed, setFixed] = useUrlState('fixed')
+  const [typ, setTyp] = useUrlState('type') // '' | single | multi
   const [inactive, setInactive] = useUrlState('inactive')
   const [sort, setSort] = useUrlState('sort', 'name')
   const [id, setId] = useUrlState('id')
@@ -135,10 +136,13 @@ export function CostComponents() {
       && (!cat || (cat === '__none' ? !r.category : r.category === cat))
       && (est !== '1' || !!r.flags?.estimated)
       && (fixed !== '1' || r.yield_mode === 'fixed')
+      && (!typ || r.type === typ)
       && words.every((w) => k.includes(w)))
     const val = (x: (typeof list)[number]): number | string => {
       switch (key) {
         case 'category': return x.r.category ?? '￿'
+        case 'type': return x.r.type
+        case 'method': return cookingLabel(x.r.cooking_method, x.r.cooking_method_other) ?? '￿'
         case 'cost': return x.r.cost_per_g ?? -1
         case 'yield': return x.r.yield_mode === 'pct' ? Number(x.r.yield_pct ?? 0) : x.r.yield_mode === 'output_weight' ? 1000 + Number(x.r.output_weight_g ?? 0) : -1
         case 'versions': return x.r.versions
@@ -153,10 +157,10 @@ export function CostComponents() {
       return (desc ? -c : c) || a.r.name.localeCompare(b.r.name, 'el')
     })
     return list
-  }, [indexed, q, cat, est, fixed, inactive, sort])
+  }, [indexed, q, cat, est, fixed, typ, inactive, sort])
 
   // «Show more» limit, reset whenever the filter signature changes
-  const sig = [q, cat, est, fixed, inactive, sort].join('|')
+  const sig = [q, cat, est, fixed, typ, inactive, sort].join('|')
   const [lim, setLim] = useState({ sig, n: PAGE })
   const limit = lim.sig === sig ? lim.n : PAGE
   const shown = filtered.slice(0, limit)
@@ -200,6 +204,11 @@ export function CostComponents() {
 
       <div className="cst-toolbar">
         <input className="admin-input" placeholder="Search name / category…" value={q} onChange={(e) => setQ(e.target.value)} style={{ width: 240 }} />
+        <select className="admin-input" value={typ} onChange={(e) => setTyp(e.target.value)} style={{ width: 150 }}>
+          <option value="">All types</option>
+          <option value="single">Απλό (1 ingredient)</option>
+          <option value="multi">Σύνθετο (recipe)</option>
+        </select>
         <select className="admin-input" value={cat} onChange={(e) => setCat(e.target.value)} style={{ width: 190 }}>
           <option value="">All categories</option>
           <option value="__none">(no category)</option>
@@ -217,6 +226,8 @@ export function CostComponents() {
           <thead>
             <tr>
               {th('name', 'Name')}
+              {th('type', 'Type')}
+              {th('method', 'Cooking')}
               {th('category', 'Category')}
               {th('cost', 'Cost / cooked kg', true)}
               {th('yield', 'Yield')}
@@ -227,12 +238,16 @@ export function CostComponents() {
             </tr>
           </thead>
           <tbody>
-            {loading && !rows.length && <tr><td colSpan={8} className="cst-muted">Loading…</td></tr>}
-            {!loading && !filtered.length && <tr><td colSpan={8} className="cst-muted">No matches.</td></tr>}
+            {loading && !rows.length && <tr><td colSpan={10} className="cst-muted">Loading…</td></tr>}
+            {!loading && !filtered.length && <tr><td colSpan={10} className="cst-muted">No matches.</td></tr>}
             {shown.map(({ r, ch }) => (
               <tr key={r.id} className={`cst-click${r.id === id ? ' cst-sel' : ''}`} style={r.active ? undefined : { opacity: 0.5 }}
                   onClick={() => { setTrail([]); setId(r.id) }}>
-                <td className="cst-strong">{r.name}{!r.active && <span className="cst-badge" style={{ marginLeft: 6 }}>inactive</span>}</td>
+                <td className="cst-strong cst-name"><div>{r.name}{!r.active && <span className="cst-badge" style={{ marginLeft: 6 }}>inactive</span>}</div></td>
+                <td>{r.type === 'single'
+                  ? <span className="cst-badge" title="One cost item + yield">Απλό</span>
+                  : <span className="cst-badge cst-ok" title={r.yield_mode === 'fixed' ? 'Fixed estimate, no recipe lines yet' : `${r.lines} recipe lines`}>Σύνθετο{r.yield_mode === 'fixed' ? ' · fixed' : ''}</span>}</td>
+                <td>{cookingLabel(r.cooking_method, r.cooking_method_other) ?? <span className="cst-muted">—</span>}</td>
                 <td>{r.category ?? <span className="cst-muted">—</span>}</td>
                 <td className="num">{fmtPerKg(r.cost_per_g)}</td>
                 <td>{yieldLabel(r.yield_mode, r.yield_pct, r.output_weight_g)}</td>
@@ -306,9 +321,9 @@ function componentKind(b: ComponentBreakdown): CompKind {
 }
 
 const KIND_BADGE: Record<CompKind, [string, string]> = {
-  recipe: ['cst-ok', 'Recipe'],
-  single: ['', 'Single ingredient'],
-  fixed: ['cst-warn', 'Fixed estimate — no recipe'],
+  recipe: ['cst-ok', 'Σύνθετο · recipe'],
+  single: ['', 'Απλό · single ingredient'],
+  fixed: ['cst-warn', 'Σύνθετο · fixed estimate, no recipe'],
   empty: ['cst-err', 'No lines'],
 }
 

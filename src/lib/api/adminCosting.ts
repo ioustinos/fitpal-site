@@ -313,6 +313,9 @@ export interface ComponentRow {
   cost_per_g: number | null; cost_per_g_30d: number | null; flags: CostFlags | null
   yield_mode: YieldMode | null; yield_pct: number | null; output_weight_g: number | null; version_no: number | null
   versions: number; drafts: number; used_in_dishes: number; used_in_components: number
+  /** derived from the version in force: single = one cost-item line (απλό), multi = anything else (σύνθετο) */
+  type: 'single' | 'multi'; lines: number
+  cooking_method: CookingMethod | null; cooking_method_other: string | null
 }
 export const fetchComponents = () => rpc<ComponentRow[]>('admin_cost_components_overview')
 

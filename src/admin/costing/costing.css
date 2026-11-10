@@ -106,3 +106,4 @@
 .cst-chip-comp { border-style: dashed; }
 .cst-details > summary { cursor: pointer; list-style: revert; }
 .cst-chip-more { cursor: pointer; color: #15803d; border-color: #bbf7d0; background: #f0fdf4; font-weight: 600; }
+.cst-table td.cst-name > div { max-width: 240px; min-width: 120px; white-space: normal; overflow-wrap: anywhere; line-height: 1.3; }
