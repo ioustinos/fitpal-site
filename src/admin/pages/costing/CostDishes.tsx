@@ -7,6 +7,7 @@ import {
   fetchDishPackaging,
   fetchVariantDetail,
   type CostFlags,
+  type CostSource,
   type CostItemOption,
   type DishCostRow,
   type DishCostVariant,
@@ -53,6 +54,12 @@ const pctOf = (cost: number | null | undefined, price: number | null | undefined
   return Number(cost) / base
 }
 const n = (v: unknown): number | null => (v === null || v === undefined || v === '' ? null : Number(v))
+/** Net profit per portion = selling price without VAT − product cost (food + packaging). VAT is never revenue. */
+const profitOf = (cost: number | null | undefined, price: number | null | undefined): number | null => {
+  const base = priceBase(price, 'net')
+  if (base === null || cost === null || cost === undefined) return null
+  return base - Number(cost)
+}
 
 // ── derived list model ───────────────────────────────────────────────────────
 interface Range { min: number | null; max: number | null }
@@ -60,7 +67,7 @@ interface DishView {
   d: DishCostRow
   variants: DishCostVariant[]
   key: string
-  price: Range; food: Range; pack: Range; product: Range; foodPct: Range; productPct: Range
+  price: Range; food: Range; pack: Range; product: Range; foodPct: Range; productPct: Range; profit: Range
   flags: CostFlags
   problem: boolean
 }
@@ -101,6 +108,7 @@ function buildView(d: DishCostRow, b: Base): DishView {
     product: range(variants.map((v) => n(v.product_cost))),
     foodPct: range(variants.map((v) => pctOf(v.food_cost, v.price, b))),
     productPct: range(variants.map((v) => pctOf(v.product_cost, v.price, b))),
+    profit: range(variants.map((v) => profitOf(v.product_cost, v.price))),
     flags,
     problem: !!(flags.unlinked || flags.unpriced || flags.no_packaging || flags.no_version || flags.cycle),
   }
@@ -161,6 +169,7 @@ const DishRows = memo(function DishRows({ v, base, open, selected, onToggleOpen,
         <td className="num cst-strong">{fmtRange(v.product, fmtEur)}</td>
         <td className="num">{fmtPctRange(v.foodPct)}</td>
         <td className="num cst-strong" style={{ color: pctColor(v.productPct.max) }}>{fmtPctRange(v.productPct)}</td>
+        <td className="num cst-strong" style={{ color: v.profit.min !== null && v.profit.min < 0 ? '#b91c1c' : undefined }}>{fmtRange(v.profit, fmtEur)}</td>
         <td><Flags dishId={d.id} flags={v.flags} /></td>
       </tr>
       {open && v.variants.map((x) => {
@@ -178,6 +187,7 @@ const DishRows = memo(function DishRows({ v, base, open, selected, onToggleOpen,
             <td className="num cst-strong">{fmtEur(x.product_cost)}</td>
             <td className="num">{fmtPct(fp)}</td>
             <td className="num cst-strong" style={{ color: pctColor(pp) }}>{fmtPct(pp)}</td>
+            <td className="num cst-strong">{fmtEur(profitOf(x.product_cost, x.price))}</td>
             <td><Flags dishId={d.id} flags={x.flags} /></td>
           </tr>
         )
@@ -249,6 +259,7 @@ export function CostDishes() {
       if (field === 'name') return (desc ? -1 : 1) * a.d.name.localeCompare(b.d.name, 'el')
       if (field === 'food') return nullLast(a.food.max, b.food.max) || a.d.name.localeCompare(b.d.name, 'el')
       if (field === 'product') return nullLast(a.product.max, b.product.max) || a.d.name.localeCompare(b.d.name, 'el')
+      if (field === 'profit') return nullLast(a.profit.min, b.profit.min) || a.d.name.localeCompare(b.d.name, 'el')
       return nullLast(a.productPct.max, b.productPct.max) || a.d.name.localeCompare(b.d.name, 'el')
     })
     return out
@@ -353,6 +364,7 @@ export function CostDishes() {
                 {sortTh('product', 'Product cost')}
                 <th className="num" title="Food cost ÷ selling price">Food % ({baseLabel(base)})</th>
                 {sortTh('pct', `Product % (${baseLabel(base)})`)}
+                {sortTh('profit', 'Net profit / portion')}
                 <th>Flags</th>
               </tr>
             </thead>
@@ -362,7 +374,7 @@ export function CostDishes() {
                   onToggleOpen={toggleOpen} onToggleSel={toggleSel} onOpen={openDish} />
               ))}
               {!shown.length && !loading && (
-                <tr><td colSpan={11} className="admin-empty">No dishes match.</td></tr>
+                <tr><td colSpan={12} className="admin-empty">No dishes match.</td></tr>
               )}
             </tbody>
           </table>
@@ -376,7 +388,7 @@ export function CostDishes() {
         </div>
       )}
       <div className="cst-note" style={{ marginTop: 6 }}>
-        Prices are gross selling prices (VAT incl.). Product cost = food + packaging. Ranges show min – max across variants;
+        Prices are gross selling prices (VAT incl.). Product cost = food + packaging. Net profit = price without 13% VAT − product cost. Ranges show min – max across variants;
         product % sorts by the worst variant. Costs as of {fmtDate(asOf)}.
       </div>
 
@@ -403,13 +415,18 @@ interface PackRow { uid: number; cost_item_id: string | null; qty: number | null
 let uidSeq = 1
 const newRow = (cost_item_id: string | null = null, qty: number | null = 1): PackRow => ({ uid: uidSeq++, cost_item_id, qty })
 
-function PackRowsEditor({ rows, setRows, options, disabled }: {
+type PackCost = { unit_cost: number; line_cost: number; source: CostSource; price_date?: string | null }
+function PackRowsEditor({ rows, setRows, options, disabled, costs, share }: {
   rows: PackRow[]; setRows: (f: (r: PackRow[]) => PackRow[]) => void; options: PickOption[]; disabled?: boolean
+  /** drawer only: this variant's priced packaging, by cost item */
+  costs?: Map<string, PackCost>; share?: (c: number | null | undefined) => number | null
 }) {
   return (
     <table className="cst-table">
       <thead>
-        <tr><th>Packaging item</th><th className="num" style={{ width: 110 }}>Qty / portion</th><th style={{ width: 40 }} /></tr>
+        <tr><th>Packaging item</th><th className="num" style={{ width: 110 }}>Qty / portion</th>
+          {costs && <><th className="num">Unit cost</th><th>Reference</th><th className="num">Line cost</th><th className="num">Share</th></>}
+          <th style={{ width: 40 }} /></tr>
       </thead>
       <tbody>
         {rows.map((r) => (
@@ -422,13 +439,22 @@ function PackRowsEditor({ rows, setRows, options, disabled }: {
               <NumText value={r.qty} width={80} disabled={disabled}
                 onChange={(v) => setRows((rs) => rs.map((x) => (x.uid === r.uid ? { ...x, qty: v } : x)))} />
             </td>
+            {costs && (() => {
+              const c = r.cost_item_id ? costs.get(r.cost_item_id) : undefined
+              return c ? (<>
+                <td className="num">{fmtEur(c.unit_cost)}</td>
+                <td><SourceBadge source={c.source} date={c.price_date} /></td>
+                <td className="num">{fmtEur(c.line_cost)}</td>
+                <td className="num cst-muted">{fmtPct(share ? share(c.line_cost) : null)}</td>
+              </>) : <td colSpan={4} className="cst-muted">{r.cost_item_id ? 'save to cost it' : ''}</td>
+            })()}
             <td>
               <button className="admin-btn admin-btn-ghost admin-btn-sm" title="Remove" disabled={disabled}
                 onClick={() => setRows((rs) => rs.filter((x) => x.uid !== r.uid))}>×</button>
             </td>
           </tr>
         ))}
-        {!rows.length && <tr><td colSpan={3} className="cst-muted">No packaging.</td></tr>}
+        {!rows.length && <tr><td colSpan={costs ? 7 : 3}><span className="cst-badge cst-warn">no packaging</span></td></tr>}
       </tbody>
     </table>
   )
@@ -510,6 +536,8 @@ function DishDrawer({ view, asOf, base, packOptions, onClose, onSaved }: {
   const hist = det?.data?.history ?? []
   const product = n(b?.product_cost) ?? 0
   const share = (c: number | null | undefined) => (product > 0 && c !== null && c !== undefined ? Number(c) / product : null)
+  const packCosts = useMemo(() => new Map((b?.packaging ?? []).map((p) => [p.cost_item_id, {
+    unit_cost: Number(p.unit_cost), line_cost: Number(p.line_cost), source: p.source, price_date: p.price_date ?? null }])), [b])
 
   return (
     <div className="admin-drawer-overlay" onClick={onClose}>
@@ -545,33 +573,18 @@ function DishDrawer({ view, asOf, base, packOptions, onClose, onSaved }: {
                 <span>Food % <b>{fmtPct(pctOf(b.food_cost, b.price, base))}</b></span>
                 <span>Product % <b style={{ color: pctColor(pctOf(b.product_cost, b.price, base)) }}>{fmtPct(pctOf(b.product_cost, b.price, base))}</b>
                   <span className="cst-muted"> {baseLabel(base)}</span></span>
+                {(() => {
+                  const pr = profitOf(b.product_cost, b.price); const nb = priceBase(b.price, 'net')
+                  return (
+                    <span title="Price without 13% VAT − product cost (food + packaging)">Net profit <b style={{ color: pr !== null && pr < 0 ? '#b91c1c' : '#15803d' }}>{fmtEur(pr)}</b>
+                      {pr !== null && nb ? <span className="cst-muted"> ({fmtPct(pr / nb)} margin)</span> : null}</span>
+                  )
+                })()}
                 <span><Flags dishId={d.id} flags={b.flags} /></span>
               </div>
 
               {/* recipe + cost per ingredient / cost item (replaces the flat «Food lines» table) */}
               {variantId && <RecipeBreakdown variantId={variantId} asOf={asOf} rev={rev} dishId={d.id} />}
-
-              <div className="cst-section">
-                <h4>Packaging (this variant)</h4>
-                <table className="cst-table">
-                  <thead>
-                    <tr><th>Item</th><th>Source</th><th className="num">Qty</th><th className="num">Unit cost</th><th className="num">Line cost</th><th className="num">Share</th></tr>
-                  </thead>
-                  <tbody>
-                    {b.packaging.map((p) => (
-                      <tr key={p.cost_item_id}>
-                        <td>{p.name}</td>
-                        <td><SourceBadge source={p.source} /></td>
-                        <td className="num">{Number(p.qty).toLocaleString('el-GR')}</td>
-                        <td className="num">{fmtEur(p.unit_cost)}</td>
-                        <td className="num">{fmtEur(p.line_cost)}</td>
-                        <td className="num cst-muted">{fmtPct(share(n(p.line_cost)))}</td>
-                      </tr>
-                    ))}
-                    {!b.packaging.length && <tr><td colSpan={6}><span className="cst-badge cst-warn">no packaging</span></td></tr>}
-                  </tbody>
-                </table>
-              </div>
 
               <div className="cst-section">
                 <h4>Product cost history</h4>
@@ -587,11 +600,12 @@ function DishDrawer({ view, asOf, base, packOptions, onClose, onSaved }: {
           )}
 
           <div className="cst-section" style={{ borderTop: '1px solid #e5e7eb', paddingTop: 10 }}>
-            <h4>Packaging set for this dish <span className="cst-muted" style={{ fontWeight: 400 }}>(applies to every variant)</span></h4>
+            <h4>Packaging <span className="cst-muted" style={{ fontWeight: 400 }}>· one set for the whole dish (every variant) · costs shown for the selected variant</span></h4>
             {pack?.error && <div className="admin-error-banner">Could not load packaging: {pack.error}</div>}
             {!pack ? <div className="admin-loading">Loading…</div> : (
               <>
-                <PackRowsEditor rows={pack.rows} setRows={setPackRows} options={packOptions} disabled={saving} />
+                <PackRowsEditor rows={pack.rows} setRows={setPackRows} options={packOptions} disabled={saving}
+                  costs={packCosts} share={share} />
                 <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginTop: 6 }}>
                   <button className="admin-btn admin-btn-ghost admin-btn-sm" disabled={saving}
                     onClick={() => setPackRows((rs) => [...rs, newRow()])}>+ Add item</button>

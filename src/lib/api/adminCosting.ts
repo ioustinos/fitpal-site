@@ -434,7 +434,7 @@ export interface VariantBreakdown {
     ingredient_id: string; ingredient: string; grams: number; component_id: string | null; component?: string
     link_source?: string; cost_per_g?: number; line_cost: number; unlinked?: boolean; flags?: CostFlags
   }>
-  packaging: Array<{ cost_item_id: string; name: string; qty: number; unit_cost: number; source: CostSource; line_cost: number }>
+  packaging: Array<{ cost_item_id: string; name: string; qty: number; unit_cost: number; source: CostSource; price_date?: string | null; line_cost: number }>
 }
 export const fetchVariantDetail = (variantId: string, date?: string | null) =>
   rpc<{ breakdown: VariantBreakdown; history: Array<{ date: string; product_cost: number; food_cost: number; packaging_cost: number; flags: CostFlags; cause: string | null }> }>(
