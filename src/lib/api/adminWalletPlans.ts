@@ -44,6 +44,10 @@ export interface AdminWalletPlanRow {
   /** WEC-903: true when a strictly-later PAID plan exists for the same wallet —
    *  i.e. the customer has already renewed/bought again. Computed per page. */
   renewed: boolean
+  /** WEC-913: which package purchase this is for the customer — 1 = first,
+   *  2 = second … Counts only PAID purchases created before it, so failed
+   *  attempts / retries don't bump the number. Computed per page. */
+  purchaseNumber: number
   /** WEC-799: when an admin last sent a Viva payment link (null = never). */
   linkSentAt: string | null
 }
@@ -78,6 +82,7 @@ interface AdminWalletPlanFilters {
   endFrom?: string            // active_until >=
   endTo?: string              // active_until <=
   renewed?: boolean           // WEC-903: true = only renewed, false = only not-renewed
+  purchase?: 'first' | 'repeat' // WEC-913: 1st package purchase vs 2nd+
   search?: string             // matches customer email or name (substring)
   limit?: number
 }
@@ -122,6 +127,7 @@ function rowToBase(row: Record<string, unknown>): AdminWalletPlanRow {
     planLengthWeeks: (row.plan_length_weeks as number | null) ?? null,
     contacted: (row.contacted as boolean) ?? false,
     renewed: false, // filled in by fetchAdminWalletPlans (per-page computation)
+    purchaseNumber: 1, // WEC-913: filled in by fetchAdminWalletPlans
     linkSentAt: (row.link_sent_at as string | null) ?? null,
   }
 }
@@ -170,10 +176,14 @@ export async function fetchAdminWalletPlans(
     for (const r of rows) {
       const others = byWallet.get(r.walletId) ?? []
       r.renewed = others.some((ts) => ts > r.createdAt)
+      // WEC-913: 1 + paid purchases strictly before this one.
+      r.purchaseNumber = 1 + others.filter((ts) => ts < r.createdAt).length
     }
   }
 
-  const filtered = filters.renewed === undefined ? rows : rows.filter((r) => r.renewed === filters.renewed)
+  let filtered = filters.renewed === undefined ? rows : rows.filter((r) => r.renewed === filters.renewed)
+  if (filters.purchase === 'first') filtered = filtered.filter((r) => r.purchaseNumber === 1)
+  else if (filters.purchase === 'repeat') filtered = filtered.filter((r) => r.purchaseNumber > 1)
   return { data: filtered, error: null }
 }
 
@@ -196,9 +206,15 @@ export async function fetchAdminWalletPlanDetail(
     const { data: vRow } = await supabase.from('vouchers').select('code').eq('id', vId).maybeSingle()
     voucherCode = (vRow as { code?: string } | null)?.code ?? null
   }
+  // WEC-913: which package purchase this is (1 + paid purchases before it).
+  const { count: earlierPaid } = await supabase.from('wallet_plans')
+    .select('id', { count: 'exact', head: true })
+    .eq('wallet_id', row.wallet_id as string).eq('payment_status', 'paid')
+    .lt('created_at', row.created_at as string)
   return {
     data: {
       ...rowToBase(row),
+      purchaseNumber: 1 + (earlierPaid ?? 0),
       profileSnapshot: (row.profile_snapshot as AdminWalletPlanDetail['profileSnapshot']) ?? {},
       macroSplit: (row.macro_split as AdminWalletPlanDetail['macroSplit']) ?? {},
       pricingBreakdown: (row.pricing_breakdown as AdminWalletPlanDetail['pricingBreakdown']) ?? {},
