@@ -86,6 +86,13 @@ async function userIdByEmail(email: string): Promise<{ id: string | null; error:
   return { id: (data as { id: string } | null)?.id ?? null, error: null }
 }
 
+/** WEC-912: link the account whose email matches the dietitian's email as their
+ *  portal login (only when the dietitian has no login yet). */
+export async function autoLinkPartnerLogin(partnerId: string): Promise<{ status: string | null; error: string | null }> {
+  const { data, error } = await supabase.rpc('admin_link_partner_login', { p_partner: partnerId })
+  return { status: (data as string | null) ?? null, error: m(error) }
+}
+
 export async function fetchPartnerUsers(partnerId: string) {
   const { data, error } = await supabase.from('partner_users').select('id, user_id, role').eq('partner_id', partnerId)
   const rows = (data ?? []) as Array<{ id: string; user_id: string; role: string }>
