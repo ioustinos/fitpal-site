@@ -26,6 +26,24 @@ const STATUS_LABELS: Record<string, string> = {
   pending_link_sent: 'Pending (link sent)', // WEC-799
 }
 
+/** WEC-913: «1η / 2η / 3η… αγορά» — which package purchase this is for the
+ *  customer. First purchase green; repeat purchases get deeper shades. */
+function PurchaseBadge({ n }: { n: number }) {
+  const c = n <= 1
+    ? { bg: '#ecfdf5', fg: '#047857', bd: '#a7f3d0' }
+    : n === 2
+      ? { bg: '#eff6ff', fg: '#1d4ed8', bd: '#bfdbfe' }
+      : n === 3
+        ? { bg: '#f5f3ff', fg: '#6d28d9', bd: '#ddd6fe' }
+        : { bg: '#fdf2f8', fg: '#be185d', bd: '#fbcfe8' }
+  return (
+    <span title={n <= 1 ? 'Πρώτη αγορά πακέτου του πελάτη' : `${n}η αγορά πακέτου του πελάτη`}
+      style={{ display: 'inline-block', marginLeft: 6, fontSize: 10, fontWeight: 800, padding: '1px 6px', borderRadius: 999, background: c.bg, color: c.fg, border: `1px solid ${c.bd}`, verticalAlign: 'middle' }}>
+      {n}η αγορά
+    </span>
+  )
+}
+
 export function WalletPurchases() {
   const [rows, setRows] = useState<AdminWalletPlanRow[]>([])
   const [loading, setLoading] = useState(true)
@@ -41,7 +59,7 @@ export function WalletPurchases() {
   const [startTo, setStartTo] = useState<string>('')
   const [endFrom, setEndFrom] = useState<string>('')
   const [endTo, setEndTo] = useState<string>('')
-  const [renewed, setRenewed] = useState<'' | 'yes' | 'no'>('')
+  const [renewed, setRenewed] = useState<'' | 'first' | 'repeat'>('')  // WEC-913: now 1st vs repeat purchase
 
   // Drawer
   const [openId, setOpenId] = useState<string | null>(null)
@@ -83,7 +101,7 @@ export function WalletPurchases() {
       startTo: startTo || undefined,
       endFrom: endFrom || undefined,
       endTo: endTo || undefined,
-      renewed: renewed === 'yes' ? true : renewed === 'no' ? false : undefined,
+      purchase: renewed || undefined,
     })
     if (error) setErr(error)
     setRows(data ?? [])
@@ -146,11 +164,11 @@ export function WalletPurchases() {
           <option value="active">Ενεργή</option>
           <option value="cancelled">Ακυρωμένη</option>
         </select>
-        {/* WEC-903: renewed segment. */}
-        <select className="admin-select" value={renewed} onChange={(e) => setRenewed(e.target.value as '' | 'yes' | 'no')} title="Ανανεωμένες συνδρομές">
-          <option value="">Όλες (ανανέωση)</option>
-          <option value="yes">Μόνο ανανεωμένες</option>
-          <option value="no">Χωρίς ανανέωση</option>
+        {/* WEC-913: which package purchase this is for the customer (replaces WEC-903's «ανανεώθηκε»). */}
+        <select className="admin-select" value={renewed} onChange={(e) => setRenewed(e.target.value as '' | 'first' | 'repeat')} title="Αγορά πακέτου">
+          <option value="">Όλες (αγορά #)</option>
+          <option value="first">1η αγορά</option>
+          <option value="repeat">Επαναγορά (2η+)</option>
         </select>
         {/* WEC-903: Έναρξη από–έως. */}
         <label className="admin-text-muted" style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 12 }}>
@@ -240,12 +258,8 @@ export function WalletPurchases() {
                 <td style={{ whiteSpace: 'nowrap' }}>{r.startDate ? r.startDate.split('-').reverse().join('/') : '—'}</td>
                 <td style={{ whiteSpace: 'nowrap' }}>
                   {r.activeUntil ? r.activeUntil.split('-').reverse().join('/') : '—'}
-                  {r.renewed && (
-                    <span title="Ο πελάτης έχει ήδη ανανεώσει (νεότερη πληρωμένη συνδρομή)"
-                      style={{ display: 'inline-block', marginLeft: 6, fontSize: 10, fontWeight: 800, padding: '1px 6px', borderRadius: 999, background: '#6366f122', color: '#4338ca', border: '1px solid #c7d2fe', verticalAlign: 'middle' }}>
-                      ↻ ανανεώθηκε
-                    </span>
-                  )}
+                  {/* WEC-913: Nth package purchase for this customer, colour-coded. */}
+                  <PurchaseBadge n={r.purchaseNumber} />
                 </td>
                 <td>{r.paymentMethod ?? '—'}</td>
                 <td>
@@ -421,6 +435,8 @@ function Drawer({ detail, loading, onClose, onRefunded, onReload, onToggleContac
                 <KV k="Viva orderCode" v={detail.vivaOrderCode ?? '—'} mono />
                 <KV k="Viva transactionId" v={detail.vivaTransactionId ?? '—'} mono />
                 <KV k="Created" v={new Date(detail.createdAt).toLocaleString('el-GR')} />
+                {/* WEC-913 */}
+                <div className="admin-kv"><span className="admin-kv-k">Αγορά πακέτου</span><span className="admin-kv-v"><PurchaseBadge n={detail.purchaseNumber} /></span></div>
                 <KV k="Confirmed" v={detail.confirmedAt ? new Date(detail.confirmedAt).toLocaleString('el-GR') : '—'} />
                 <div style={{ marginTop: 8, paddingTop: 8, borderTop: '1px solid var(--a-border)' }}>
                   <KV k="Παραστατικό" v={detail.invoiceType === 'invoice' ? 'Τιμολόγιο (invoice)' : 'Απόδειξη (receipt)'} />
