@@ -11,7 +11,8 @@
 
 import { createClient, SupabaseClient } from '@supabase/supabase-js'
 import { airtableConfigured } from '../lib/airtable/env'
-import { internalToken, siteBaseUrl } from '../lib/airtable/internal'
+import type { Context } from '@netlify/functions'
+import { internalToken, deployBaseUrl } from '../lib/airtable/internal'
 import { runAirtableSweep } from '../lib/airtable/reconcileSweep'
 
 const SUPABASE_URL = process.env.VITE_SUPABASE_URL ?? ''
@@ -28,9 +29,9 @@ function serviceClient(): SupabaseClient {
   })
 }
 
-async function handOff(): Promise<string | null> {
-  const base = siteBaseUrl()
-  if (!base) return 'no site URL in env'
+async function handOff(context: Context): Promise<string | null> {
+  const base = deployBaseUrl(context)
+  if (!base) return 'no deploy id in context'
   try {
     const ctrl = new AbortController()
     const to = setTimeout(() => ctrl.abort(), 8000)
@@ -48,11 +49,11 @@ async function handOff(): Promise<string | null> {
   }
 }
 
-export default async (): Promise<Response> => {
+export default async (_req: Request, context: Context): Promise<Response> => {
   if (!airtableConfigured()) {
     return Response.json({ skipped: 'AIRTABLE_PAT not set' })
   }
-  const why = await handOff()
+  const why = await handOff(context)
   if (!why) return Response.json({ handedOff: true })
 
   console.warn('[airtable-reconcile] %s — sweeping inline', why)

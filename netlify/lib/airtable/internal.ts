@@ -14,15 +14,20 @@ export function internalToken(): string {
 }
 
 /**
- * Base URL of THIS deploy's site, for calling a sibling function from a
+ * Base URL of THIS exact deploy, for calling a sibling function from a
  * scheduled function (which has no incoming request to take an origin from).
- * Production → the primary site URL; branch deploys (dev) → their branch URL.
- * Null when Netlify didn't provide one — callers fall back to working inline.
+ *
+ * Built from the Functions `context` — `<deployId>--<siteName>.netlify.app` is
+ * Netlify's permalink for one specific deploy, so the call can only ever reach
+ * the same code and the same environment (dev never hands its sweep to
+ * production or vice versa). The first attempt used the URL env var, which on
+ * the dev branch resolved to a site where the function didn't exist (404).
+ * Null when the context lacks the ids — callers then work inline.
  */
-export function siteBaseUrl(): string | null {
-  const ctx = process.env.CONTEXT
-  const url = ctx === 'production'
-    ? (process.env.URL ?? process.env.DEPLOY_PRIME_URL)
-    : (process.env.DEPLOY_PRIME_URL ?? process.env.URL)
-  return url ? url.replace(/\/$/, '') : null
+export function deployBaseUrl(context: unknown): string | null {
+  const c = context as { deploy?: { id?: string }; site?: { name?: string } } | undefined
+  const deployId = c?.deploy?.id
+  const siteName = c?.site?.name
+  if (!deployId || !siteName) return null
+  return `https://${deployId}--${siteName}.netlify.app`
 }
