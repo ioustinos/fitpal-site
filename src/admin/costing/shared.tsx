@@ -102,38 +102,110 @@ export function Sparkline({ points, current, days = 90, width = 90, height = 22 
   return <svg className="cst-spark" width={width} height={height} viewBox={`0 0 ${width} ${height}`} aria-hidden><path d={path} /></svg>
 }
 
-/** Step chart for a cost history with cause markers (component / variant detail). */
-export function HistoryChart({ rows, valueKey, height = 120, fmt }: {
+/** Step chart for a cost history with cause markers (item / component / variant detail).
+ *  - drops the 1900 «no data yet» baseline (it is not a price of 0)
+ *  - collapses consecutive rows with the same value (a re-save that changed nothing)
+ *  - y-axis fitted to the data with padding; a flat history is drawn mid-height
+ *  - real pixel width (ResizeObserver) so text and dots are never stretched
+ *  - hover anywhere to read the value in force on that date */
+export function HistoryChart({ rows, valueKey, height = 150, fmt }: {
   rows: Array<{ date: string; cause?: string | null } & Record<string, unknown>>; valueKey: string; height?: number
   /** axis + tooltip formatter (default: € with 3 decimals) */
   fmt?: (v: number) => string
 }) {
   const f = fmt ?? ((v: number) => fmtEurFine(v, 3))
-  const width = 560
-  const pts = rows.filter((r) => r.date >= '2000-01-01').map((r) => ({ t: new Date(r.date).getTime(), v: Number(r[valueKey]), cause: r.cause ?? '' }))
-  const base = rows.find((r) => r.date < '2000-01-01')
-  if (base) pts.unshift({ t: (pts[0]?.t ?? Date.now()) - 30 * 864e5, v: Number(base[valueKey]), cause: 'baseline' })
+  const ref = useRef<HTMLDivElement>(null)
+  const [width, setWidth] = useState(560)
+  const [hover, setHover] = useState<number | null>(null)
+  const [today] = useState(() => { const d = new Date(); d.setHours(0, 0, 0, 0); return d.getTime() })
+  useEffect(() => {
+    const el = ref.current
+    if (!el || typeof ResizeObserver === 'undefined') return
+    const ro = new ResizeObserver((es) => { const w = Math.round(es[0].contentRect.width); if (w > 0) setWidth(w) })
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [])
+
+  const pts = useMemo(() => {
+    const out: Array<{ t: number; v: number; cause: string; date: string }> = []
+    for (const r of rows) {
+      if (r.date < '2000-01-01') continue
+      const v = Number(r[valueKey])
+      if (!Number.isFinite(v)) continue
+      if (out.length && Math.abs(out[out.length - 1].v - v) < 1e-9) continue
+      out.push({ t: new Date(r.date + 'T00:00:00').getTime(), v, cause: r.cause ?? '', date: r.date })
+    }
+    return out
+  }, [rows, valueKey])
+
   if (!pts.length) return <div className="cst-muted">No history.</div>
-  const now = Date.now(); const t0 = pts[0].t; const t1 = Math.max(now, pts[pts.length - 1].t + 864e5)
-  const vals = pts.map((p) => p.v); const min = Math.min(...vals, 0); const max = Math.max(...vals) || 1
-  const x = (t: number) => 30 + ((t - t0) / (t1 - t0)) * (width - 40)
-  const y = (v: number) => height - 18 - ((v - min) / (max - min)) * (height - 30)
+
+  const L = 74, R = 14, T = 12, B = 24
+  const t0 = pts[0].t
+  const t1 = Math.max(today, pts[pts.length - 1].t) + 3 * 864e5
+  const vals = pts.map((p) => p.v)
+  let lo = Math.min(...vals), hi = Math.max(...vals)
+  if (hi - lo < Math.max(hi, 1e-9) * 0.02) { const pad = Math.max(hi * 0.2, 1e-6); lo -= pad; hi += pad }
+  else { const pad = (hi - lo) * 0.15; lo -= pad; hi += pad }
+  if (lo < 0 && Math.min(...vals) >= 0) lo = 0
+  const x = (t: number) => L + ((t - t0) / (t1 - t0)) * (width - L - R)
+  const y = (v: number) => T + (1 - (v - lo) / (hi - lo)) * (height - T - B)
+
   let d = `M${x(pts[0].t)},${y(pts[0].v)}`
   for (let i = 1; i < pts.length; i++) d += ` H${x(pts[i].t)} V${y(pts[i].v)}`
   d += ` H${x(t1)}`
-  const kind = (c: string) => c.startsWith('purchase') || c.startsWith('invoice') ? 'price'
+
+  const kind = (c: string) => c.startsWith('purchase') || c.startsWith('invoice') || c.startsWith('item') ? 'price'
     : c.startsWith('version') || c.startsWith('component') ? 'version' : c.startsWith('dish') || c.startsWith('grams') ? 'grams' : 'other'
+  const dfmt = (t: number) => new Date(t).toLocaleDateString('el-GR', { day: '2-digit', month: '2-digit', year: '2-digit' })
+
+  // x ticks: first point, today, plus up to 3 evenly spaced in between
+  const ticks: number[] = [t0]
+  const span = t1 - t0
+  for (let k = 1; k <= 3; k++) ticks.push(t0 + (span * k) / 4)
+  const yTicks = [hi, (hi + lo) / 2, lo]
+
+  // hovered value: last point at or before the cursor date
+  const hv = hover === null ? null : (() => {
+    const t = t0 + ((hover - L) / (width - L - R)) * (t1 - t0)
+    let p = pts[0]
+    for (const q of pts) if (q.t <= t) p = q
+    return { t: Math.min(Math.max(t, t0), t1), p }
+  })()
+
   return (
-    <svg className="cst-chart" viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="none">
-      <path className="cst-chart-line" d={d} />
-      {pts.map((p, i) => (
-        <circle key={i} cx={x(p.t)} cy={y(p.v)} r={3} className={`cst-dot cst-dot-${kind(p.cause)}`}>
-          <title>{new Date(p.t).toLocaleDateString('el-GR')} · {f(p.v)} · {p.cause}</title>
-        </circle>
-      ))}
-      <text x={2} y={12} className="cst-chart-lbl">{f(max)}</text>
-      <text x={2} y={height - 18} className="cst-chart-lbl">{f(min)}</text>
-    </svg>
+    <div ref={ref} className="cst-chart-wrap">
+      <svg className="cst-chart" width={width} height={height} viewBox={`0 0 ${width} ${height}`}
+           onMouseMove={(e) => { const r = (e.currentTarget as SVGSVGElement).getBoundingClientRect(); const px = e.clientX - r.left; setHover(px >= L && px <= width - R ? px : null) }}
+           onMouseLeave={() => setHover(null)}>
+        {yTicks.map((v, i) => (
+          <g key={`y${i}`}>
+            <line x1={L} x2={width - R} y1={y(v)} y2={y(v)} className="cst-chart-grid" />
+            <text x={L - 6} y={y(v) + 3} textAnchor="end" className="cst-chart-lbl">{f(v)}</text>
+          </g>
+        ))}
+        {ticks.map((t, i) => (
+          <text key={`x${i}`} x={x(t)} y={height - 7} textAnchor={i === 0 ? 'start' : 'middle'} className="cst-chart-lbl">{dfmt(t)}</text>
+        ))}
+        {today >= t0 && today <= t1 && <line x1={x(today)} x2={x(today)} y1={T} y2={height - B} className="cst-chart-today" />}
+        <path className="cst-chart-line" d={d} />
+        {pts.map((p, i) => (
+          <circle key={i} cx={x(p.t)} cy={y(p.v)} r={4} className={`cst-dot cst-dot-${kind(p.cause)}`}>
+            <title>{dfmt(p.t)} · {f(p.v)}{p.cause ? ` · ${p.cause}` : ''}</title>
+          </circle>
+        ))}
+        {hv && (
+          <g pointerEvents="none">
+            <line x1={x(hv.t)} x2={x(hv.t)} y1={T} y2={height - B} className="cst-chart-cursor" />
+            <g transform={`translate(${Math.min(x(hv.t) + 8, width - R - 150)},${T + 2})`}>
+              <rect width={150} height={34} rx={5} className="cst-chart-tip" />
+              <text x={8} y={14} className="cst-chart-tip-d">{dfmt(hv.t)}</text>
+              <text x={8} y={28} className="cst-chart-tip-v">{f(hv.p.v)}</text>
+            </g>
+          </g>
+        )}
+      </svg>
+    </div>
   )
 }
 

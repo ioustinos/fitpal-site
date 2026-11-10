@@ -41,10 +41,17 @@
 
 .cst-spark { display: block; }
 .cst-spark path { fill: none; stroke: #16a34a; stroke-width: 1.4; }
-.cst-chart { width: 100%; height: 130px; background: #fcfcfd; border: 1px solid #f1f5f9; border-radius: 6px; }
-.cst-chart-line { fill: none; stroke: #16a34a; stroke-width: 1.6; vector-effect: non-scaling-stroke; }
-.cst-chart-lbl { font-size: 9px; fill: #9ca3af; }
-.cst-dot { stroke: #fff; stroke-width: 1; }
+.cst-chart-wrap { width: 100%; }
+.cst-chart { display: block; background: #fcfcfd; border: 1px solid #eef2f6; border-radius: 8px; cursor: crosshair; }
+.cst-chart-line { fill: none; stroke: #16a34a; stroke-width: 2; stroke-linejoin: round; }
+.cst-chart-lbl { font-size: 11px; fill: #6b7280; font-variant-numeric: tabular-nums; }
+.cst-chart-grid { stroke: #eef2f6; stroke-width: 1; }
+.cst-chart-today { stroke: #d1d5db; stroke-width: 1; stroke-dasharray: 3 3; }
+.cst-chart-cursor { stroke: #9ca3af; stroke-width: 1; }
+.cst-chart-tip { fill: #111827; opacity: 0.88; }
+.cst-chart-tip-d { font-size: 10px; fill: #d1d5db; }
+.cst-chart-tip-v { font-size: 12px; font-weight: 600; fill: #fff; font-variant-numeric: tabular-nums; }
+.cst-dot { stroke: #fff; stroke-width: 1.5; }
 .cst-dot-price { fill: #2563eb; }
 .cst-dot-version { fill: #f59e0b; }
 .cst-dot-grams { fill: #a855f7; }

@@ -541,14 +541,12 @@ function ComponentDrawer({ id, back, onBack, onClose, onOpen, onEdit, onActiveCh
               {/* ── history ── */}
               <div className="cst-section">
                 <h4>Cost history <span className="cst-muted" style={{ fontWeight: 400 }}>· per cooked kg</span></h4>
-                {histRows.length <= 1
-                  ? <div className="cst-note">{histRows.length ? `No change since ${fmtDate(histRows[0].date)} — ${fmtPerKg(histRows[0].cost_per_g)}.` : 'No history yet.'}</div>
-                  : <HistoryChart rows={histRows} valueKey="cost_per_g" fmt={fmtPerKg} />}
-                {histRows.length > 1 && <div className="cst-legend">
+                <HistoryChart rows={histRows} valueKey="cost_per_g" fmt={fmtPerKg} />
+                <div className="cst-legend">
                   <span><i style={{ background: '#2563eb' }} />price change</span>
                   <span><i style={{ background: '#f59e0b' }} />new version</span>
                   <span><i style={{ background: '#6b7280' }} />other</span>
-                </div>}
+                </div>
               </div>
 
               {/* ── used in ── */}
