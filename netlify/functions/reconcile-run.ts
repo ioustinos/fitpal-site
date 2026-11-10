@@ -32,6 +32,7 @@
 
 import viva from './viva-reconcile'
 import airtable from './airtable-reconcile'
+import type { Context } from '@netlify/functions'
 
 type Target = 'viva' | 'airtable' | 'both'
 
@@ -59,7 +60,7 @@ function authorised(req: Request): boolean {
   return bearer === expected || header === expected
 }
 
-export default async (req: Request): Promise<Response> => {
+export default async (req: Request, context: Context): Promise<Response> => {
   if (!process.env.RECONCILE_TRIGGER_TOKEN) {
     // Explicit, so this can never be mistaken for "the reconcile ran".
     return Response.json(
@@ -98,8 +99,9 @@ export default async (req: Request): Promise<Response> => {
     try {
       // viva's handler takes an optional Request and reads ?dryRun=1 off its
       // URL (WEC-425), so forward ours — `?target=viva&dryRun=1` then gives a
-      // safe read-only first test after deploying. airtable takes no args.
-      const res = name === 'viva' ? await viva(req) : await airtable()
+      // safe read-only first test after deploying. airtable gets our context
+      // so it can hand off to this deploy's background sweep (WEC-914).
+      const res = name === 'viva' ? await viva(req) : await airtable(req, context)
       results[name] = {
         status: res.status,
         body: await res.json().catch(() => null),
