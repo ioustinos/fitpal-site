@@ -399,6 +399,40 @@ export async function saveComponentVersion(input: ComponentSaveInput): Promise<R
   return rpc('admin_cost_component_save', { p: input })
 }
 
+/** WEC-864: drop a draft version (published versions are protected by a trigger). */
+export async function discardComponentDraft(versionId: string): Promise<Res<true>> {
+  const { error } = await supabase.from('cost_component_versions').delete().eq('id', versionId).eq('status', 'draft')
+  if (error) return { data: null, error: error.message }
+  return { data: true, error: null }
+}
+
+/** WEC-864: delete a component that never got a published version (e.g. a discarded new one). */
+export async function deleteUnpublishedComponent(id: string): Promise<Res<true>> {
+  const { count, error: e1 } = await supabase.from('cost_component_versions')
+    .select('id', { count: 'exact', head: true }).eq('component_id', id).eq('status', 'published')
+  if (e1) return { data: null, error: e1.message }
+  if ((count ?? 0) > 0) return { data: null, error: 'This component has published versions — deactivate it instead.' }
+  const { error } = await supabase.from('cost_components').delete().eq('id', id)
+  if (error) return { data: null, error: error.message }
+  return { data: true, error: null }
+}
+
+/** WEC-864: cost an unsaved recipe (live preview in the drawer editor). Same node shape as the tree. */
+export interface ComponentPreviewInput {
+  date: string; base_unit: BaseUnit; grams_per_unit: number | null
+  yield_mode: YieldMode; yield_pct: number | null; output_weight_g: number | null; fixed_cost_per_g: number | null
+  lines: Array<{ idx: number; cost_item_id?: string | null; child_component_id?: string | null; qty: number }>
+}
+export type PreviewNode = RecipeNode & { idx?: number }
+export interface ComponentPreview {
+  kind: 'component'; unit: BaseUnit; yield_mode: YieldMode
+  raw_weight_g: number | null; raw_pieces: number | null; output_g: number | null
+  cost: number | null; cost_per_g: number | null
+  children: PreviewNode[]
+}
+export const fetchComponentPreview = (p: ComponentPreviewInput) =>
+  rpc<ComponentPreview>('admin_cost_component_preview', { p })
+
 export async function setComponentActive(id: string, active: boolean): Promise<Res<true>> {
   const { error } = await supabase.from('cost_components').update({ active }).eq('id', id)
   if (error) return { data: null, error: error.message }

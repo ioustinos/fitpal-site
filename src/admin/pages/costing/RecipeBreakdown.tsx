@@ -4,11 +4,11 @@ import {
   fetchComponentTree,
   fetchVariantTree,
   type ComponentTree,
-  type RecipeComponentNode,
   type RecipeNode,
   type VariantTree,
 } from '../../../lib/api/adminCosting'
 import { FlagBadges, SourceBadge, fmtCompCost, fmtEur, fmtEurFine, fmtPct, fmtQtyUnit, fmtUnitCost } from '../../costing/shared'
+import { fmtQty, treeNodeRows } from '../../costing/recipeTree'
 
 /**
  * Dish recipe with cost per ingredient / cost item (WEC-866 follow-up,
@@ -23,24 +23,11 @@ import { FlagBadges, SourceBadge, fmtCompCost, fmtEur, fmtEurFine, fmtPct, fmtQt
  * all 1,369 dev variants).
  */
 
-const fmtQty = (q: number, unit: string) => {
-  const v = Number(q)
-  const s = Number.isInteger(Math.round(v * 100) / 100) || v >= 100 ? v.toFixed(0) : v >= 10 ? v.toFixed(1) : v.toFixed(2)
-  return `${s.replace('.', ',')} ${unit === 'pcs' ? 'pc' : unit}`
-}
-
 const linkBadge = (s: string | null) =>
   s === 'manual' ? <span className="cst-badge cst-ok">manual</span>
     : s === 'default' ? <span className="cst-badge">default</span>
       : s === 'auto_excel' ? <span className="cst-badge cst-est" title="Auto-matched from the kitchen Excel">auto</span>
         : null
-
-function yieldLabel(c: RecipeComponentNode): string {
-  if (c.yield_mode === 'fixed') return 'fixed €/kg (Excel estimate, no recipe)'
-  if (c.yield_mode === 'pct') return `yield ${Number(c.yield_pct)}%`
-  if (c.yield_mode === 'output_weight') return `batch ${Number(c.raw_weight_g ?? 0).toFixed(0)} g raw → ${Number(c.output_g ?? 0).toFixed(0)} g cooked`
-  return ''
-}
 
 /** Same tree for a component (WEC-864, Ioustinos 11/11: «the detailed tree of the dish is the perfect UI»):
  *  its recipe exploded to cost items, for one whole batch or per 1 kg cooked / 1 piece. */
@@ -95,47 +82,8 @@ export function RecipeBreakdown({ variantId, componentId, componentUnit, asOf, r
   }
 
   const rows: ReactNode[] = []
-  const renderNode = (node: RecipeNode, path: string, depth: number) => {
-    const pad = { paddingLeft: 8 + depth * 18 }
-    if (node.kind === 'item') {
-      rows.push(
-        <tr key={path} className="cst-sub">
-          <td style={pad}><span className="cst-muted">•</span>{' '}
-            <Link to={`/admin/costing/items?item=${encodeURIComponent(node.id)}`}>{node.name}</Link></td>
-          <td className="cst-muted">cost item</td>
-          <td className="num">{fmtQty(node.qty, node.unit)} <span className="cst-muted">raw</span></td>
-          <td className="num">{fmtUnitCost(node.unit_cost, node.unit)}</td>
-          <td><SourceBadge source={node.source} date={node.price_date} invoiceId={node.invoice_id} /></td>
-          <td className="num">{fmtEurFine(node.cost, 3)}</td>
-          <td className="num cst-muted">{fmtPct(share(node.cost))}</td>
-        </tr>,
-      )
-      return
-    }
-    const can = node.children.length > 0
-    const isOpen = open.has(path)
-    rows.push(
-      <tr key={path} className={depth ? 'cst-sub' : undefined}>
-        <td style={pad}>
-          {can
-            ? <button type="button" className="admin-btn admin-btn-ghost admin-btn-sm" style={{ padding: '0 5px', marginRight: 4 }}
-                onClick={() => toggle(path)} aria-expanded={isOpen}>{isOpen ? '▾' : '▸'}</button>
-            : <span style={{ display: 'inline-block', width: 22 }} />}
-          <Link to={`/admin/costing/components?id=${encodeURIComponent(node.id)}`}>{node.name}</Link>
-          <span style={{ marginLeft: 4 }}><FlagBadges flags={node.flags} /></span>
-        </td>
-        <td className="cst-muted" style={{ fontSize: 11.5 }}>{yieldLabel(node)}</td>
-        <td className="num">{fmtQtyUnit(node.grams, node.unit)}{(node.unit ?? 'g') === 'g' && <span className="cst-muted"> cooked</span>}</td>
-        <td className="num">{fmtCompCost(node.cost_per_g, node.unit)}</td>
-        <td>{node.version_no
-          ? <span className="cst-badge" title="Recipe version in force on this date">v{node.version_no} · from {node.effective_from ? new Date(node.effective_from).toLocaleDateString('el-GR') : '—'}</span>
-          : <span className="cst-muted">—</span>}</td>
-        <td className="num">{fmtEurFine(node.cost, 3)}</td>
-        <td className="num cst-muted">{fmtPct(share(node.cost))}</td>
-      </tr>,
-    )
-    if (can && isOpen) node.children.forEach((c, i) => renderNode(c, `${path}/${i}`, depth + 1))
-  }
+  const renderNode = (node: RecipeNode, path: string, depth: number) =>
+    rows.push(...treeNodeRows(node, path, depth, open, toggle, share))
 
   if (ct && view === 'recipe') ct.root.children.forEach((c, i) => renderNode(c, `C${i}`, 0))
   if (t && view === 'recipe') {
@@ -143,7 +91,7 @@ export function RecipeBreakdown({ variantId, componentId, componentUnit, asOf, r
       const path = `L${i}`
       rows.push(
         <tr key={`h${path}`} style={{ background: 'var(--admin-bg-soft, #f9fafb)' }}>
-          <td colSpan={7} style={{ fontWeight: 600, paddingTop: 7 }}>
+          <td colSpan={8} style={{ fontWeight: 600, paddingTop: 7 }}>
             {l.ingredient} <span className="cst-muted" style={{ fontWeight: 400 }}>· {Number(l.grams)} g on the plate{l.unit === 'pcs' && <> = {l.qty === null || l.qty === undefined ? '? pieces' : fmtQtyUnit(l.qty, 'pcs')}</>}</span>
             {l.flags?.no_piece_weight && <span className="cst-inline-err" style={{ marginLeft: 6, fontWeight: 400 }}>set «grams per piece» on the component — counted €0</span>}
             <span style={{ marginLeft: 6 }}>{linkBadge(l.link_source)}</span>
@@ -191,14 +139,14 @@ export function RecipeBreakdown({ variantId, componentId, componentUnit, asOf, r
         <div style={{ opacity: loading ? 0.6 : 1, overflowX: 'auto' }}>
           <table className="cst-table">
             <thead>
-              <tr><th>Ingredient / component / cost item</th><th>Recipe</th><th className="num">Qty in {where}</th>
-                <th className="num">Unit cost</th><th>Reference</th><th className="num">Cost</th><th className="num">{isComp ? 'Share' : 'Share of food'}</th></tr>
+              <tr><th>Ingredient / component / cost item</th><th>Recipe</th><th className="num">Raw <span className="cst-muted" style={{ fontWeight: 400 }}>· {where}</span></th>
+                <th className="num">Cooked</th><th className="num">Unit cost</th><th>Reference</th><th className="num">Cost</th><th className="num">{isComp ? 'Share' : 'Share of food'}</th></tr>
             </thead>
             <tbody>
               {rows}
-              {!isComp && !t.lines.length && <tr><td colSpan={7} className="cst-muted">No ingredient lines with grams.</td></tr>}
-              {isComp && !ct?.root.children.length && <tr><td colSpan={7} className="cst-muted">No recipe lines — the cost is a fixed estimate.</td></tr>}
-              <tr><td colSpan={5} style={{ fontWeight: 600 }}>{isComp ? `Cost of ${where}` : 'Food cost'}{isComp && ct && <span className="cst-muted" style={{ fontWeight: 400 }}> · {fmtQtyUnit(ct.qty, ct.unit)}{ct.unit === 'g' ? ' cooked' : ''}</span>}</td><td className="num" style={{ fontWeight: 600 }}>{fmtEur(t.food_cost)}</td><td /></tr>
+              {!isComp && !t.lines.length && <tr><td colSpan={8} className="cst-muted">No ingredient lines with grams.</td></tr>}
+              {isComp && !ct?.root.children.length && <tr><td colSpan={8} className="cst-muted">No recipe lines — the cost is a fixed estimate.</td></tr>}
+              <tr><td colSpan={6} style={{ fontWeight: 600 }}>{isComp ? `Cost of ${where}` : 'Food cost'}{isComp && ct && <span className="cst-muted" style={{ fontWeight: 400 }}> · {fmtQtyUnit(ct.qty, ct.unit)}{ct.unit === 'g' ? ' cooked' : ''}</span>}</td><td className="num" style={{ fontWeight: 600 }}>{fmtEur(t.food_cost)}</td><td /></tr>
             </tbody>
           </table>
           <p className="cst-note" style={{ marginTop: 4 }}>
