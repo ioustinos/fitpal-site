@@ -76,6 +76,8 @@ export function CostPurchases() {
   const [fromF, setFromF] = useUrlState('from')
   const [toF, setToF] = useUrlState('to')
   const [openInv, setOpenInv] = useUrlState('inv')
+  // «+ Add purchase» from a cost item: /admin/costing/purchases?inv=new&item=<cost item id>
+  const [presetItem, setPresetItem] = useUrlState('item')
   const [, setSp] = useSearchParams()
   const clearFilters = () => setSp((p) => {
     const n = new URLSearchParams(p); n.delete('supplier'); n.delete('from'); n.delete('to'); return n
@@ -204,17 +206,19 @@ export function CostPurchases() {
         </div>
       )}
 
-      {openInv && (
+      {/* opened from a cost item: wait for the item list so the first line can be pre-filled */}
+      {openInv && (!(openInv === 'new' && presetItem) || items.length > 0) && (
         <InvoiceEditor
           key={openInv}
           invoiceId={openInv === 'new' ? null : openInv}
           defaultSupplier={openInv === 'new' ? (supplierF || null) : null}
+          presetItemId={openInv === 'new' ? (presetItem || null) : null}
           suppliers={suppliers}
           items={items}
           onItemCreated={(it) => setItems((prev) => [...prev, it].sort((a, b) => a.name.localeCompare(b.name, 'el')))}
           onSupplierCreated={() => setSupTick((t) => t + 1)}
-          onClose={() => setOpenInv('')}
-          onSaved={(msg) => { setOpenInv(''); setInfo(msg); setListTick((t) => t + 1) }}
+          onClose={() => { setOpenInv(''); setPresetItem('') }}
+          onSaved={(msg) => { setOpenInv(''); setPresetItem(''); setInfo(msg); setListTick((t) => t + 1) }}
         />
       )}
     </div>
@@ -222,9 +226,11 @@ export function CostPurchases() {
 }
 
 // ── editor ───────────────────────────────────────────────────────────────────
-function InvoiceEditor({ invoiceId, defaultSupplier, suppliers, items, onItemCreated, onSupplierCreated, onClose, onSaved }: {
+function InvoiceEditor({ invoiceId, defaultSupplier, presetItemId, suppliers, items, onItemCreated, onSupplierCreated, onClose, onSaved }: {
   invoiceId: string | null
   defaultSupplier: string | null
+  /** new invoice opened from a cost item: start with one line of that item */
+  presetItemId?: string | null
   suppliers: SupplierRow[]
   items: CostItemOption[]
   onItemCreated: (it: CostItemOption) => void
@@ -236,7 +242,11 @@ function InvoiceEditor({ invoiceId, defaultSupplier, suppliers, items, onItemCre
   const [header, setHeader] = useState<InvoiceHeader>({
     supplier_id: defaultSupplier, invoice_date: todayAthens(), invoice_number: null, attachment_path: null, notes: null,
   })
-  const [lines, setLines] = useState<DraftLine[]>(() => [blankLine()])
+  const [lines, setLines] = useState<DraftLine[]>(() => {
+    const it = presetItemId ? items.find((i) => i.id === presetItemId) : undefined
+    return [it ? { ...blankLine(), cost_item_id: it.id, pack_label: it.default_pack_label ?? '',
+      base_qty_per_pack: it.default_base_qty_per_pack, vat_rate: it.default_vat_rate } : blankLine()]
+  })
   const [focusKey, setFocusKey] = useState<string | null>(null)
   const [prev, setPrev] = useState<Record<string, PrevPrice>>({})
   const [err, setErr] = useState<string | null>(null)

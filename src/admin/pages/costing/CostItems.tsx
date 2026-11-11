@@ -439,7 +439,13 @@ function ItemDrawer({ row, categories, onClose, onSaved }: {
                   </div>
 
                   <div className="cst-section">
-                    <h4>Purchases ({detail.purchases.length})</h4>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <h4 style={{ margin: 0 }}>Purchases ({detail.purchases.length})</h4>
+                      <span className="cst-spacer" />
+                      <Link className="admin-btn admin-btn-secondary admin-btn-sm"
+                            to={`/admin/costing/purchases?inv=new&item=${encodeURIComponent(row.id)}`}
+                            title="Open a new purchase invoice with this item already on the first line">+ Add purchase</Link>
+                    </div>
                     {detail.purchases.length === 0
                       ? <div className="cst-muted">No purchases yet — cost comes from the fallback price{row.source === 'unpriced' ? ' (none set: counted as €0)' : ''}.</div>
                       : (
