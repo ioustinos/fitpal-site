@@ -796,6 +796,14 @@ function EditPane({ init, d, lower, back, onBack, onClose, opts, optsErr, catego
   const isPcs = (ref: string | null) => !!ref && (ref.startsWith('c:') ? (compUnitOf.get(ref.slice(2)) ?? 'g') === 'pcs' : unitOf.get(ref.slice(2)) === 'pcs')
   const isMl = (ref: string | null) => !!ref && (ref.startsWith('c:') ? compUnitOf.get(ref.slice(2)) === 'ml' : unitOf.get(ref.slice(2)) === 'ml')
 
+  // Σ Raw / Σ Cooked of the lines (Ioustinos 11/11: «a sum to see how much the whole thing would weigh»)
+  const sums = f.lines.reduce((a, l) => {
+    if (!l.ref || l.qty === null) return a
+    if (isPcs(l.ref)) return { ...a, pcs: a.pcs + l.qty }
+    const rw = rawOf(l), ck = cookedOf(l)
+    return { ...a, raw: a.raw + (rw ?? 0), cooked: a.cooked + (ck ?? 0), missing: a.missing + (ck === null ? 1 : 0) }
+  }, { raw: 0, cooked: 0, missing: 0, pcs: 0 })
+
   // ── kind badge, from what is on screen ──
   const kind: CompKind = f.mode === 'fixed' ? 'fixed' : !usedLines.length ? 'empty'
     : usedLines.length === 1 && usedLines[0].ref!.startsWith('i:') ? 'single' : 'recipe'
@@ -1071,6 +1079,16 @@ function EditPane({ init, d, lower, back, onBack, onClose, opts, optsErr, catego
                       + Add line
                     </button>
                   </td>
+                </tr>
+                <tr className="cst-sum-row">
+                  <td colSpan={2} style={{ fontWeight: 600 }}>Total weight
+                    {sums.pcs > 0 && <span className="cst-muted" style={{ fontWeight: 400 }}> · + {fmtQtyUnit(sums.pcs, 'pcs')} not in grams</span>}</td>
+                  <td className="num" style={{ fontWeight: 600 }}>{fmtG(sums.raw)}</td>
+                  <td className="num" style={{ fontWeight: 600 }}
+                      title={sums.missing ? `${sums.missing} line(s) have no cooked weight yet (no yield known) — not counted` : 'Σ of the Cooked column'}>
+                    {sums.missing ? '≥ ' : ''}{fmtG(sums.cooked)}</td>
+                  <td colSpan={4} className="cst-muted" style={{ fontSize: 11.5 }}>
+                    {sums.missing > 0 && `${sums.missing} line(s) without a cooked weight not counted`}</td>
                 </tr>
                 <tr>
                   <td colSpan={6} style={{ fontWeight: 600 }}>Cost of this batch

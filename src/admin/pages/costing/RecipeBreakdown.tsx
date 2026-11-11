@@ -8,7 +8,7 @@ import {
   type VariantTree,
 } from '../../../lib/api/adminCosting'
 import { FlagBadges, SourceBadge, fmtCompCost, fmtEur, fmtEurFine, fmtPct, fmtQtyUnit, fmtUnitCost } from '../../costing/shared'
-import { fmtQty, treeNodeRows } from '../../costing/recipeTree'
+import { fmtQty, nodeRatio, treeNodeRows } from '../../costing/recipeTree'
 
 /**
  * Dish recipe with cost per ingredient / cost item (WEC-866 follow-up,
@@ -146,6 +146,26 @@ export function RecipeBreakdown({ variantId, componentId, componentUnit, asOf, r
               {rows}
               {!isComp && !t.lines.length && <tr><td colSpan={8} className="cst-muted">No ingredient lines with grams.</td></tr>}
               {isComp && !ct?.root.children.length && <tr><td colSpan={8} className="cst-muted">No recipe lines — the cost is a fixed estimate.</td></tr>}
+              {isComp && ct && ct.root.children.length > 0 && (() => {
+                // Σ Raw / Σ Cooked of the recipe lines (Ioustinos 11/11)
+                let raw = 0, cooked = 0, missing = 0
+                for (const n of ct.root.children) {
+                  if (n.kind === 'item') { if (n.unit !== 'pcs') raw += Number(n.qty); missing++; continue }
+                  if ((n.unit ?? 'g') === 'pcs') continue
+                  const r = nodeRatio(n)
+                  if (r) raw += Number(n.grams) / r
+                  cooked += Number(n.grams)
+                }
+                return (
+                  <tr>
+                    <td colSpan={2} style={{ fontWeight: 600 }}>Total weight</td>
+                    <td className="num" style={{ fontWeight: 600 }}>{fmtQty(raw, 'g')}</td>
+                    <td className="num" style={{ fontWeight: 600 }} title={missing ? 'Cost items are shown raw only — their cooked weight is not counted' : 'Σ of the Cooked column'}>
+                      {missing ? (cooked > 0 ? `≥ ${fmtQty(cooked, 'g')}` : '—') : fmtQty(cooked, 'g')}</td>
+                    <td colSpan={4} />
+                  </tr>
+                )
+              })()}
               <tr><td colSpan={6} style={{ fontWeight: 600 }}>{isComp ? `Cost of ${where}` : 'Food cost'}{isComp && ct && <span className="cst-muted" style={{ fontWeight: 400 }}> · {fmtQtyUnit(ct.qty, ct.unit)}{ct.unit === 'g' ? ' cooked' : ''}</span>}</td><td className="num" style={{ fontWeight: 600 }}>{fmtEur(t.food_cost)}</td><td /></tr>
             </tbody>
           </table>
