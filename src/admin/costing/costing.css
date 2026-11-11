@@ -203,3 +203,42 @@ details.cst-sec[open] > summary h3::before { content: '▾'; }
 .cst-method { margin-left: 8px; font-size: 11px; font-weight: 600; text-transform: none; letter-spacing: 0; color: #92400e; background: #fffbeb; border: 1px solid #fde68a; border-radius: 999px; padding: 0 8px; }
 .cst-method-select { text-transform: none !important; letter-spacing: 0 !important; font-weight: 600; color: #92400e !important; background-color: #fffbeb !important; border-color: #fde68a !important; border-radius: 999px !important; padding-left: 8px !important; margin-left: auto; }
 .cst-tile-k .cst-tile-select { width: auto !important; min-width: 0; }
+
+/* ── Οδηγός χρήσης (/admin/costing/guide) ── */
+.cg-layout { display: grid; grid-template-columns: 220px minmax(0, 1fr); gap: 28px; align-items: start; }
+@media (max-width: 900px) { .cg-layout { grid-template-columns: 1fr; } .cg-toc { position: static !important; } }
+.cg-toc { position: sticky; top: 12px; display: flex; flex-direction: column; gap: 2px; border-right: 1px solid #e5e7eb; padding-right: 12px; }
+.cg-toc-t { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; color: #64748b; margin-bottom: 6px; }
+.cg-toc a { font-size: 13px; color: #334155; text-decoration: none; padding: 4px 6px; border-radius: 6px; }
+.cg-toc a:hover { background: #f1f5f9; color: #0f172a; }
+.cg-body { max-width: 900px; font-size: 14px; line-height: 1.65; color: #1e293b; }
+.cg-body p { margin: 8px 0 12px; }
+.cg-h2 { font-size: 20px; font-weight: 700; color: #0f172a; margin: 34px 0 10px; padding-top: 14px; border-top: 1px solid #e5e7eb; scroll-margin-top: 12px; }
+.cg-body .cg-h2:first-child { margin-top: 0; border-top: 0; padding-top: 0; }
+.cg-h2 a { font-size: 13px; font-weight: 500; }
+.cg-flow { display: flex; align-items: stretch; gap: 8px; flex-wrap: wrap; margin: 14px 0 18px; }
+.cg-flow-box { flex: 1 1 150px; border: 1px solid #e5e7eb; border-radius: 10px; padding: 10px 12px; background: #fff; display: flex; flex-direction: column; gap: 6px; align-items: flex-start; font-size: 12.5px; color: #475569; }
+.cg-flow-box b { color: #0f172a; font-size: 13px; }
+.cg-flow-arrow { align-self: center; color: #94a3b8; font-size: 20px; }
+.cg-table { width: 100%; border-collapse: collapse; margin: 10px 0 16px; font-size: 13px; }
+.cg-table th { text-align: left; font-size: 11.5px; text-transform: uppercase; letter-spacing: .04em; color: #64748b; padding: 6px 10px; border-bottom: 1px solid #e2e8f0; background: #f8fafc; }
+.cg-table td { padding: 8px 10px; border-bottom: 1px solid #f1f5f9; vertical-align: top; }
+.cg-table-sm td, .cg-table-sm th { padding: 4px 8px; }
+.cg-ex { border: 1px solid #bbf7d0; background: #f0fdf4; border-radius: 10px; padding: 12px 14px; margin: 12px 0 16px; font-size: 13.5px; }
+.cg-ex-t { font-size: 11.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; color: #15803d; margin-bottom: 4px; }
+.cg-ex .cg-table { background: #fff; }
+.cg-tip { border-left: 3px solid #3b82f6; background: #eff6ff; padding: 9px 12px; border-radius: 0 8px 8px 0; margin: 12px 0 16px; font-size: 13.5px; }
+.cg-tip-warn { border-left-color: #f59e0b; background: #fffbeb; }
+.cg-steps { margin: 8px 0 14px; padding-left: 22px; }
+.cg-steps li { margin: 4px 0; }
+.cg-list { margin: 8px 0 14px; padding-left: 20px; }
+.cg-list li { margin: 5px 0; }
+.cg-list ul { margin: 4px 0; padding-left: 18px; }
+.cg-btn { display: inline-block; font-size: 12px; font-weight: 600; border: 1px solid #cbd5e1; background: #fff; border-radius: 6px; padding: 0 7px; line-height: 1.6; color: #0f172a; white-space: nowrap; }
+.cg-dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 8px; vertical-align: -1px; }
+.cg-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 12px; margin: 10px 0 16px; }
+.cg-card { border: 1px solid #e5e7eb; border-radius: 10px; padding: 12px 14px; background: #fff; }
+.cg-card-t { font-weight: 700; color: #0f172a; margin-bottom: 4px; }
+.cg-card .cg-steps { font-size: 13px; margin-bottom: 0; }
+.cg-faq dt { font-weight: 700; color: #0f172a; margin-top: 14px; }
+.cg-faq dd { margin: 4px 0 0; color: #334155; }

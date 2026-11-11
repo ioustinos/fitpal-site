@@ -39,6 +39,7 @@ import { CostPurchases } from './pages/costing/CostPurchases'
 import { CostComponents } from './pages/costing/CostComponents'
 import { CostLinks } from './pages/costing/CostLinks'
 import { CostDishes } from './pages/costing/CostDishes'
+import { CostingGuide } from './pages/costing/CostingGuide'
 import './admin.css'
 
 /**
@@ -91,6 +92,7 @@ export default function AdminApp() {
           <Route path="costing/purchases" element={<CostPurchases />} />
           <Route path="costing/suppliers" element={<CostSuppliers />} />
           <Route path="costing/links" element={<CostLinks />} />
+          <Route path="costing/guide" element={<CostingGuide />} />
         </Route>
       </Routes>
     </AdminGuard>

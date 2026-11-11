@@ -494,7 +494,7 @@ export function CostingTabs() {
   const tabs: Array<[string, string]> = [
     ['/admin/costing', 'Overview'], ['/admin/costing/dishes', 'Dishes'], ['/admin/costing/components', 'Components'],
     ['/admin/costing/items', 'Cost items'], ['/admin/costing/purchases', 'Purchases'], ['/admin/costing/suppliers', 'Suppliers'],
-    ['/admin/costing/links', 'Dish links'],
+    ['/admin/costing/links', 'Dish links'], ['/admin/costing/guide', 'Οδηγός'],
   ]
   return (
     <nav className="cst-tabs">

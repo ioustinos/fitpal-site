@@ -110,6 +110,7 @@ const NAV: NavEntry[] = [
       { path: '/admin/costing/purchases',  label: 'Purchases',    icon: 'import' },
       { path: '/admin/costing/suppliers',  label: 'Suppliers',    icon: 'users' },
       { path: '/admin/costing/links',      label: 'Dish links',   icon: 'tags' },
+      { path: '/admin/costing/guide',      label: 'Οδηγός χρήσης', icon: 'catalogue' },
     ],
   },
 
