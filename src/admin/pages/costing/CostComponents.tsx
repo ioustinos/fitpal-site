@@ -13,7 +13,7 @@ import type {
   ComponentPreview, RecipeNode,
 } from '../../../lib/api/adminCosting'
 import {
-  CostingTabs, FlagBadges, HistoryChart, NumText, SearchPick, Section, ShareBar,
+  CostingTabs, FlagBadges, HistoryChart, NumText, SearchPick, Section, ShareBar, EntityPill,
   fmtCompCost, fmtDate, fmtEur, fmtEurFine, fmtPct, fmtPerKg, fmtQtyUnit, skey, todayAthens, useUrlState,
 } from '../../costing/shared'
 import type { PickOption } from '../../costing/shared'
@@ -497,7 +497,7 @@ function ComponentDrawer(p: DrawerProps) {
         {d.dishes.length > 0 && (<>
           <div className="cst-sublbl">Dishes</div>
           <Chips more={showAll} onMore={() => setShowAll(true)} items={d.dishes.map((x, i) => (
-            <Link key={`d:${x.id}:${i}`} className="cst-chip" to={`/admin/costing/dishes?dish=${encodeURIComponent(x.id)}`}
+            <Link key={`d:${x.id}:${i}`} className="cst-chip cst-chip-dish" to={`/admin/costing/dishes?dish=${encodeURIComponent(x.id)}`}
                   title={`dish line «${x.ingredient}» · ${x.source}`}>{x.name}</Link>))} />
         </>)}
         {d.parents.length > 0 && (<>
@@ -570,6 +570,7 @@ function ComponentDrawer(p: DrawerProps) {
                 <a href="#" className="cst-back" onClick={(e) => { e.preventDefault(); onBack() }}>← {back.name}</a>
               )}
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                <EntityPill kind="component" />
                 <h2 style={{ margin: 0 }}>{comp?.name ?? 'Component'}</h2>
                 {kind && <span className={`cst-badge ${KIND_BADGE[kind][0]}`}>{KIND_BADGE[kind][1]}</span>}
                 {comp && !comp.active && <span className="cst-badge cst-warn">inactive</span>}
@@ -958,6 +959,7 @@ function EditPane({ init, d, lower, back, onBack, onClose, opts, optsErr, catego
           <a href="#" className="cst-back" onClick={(e) => { e.preventDefault(); leave(onBack) }}>← {back.name}</a>
         )}
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+          <EntityPill kind="component" />
           <input className="admin-input cst-title-input" value={f.name} placeholder="Component name, e.g. Καρότο σωτέ"
                  autoFocus={!compId} onChange={(e) => set({ name: e.target.value })} />
           <select className="admin-input" style={{ width: 150 }} value={f.method} title="Cooking method"

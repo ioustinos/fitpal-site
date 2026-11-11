@@ -187,3 +187,16 @@ details.cst-sec[open] > summary h3::before { content: '▾'; }
 .cst-head-actions label { font-size: 12px; color: #475569; display: inline-flex; align-items: center; gap: 6px; }
 .cst-head-actions .admin-input { height: 30px; padding: 4px 8px; font-size: 13px; }
 .cst-head-actions + .admin-drawer-close { margin-left: 8px; }
+/* entity type — Dish / Component / Cost item, same colours everywhere (Ioustinos 11/11) */
+.cst-ent { display: inline-flex; align-items: center; font-size: 10.5px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; padding: 2px 8px; border-radius: 999px; border: 1px solid; line-height: 1.5; white-space: nowrap; flex: none; }
+.cst-ent-dish { color: #7e22ce; background: #faf5ff; border-color: #e9d5ff; }
+.cst-ent-component { color: #b45309; background: #fffbeb; border-color: #fde68a; }
+.cst-ent-item { color: #1d4ed8; background: #eff6ff; border-color: #bfdbfe; }
+.cst-ent-dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; vertical-align: 1px; }
+.cst-ent-dot-dish { background: #a855f7; }
+.cst-ent-dot-component { background: #f59e0b; }
+.cst-ent-dot-item { background: #3b82f6; }
+.cst-chip-dish { border-color: #e9d5ff; background: #faf5ff; color: #6b21a8; }
+.cst-chip-dish:hover { border-color: #c084fc; background: #f3e8ff; }
+.cst-chip.cst-chip-comp { border-style: solid; border-color: #fde68a; background: #fffbeb; color: #92400e; }
+.cst-chip.cst-chip-comp:hover { border-color: #fbbf24; background: #fef3c7; }

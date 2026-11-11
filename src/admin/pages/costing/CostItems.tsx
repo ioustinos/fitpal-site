@@ -5,7 +5,7 @@ import {
   type BaseUnit, type CostItemDetail, type CostItemInput, type CostItemRow, type ItemKind,
 } from '../../../lib/api/adminCosting'
 import {
-  CostingTabs, HistoryChart, NumText, Section, SourceBadge, Sparkline,
+  CostingTabs, EntityPill, HistoryChart, NumText, Section, SourceBadge, Sparkline,
   fmtDate, fmtEur, fmtEurFine, fmtUnitCost, skey, useUrlState,
 } from '../../costing/shared'
 
@@ -316,7 +316,7 @@ function ItemDrawer({ row, categories, onClose, onSaved }: {
       <div className="admin-drawer cst-drawer-wide" onClick={(e) => e.stopPropagation()}>
         <header className="admin-drawer-head">
           <div className="admin-drawer-head-title">
-            <h2>{row ? row.name : 'New cost item'}</h2>
+            <h2 style={{ display: 'flex', alignItems: 'center', gap: 8 }}><EntityPill kind="item" />{row ? row.name : 'New cost item'}</h2>
             {row && (
               <span className="cst-note">
                 {fmtUnitCost(row.unit_cost, row.base_unit)} <SourceBadge source={row.source} date={row.price_date} />
@@ -487,7 +487,7 @@ function ItemDrawer({ row, categories, onClose, onSaved }: {
                       <div className="cst-sublbl" style={{ marginTop: detail.components.length ? 10 : 0 }}>Dishes (packaging)</div>
                       <div className="cst-chips">
                         {detail.dishes.map((d) => (
-                          <Link key={d.id} className="cst-chip" to={`/admin/costing/dishes?dish=${encodeURIComponent(d.id)}`}>{d.name} <span className="cst-muted">× {Number(d.qty)}</span></Link>
+                          <Link key={d.id} className="cst-chip cst-chip-dish" to={`/admin/costing/dishes?dish=${encodeURIComponent(d.id)}`}>{d.name} <span className="cst-muted">× {Number(d.qty)}</span></Link>
                         ))}
                       </div>
                     </>)}

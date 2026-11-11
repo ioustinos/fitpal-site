@@ -7,7 +7,7 @@ import {
   type RecipeNode,
   type VariantTree,
 } from '../../../lib/api/adminCosting'
-import { FlagBadges, Section, Segmented, ShareBar, SourceBadge, fmtCompCost, fmtEur, fmtEurFine, fmtQtyUnit, fmtUnitCost } from '../../costing/shared'
+import { EntityDot, FlagBadges, Section, Segmented, ShareBar, SourceBadge, fmtCompCost, fmtEur, fmtEurFine, fmtQtyUnit, fmtUnitCost } from '../../costing/shared'
 import { fmtQty, nodeRatio, treeNodeRows } from '../../costing/recipeTree'
 
 /**
@@ -193,7 +193,7 @@ export function RecipeBreakdown({ variantId, componentId, componentUnit, asOf, r
             <tbody>
               {t.items.map((it) => (
                 <tr key={it.id}>
-                  <td><Link to={`/admin/costing/items?item=${encodeURIComponent(it.id)}`}>{it.name}</Link></td>
+                  <td><EntityDot kind="item" /> <Link to={`/admin/costing/items?item=${encodeURIComponent(it.id)}`}>{it.name}</Link></td>
                   <td className="num">{fmtQty(it.qty, it.unit)}</td>
                   <td className="num">{fmtUnitCost(it.unit_cost, it.unit)}</td>
                   <td><SourceBadge source={it.source} date={it.price_date} invoiceId={it.invoice_id} /></td>
@@ -209,7 +209,7 @@ export function RecipeBreakdown({ variantId, componentId, componentUnit, asOf, r
                   {t.leaf_components.map((c) => (
                     <Fragment key={c.id}>
                       <tr className="cst-sub">
-                        <td><Link to={`/admin/costing/components?id=${encodeURIComponent(c.id)}`}>{c.name}</Link>{' '}<FlagBadges flags={c.flags} /></td>
+                        <td><EntityDot kind="component" /> <Link to={`/admin/costing/components?id=${encodeURIComponent(c.id)}`}>{c.name}</Link>{' '}<FlagBadges flags={c.flags} /></td>
                         <td className="num">{fmtQtyUnit(c.grams, c.unit)}{(c.unit ?? 'g') === 'g' && <span className="cst-muted"> cooked</span>}</td>
                         <td className="num">{fmtCompCost(Number(c.cost) / Math.max(Number(c.grams), 1e-9), c.unit)}</td>
                         <td className="cst-muted" style={{ fontSize: 11.5 }}>{c.yield_mode === 'fixed' ? 'fixed (Excel)' : 'no recipe'}</td>

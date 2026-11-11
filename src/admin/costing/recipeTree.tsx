@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import type { RecipeComponentNode, RecipeNode } from '../../lib/api/adminCosting'
-import { FlagBadges, ShareBar, SourceBadge, fmtCompCost, fmtEurFine, fmtQtyUnit, fmtUnitCost } from './shared'
+import { EntityDot, FlagBadges, ShareBar, SourceBadge, fmtCompCost, fmtEurFine, fmtQtyUnit, fmtUnitCost } from './shared'
 
 /** WEC-864: tree rows shared by the dish drawer, the component drawer and the component editor. */
 
@@ -49,7 +49,7 @@ export function treeNodeRows(node: RecipeNode, path: string, depth: number, open
   if (node.kind === 'item') {
     out.push(
       <tr key={path} className="cst-sub">
-        <td style={pad}><span className="cst-muted">•</span>{' '}
+        <td style={pad}><EntityDot kind="item" />{' '}
           <Link to={`/admin/costing/items?item=${encodeURIComponent(node.id)}`}>{node.name}</Link></td>
         <td className="cst-muted">purchased</td>
         <td className="num">{fmtQty(node.qty, node.unit)}</td>
@@ -70,7 +70,7 @@ export function treeNodeRows(node: RecipeNode, path: string, depth: number, open
   out.push(
     <tr key={path} className={depth ? 'cst-sub' : undefined}>
       <td style={pad}>
-        <span className="cst-muted">•</span>{' '}
+        <EntityDot kind="component" />{' '}
         <Link to={`/admin/costing/components?id=${encodeURIComponent(node.id)}`}>{node.name}</Link>
         <span style={{ marginLeft: 4 }}><FlagBadges flags={node.flags} /></span>
         {can && (

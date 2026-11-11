@@ -340,6 +340,18 @@ export function ShareBar({ value, muted }: { value: number | null | undefined; m
   )
 }
 
+/** What an entity is — same three colours everywhere (header pills, chips, tree bullets).
+ *  Colours match the chart: purchase = blue (cost item), recipe = amber (component), dish = purple. */
+export type EntityKind = 'dish' | 'component' | 'item'
+export const ENTITY_LABEL: Record<EntityKind, string> = { dish: 'Dish', component: 'Component', item: 'Cost item' }
+export function EntityPill({ kind }: { kind: EntityKind }) {
+  return <span className={`cst-ent cst-ent-${kind}`}>{ENTITY_LABEL[kind]}</span>
+}
+/** Small coloured bullet in front of a name in trees and lists. */
+export function EntityDot({ kind }: { kind: EntityKind }) {
+  return <span className={`cst-ent-dot cst-ent-dot-${kind}`} title={ENTITY_LABEL[kind]} aria-label={ENTITY_LABEL[kind]} />
+}
+
 /** Summary tile (key / big value / small line). */
 export function Tile({ k, v, s, tone }: { k: ReactNode; v: ReactNode; s?: ReactNode; tone?: 'good' | 'warn' | 'bad' | 'dim' }) {
   return (

@@ -18,6 +18,7 @@ import {
   CostingTabs,
   FlagBadges,
   HistoryChart,
+  EntityPill,
   Section,
   Segmented,
   ShareBar,
@@ -577,7 +578,7 @@ function DishDrawer({ view, asOf, base, packOptions, onClose, onSaved }: {
     <div className="admin-drawer-overlay" onClick={onClose}>
       <div className="admin-drawer cst-drawer-wide" onClick={(e) => e.stopPropagation()}>
         <header className="admin-drawer-head">
-          <h2 style={{ fontSize: 16 }}>{d.name}</h2>
+          <h2 style={{ fontSize: 16, display: 'flex', alignItems: 'center', gap: 8 }}><EntityPill kind="dish" />{d.name}</h2>
           <span className="cst-muted" style={{ fontSize: 12, marginLeft: 8 }}>{d.category_id ?? ''} · as of {fmtDate(asOf)}</span>
           <div className="cst-head-actions">
             <Link to={`/admin/costing/links?dish=${encodeURIComponent(d.id)}`} className="admin-btn admin-btn-secondary admin-btn-sm"
