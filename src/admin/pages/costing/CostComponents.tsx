@@ -915,13 +915,14 @@ function EditPane({ init, d, lower, back, onBack, onClose, opts, optsErr, catego
       <tr key={path} className="cst-edit-row">
         <td>
           <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-            {can
-              ? <button type="button" className="admin-btn admin-btn-ghost admin-btn-sm" style={{ padding: '0 5px' }}
-                  onClick={() => toggle(path)} aria-expanded={isOpen}>{isOpen ? '▾' : '▸'}</button>
-              : <span style={{ display: 'inline-block', width: 22, flex: 'none' }} />}
             <div style={{ flex: 1, minWidth: 0 }}>
               <SearchPick options={pickOpts} value={l.ref} onChange={(v) => setLine(l.key, { ref: v })} placeholder="Search item or component…" width="100%" />
             </div>
+            {can && (
+              <button type="button" className="admin-btn admin-btn-ghost admin-btn-sm cst-tree-toggle" style={{ flex: 'none', marginLeft: 0 }}
+                      title={isOpen ? 'Hide its recipe' : 'Show its recipe'}
+                      onClick={() => toggle(path)} aria-expanded={isOpen}>{isOpen ? '▾' : '▸'}</button>
+            )}
             <button className="admin-btn admin-btn-ghost admin-btn-sm" title="Remove line" style={{ padding: '0 6px', flex: 'none' }}
                     onClick={() => setF((x) => ({ ...x, lines: x.lines.filter((y) => y.key !== l.key) }))}>×</button>
           </div>

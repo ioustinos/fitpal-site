@@ -44,7 +44,7 @@ export const nodeReference = (n: RecipeNode): ReactNode =>
 export function treeNodeRows(node: RecipeNode, path: string, depth: number, open: Set<string>,
   toggle: (path: string) => void, share: (c: number) => number | null, trailing = 0): ReactNode[] {
   const out: ReactNode[] = []
-  const pad = { paddingLeft: 8 + depth * 18 }
+  const pad = { paddingLeft: 8 + depth * 22 }
   const tail = Array.from({ length: trailing }, (_, i) => <td key={`t${i}`} />)
   if (node.kind === 'item') {
     out.push(
@@ -70,12 +70,14 @@ export function treeNodeRows(node: RecipeNode, path: string, depth: number, open
   out.push(
     <tr key={path} className={depth ? 'cst-sub' : undefined}>
       <td style={pad}>
-        {can
-          ? <button type="button" className="admin-btn admin-btn-ghost admin-btn-sm" style={{ padding: '0 5px', marginRight: 4 }}
-              onClick={() => toggle(path)} aria-expanded={isOpen}>{isOpen ? '▾' : '▸'}</button>
-          : <span style={{ display: 'inline-block', width: 22 }} />}
+        <span className="cst-muted">•</span>{' '}
         <Link to={`/admin/costing/components?id=${encodeURIComponent(node.id)}`}>{node.name}</Link>
         <span style={{ marginLeft: 4 }}><FlagBadges flags={node.flags} /></span>
+        {can && (
+          <button type="button" className="admin-btn admin-btn-ghost admin-btn-sm cst-tree-toggle"
+                  title={isOpen ? 'Hide its recipe' : 'Show its recipe'}
+                  onClick={() => toggle(path)} aria-expanded={isOpen}>{isOpen ? '▾' : '▸'}</button>
+        )}
       </td>
       <td className="cst-muted" style={{ fontSize: 11.5 }}>{yieldLabel(node)}</td>
       <td className="num">{u === 'pcs' ? '—' : r ? fmtQty(Number(node.grams) / r, 'g') : '—'}</td>
