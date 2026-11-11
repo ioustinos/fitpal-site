@@ -7,7 +7,7 @@ import {
   type RecipeNode,
   type VariantTree,
 } from '../../../lib/api/adminCosting'
-import { FlagBadges, SourceBadge, fmtCompCost, fmtEur, fmtEurFine, fmtPct, fmtQtyUnit, fmtUnitCost } from '../../costing/shared'
+import { FlagBadges, Section, Segmented, ShareBar, SourceBadge, fmtCompCost, fmtEur, fmtEurFine, fmtQtyUnit, fmtUnitCost } from '../../costing/shared'
 import { fmtQty, nodeRatio, treeNodeRows } from '../../costing/recipeTree'
 
 /**
@@ -113,33 +113,21 @@ export function RecipeBreakdown({ variantId, componentId, componentUnit, asOf, r
   }
 
   return (
-    <div className="cst-section">
-      <div className="cst-toolbar" style={{ marginBottom: 6 }}>
-        <h4 style={{ margin: 0 }}>{isComp ? 'Raw ingredients' : 'Recipe & cost per ingredient'}</h4>
+    <Section
+      title={isComp ? 'Raw ingredients' : 'Recipe & cost per ingredient'}
+      sub={isComp ? (scale === 'batch' ? 'whole batch' : componentUnit === 'pcs' ? 'per piece' : 'per kg cooked') : 'this portion'}
+      actions={<>
         {isComp && (
-          <span className="cst-tabs" style={{ margin: 0, border: 0 }}>
-            <a href="#" className={scale === 'batch' ? 'on' : ''} onClick={(e) => { e.preventDefault(); setScale('batch') }}>Whole batch</a>
-            <a href="#" className={scale === 'unit' ? 'on' : ''} onClick={(e) => { e.preventDefault(); setScale('unit') }}>
-              {componentUnit === 'pcs' ? 'Per piece' : 'Per kg cooked'}</a>
-          </span>
+          <Segmented value={scale} onChange={setScale}
+            options={[['batch', 'Whole batch'], ['unit', componentUnit === 'pcs' ? 'Per piece' : 'Per kg cooked']]} />
         )}
-        <span className="cst-tabs" style={{ margin: 0, border: 0 }}>
-          <a href="#" className={view === 'recipe' ? 'on' : ''} onClick={(e) => { e.preventDefault(); setView('recipe') }}>Recipe</a>
-          <a href="#" className={view === 'items' ? 'on' : ''} onClick={(e) => { e.preventDefault(); setView('items') }}>By cost item</a>
-        </span>
-        <span className="cst-spacer" />
-        {!isComp && dishId && (
-          <Link to={`/admin/costing/links?dish=${encodeURIComponent(dishId)}`} className="admin-btn admin-btn-secondary admin-btn-sm"
-                title="Which component each ingredient of this dish is costed with">Edit dish links</Link>
-        )}
-        {view === 'recipe' && t && (
-          <>
-            <button type="button" className="admin-btn admin-btn-ghost admin-btn-sm" onClick={() => setOpen(new Set(allPaths()))}>Expand all</button>
-            <button type="button" className="admin-btn admin-btn-ghost admin-btn-sm" onClick={() => setOpen(new Set())}>Collapse</button>
-          </>
-        )}
-      </div>
-
+        <Segmented value={view} onChange={setView} options={[['recipe', 'Recipe'], ['items', 'By cost item']]} />
+        {view === 'recipe' && t && (<>
+          <button type="button" className="admin-btn admin-btn-ghost admin-btn-sm" onClick={() => setOpen(new Set(allPaths()))}>Expand all</button>
+          <button type="button" className="admin-btn admin-btn-ghost admin-btn-sm" onClick={() => setOpen(new Set())}>Collapse</button>
+        </>)}
+      </>}
+    >
       {res?.error && !loading && <div className="admin-error-banner">Could not load the recipe: {res.error}</div>}
       {loading && !t && <div className="admin-loading">Loading recipe…</div>}
 
@@ -209,7 +197,7 @@ export function RecipeBreakdown({ variantId, componentId, componentUnit, asOf, r
                   <td className="num">{fmtUnitCost(it.unit_cost, it.unit)}</td>
                   <td><SourceBadge source={it.source} date={it.price_date} invoiceId={it.invoice_id} /></td>
                   <td className="num">{fmtEurFine(it.cost, 3)}</td>
-                  <td className="num cst-muted">{fmtPct(share(Number(it.cost)))}</td>
+                  <td className="num"><ShareBar value={share(Number(it.cost))} /></td>
                 </tr>
               ))}
               {t.leaf_components.length > 0 && (
@@ -225,7 +213,7 @@ export function RecipeBreakdown({ variantId, componentId, componentUnit, asOf, r
                         <td className="num">{fmtCompCost(Number(c.cost) / Math.max(Number(c.grams), 1e-9), c.unit)}</td>
                         <td className="cst-muted" style={{ fontSize: 11.5 }}>{c.yield_mode === 'fixed' ? 'fixed (Excel)' : 'no recipe'}</td>
                         <td className="num">{fmtEurFine(c.cost, 3)}</td>
-                        <td className="num cst-muted">{fmtPct(share(Number(c.cost)))}</td>
+                        <td className="num"><ShareBar value={share(Number(c.cost))} /></td>
                       </tr>
                     </Fragment>
                   ))}
@@ -242,6 +230,6 @@ export function RecipeBreakdown({ variantId, componentId, componentUnit, asOf, r
           )}
         </div>
       )}
-    </div>
+    </Section>
   )
 }

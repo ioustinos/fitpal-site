@@ -13,7 +13,7 @@ import type {
   ComponentPreview, RecipeNode,
 } from '../../../lib/api/adminCosting'
 import {
-  CostingTabs, FlagBadges, HistoryChart, NumText, SearchPick,
+  CostingTabs, FlagBadges, HistoryChart, NumText, SearchPick, Section, ShareBar,
   fmtCompCost, fmtDate, fmtEur, fmtEurFine, fmtPct, fmtPerKg, fmtQtyUnit, skey, todayAthens, useUrlState,
 } from '../../costing/shared'
 import type { PickOption } from '../../costing/shared'
@@ -46,14 +46,6 @@ function ChangeCell({ v }: { v: number | null }) {
 }
 
 /** Map ledger cause strings onto the chart's dot classes (price / version / other). */
-function chartCause(c: string | null): string {
-  if (!c) return 'other'
-  if (c.startsWith('purchase') || c.startsWith('invoice')) return c
-  if (c.startsWith('item:')) return `purchase / fallback price change (${c})`
-  if (c.startsWith('version') || c.startsWith('component')) return c
-  return `other (${c})`
-}
-
 const lineKey = (l: { cost_item_id: string | null; child_component_id: string | null }) =>
   l.cost_item_id ? `i:${l.cost_item_id}` : `c:${l.child_component_id}`
 
@@ -491,40 +483,34 @@ function ComponentDrawer(p: DrawerProps) {
   const histRows = useMemo(
     () => (d?.history ?? [])
       .filter((h) => !h.flags?.no_version)
-      .map((h) => ({ date: h.date, cost_per_g: Number(h.cost_per_g), cause: chartCause(h.cause) })),
+      .map((h) => ({ date: h.date, cost_per_g: Number(h.cost_per_g), cause: h.cause })),
     [d])
 
   // history · used in · versions — shown under both the view and the editor
   const lower = d && b && comp ? (<>
-    <div className="cst-section">
-      <h4>Cost history <span className="cst-muted" style={{ fontWeight: 400 }}>· per {perLabel}</span></h4>
+    <Section title="Cost history" sub={`per ${perLabel}`}>
       <HistoryChart rows={histRows} valueKey="cost_per_g" fmt={fmtC} />
-      <div className="cst-legend">
-        <span><i style={{ background: '#2563eb' }} />price change</span>
-        <span><i style={{ background: '#f59e0b' }} />new version</span>
-        <span><i style={{ background: '#6b7280' }} />other</span>
-      </div>
-    </div>
+    </Section>
 
     {(d.dishes.length > 0 || d.parents.length > 0) && (
-      <div className="cst-section">
+      <Section title="Used in" sub={`${d.dishes.length} dish lines · ${d.parents.length} recipes`}>
         {d.dishes.length > 0 && (<>
-          <h4>Dishes <span className="cst-muted" style={{ fontWeight: 400 }}>· {d.dishes.length}</span></h4>
+          <div className="cst-sublbl">Dishes</div>
           <Chips more={showAll} onMore={() => setShowAll(true)} items={d.dishes.map((x, i) => (
             <Link key={`d:${x.id}:${i}`} className="cst-chip" to={`/admin/costing/dishes?dish=${encodeURIComponent(x.id)}`}
                   title={`dish line «${x.ingredient}» · ${x.source}`}>{x.name}</Link>))} />
         </>)}
         {d.parents.length > 0 && (<>
-          <h4 style={{ marginTop: d.dishes.length ? 10 : 0 }}>Inside recipes <span className="cst-muted" style={{ fontWeight: 400 }}>· {d.parents.length}</span></h4>
+          <div className="cst-sublbl" style={{ marginTop: d.dishes.length ? 10 : 0 }}>Inside recipes</div>
           <Chips more={showAll} onMore={() => setShowAll(true)} items={d.parents.map((x) => (
             <a key={`c:${x.id}`} href="#" className="cst-chip cst-chip-comp" title="recipe that contains this component"
                onClick={(e) => { e.preventDefault(); onOpen(x.id, comp.name) }}>{x.name}</a>))} />
         </>)}
-      </div>
+      </Section>
     )}
 
-    <details className="cst-section cst-details" open={versions.length > 1}>
-      <summary><h4 style={{ display: 'inline' }}>Versions ({versions.length})</h4></summary>
+    <details className="cst-sec cst-details" open={versions.length > 1}>
+      <summary className="cst-sec-h"><h3>Versions<span className="cst-sec-sub">{versions.length}</span></h3></summary>
       <div className="cst-wrap" style={{ maxHeight: 'none', marginTop: 6 }}>
         <table className="cst-table">
           <thead><tr>
@@ -597,7 +583,7 @@ function ComponentDrawer(p: DrawerProps) {
             {loading && !d && <div className="admin-loading">Loading…</div>}
             {d && b && comp && kind && (
               <>
-                <div className="cst-toolbar" style={{ marginBottom: 12 }}>
+                <div className="cst-drawer-bar">
                   <label>Costs as of
                     <input type="date" className="admin-input" value={asOf || d.as_of} onChange={(e) => setAsOf(e.target.value)} style={{ width: 145 }} />
                   </label>
@@ -658,14 +644,13 @@ function ComponentDrawer(p: DrawerProps) {
 
                 {/* ── ingredients: same expandable tree as the dish drawer ── */}
                 {kind === 'fixed' ? (
-                  <div className="cst-section">
-                    <h4>Raw ingredients</h4>
+                  <Section title="Raw ingredients">
                     <div className="cst-empty">
                       <div className="cst-strong">No recipe yet.</div>
                       <div>The cost is a fixed estimate of <b>{fmtC(b.cost_per_g)}</b> carried over from the kitchen Excel.
                         It will not follow ingredient prices until a version with recipe lines is added.</div>
                     </div>
-                  </div>
+                  </Section>
                 ) : (
                   <ComponentRecipeTree key={`${comp.id}:${d.as_of}:${b.version_id}`} componentId={comp.id} asOf={d.as_of} unit={U} />
                 )}
@@ -960,7 +945,7 @@ function EditPane({ init, d, lower, back, onBack, onClose, opts, optsErr, catego
         <td className="num">{n ? nodeUnitCost(n) : ''}</td>
         <td>{n ? nodeReference(n) : ''}</td>
         <td className="num">{n ? fmtEurFine(n.cost, 3) : ''}</td>
-        <td className="num cst-muted">{n ? fmtPct(share(Number(n.cost))) : ''}</td>
+        <td className="num">{n ? <ShareBar value={share(Number(n.cost))} /> : ''}</td>
       </tr>,
     )
     if (can && isOpen && n.kind === 'component') n.children.forEach((c, i) => rows.push(...treeNodeRows(c, `${path}/${i}`, 1, open, toggle, share)))
@@ -992,7 +977,7 @@ function EditPane({ init, d, lower, back, onBack, onClose, opts, optsErr, catego
       <button className="admin-drawer-close" onClick={() => leave(onClose)}>×</button>
     </header>
     <div className="admin-drawer-body" style={{ padding: '12px 18px 24px' }} onClickCapture={guardLinks}>
-      <div className="cst-toolbar cst-edit-bar" style={{ marginBottom: 12 }}>
+      <div className="cst-drawer-bar cst-edit-bar">
         <span className="cst-badge cst-warn">{status}</span>
         <span className="cst-note">{saveNote}</span>
         <span className="cst-spacer" />
@@ -1050,16 +1035,11 @@ function EditPane({ init, d, lower, back, onBack, onClose, opts, optsErr, catego
       </div>
 
       {/* ── ingredients: the same tree, with editable top-level lines ── */}
-      <div className="cst-section">
-        <div className="cst-toolbar" style={{ marginBottom: 6 }}>
-          <h4 style={{ margin: 0 }}>Raw ingredients</h4>
-          <span className="cst-note">whole batch · live</span>
-          <span className="cst-spacer" />
-          {f.mode !== 'fixed' && (<>
-            <button type="button" className="admin-btn admin-btn-ghost admin-btn-sm" onClick={() => setOpen(new Set(allPaths()))}>Expand all</button>
-            <button type="button" className="admin-btn admin-btn-ghost admin-btn-sm" onClick={() => setOpen(new Set())}>Collapse</button>
-          </>)}
-        </div>
+      <Section title="Raw ingredients" sub="whole batch · live"
+        actions={f.mode !== 'fixed' && (<>
+          <button type="button" className="admin-btn admin-btn-ghost admin-btn-sm" onClick={() => setOpen(new Set(allPaths()))}>Expand all</button>
+          <button type="button" className="admin-btn admin-btn-ghost admin-btn-sm" onClick={() => setOpen(new Set())}>Collapse</button>
+        </>)}>
         {optsErr && <div className="cst-inline-err">Could not load items/components: {optsErr}</div>}
         {f.mode === 'fixed' ? (
           <div className="cst-empty">
@@ -1115,7 +1095,7 @@ function EditPane({ init, d, lower, back, onBack, onClose, opts, optsErr, catego
           <input className="admin-input cst-input" value={f.vnotes} onChange={(e) => set({ vnotes: e.target.value })}
                  placeholder="π.χ. +10 ml λάδι" style={{ width: '100%', marginTop: 2 }} />
         </label>
-      </div>
+      </Section>
 
       {lower}
     </div>

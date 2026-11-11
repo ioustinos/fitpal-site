@@ -5,7 +5,7 @@ import {
   type BaseUnit, type CostItemDetail, type CostItemInput, type CostItemRow, type ItemKind,
 } from '../../../lib/api/adminCosting'
 import {
-  CostingTabs, HistoryChart, NumText, SourceBadge, Sparkline,
+  CostingTabs, HistoryChart, NumText, Section, SourceBadge, Sparkline,
   fmtDate, fmtEur, fmtEurFine, fmtUnitCost, skey, useUrlState,
 } from '../../costing/shared'
 
@@ -432,20 +432,14 @@ function ItemDrawer({ row, categories, onClose, onSaved }: {
               {!detail && !detailErr && <div className="cst-muted" style={{ marginTop: 10 }}>Loading history…</div>}
               {detail && (
                 <>
-                  <div className="cst-section">
-                    <h4>Price history</h4>
+                  <Section title="Price history" sub={`€ per ${row.base_unit}, net`}>
                     <HistoryChart rows={chartRows} valueKey="unit_cost" fmt={(v) => fmtEurFine(v, 4)} />
-                    <div className="cst-note">Chart values in € per {row.base_unit} (net). Current: {fmtUnitCost(detail.current.unit_cost, row.base_unit)}</div>
-                  </div>
+                  </Section>
 
-                  <div className="cst-section">
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                      <h4 style={{ margin: 0 }}>Purchases ({detail.purchases.length})</h4>
-                      <span className="cst-spacer" />
-                      <Link className="admin-btn admin-btn-secondary admin-btn-sm"
+                  <Section title="Purchases" sub={String(detail.purchases.length)}
+                    actions={<Link className="admin-btn admin-btn-secondary admin-btn-sm"
                             to={`/admin/costing/purchases?inv=new&item=${encodeURIComponent(row.id)}`}
-                            title="Open a new purchase invoice with this item already on the first line">+ Add purchase</Link>
-                    </div>
+                            title="Open a new purchase invoice with this item already on the first line">+ Add purchase</Link>}>
                     {detail.purchases.length === 0
                       ? <div className="cst-muted">No purchases yet — cost comes from the fallback price{row.source === 'unpriced' ? ' (none set: counted as €0)' : ''}.</div>
                       : (
@@ -478,25 +472,27 @@ function ItemDrawer({ row, categories, onClose, onSaved }: {
                           </table>
                         </div>
                       )}
-                  </div>
+                  </Section>
 
-                  <div className="cst-section">
-                    <h4>Where used</h4>
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, fontSize: 12.5 }}>
-                      <div>
-                        <div className="cst-note" style={{ marginBottom: 4 }}>Components ({detail.components.length})</div>
-                        {detail.components.length === 0 && <div className="cst-muted">None</div>}
-                        {detail.components.map((c) => <div key={c.id}>{c.name}</div>)}
-                      </div>
-                      <div>
-                        <div className="cst-note" style={{ marginBottom: 4 }}>Dishes ({detail.dishes.length})</div>
-                        {detail.dishes.length === 0 && <div className="cst-muted">None</div>}
-                        {detail.dishes.map((d) => (
-                          <div key={d.id}>{d.name} <span className="cst-muted">× {Number(d.qty)}</span></div>
+                  <Section title="Where used" sub={`${detail.components.length} components · ${detail.dishes.length} dishes`}>
+                    {detail.components.length > 0 && (<>
+                      <div className="cst-sublbl">Components</div>
+                      <div className="cst-chips">
+                        {detail.components.map((c) => (
+                          <Link key={c.id} className="cst-chip cst-chip-comp" to={`/admin/costing/components?id=${encodeURIComponent(c.id)}`}>{c.name}</Link>
                         ))}
                       </div>
-                    </div>
-                  </div>
+                    </>)}
+                    {detail.dishes.length > 0 && (<>
+                      <div className="cst-sublbl" style={{ marginTop: detail.components.length ? 10 : 0 }}>Dishes (packaging)</div>
+                      <div className="cst-chips">
+                        {detail.dishes.map((d) => (
+                          <Link key={d.id} className="cst-chip" to={`/admin/costing/dishes?dish=${encodeURIComponent(d.id)}`}>{d.name} <span className="cst-muted">× {Number(d.qty)}</span></Link>
+                        ))}
+                      </div>
+                    </>)}
+                    {!detail.components.length && !detail.dishes.length && <div className="cst-muted">Not used anywhere yet.</div>}
+                  </Section>
                 </>
               )}
             </>

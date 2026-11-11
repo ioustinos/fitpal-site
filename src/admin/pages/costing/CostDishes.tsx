@@ -17,6 +17,9 @@ import {
   CostingTabs,
   FlagBadges,
   HistoryChart,
+  Section,
+  ShareBar,
+  Tile,
   NumText,
   SearchPick,
   SourceBadge,
@@ -446,7 +449,7 @@ function PackRowsEditor({ rows, setRows, options, disabled, costs, share }: {
                 <td className="num">{fmtEur(c.unit_cost)}</td>
                 <td><SourceBadge source={c.source} date={c.price_date} invoiceId={c.invoice_id} /></td>
                 <td className="num">{fmtEur(c.line_cost)}</td>
-                <td className="num cst-muted">{fmtPct(share ? share(c.line_cost) : null)}</td>
+                <td className="num"><ShareBar value={share ? share(c.line_cost) : null} /></td>
               </>) : <td colSpan={4} className="cst-muted">{r.cost_item_id ? 'save to cost it' : ''}</td>
             })()}
             <td>
@@ -551,9 +554,9 @@ function DishDrawer({ view, asOf, base, packOptions, onClose, onSaved }: {
         <div className="admin-drawer-body" style={{ fontSize: 13 }}>
           {!view.variants.length && <div className="admin-empty">This dish has no variants.</div>}
           {view.variants.length > 0 && (
-            <div className="cst-toolbar" style={{ marginBottom: 10 }}>
-              <label style={{ fontWeight: 600 }}>Variant
-                <select className="admin-input" style={{ minWidth: 420, maxWidth: '100%', marginLeft: 6 }}
+            <div className="cst-drawer-bar">
+              <label>Variant
+                <select className="admin-input" style={{ minWidth: 420, maxWidth: '100%', height: 34, fontSize: 13.5 }}
                         value={variantId ?? ''} onChange={(e) => setVariantId(e.target.value)}>
                   {view.variants.map((v) => (
                     <option key={v.id} value={v.id}>{v.label || v.id} — {fmtEur(v.price)}</option>
@@ -570,6 +573,9 @@ function DishDrawer({ view, asOf, base, packOptions, onClose, onSaved }: {
                   <span className="cst-count">{i + 1} of {view.variants.length}</span>
                 </>)
               })()}
+              <span className="cst-spacer" />
+              <Link to={`/admin/costing/links?dish=${encodeURIComponent(d.id)}`} className="admin-btn admin-btn-secondary admin-btn-sm"
+                    title="Which component each ingredient of this dish is costed with">Edit dish links</Link>
             </div>
           )}
 
@@ -578,42 +584,33 @@ function DishDrawer({ view, asOf, base, packOptions, onClose, onSaved }: {
 
           {b && (
             <div style={{ opacity: detLoading ? 0.6 : 1 }}>
-              <div className="cst-foot-totals" style={{ justifyContent: 'flex-start', flexWrap: 'wrap', paddingLeft: 0 }}>
-                <span>Food <b>{fmtEur(b.food_cost)}</b></span>
-                <span>Packaging <b>{fmtEur(b.packaging_cost)}</b></span>
-                <span>Product <b>{fmtEur(b.product_cost)}</b></span>
-                <span>Price <b>{fmtEur(b.price)}</b> <span className="cst-muted">(net {fmtEur(priceBase(b.price, 'net'))})</span></span>
-                <span>Food % <b>{fmtPct(pctOf(b.food_cost, b.price, base))}</b></span>
-                <span>Product % <b style={{ color: pctColor(pctOf(b.product_cost, b.price, base)) }}>{fmtPct(pctOf(b.product_cost, b.price, base))}</b>
-                  <span className="cst-muted"> {baseLabel(base)}</span></span>
-                {(() => {
-                  const pr = profitOf(b.product_cost, b.price); const nb = priceBase(b.price, 'net')
-                  return (
-                    <span title="Price without 13% VAT − product cost (food + packaging)">Net profit <b style={{ color: pr !== null && pr < 0 ? '#b91c1c' : '#15803d' }}>{fmtEur(pr)}</b>
-                      {pr !== null && nb ? <span className="cst-muted"> ({fmtPct(pr / nb)} margin)</span> : null}</span>
-                  )
-                })()}
-                <span><Flags dishId={d.id} flags={b.flags} /></span>
-              </div>
+              {(() => {
+                const pr = profitOf(b.product_cost, b.price); const nb = priceBase(b.price, 'net')
+                const pp = pctOf(b.product_cost, b.price, base)
+                return (
+                  <div className="cst-tiles cst-tiles-6">
+                    <Tile k="Food" v={fmtEur(b.food_cost)} s={`${fmtPct(pctOf(b.food_cost, b.price, base))} of price`} />
+                    <Tile k="Packaging" v={fmtEur(b.packaging_cost)} s={`${fmtPct(pctOf(b.packaging_cost, b.price, base))} of price`} />
+                    <Tile k="Product cost" v={fmtEur(b.product_cost)} s={<Flags dishId={d.id} flags={b.flags} />} />
+                    <Tile k="Price" v={fmtEur(b.price)} s={`net ${fmtEur(nb)} · VAT 13%`} />
+                    <Tile k="Product %" v={<span style={{ color: pctColor(pp) }}>{fmtPct(pp)}</span>} s={baseLabel(base)}
+                          tone={pp === null ? undefined : pp > 0.4 ? 'bad' : pp > 0.3 ? 'warn' : 'good'} />
+                    <Tile k="Net profit" v={<span style={{ color: pr !== null && pr < 0 ? '#b91c1c' : '#15803d' }}>{fmtEur(pr)}</span>}
+                          s={pr !== null && nb ? `${fmtPct(pr / nb)} margin` : 'net price − product cost'} />
+                  </div>
+                )
+              })()}
 
               {/* recipe + cost per ingredient / cost item (replaces the flat «Food lines» table) */}
               {variantId && <RecipeBreakdown variantId={variantId} asOf={asOf} rev={rev} dishId={d.id} />}
 
-              <div className="cst-section">
-                <h4>Product cost history</h4>
+              <Section title="Product cost history" sub="food + packaging, this variant">
                 <HistoryChart rows={hist} valueKey="product_cost" />
-                <div className="cst-legend">
-                  <span><i style={{ background: '#2563eb' }} />price</span>
-                  <span><i style={{ background: '#f59e0b' }} />recipe version</span>
-                  <span><i style={{ background: '#a855f7' }} />grams</span>
-                  <span><i style={{ background: '#6b7280' }} />other</span>
-                </div>
-              </div>
+              </Section>
             </div>
           )}
 
-          <div className="cst-section" style={{ borderTop: '1px solid #e5e7eb', paddingTop: 10 }}>
-            <h4>Packaging <span className="cst-muted" style={{ fontWeight: 400 }}>· one set for the whole dish (every variant) · costs shown for the selected variant</span></h4>
+          <Section title="Packaging" sub="one set for the whole dish (every variant) · costs for the selected variant">
             {pack?.error && <div className="admin-error-banner">Could not load packaging: {pack.error}</div>}
             {!pack ? <div className="admin-loading">Loading…</div> : (
               <>
@@ -634,7 +631,7 @@ function DishDrawer({ view, asOf, base, packOptions, onClose, onSaved }: {
                 </div>
               </>
             )}
-          </div>
+          </Section>
         </div>
       </div>
     </div>

@@ -1,8 +1,9 @@
 /* eslint-disable react-refresh/only-export-components -- one small shared module (formatters + widgets) for the costing pages */
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useId, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { Link, NavLink, useSearchParams } from 'react-router-dom'
 import type { ReactNode } from 'react'
+import type React from 'react'
 import type { BaseUnit, CostFlags, CostSource } from '../../lib/api/adminCosting'
 import './costing.css'
 
@@ -122,22 +123,43 @@ export function Sparkline({ points, current, days = 90, width = 90, height = 22 
   return <svg className="cst-spark" width={width} height={height} viewBox={`0 0 ${width} ${height}`} aria-hidden><path d={path} /></svg>
 }
 
-/** Step chart for a cost history with cause markers (item / component / variant detail).
- *  - drops the 1900 «no data yet» baseline (it is not a price of 0)
- *  - keeps every purchase as a point; merges other same-value repeats (a re-save that changed nothing)
- *  - y-axis fitted to the data with padding; a flat history is drawn mid-height
- *  - real pixel width (ResizeObserver) so text and dots are never stretched
- *  - hover anywhere to read the value in force on that date */
-export function HistoryChart({ rows, valueKey, height = 150, fmt }: {
+// ── what moved a cost (chart dots + legend) ─────────────────────────────────
+export type ChangeKind = 'price' | 'recipe' | 'dish' | 'recalc' | 'other'
+export const CHANGE_KINDS: Record<ChangeKind, { label: string; hint: string; color: string }> = {
+  price: { label: 'Purchase price', hint: 'a new purchase (or fallback price) of a cost item', color: '#2563eb' },
+  recipe: { label: 'Recipe change', hint: 'a new published version of a component recipe', color: '#f59e0b' },
+  dish: { label: 'Dish change', hint: 'grams of a dish line, its component link or its packaging changed', color: '#a855f7' },
+  recalc: { label: 'Full recalculation', hint: 'bulk import / rebuild — recalculated with the prices of that date', color: '#94a3b8' },
+  other: { label: 'Manual fix', hint: 'a one-off correction', color: '#64748b' },
+}
+export function changeKind(cause: string | null | undefined): ChangeKind {
+  const c = (cause ?? '').toLowerCase()
+  if (/^(purchase|invoice|item)/.test(c)) return 'price'
+  if (/^(version|component)/.test(c)) return 'recipe'
+  if (/^(grams|dish|cost_dish|packaging|link)/.test(c)) return 'dish'
+  if (c.startsWith('rebuild')) return 'recalc'
+  return 'other'
+}
+
+/**
+ * Cost history chart (item / component / dish drawers).
+ *  - step line + soft area: a cost holds until the next change
+ *  - every point is a dot coloured by what caused it; hover a dot for date, value, change and cause
+ *  - hover anywhere else to read the value in force on that date
+ *  - legend lists only the causes present
+ *  - drops the 1900 «no data yet» baseline; merges same-value repeats except purchases
+ */
+export function HistoryChart({ rows, valueKey, height = 190, fmt }: {
   rows: Array<{ date: string; cause?: string | null } & Record<string, unknown>>; valueKey: string; height?: number
   /** axis + tooltip formatter (default: € with 3 decimals) */
   fmt?: (v: number) => string
 }) {
   const f = fmt ?? ((v: number) => fmtEurFine(v, 3))
   const ref = useRef<HTMLDivElement>(null)
-  const [width, setWidth] = useState(560)
-  const [hover, setHover] = useState<number | null>(null)
+  const [width, setWidth] = useState(640)
+  const [hover, setHover] = useState<{ px: number; dot: number | null } | null>(null)
   const [today] = useState(() => { const d = new Date(); d.setHours(0, 0, 0, 0); return d.getTime() })
+  const gid = `cstg${useId().replace(/:/g, '')}`
   useEffect(() => {
     const el = ref.current
     if (!el || typeof ResizeObserver === 'undefined') return
@@ -147,88 +169,181 @@ export function HistoryChart({ rows, valueKey, height = 150, fmt }: {
   }, [])
 
   const pts = useMemo(() => {
-    const out: Array<{ t: number; v: number; cause: string; date: string }> = []
+    const out: Array<{ t: number; v: number; cause: string; kind: ChangeKind; date: string }> = []
     for (const r of rows) {
       if (r.date < '2000-01-01') continue
       const v = Number(r[valueKey])
       if (!Number.isFinite(v)) continue
       const cause = r.cause ?? ''
-      // a purchase is always a point, even at the same price; other repeats (re-saves, rebuilds) are merged
-      const isPurchase = /^(purchase|invoice|item)/.test(cause)
-      if (!isPurchase && out.length && Math.abs(out[out.length - 1].v - v) < 1e-9) continue
-      if (out.length && out[out.length - 1].date === r.date) { out[out.length - 1] = { ...out[out.length - 1], v, cause: isPurchase ? cause : out[out.length - 1].cause }; continue }
-      out.push({ t: new Date(r.date + 'T00:00:00').getTime(), v, cause, date: r.date })
+      const kind = changeKind(cause)
+      if (kind !== 'price' && out.length && Math.abs(out[out.length - 1].v - v) < 1e-9) continue
+      if (out.length && out[out.length - 1].date === r.date) {
+        const prev = out[out.length - 1]
+        out[out.length - 1] = { ...prev, v, cause: kind === 'price' ? cause : prev.cause, kind: kind === 'price' ? kind : prev.kind }
+        continue
+      }
+      out.push({ t: new Date(r.date + 'T00:00:00').getTime(), v, cause, kind, date: r.date })
     }
     return out
   }, [rows, valueKey])
 
-  if (!pts.length) return <div className="cst-muted">No history.</div>
+  if (!pts.length) return <div className="cst-empty-chart">No cost history yet.</div>
 
-  const L = 74, R = 14, T = 12, B = 24
+  const L = 64, R = 16, T = 16, B = 26
   const t0 = pts[0].t
-  const t1 = Math.max(today, pts[pts.length - 1].t) + 3 * 864e5
+  const t1 = Math.max(today, pts[pts.length - 1].t) + 2 * 864e5
   const vals = pts.map((p) => p.v)
   let lo = Math.min(...vals), hi = Math.max(...vals)
-  if (hi - lo < Math.max(hi, 1e-9) * 0.02) { const pad = Math.max(hi * 0.2, 1e-6); lo -= pad; hi += pad }
-  else { const pad = (hi - lo) * 0.15; lo -= pad; hi += pad }
+  if (hi - lo < Math.max(hi, 1e-9) * 0.02) { const pad = Math.max(hi * 0.25, 1e-6); lo -= pad; hi += pad }
+  else { const pad = (hi - lo) * 0.2; lo -= pad; hi += pad }
   if (lo < 0 && Math.min(...vals) >= 0) lo = 0
-  const x = (t: number) => L + ((t - t0) / (t1 - t0)) * (width - L - R)
+  const plotW = width - L - R
+  const x = (t: number) => L + ((t - t0) / Math.max(t1 - t0, 1)) * plotW
   const y = (v: number) => T + (1 - (v - lo) / (hi - lo)) * (height - T - B)
 
-  let d = `M${x(pts[0].t)},${y(pts[0].v)}`
-  for (let i = 1; i < pts.length; i++) d += ` H${x(pts[i].t)} V${y(pts[i].v)}`
-  d += ` H${x(t1)}`
+  let line = `M${x(pts[0].t)},${y(pts[0].v)}`
+  for (let i = 1; i < pts.length; i++) line += ` H${x(pts[i].t)} V${y(pts[i].v)}`
+  line += ` H${x(t1)}`
+  const area = `${line} V${height - B} H${x(t0)} Z`
 
-  const kind = (c: string) => c.startsWith('purchase') || c.startsWith('invoice') || c.startsWith('item') ? 'price'
-    : c.startsWith('version') || c.startsWith('component') ? 'version' : c.startsWith('dish') || c.startsWith('grams') ? 'grams' : 'other'
   const dfmt = (t: number) => new Date(t).toLocaleDateString('el-GR', { day: '2-digit', month: '2-digit', year: '2-digit' })
+  const ticks = [0, 1, 2, 3, 4].map((k) => t0 + ((t1 - t0) * k) / 4)
+  const yTicks = [0, 1, 2, 3].map((k) => lo + ((hi - lo) * k) / 3)
+  const present = (Object.keys(CHANGE_KINDS) as ChangeKind[]).filter((k) => pts.some((p) => p.kind === k))
+  const last = pts[pts.length - 1]
 
-  // x ticks: first point, today, plus up to 3 evenly spaced in between
-  const ticks: number[] = [t0]
-  const span = t1 - t0
-  for (let k = 1; k <= 3; k++) ticks.push(t0 + (span * k) / 4)
-  const yTicks = [hi, (hi + lo) / 2, lo]
+  const onMove = (e: React.MouseEvent<SVGSVGElement>) => {
+    const r = e.currentTarget.getBoundingClientRect()
+    const px = e.clientX - r.left, py = e.clientY - r.top
+    if (px < L || px > width - R) { setHover(null); return }
+    let best: number | null = null, bd = 12
+    pts.forEach((p, i) => { const dd = Math.hypot(x(p.t) - px, y(p.v) - py); if (dd < bd) { bd = dd; best = i } })
+    setHover({ px, dot: best })
+  }
 
-  // hovered value: last point at or before the cursor date
-  const hv = hover === null ? null : (() => {
-    const t = t0 + ((hover - L) / (width - L - R)) * (t1 - t0)
+  // tooltip content: a dot → that change; elsewhere → the value in force on the cursor date
+  const tip = hover === null ? null : (() => {
+    if (hover.dot !== null) {
+      const p = pts[hover.dot], prev = hover.dot > 0 ? pts[hover.dot - 1] : null
+      const delta = prev && prev.v ? (p.v - prev.v) / prev.v : null
+      return { cx: x(p.t), date: dfmt(p.t), v: p.v, delta, kind: p.kind as ChangeKind | null, cause: p.cause }
+    }
+    const t = t0 + ((hover.px - L) / plotW) * (t1 - t0)
     let p = pts[0]
     for (const q of pts) if (q.t <= t) p = q
-    return { t: Math.min(Math.max(t, t0), t1), p }
+    return { cx: hover.px, date: dfmt(t), v: p.v, delta: null, kind: null, cause: '' }
   })()
 
   return (
     <div ref={ref} className="cst-chart-wrap">
       <svg className="cst-chart" width={width} height={height} viewBox={`0 0 ${width} ${height}`}
-           onMouseMove={(e) => { const r = (e.currentTarget as SVGSVGElement).getBoundingClientRect(); const px = e.clientX - r.left; setHover(px >= L && px <= width - R ? px : null) }}
-           onMouseLeave={() => setHover(null)}>
+           onMouseMove={onMove} onMouseLeave={() => setHover(null)}>
+        <defs>
+          <linearGradient id={gid} x1="0" x2="0" y1="0" y2="1">
+            <stop offset="0%" stopColor="#16a34a" stopOpacity="0.16" />
+            <stop offset="100%" stopColor="#16a34a" stopOpacity="0" />
+          </linearGradient>
+        </defs>
         {yTicks.map((v, i) => (
           <g key={`y${i}`}>
-            <line x1={L} x2={width - R} y1={y(v)} y2={y(v)} className="cst-chart-grid" />
-            <text x={L - 6} y={y(v) + 3} textAnchor="end" className="cst-chart-lbl">{f(v)}</text>
+            <line x1={L} x2={width - R} y1={y(v)} y2={y(v)} className={i === 0 ? 'cst-chart-axis' : 'cst-chart-grid'} />
+            <text x={L - 8} y={y(v) + 3.5} textAnchor="end" className="cst-chart-lbl">{f(v)}</text>
           </g>
         ))}
         {ticks.map((t, i) => (
-          <text key={`x${i}`} x={x(t)} y={height - 7} textAnchor={i === 0 ? 'start' : 'middle'} className="cst-chart-lbl">{dfmt(t)}</text>
+          <text key={`x${i}`} x={x(t)} y={height - 8} textAnchor={i === 0 ? 'start' : i === 4 ? 'end' : 'middle'} className="cst-chart-lbl">{dfmt(t)}</text>
         ))}
-        {today >= t0 && today <= t1 && <line x1={x(today)} x2={x(today)} y1={T} y2={height - B} className="cst-chart-today" />}
-        <path className="cst-chart-line" d={d} />
-        {pts.map((p, i) => (
-          <circle key={i} cx={x(p.t)} cy={y(p.v)} r={4} className={`cst-dot cst-dot-${kind(p.cause)}`}>
-            <title>{dfmt(p.t)} · {f(p.v)}{p.cause ? ` · ${p.cause}` : ''}</title>
-          </circle>
-        ))}
-        {hv && (
-          <g pointerEvents="none">
-            <line x1={x(hv.t)} x2={x(hv.t)} y1={T} y2={height - B} className="cst-chart-cursor" />
-            <g transform={`translate(${Math.min(x(hv.t) + 8, width - R - 150)},${T + 2})`}>
-              <rect width={150} height={34} rx={5} className="cst-chart-tip" />
-              <text x={8} y={14} className="cst-chart-tip-d">{dfmt(hv.t)}</text>
-              <text x={8} y={28} className="cst-chart-tip-v">{f(hv.p.v)}</text>
-            </g>
+        <path d={area} fill={`url(#${gid})`} />
+        {today >= t0 && today <= t1 && (
+          <g>
+            <line x1={x(today)} x2={x(today)} y1={T} y2={height - B} className="cst-chart-today" />
+            <text x={x(today) - 4} y={T + 9} textAnchor="end" className="cst-chart-lbl cst-chart-lbl-today">today</text>
           </g>
         )}
+        <path className="cst-chart-line" d={line} />
+        {tip && hover?.dot === null && <line x1={tip.cx} x2={tip.cx} y1={T} y2={height - B} className="cst-chart-cursor" />}
+        {pts.map((p, i) => (
+          <circle key={i} cx={x(p.t)} cy={y(p.v)} r={hover?.dot === i ? 6.5 : 4.5}
+                  fill={CHANGE_KINDS[p.kind].color} className="cst-dot" />
+        ))}
       </svg>
+      <span className="cst-chart-now" style={{ top: y(last.v) - 11 }}>{f(last.v)}</span>
+      {tip && (
+        <div className="cst-chart-tooltip" style={{ left: Math.min(Math.max(tip.cx, 90), width - 90), top: 4 }}>
+          <div className="cst-chart-tooltip-d">{tip.date}</div>
+          <div className="cst-chart-tooltip-v">
+            {f(tip.v)}
+            {tip.delta !== null && Math.abs(tip.delta) > 1e-6 && (
+              <span className={tip.delta > 0 ? 'cst-up' : 'cst-down'}> {tip.delta > 0 ? '▲' : '▼'} {Math.abs(tip.delta * 100).toFixed(1)}%</span>
+            )}
+          </div>
+          {tip.kind && (
+            <div className="cst-chart-tooltip-c"><i style={{ background: CHANGE_KINDS[tip.kind].color }} />{CHANGE_KINDS[tip.kind].label}
+              {tip.kind === 'price' && /purchase:./.test(tip.cause) && <span> · {tip.cause.replace(/^purchase:/, 'invoice ')}</span>}
+            </div>
+          )}
+          {!tip.kind && <div className="cst-chart-tooltip-c">in force on this date</div>}
+        </div>
+      )}
+      <div className="cst-legend">
+        {present.map((k) => (
+          <span key={k} title={CHANGE_KINDS[k].hint}><i style={{ background: CHANGE_KINDS[k].color }} />{CHANGE_KINDS[k].label}</span>
+        ))}
+        <span className="cst-legend-hint">Hover a dot to see what changed</span>
+      </div>
+    </div>
+  )
+}
+
+// ── layout building blocks shared by the item / component / dish drawers ──────
+/** A drawer section: strong title, optional muted subtitle, actions on the right, separator above. */
+export function Section({ title, sub, actions, children, className }: {
+  title: ReactNode; sub?: ReactNode; actions?: ReactNode; children?: ReactNode; className?: string
+}) {
+  return (
+    <section className={`cst-sec${className ? ` ${className}` : ''}`}>
+      <header className="cst-sec-h">
+        <h3>{title}{sub && <span className="cst-sec-sub">{sub}</span>}</h3>
+        {actions && <div className="cst-sec-actions">{actions}</div>}
+      </header>
+      {children}
+    </section>
+  )
+}
+
+/** Segmented control (two or three mutually exclusive views). */
+export function Segmented<T extends string>({ value, onChange, options }: {
+  value: T; onChange: (v: T) => void; options: Array<[T, ReactNode]>
+}) {
+  return (
+    <div className="cst-seg" role="tablist">
+      {options.map(([k, label]) => (
+        <button key={k} type="button" role="tab" aria-selected={value === k}
+                className={value === k ? 'on' : ''} onClick={() => onChange(k)}>{label}</button>
+      ))}
+    </div>
+  )
+}
+
+/** Share of a total as a bar + percentage (recipe trees, cost-item lists, packaging). */
+export function ShareBar({ value, muted }: { value: number | null | undefined; muted?: boolean }) {
+  if (value === null || value === undefined || !Number.isFinite(value)) return <span className="cst-muted">—</span>
+  const w = Math.max(0, Math.min(1, value)) * 100
+  return (
+    <div className={`cst-share${muted ? ' cst-share-muted' : ''}`} title={fmtPct(value)}>
+      <span className="cst-share-track"><span style={{ width: `${w}%` }} /></span>
+      <em>{fmtPct(value, value < 0.1 ? 1 : 0)}</em>
+    </div>
+  )
+}
+
+/** Summary tile (key / big value / small line). */
+export function Tile({ k, v, s, tone }: { k: ReactNode; v: ReactNode; s?: ReactNode; tone?: 'good' | 'warn' | 'bad' | 'dim' }) {
+  return (
+    <div className={`cst-tile${tone ? ` cst-tile-${tone}` : ''}`}>
+      <div className="cst-tile-k">{k}</div>
+      <div className="cst-tile-v">{v}</div>
+      {s !== undefined && <div className="cst-tile-s">{s}</div>}
     </div>
   )
 }

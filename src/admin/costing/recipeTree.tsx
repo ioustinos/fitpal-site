@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import type { RecipeComponentNode, RecipeNode } from '../../lib/api/adminCosting'
-import { FlagBadges, SourceBadge, fmtCompCost, fmtEurFine, fmtPct, fmtQtyUnit, fmtUnitCost } from './shared'
+import { FlagBadges, ShareBar, SourceBadge, fmtCompCost, fmtEurFine, fmtQtyUnit, fmtUnitCost } from './shared'
 
 /** WEC-864: tree rows shared by the dish drawer, the component drawer and the component editor. */
 
@@ -57,7 +57,7 @@ export function treeNodeRows(node: RecipeNode, path: string, depth: number, open
         <td className="num">{nodeUnitCost(node)}</td>
         <td>{nodeReference(node)}</td>
         <td className="num">{fmtEurFine(node.cost, 3)}</td>
-        <td className="num cst-muted">{fmtPct(share(node.cost))}</td>
+        <td className="num"><ShareBar value={share(node.cost)} muted={depth > 1} /></td>
         {tail}
       </tr>,
     )
@@ -85,7 +85,7 @@ export function treeNodeRows(node: RecipeNode, path: string, depth: number, open
       <td className="num">{nodeUnitCost(node)}</td>
       <td>{nodeReference(node)}</td>
       <td className="num">{fmtEurFine(node.cost, 3)}</td>
-      <td className="num cst-muted">{fmtPct(share(node.cost))}</td>
+      <td className="num"><ShareBar value={share(node.cost)} muted={depth > 1} /></td>
       {tail}
     </tr>,
   )
