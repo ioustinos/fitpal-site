@@ -1,5 +1,6 @@
 /* eslint-disable react-refresh/only-export-components -- one small shared module (formatters + widgets) for the costing pages */
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { Link, NavLink, useSearchParams } from 'react-router-dom'
 import type { ReactNode } from 'react'
 import type { BaseUnit, CostFlags, CostSource } from '../../lib/api/adminCosting'
@@ -264,10 +265,33 @@ export function SearchPick({ options, value, onChange, placeholder, onCreate, au
   const [open, setOpen] = useState(false)
   const [hi, setHi] = useState(0)
   const ref = useRef<HTMLDivElement>(null)
+  const listRef = useRef<HTMLDivElement>(null)
+  // The list floats in a portal (position: fixed) so a scrolling table (.cst-wrap) can never clip it;
+  // it opens upwards when there is not enough room below the input.
+  const [pos, setPos] = useState<{ left: number; top?: number; bottom?: number; width: number; maxH: number } | null>(null)
   useEffect(() => {
-    const h = (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false) }
+    const h = (e: MouseEvent) => {
+      const t = e.target as Node
+      if (ref.current?.contains(t) || listRef.current?.contains(t)) return
+      setOpen(false)
+    }
     document.addEventListener('mousedown', h); return () => document.removeEventListener('mousedown', h)
   }, [])
+  useEffect(() => {
+    if (!open) return
+    const place = () => {
+      const r = ref.current?.getBoundingClientRect()
+      if (!r) return
+      const below = window.innerHeight - r.bottom - 8, above = r.top - 8
+      const w = Math.max(r.width, 260)
+      const left = Math.min(r.left, window.innerWidth - w - 8)
+      if (below >= 200 || below >= above) setPos({ left, top: r.bottom + 2, width: w, maxH: Math.min(280, below) })
+      else setPos({ left, bottom: window.innerHeight - r.top + 2, width: w, maxH: Math.min(280, above) })
+    }
+    const raf = requestAnimationFrame(place)
+    window.addEventListener('scroll', place, true); window.addEventListener('resize', place)
+    return () => { cancelAnimationFrame(raf); window.removeEventListener('scroll', place, true); window.removeEventListener('resize', place) }
+  }, [open])
   const list = useMemo(() => {
     const k = skey(q)
     const words = k.split(' ').filter(Boolean)
@@ -294,8 +318,9 @@ export function SearchPick({ options, value, onChange, placeholder, onCreate, au
           } else if (e.key === 'Escape') setOpen(false)
         }}
       />
-      {open && (
-        <div className="cst-pick-list">
+      {open && pos && createPortal(
+        <div ref={listRef} className="cst-pick-list cst-pick-float"
+             style={{ left: pos.left, top: pos.top, bottom: pos.bottom, width: pos.width, maxHeight: pos.maxH }}>
           {list.map((o, i) => (
             <div key={o.id} className={`cst-pick-opt${i === hi ? ' on' : ''}`} onMouseDown={(e) => { e.preventDefault(); pick(o) }}>
               <span>{o.label}</span>{o.hint && <span className="cst-muted"> {o.hint}</span>}
@@ -308,7 +333,8 @@ export function SearchPick({ options, value, onChange, placeholder, onCreate, au
             </div>
           )}
           {!list.length && !(onCreate && q.trim()) && <div className="cst-pick-opt cst-muted">No matches</div>}
-        </div>
+        </div>,
+        document.body,
       )}
     </div>
   )

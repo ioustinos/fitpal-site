@@ -120,3 +120,4 @@
 .cst-tile-dim .cst-tile-v { color: #6b7280; }
 @media (max-width: 560px) { .cst-price-tiles { grid-template-columns: 1fr; } }
 .cst-badge-link { text-decoration: none; cursor: pointer; } .cst-badge-link:hover { filter: brightness(0.95); text-decoration: underline; }
+.cst-pick-list.cst-pick-float { position: fixed; z-index: 1000; right: auto; top: auto; }
