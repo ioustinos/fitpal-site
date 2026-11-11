@@ -79,8 +79,8 @@
 .cst-tile.green { border-color: #bbf7d0; background: #f0fdf4; }
 
 /* side drawer, wide variant */
-.cst-drawer-wide { width: min(860px, 96vw) !important; }
-.cst-drawer-xwide { width: min(1000px, 98vw) !important; }
+.cst-drawer-wide { width: min(1250px, 96vw) !important; } /* Ioustinos 11/11: drawers are the main working surface — +250px at least */
+.cst-drawer-xwide { width: min(1250px, 96vw) !important; }
 .cst-section { margin: 12px 0; }
 .cst-section h4 { margin: 0 0 6px; font-size: 13px; color: #111827; }
 .cst-kv { display: grid; grid-template-columns: 140px 1fr; gap: 4px 10px; font-size: 13px; }

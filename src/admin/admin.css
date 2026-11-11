@@ -392,7 +392,7 @@
 }
 .admin-modal-overlay { justify-content: center; align-items: center; padding: 24px; }
 .admin-drawer {
-  width: min(1180px, 100vw);
+  width: min(1430px, 100vw); /* +250px, Ioustinos 11/11 */
   height: 100vh;
   background: var(--a-surface);
   display: flex; flex-direction: column;
