@@ -151,13 +151,14 @@ const DishRows = memo(function DishRows({ v, base, open, selected, onToggleOpen,
           <input type="checkbox" checked={selected} onChange={() => onToggleSel(d.id)} />
         </td>
         <td>
-          <button type="button" className="admin-btn admin-btn-ghost admin-btn-sm"
-            style={{ padding: '0 4px', minWidth: 18, marginRight: 4 }}
-            onClick={(e) => { e.stopPropagation(); onToggleOpen(d.id) }}
-            title={open ? 'Collapse variants' : 'Show variants'} disabled={!v.variants.length}>
-            {open ? '▾' : '▸'}
-          </button>
           <span className="cst-strong">{d.name}</span>
+          {v.variants.length > 0 && (
+            <button type="button" className="admin-btn admin-btn-ghost admin-btn-sm cst-tree-toggle"
+              onClick={(e) => { e.stopPropagation(); onToggleOpen(d.id) }}
+              title={open ? 'Collapse variants' : 'Show variants'} aria-expanded={open}>
+              {open ? '▾' : '▸'}
+            </button>
+          )}
           {!d.active && <span className="cst-badge" style={{ marginLeft: 6 }}>inactive</span>}
           {d.on_menu && <span className="cst-badge cst-ok" style={{ marginLeft: 6 }} title="On a current or future menu">menu</span>}
         </td>
