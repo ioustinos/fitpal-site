@@ -18,9 +18,9 @@ import { CostingTabs, SearchPick, skey, useUrlState, type PickOption } from '../
  */
 
 type Line = LinkReviewDish['lines'][number]
-type Chip = 'open' | 'unlinked' | 'auto' | 'default' | 'weak'
+type Chip = 'all' | 'open' | 'unlinked' | 'auto' | 'default' | 'weak'
 const CHIPS: Array<[Chip, string]> = [
-  ['open', 'All open'], ['unlinked', 'Unlinked'], ['auto', 'Unconfirmed auto'], ['default', 'Via default'], ['weak', 'Weak / ambiguous dish match'],
+  ['all', 'All lines'], ['open', 'Needs attention'], ['unlinked', 'Unlinked'], ['auto', 'Unconfirmed auto'], ['default', 'Via default'], ['weak', 'Weak / ambiguous dish match'],
 ]
 const PAGE = 300
 
@@ -284,7 +284,8 @@ export function CostLinks() {
       const weakDish = chip === 'weak' && d.lines.some((l) => isWeakNote(l.match_note))
       if (chip === 'weak' && !weakDish) continue
       const lines = d.lines.filter((l) => {
-        if (!showConf && !needsAttention(l)) return false
+        // «All lines», or a search that names the dish, shows every line — confirmed ones too (Ioustinos 11/11)
+        if (chip !== 'all' && !dishHit && !showConf && !needsAttention(l)) return false
         if (chip === 'unlinked' && l.component_id) return false
         if (chip === 'auto' && !(l.source === 'auto_excel' && !l.confirmed)) return false
         if (chip === 'default' && l.source !== 'default') return false
@@ -374,7 +375,7 @@ export function CostLinks() {
                     style={{ padding: '3px 9px' }}
                     onClick={() => setChip(id)}>{label}</button>
                 ))}
-                <label><input type="checkbox" checked={!!showConf} onChange={(e) => setShowConf(e.target.checked ? '1' : '')} /> show confirmed too</label>
+                {chip !== 'all' && <label><input type="checkbox" checked={!!showConf} onChange={(e) => setShowConf(e.target.checked ? '1' : '')} /> show confirmed too</label>}
               </>
             )}
             <span className="cst-spacer" />
