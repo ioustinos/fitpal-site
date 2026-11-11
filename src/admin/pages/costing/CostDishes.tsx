@@ -415,7 +415,7 @@ interface PackRow { uid: number; cost_item_id: string | null; qty: number | null
 let uidSeq = 1
 const newRow = (cost_item_id: string | null = null, qty: number | null = 1): PackRow => ({ uid: uidSeq++, cost_item_id, qty })
 
-type PackCost = { unit_cost: number; line_cost: number; source: CostSource; price_date?: string | null }
+type PackCost = { unit_cost: number; line_cost: number; source: CostSource; price_date?: string | null; invoice_id?: string | null }
 function PackRowsEditor({ rows, setRows, options, disabled, costs, share }: {
   rows: PackRow[]; setRows: (f: (r: PackRow[]) => PackRow[]) => void; options: PickOption[]; disabled?: boolean
   /** drawer only: this variant's priced packaging, by cost item */
@@ -443,7 +443,7 @@ function PackRowsEditor({ rows, setRows, options, disabled, costs, share }: {
               const c = r.cost_item_id ? costs.get(r.cost_item_id) : undefined
               return c ? (<>
                 <td className="num">{fmtEur(c.unit_cost)}</td>
-                <td><SourceBadge source={c.source} date={c.price_date} /></td>
+                <td><SourceBadge source={c.source} date={c.price_date} invoiceId={c.invoice_id} /></td>
                 <td className="num">{fmtEur(c.line_cost)}</td>
                 <td className="num cst-muted">{fmtPct(share ? share(c.line_cost) : null)}</td>
               </>) : <td colSpan={4} className="cst-muted">{r.cost_item_id ? 'save to cost it' : ''}</td>
@@ -537,7 +537,7 @@ function DishDrawer({ view, asOf, base, packOptions, onClose, onSaved }: {
   const product = n(b?.product_cost) ?? 0
   const share = (c: number | null | undefined) => (product > 0 && c !== null && c !== undefined ? Number(c) / product : null)
   const packCosts = useMemo(() => new Map((b?.packaging ?? []).map((p) => [p.cost_item_id, {
-    unit_cost: Number(p.unit_cost), line_cost: Number(p.line_cost), source: p.source, price_date: p.price_date ?? null }])), [b])
+    unit_cost: Number(p.unit_cost), line_cost: Number(p.line_cost), source: p.source, price_date: p.price_date ?? null, invoice_id: p.invoice_id ?? null }])), [b])
 
   return (
     <div className="admin-drawer-overlay" onClick={onClose}>

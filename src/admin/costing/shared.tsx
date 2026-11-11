@@ -1,6 +1,6 @@
 /* eslint-disable react-refresh/only-export-components -- one small shared module (formatters + widgets) for the costing pages */
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { NavLink, useSearchParams } from 'react-router-dom'
+import { Link, NavLink, useSearchParams } from 'react-router-dom'
 import type { ReactNode } from 'react'
 import type { BaseUnit, CostFlags, CostSource } from '../../lib/api/adminCosting'
 import './costing.css'
@@ -68,7 +68,15 @@ export function skey(s: string | null | undefined): string {
 }
 
 // ── badges ───────────────────────────────────────────────────────────────────
-export function SourceBadge({ source, date }: { source: CostSource | null | undefined; date?: string | null }) {
+export function SourceBadge({ source, date, invoiceId }: { source: CostSource | null | undefined; date?: string | null; invoiceId?: string | null }) {
+  if (source === 'purchase' && invoiceId) {
+    return (
+      <Link className="cst-badge cst-ok cst-badge-link" to={`/admin/costing/purchases?inv=${encodeURIComponent(invoiceId)}`}
+            title="Open the purchase this price comes from" onClick={(e) => e.stopPropagation()}>
+        purchase {fmtDate(date)} ↗
+      </Link>
+    )
+  }
   if (source === 'purchase') return <span className="cst-badge cst-ok" title="Last purchase on or before the date">purchase {fmtDate(date)}</span>
   if (source === 'standard') return <span className="cst-badge cst-est" title="Fallback price (estimate) — no purchase yet">estimated</span>
   if (source === 'unpriced') return <span className="cst-badge cst-err" title="No price — counts as €0">unpriced</span>

@@ -115,7 +115,7 @@ export interface CostItemRow {
 export const fetchCostItems = () => rpc<CostItemRow[]>('admin_cost_items_overview')
 
 export interface CostItemDetail {
-  current: { unit_cost: number; source: CostSource; price_date?: string; purchase_line_id?: string }
+  current: { unit_cost: number; source: CostSource; price_date?: string; purchase_line_id?: string; invoice_id?: string }
   purchases: Array<{
     line_id: string; invoice_id: string; invoice_date: string; invoice_number: string | null; supplier: string | null
     qty_packs: number; pack_label: string | null; base_qty_per_pack: number; net_price_per_pack: number
@@ -325,7 +325,7 @@ export const fetchComponents = () => rpc<ComponentRow[]>('admin_cost_components_
 
 export interface ComponentBreakdownLine {
   kind: 'item' | 'component'; id: string; name: string; qty: number; unit: string
-  unit_cost: number; source?: CostSource; price_date?: string | null; line_cost: number; flags?: CostFlags
+  unit_cost: number; source?: CostSource; price_date?: string | null; invoice_id?: string | null; line_cost: number; flags?: CostFlags
 }
 export interface ComponentBreakdown {
   /** component unit; cost_per_g is € per this unit */
@@ -434,7 +434,7 @@ export interface VariantBreakdown {
     ingredient_id: string; ingredient: string; grams: number; component_id: string | null; component?: string
     link_source?: string; cost_per_g?: number; line_cost: number; unlinked?: boolean; flags?: CostFlags
   }>
-  packaging: Array<{ cost_item_id: string; name: string; qty: number; unit_cost: number; source: CostSource; price_date?: string | null; line_cost: number }>
+  packaging: Array<{ cost_item_id: string; name: string; qty: number; unit_cost: number; source: CostSource; price_date?: string | null; invoice_id?: string | null; line_cost: number }>
 }
 export const fetchVariantDetail = (variantId: string, date?: string | null) =>
   rpc<{ breakdown: VariantBreakdown; history: Array<{ date: string; product_cost: number; food_cost: number; packaging_cost: number; flags: CostFlags; cause: string | null }> }>(
@@ -531,7 +531,7 @@ export const fetchDishUnlinkedCount = (dishId: string) => rpc<number>('admin_cos
 export interface RecipeItemNode {
   kind: 'item'; id: string; name: string; unit: string
   /** raw quantity in the item's unit for THIS portion */
-  qty: number; unit_cost: number; source: CostSource; price_date: string | null
+  qty: number; unit_cost: number; source: CostSource; price_date: string | null; invoice_id?: string | null
   /** € for this portion */
   cost: number
 }
@@ -558,7 +558,7 @@ export interface VariantTree {
     unlinked: boolean; line_cost: number | null; tree: RecipeComponentNode | null
   }>
   /** whole portion, summed per purchased cost item */
-  items: Array<{ id: string; name: string; unit: string; qty: number; cost: number; unit_cost: number; source: CostSource; price_date: string | null }>
+  items: Array<{ id: string; name: string; unit: string; qty: number; cost: number; unit_cost: number; source: CostSource; price_date: string | null; invoice_id?: string | null }>
   /** components with no recipe below them (e.g. Excel fixed-cost estimates) */
   leaf_components: Array<{ id: string; name: string; grams: number; unit?: BaseUnit; cost: number; yield_mode: YieldMode | null; flags: CostFlags }>
 }

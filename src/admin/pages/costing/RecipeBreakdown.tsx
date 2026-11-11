@@ -78,7 +78,7 @@ export function RecipeBreakdown({ variantId, asOf, rev, dishId }: { variantId: s
           <td className="cst-muted">cost item</td>
           <td className="num">{fmtQty(node.qty, node.unit)} <span className="cst-muted">raw</span></td>
           <td className="num">{fmtUnitCost(node.unit_cost, node.unit)}</td>
-          <td><SourceBadge source={node.source} date={node.price_date} /></td>
+          <td><SourceBadge source={node.source} date={node.price_date} invoiceId={node.invoice_id} /></td>
           <td className="num">{fmtEurFine(node.cost, 3)}</td>
           <td className="num cst-muted">{fmtPct(share(node.cost))}</td>
         </tr>,
@@ -185,7 +185,7 @@ export function RecipeBreakdown({ variantId, asOf, rev, dishId }: { variantId: s
                   <td><Link to={`/admin/costing/items?item=${encodeURIComponent(it.id)}`}>{it.name}</Link></td>
                   <td className="num">{fmtQty(it.qty, it.unit)}</td>
                   <td className="num">{fmtUnitCost(it.unit_cost, it.unit)}</td>
-                  <td><SourceBadge source={it.source} date={it.price_date} /></td>
+                  <td><SourceBadge source={it.source} date={it.price_date} invoiceId={it.invoice_id} /></td>
                   <td className="num">{fmtEurFine(it.cost, 3)}</td>
                   <td className="num cst-muted">{fmtPct(share(Number(it.cost)))}</td>
                 </tr>

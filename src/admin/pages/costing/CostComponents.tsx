@@ -513,7 +513,7 @@ function ComponentDrawer({ id, back, onBack, onClose, onOpen, onEdit, onActiveCh
                               <td className="num">{fmtQtyUnit(l.qty, l.unit)}</td>
                               <td className="num">
                                 {fmtUnitCost(l.unit_cost, l.unit as BaseUnit)}
-                                {l.kind === 'item' && <div><SourceBadge source={l.source} date={l.price_date} /></div>}
+                                {l.kind === 'item' && <div><SourceBadge source={l.source} date={l.price_date} invoiceId={l.invoice_id} /></div>}
                               </td>
                               <td className="num cst-strong">{fmtEurFine(l.line_cost)}</td>
                               <td>

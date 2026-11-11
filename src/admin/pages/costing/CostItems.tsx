@@ -346,7 +346,10 @@ function ItemDrawer({ row, categories, onClose, onSaved }: {
                   <div className="cst-tile-k">Current price</div>
                   <div className="cst-tile-v">{fmtUnitCost(cur?.unit_cost ?? row.unit_cost, row.base_unit)}</div>
                   <div className="cst-tile-s">
-                    {src === 'purchase' && <>From the latest purchase, {fmtDate(cur?.price_date ?? row.price_date)}
+                    {src === 'purchase' && <>From the latest purchase,{' '}
+                      {cur?.invoice_id
+                        ? <Link to={`/admin/costing/purchases?inv=${encodeURIComponent(cur.invoice_id)}`}>{fmtDate(cur?.price_date ?? row.price_date)} ↗</Link>
+                        : fmtDate(cur?.price_date ?? row.price_date)}
                       {curLine && <> · {curLine.supplier ?? 'no supplier'}{curLine.invoice_number ? ` · ${curLine.invoice_number}` : ''}</>}</>}
                     {src === 'standard' && <span className="cst-badge cst-warn">estimated</span>}
                     {src === 'standard' && ' No purchase yet, so the fallback price is used.'}
