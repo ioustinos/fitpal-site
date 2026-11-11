@@ -928,7 +928,7 @@ function EditPane({ init, d, lower, back, onBack, onClose, opts, optsErr, catego
                  onChange={(e) => setLine(l.key, { note: e.target.value })} />
         </td>
         <td className="cst-muted" style={{ fontSize: 11.5 }}>
-          {!l.ref ? '' : l.ref.startsWith('i:') ? 'cost item' : n && n.kind === 'component' ? recipeYieldLabel(n) : 'component'}
+          {!l.ref ? '' : l.ref.startsWith('i:') ? 'purchased' : n && n.kind === 'component' ? recipeYieldLabel(n) : 'component'}
           {n && n.kind === 'component' && <div><FlagBadges flags={n.flags} /></div>}
         </td>
         {pcs ? (
@@ -1050,9 +1050,9 @@ function EditPane({ init, d, lower, back, onBack, onClose, opts, optsErr, catego
           <div style={{ overflowX: 'auto', opacity: stale && pv ? 0.75 : 1 }}>
             <table className="cst-table">
               <thead>
-                <tr><th style={{ width: '30%' }}>Ingredient / component / cost item</th><th>Recipe</th>
+                <tr><th style={{ width: '30%' }}>Ingredient / component / cost item</th><th title="How each component is made: its yield, or its batch (raw → cooked). Purchased = a cost item bought as is.">Yield</th>
                   <th className="num">Raw <span className="cst-muted" style={{ fontWeight: 400 }}>· this batch</span></th>
-                  <th className="num">Cooked</th><th className="num">Unit cost</th><th>Reference</th><th className="num">Cost</th><th className="num">Share</th></tr>
+                  <th className="num">Cooked</th><th className="num">Unit cost</th><th>Reference</th><th className="num">Cost</th><th className="num">Share of component</th></tr>
               </thead>
               <tbody>
                 {rows}

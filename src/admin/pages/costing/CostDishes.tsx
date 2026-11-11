@@ -429,7 +429,7 @@ function PackRowsEditor({ rows, setRows, options, disabled, costs, share }: {
     <table className="cst-table">
       <thead>
         <tr><th>Packaging item</th><th className="num" style={{ width: 110 }}>Qty / portion</th>
-          {costs && <><th className="num">Unit cost</th><th>Reference</th><th className="num">Line cost</th><th className="num">Share</th></>}
+          {costs && <><th className="num">Unit cost</th><th>Reference</th><th className="num">Line cost</th><th className="num">Share of dish</th></>}
           <th style={{ width: 40 }} /></tr>
       </thead>
       <tbody>

@@ -51,7 +51,7 @@ export function treeNodeRows(node: RecipeNode, path: string, depth: number, open
       <tr key={path} className="cst-sub">
         <td style={pad}><span className="cst-muted">•</span>{' '}
           <Link to={`/admin/costing/items?item=${encodeURIComponent(node.id)}`}>{node.name}</Link></td>
-        <td className="cst-muted">cost item</td>
+        <td className="cst-muted">purchased</td>
         <td className="num">{fmtQty(node.qty, node.unit)}</td>
         <td className="num cst-muted">—</td>
         <td className="num">{nodeUnitCost(node)}</td>

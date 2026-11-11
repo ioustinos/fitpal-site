@@ -67,8 +67,10 @@ export function RecipeBreakdown({ variantId, componentId, componentUnit, asOf, r
   const ct = res?.comp ?? null
   const where = isComp ? (scale === 'batch' ? 'this batch' : componentUnit === 'pcs' ? '1 piece' : '1 kg cooked') : 'this portion'
   const loading = res?.key !== key
-  const food = Number(t?.food_cost ?? 0)
-  const share = (c: number) => (food > 0 ? c / food : null)
+  // dish: share of the whole dish (food + packaging), so food lines and packaging add up to 100%;
+  // component: share of the component's batch
+  const whole = Number((isComp ? t?.food_cost : t?.product_cost) ?? 0)
+  const share = (c: number) => (whole > 0 ? c / whole : null)
 
   const toggle = (path: string) => setOpen((s) => { const n = new Set(s); if (n.has(path)) n.delete(path); else n.add(path); return n })
   const allPaths = (): string[] => {
@@ -104,7 +106,6 @@ export function RecipeBreakdown({ variantId, componentId, componentUnit, asOf, r
                 unlinked — counted €0, link it →
               </Link>
             )}
-            {!l.unlinked && <span style={{ float: 'right' }}>{fmtEur(l.line_cost)}</span>}
           </td>
         </tr>,
       )
@@ -135,8 +136,8 @@ export function RecipeBreakdown({ variantId, componentId, componentUnit, asOf, r
         <div style={{ opacity: loading ? 0.6 : 1, overflowX: 'auto' }}>
           <table className="cst-table">
             <thead>
-              <tr><th>Ingredient / component / cost item</th><th>Recipe</th><th className="num">Raw <span className="cst-muted" style={{ fontWeight: 400 }}>· {where}</span></th>
-                <th className="num">Cooked</th><th className="num">Unit cost</th><th>Reference</th><th className="num">Cost</th><th className="num">{isComp ? 'Share' : 'Share of food'}</th></tr>
+              <tr><th>Ingredient / component / cost item</th><th title="How each component is made: its yield, or its batch (raw → cooked). Purchased = a cost item bought as is.">Yield</th><th className="num">Raw <span className="cst-muted" style={{ fontWeight: 400 }}>· {where}</span></th>
+                <th className="num">Cooked</th><th className="num">Unit cost</th><th>Reference</th><th className="num">Cost</th><th className="num">{isComp ? 'Share of component' : 'Share of dish'}</th></tr>
             </thead>
             <tbody>
               {rows}
@@ -187,7 +188,7 @@ export function RecipeBreakdown({ variantId, componentId, componentUnit, asOf, r
           <table className="cst-table">
             <thead>
               <tr><th>Cost item (purchased)</th><th className="num">Raw qty in {where}</th><th className="num">Unit cost</th>
-                <th>Price source</th><th className="num">Cost</th><th className="num">Share of food</th></tr>
+                <th>Price source</th><th className="num">Cost</th><th className="num">{isComp ? 'Share of component' : 'Share of dish'}</th></tr>
             </thead>
             <tbody>
               {t.items.map((it) => (
