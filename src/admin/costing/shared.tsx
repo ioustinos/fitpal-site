@@ -302,10 +302,11 @@ export function Section({ title, sub, actions, children, className }: {
 }) {
   return (
     <section className={`cst-sec${className ? ` ${className}` : ''}`}>
-      <header className="cst-sec-h">
+      {/* a div, not <header>: the customer site's global header {} (sticky, dark) leaks into the admin */}
+      <div className="cst-sec-h">
         <h3>{title}{sub && <span className="cst-sec-sub">{sub}</span>}</h3>
         {actions && <div className="cst-sec-actions">{actions}</div>}
-      </header>
+      </div>
       {children}
     </section>
   )
