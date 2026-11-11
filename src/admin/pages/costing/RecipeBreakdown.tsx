@@ -1,7 +1,9 @@
 import { Fragment, useEffect, useState, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import {
+  fetchComponentTree,
   fetchVariantTree,
+  type ComponentTree,
   type RecipeComponentNode,
   type RecipeNode,
   type VariantTree,
@@ -40,19 +42,43 @@ function yieldLabel(c: RecipeComponentNode): string {
   return ''
 }
 
-export function RecipeBreakdown({ variantId, asOf, rev, dishId }: { variantId: string; asOf: string; rev: number; dishId: string }) {
-  const [res, setRes] = useState<{ key: string; data: VariantTree | null; error: string | null } | null>(null)
+/** Same tree for a component (WEC-864, Ioustinos 11/11: «the detailed tree of the dish is the perfect UI»):
+ *  its recipe exploded to cost items, for one whole batch or per 1 kg cooked / 1 piece. */
+export function ComponentRecipeTree({ componentId, asOf, unit }: { componentId: string; asOf: string; unit: string }) {
+  return <RecipeBreakdown componentId={componentId} asOf={asOf} rev={0} dishId="" componentUnit={unit} />
+}
+
+/** component tree → the shape the dish view renders (its direct lines become the top-level rows) */
+const asVariantTree = (c: ComponentTree): VariantTree => ({
+  variant_id: c.component_id, date: c.date, food_cost: Number(c.cost), packaging_cost: 0, product_cost: Number(c.cost),
+  lines: [], items: c.items, leaf_components: c.leaf_components,
+})
+
+export function RecipeBreakdown({ variantId, componentId, componentUnit, asOf, rev, dishId }: {
+  variantId?: string; componentId?: string; componentUnit?: string; asOf: string; rev: number; dishId: string
+}) {
+  const isComp = !!componentId
+  const [scale, setScale] = useState<'batch' | 'unit'>('batch')
+  const [res, setRes] = useState<{ key: string; data: VariantTree | null; comp: ComponentTree | null; error: string | null } | null>(null)
   const [view, setView] = useState<'recipe' | 'items'>('recipe')
   const [open, setOpen] = useState<Set<string>>(new Set())
-  const key = `${variantId}#${asOf}#${rev}`
+  const unitQty = componentUnit === 'pcs' ? 1 : 1000
+  const key = `${variantId ?? componentId}#${asOf}#${rev}#${scale}`
 
   useEffect(() => {
     let alive = true
-    fetchVariantTree(variantId, asOf).then((r) => { if (alive) setRes({ key, data: r.data, error: r.error }) })
+    if (componentId) {
+      fetchComponentTree(componentId, asOf, scale === 'unit' ? unitQty : null)
+        .then((r) => { if (alive) setRes({ key, data: r.data ? asVariantTree(r.data) : null, comp: r.data, error: r.error }) })
+    } else if (variantId) {
+      fetchVariantTree(variantId, asOf).then((r) => { if (alive) setRes({ key, data: r.data, comp: null, error: r.error }) })
+    }
     return () => { alive = false }
-  }, [variantId, asOf, key])
+  }, [variantId, componentId, asOf, key, scale, unitQty])
 
   const t = res?.data ?? null
+  const ct = res?.comp ?? null
+  const where = isComp ? (scale === 'batch' ? 'this batch' : componentUnit === 'pcs' ? '1 piece' : '1 kg cooked') : 'this portion'
   const loading = res?.key !== key
   const food = Number(t?.food_cost ?? 0)
   const share = (c: number) => (food > 0 ? c / food : null)
@@ -64,6 +90,7 @@ export function RecipeBreakdown({ variantId, asOf, rev, dishId }: { variantId: s
       if (node.kind === 'component' && node.children.length) { out.push(path); node.children.forEach((c, i) => walk(c, `${path}/${i}`)) }
     }
     t?.lines.forEach((l, i) => { if (l.tree) walk(l.tree, `L${i}`) })
+    ct?.root.children.forEach((c, i) => walk(c, `C${i}`))
     return out
   }
 
@@ -110,6 +137,7 @@ export function RecipeBreakdown({ variantId, asOf, rev, dishId }: { variantId: s
     if (can && isOpen) node.children.forEach((c, i) => renderNode(c, `${path}/${i}`, depth + 1))
   }
 
+  if (ct && view === 'recipe') ct.root.children.forEach((c, i) => renderNode(c, `C${i}`, 0))
   if (t && view === 'recipe') {
     t.lines.forEach((l, i) => {
       const path = `L${i}`
@@ -135,7 +163,14 @@ export function RecipeBreakdown({ variantId, asOf, rev, dishId }: { variantId: s
   return (
     <div className="cst-section">
       <div className="cst-toolbar" style={{ marginBottom: 6 }}>
-        <h4 style={{ margin: 0 }}>Recipe &amp; cost per ingredient</h4>
+        <h4 style={{ margin: 0 }}>{isComp ? 'Raw ingredients' : 'Recipe & cost per ingredient'}</h4>
+        {isComp && (
+          <span className="cst-tabs" style={{ margin: 0, border: 0 }}>
+            <a href="#" className={scale === 'batch' ? 'on' : ''} onClick={(e) => { e.preventDefault(); setScale('batch') }}>Whole batch</a>
+            <a href="#" className={scale === 'unit' ? 'on' : ''} onClick={(e) => { e.preventDefault(); setScale('unit') }}>
+              {componentUnit === 'pcs' ? 'Per piece' : 'Per kg cooked'}</a>
+          </span>
+        )}
         <span className="cst-tabs" style={{ margin: 0, border: 0 }}>
           <a href="#" className={view === 'recipe' ? 'on' : ''} onClick={(e) => { e.preventDefault(); setView('recipe') }}>Recipe</a>
           <a href="#" className={view === 'items' ? 'on' : ''} onClick={(e) => { e.preventDefault(); setView('items') }}>By cost item</a>
@@ -156,17 +191,18 @@ export function RecipeBreakdown({ variantId, asOf, rev, dishId }: { variantId: s
         <div style={{ opacity: loading ? 0.6 : 1, overflowX: 'auto' }}>
           <table className="cst-table">
             <thead>
-              <tr><th>Ingredient / component / cost item</th><th>Recipe</th><th className="num">Qty in this portion</th>
-                <th className="num">Unit cost</th><th>Reference</th><th className="num">Cost</th><th className="num">Share of food</th></tr>
+              <tr><th>Ingredient / component / cost item</th><th>Recipe</th><th className="num">Qty in {where}</th>
+                <th className="num">Unit cost</th><th>Reference</th><th className="num">Cost</th><th className="num">{isComp ? 'Share' : 'Share of food'}</th></tr>
             </thead>
             <tbody>
               {rows}
-              {!t.lines.length && <tr><td colSpan={7} className="cst-muted">No ingredient lines with grams.</td></tr>}
-              <tr><td colSpan={5} style={{ fontWeight: 600 }}>Food cost</td><td className="num" style={{ fontWeight: 600 }}>{fmtEur(t.food_cost)}</td><td /></tr>
+              {!isComp && !t.lines.length && <tr><td colSpan={7} className="cst-muted">No ingredient lines with grams.</td></tr>}
+              {isComp && !ct?.root.children.length && <tr><td colSpan={7} className="cst-muted">No recipe lines — the cost is a fixed estimate.</td></tr>}
+              <tr><td colSpan={5} style={{ fontWeight: 600 }}>{isComp ? `Cost of ${where}` : 'Food cost'}{isComp && ct && <span className="cst-muted" style={{ fontWeight: 400 }}> · {fmtQtyUnit(ct.qty, ct.unit)}{ct.unit === 'g' ? ' cooked' : ''}</span>}</td><td className="num" style={{ fontWeight: 600 }}>{fmtEur(t.food_cost)}</td><td /></tr>
             </tbody>
           </table>
           <p className="cst-note" style={{ marginTop: 4 }}>
-            Quantities are scaled to this portion: a component's recipe is multiplied by (grams on the plate ÷ cooked output of its batch).
+            Quantities are scaled to {where}: a component's recipe is multiplied by (quantity used ÷ cooked output of its batch).
             Raw quantities are as purchased, before cooking loss.
           </p>
         </div>
@@ -176,7 +212,7 @@ export function RecipeBreakdown({ variantId, asOf, rev, dishId }: { variantId: s
         <div style={{ opacity: loading ? 0.6 : 1, overflowX: 'auto' }}>
           <table className="cst-table">
             <thead>
-              <tr><th>Cost item (purchased)</th><th className="num">Raw qty in this portion</th><th className="num">Unit cost</th>
+              <tr><th>Cost item (purchased)</th><th className="num">Raw qty in {where}</th><th className="num">Unit cost</th>
                 <th>Price source</th><th className="num">Cost</th><th className="num">Share of food</th></tr>
             </thead>
             <tbody>
@@ -210,7 +246,7 @@ export function RecipeBreakdown({ variantId, asOf, rev, dishId }: { variantId: s
                 </>
               )}
               {!t.items.length && !t.leaf_components.length && <tr><td colSpan={6} className="cst-muted">Nothing costed yet.</td></tr>}
-              <tr><td colSpan={4} style={{ fontWeight: 600 }}>Food cost</td><td className="num" style={{ fontWeight: 600 }}>{fmtEur(t.food_cost)}</td><td /></tr>
+              <tr><td colSpan={4} style={{ fontWeight: 600 }}>{isComp ? `Cost of ${where}` : 'Food cost'}</td><td className="num" style={{ fontWeight: 600 }}>{fmtEur(t.food_cost)}</td><td /></tr>
             </tbody>
           </table>
           {t.lines.some((l) => l.unlinked) && (

@@ -317,6 +317,8 @@ export interface ComponentRow {
   versions: number; drafts: number; used_in_dishes: number; used_in_components: number
   /** derived from the version in force: single = one cost-item line (απλό), multi = anything else (σύνθετο) */
   type: 'single' | 'multi'; lines: number
+  /** cooked ÷ raw of the version in force (null when unknown, e.g. fixed) */
+  yield_ratio: number | null
   /** component unit — cost_per_g is € per this unit */
   base_unit: BaseUnit; grams_per_unit: number | null
   cooking_method: CookingMethod | null; cooking_method_other: string | null
@@ -564,3 +566,13 @@ export interface VariantTree {
 }
 export const fetchVariantTree = (variantId: string, date?: string | null) =>
   rpc<VariantTree>('admin_cost_variant_tree', { p_variant: variantId, p_date: date ?? null })
+
+/** WEC-864: a component exploded down to cost items — whole batch (qty null) or a given qty in its unit. */
+export interface ComponentTree {
+  component_id: string; date: string; qty: number; unit: BaseUnit; batch_output: number | null; cost: number
+  root: RecipeComponentNode
+  items: VariantTree['items']
+  leaf_components: VariantTree['leaf_components']
+}
+export const fetchComponentTree = (componentId: string, date?: string | null, qty?: number | null) =>
+  rpc<ComponentTree>('admin_cost_component_tree', { p_id: componentId, p_date: date ?? null, p_qty: qty ?? null })

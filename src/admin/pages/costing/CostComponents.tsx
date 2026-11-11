@@ -5,12 +5,13 @@ import {
   fetchComponents, fetchComponentDetail, fetchComponentOptions, fetchCostItemOptions,
   saveComponentVersion, setComponentActive, COOKING_METHODS, cookingLabel,
 } from '../../../lib/api/adminCosting'
+import { ComponentRecipeTree } from './RecipeBreakdown'
 import type {
   ComponentRow, ComponentDetail, ComponentBreakdown, ComponentVersion, ComponentOption, CostItemOption, YieldMode, BaseUnit, CookingMethod,
 } from '../../../lib/api/adminCosting'
 import {
-  CostingTabs, FlagBadges, HistoryChart, NumText, SearchPick, SourceBadge,
-  fmtCompCost, fmtDate, fmtEurFine, fmtPct, fmtPerKg, fmtQtyUnit, fmtUnitCost, skey, todayAthens, useUrlState,
+  CostingTabs, FlagBadges, HistoryChart, NumText, SearchPick,
+  fmtCompCost, fmtDate, fmtEurFine, fmtPct, fmtPerKg, fmtQtyUnit, skey, todayAthens, useUrlState,
 } from '../../costing/shared'
 import type { PickOption } from '../../costing/shared'
 
@@ -81,6 +82,8 @@ interface Options { items: CostItemOption[]; comps: ComponentOption[] }
 // ── page ─────────────────────────────────────────────────────────────────────
 export function CostComponents() {
   const [rows, setRows] = useState<ComponentRow[]>([])
+  // cooked ÷ raw of each component's version in force — drives the editor's linked raw ↔ cooked inputs
+  const ratios = useMemo(() => new Map(rows.map((r) => [r.id, r.yield_ratio === null || r.yield_ratio === undefined ? null : Number(r.yield_ratio)])), [rows])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [q, setQ] = useUrlState('q')
@@ -292,6 +295,7 @@ export function CostComponents() {
           opts={opts}
           optsErr={optsErr}
           categories={categories}
+          ratios={ratios}
           onClose={() => setEditor(null)}
           onSaved={afterSave}
         />
@@ -404,8 +408,6 @@ function ComponentDrawer({ id, back, onBack, onClose, onOpen, onEdit, onActiveCh
       .map((h) => ({ date: h.date, cost_per_g: Number(h.cost_per_g), cause: chartCause(h.cause) })),
     [d])
 
-  const lines = useMemo(() => [...(b?.lines ?? [])].sort((x, y) => Number(y.line_cost) - Number(x.line_cost)), [b])
-  const maxShare = total > 0 ? Math.max(...lines.map((l) => Number(l.line_cost) / total), 0) : 0
 
   return (
     <div className="admin-drawer-overlay" onClick={onClose}>
@@ -483,64 +485,19 @@ function ComponentDrawer({ id, back, onBack, onClose, onOpen, onEdit, onActiveCh
                 </div>
               </div>
 
-              {/* ── ingredients ── */}
-              <div className="cst-section">
-                <h4>{kind === 'single' ? 'Raw ingredient' : 'Ingredients'} <span className="cst-muted" style={{ fontWeight: 400 }}>· priced at {fmtDate(d.as_of)}</span></h4>
-                {kind === 'fixed' ? (
+              {/* ── ingredients: same expandable tree as the dish drawer ── */}
+              {kind === 'fixed' ? (
+                <div className="cst-section">
+                  <h4>Raw ingredients</h4>
                   <div className="cst-empty">
                     <div className="cst-strong">No recipe yet.</div>
                     <div>The cost is a fixed estimate of <b>{fmtC(b.cost_per_g)}</b> carried over from the kitchen Excel.
                       It will not follow ingredient prices until a version with recipe lines is added.</div>
                   </div>
-                ) : (
-                  <div className="cst-wrap" style={{ maxHeight: 'none' }}>
-                    <table className="cst-table cst-recipe">
-                      <thead><tr>
-                        <th>Ingredient</th><th className="num">Qty</th><th className="num">Price</th>
-                        <th className="num">Cost</th><th style={{ width: 130 }}>Share</th>
-                      </tr></thead>
-                      <tbody>
-                        {lines.map((l, i) => {
-                          const share = total > 0 ? Number(l.line_cost) / total : 0
-                          return (
-                            <tr key={`${l.kind}:${l.id}:${i}`}>
-                              <td>
-                                {l.kind === 'component'
-                                  ? <a href="#" onClick={(e) => { e.preventDefault(); onOpen(l.id, comp!.name) }}>{l.name}</a>
-                                  : <Link to={`/admin/costing/items?item=${l.id}`}>{l.name}</Link>}
-                                <FlagBadges flags={l.flags} />
-                              </td>
-                              <td className="num">{fmtQtyUnit(l.qty, l.unit)}</td>
-                              <td className="num">
-                                {fmtUnitCost(l.unit_cost, l.unit as BaseUnit)}
-                                {l.kind === 'item' && <div><SourceBadge source={l.source} date={l.price_date} invoiceId={l.invoice_id} /></div>}
-                              </td>
-                              <td className="num cst-strong">{fmtEurFine(l.line_cost)}</td>
-                              <td>
-                                <div className="cst-share">
-                                  <span style={{ width: `${maxShare > 0 ? (share / maxShare) * 100 : 0}%` }} />
-                                  <em>{fmtPct(share, 0)}</em>
-                                </div>
-                              </td>
-                            </tr>
-                          )
-                        })}
-                        {!lines.length && <tr><td colSpan={5} className="cst-muted">No lines.</td></tr>}
-                      </tbody>
-                      {lines.length > 0 && (
-                        <tfoot><tr>
-                          <td className="cst-strong">Total</td>
-                          <td className="num cst-muted">→ {fmtOut(b.output_g)}{U === 'g' ? ' cooked' : ''}</td>
-                          <td className="num cst-strong">{fmtC(b.cost_per_g)}</td>
-                          <td className="num cst-strong">{fmtEurFine(total)}</td>
-                          <td />
-                        </tr></tfoot>
-                      )}
-                    </table>
-                  </div>
-                )}
-                {kind === 'recipe' && <div className="cst-note" style={{ marginTop: 4 }}>Component lines are in that component's unit (cooked grams, or pieces). Click a line to open it.</div>}
-              </div>
+                </div>
+              ) : (
+                <ComponentRecipeTree key={`${comp!.id}:${d.as_of}:${b.version_id}`} componentId={comp!.id} asOf={d.as_of} unit={U} />
+              )}
 
               {/* ── history ── */}
               <div className="cst-section">
@@ -624,8 +581,9 @@ interface EdLine { key: number; ref: string | null; qty: number | null; note: st
 
 let lineSeq = 1
 
-function VersionEditor({ init, opts, optsErr, categories, onClose, onSaved }: {
+function VersionEditor({ init, opts, optsErr, categories, ratios, onClose, onSaved }: {
   init: EditorInit; opts: Options | null; optsErr: string | null; categories: string[]
+  ratios: Map<string, number | null>
   onClose: () => void; onSaved: (componentId: string) => void
 }) {
   const meta = init.mode === 'new' ? null : init.meta
@@ -665,6 +623,42 @@ function VersionEditor({ init, opts, optsErr, categories, onClose, onSaved }: {
   }, [opts, meta?.componentId])
 
   const setLine = (key: number, patch: Partial<EdLine>) => setLines((ls) => ls.map((l) => (l.key === key ? { ...l, ...patch } : l)))
+
+  /** WEC-864 (Ioustinos 11/11): every line has linked Raw ↔ Cooked inputs.
+   *  Stored quantity: cost item → raw (as bought); component → cooked (its output unit).
+   *  cooked ÷ raw: for a component its own yield (version in force); for a cost item
+   *  this component's yield % (pct mode only — other modes have no per-line yield). */
+  const lineRatio = (ref: string | null): number | null => {
+    if (!ref) return null
+    if (ref.startsWith('c:')) {
+      if ((compUnitOf.get(ref.slice(2)) ?? 'g') === 'pcs') return null
+      const r = ratios.get(ref.slice(2)); return r && r > 0 ? r : null
+    }
+    const u = unitOf.get(ref.slice(2))
+    if (u === 'pcs') return null
+    return mode === 'pct' && pct && pct > 0 ? pct / 100 : null
+  }
+  const r1 = (v: number) => Math.round(v * 10) / 10
+  const r4 = (v: number) => Math.round(v * 10000) / 10000
+  const rawOf = (l: EdLine): number | null => {
+    if (l.qty === null) return null
+    if (!l.ref || l.ref.startsWith('i:')) return l.qty
+    const r = lineRatio(l.ref); return r ? r1(l.qty / r) : null
+  }
+  const cookedOf = (l: EdLine): number | null => {
+    if (l.qty === null) return null
+    if (l.ref?.startsWith('c:')) return l.qty
+    const r = lineRatio(l.ref); return r ? r1(l.qty * r) : null
+  }
+  const setRaw = (l: EdLine, v: number | null) => {
+    if (!l.ref || l.ref.startsWith('i:')) return setLine(l.key, { qty: v })
+    const r = lineRatio(l.ref); setLine(l.key, { qty: v === null || !r ? null : r4(v * r) })
+  }
+  const setCooked = (l: EdLine, v: number | null) => {
+    if (l.ref?.startsWith('c:')) return setLine(l.key, { qty: v })
+    const r = lineRatio(l.ref); setLine(l.key, { qty: v === null || !r ? null : r4(v / r) })
+  }
+  const isPcs = (ref: string | null) => !!ref && (ref.startsWith('c:') ? (compUnitOf.get(ref.slice(2)) ?? 'g') === 'pcs' : unitOf.get(ref.slice(2)) === 'pcs')
   const unitLabel = (ref: string | null) =>
     !ref ? '' : ref.startsWith('c:') ? ((compUnitOf.get(ref.slice(2)) ?? 'g') === 'pcs' ? 'pieces' : (compUnitOf.get(ref.slice(2)) === 'ml' ? 'ml' : 'g cooked')) : (unitOf.get(ref.slice(2)) ?? '')
 
@@ -776,24 +770,42 @@ function VersionEditor({ init, opts, optsErr, categories, onClose, onSaved }: {
               {optsErr && <div className="cst-inline-err">Could not load items/components: {optsErr}</div>}
               {!opts && !optsErr && <div className="cst-note">Loading items and components…</div>}
               <table className="cst-table">
-                <thead><tr><th style={{ width: '45%' }}>Item or component</th><th className="num">Qty</th><th>Unit</th><th>Note</th><th /></tr></thead>
+                <thead><tr><th style={{ width: '40%' }}>Item or component</th><th className="num">Raw</th><th className="num">Cooked</th><th>Unit</th><th>Note</th><th /></tr></thead>
                 <tbody>
-                  {lines.map((l) => (
+                  {lines.map((l) => {
+                    const r = lineRatio(l.ref)
+                    const pcs = isPcs(l.ref)
+                    const storedRaw = !l.ref || l.ref.startsWith('i:')
+                    return (
                     <tr key={l.key}>
                       <td><SearchPick options={pickOpts} value={l.ref} onChange={(v) => setLine(l.key, { ref: v })} placeholder="Search item or component…" width="100%" /></td>
-                      <td className="num"><NumText value={l.qty} onChange={(v) => setLine(l.key, { qty: v })} width={80} /></td>
-                      <td className="cst-muted">{unitLabel(l.ref)}</td>
+                      {pcs ? (
+                        <td className="num" colSpan={2}><NumText value={l.qty} onChange={(v) => setLine(l.key, { qty: v })} width={80} /> <span className="cst-muted">pcs</span></td>
+                      ) : (<>
+                        <td className="num" title={storedRaw ? 'Saved as raw (as bought)' : r ? `Raw = cooked ÷ ${r1(r * 100)}% yield` : 'No yield known for this line'}>
+                          <NumText value={rawOf(l)} onChange={(v) => setRaw(l, v)} width={76} disabled={!storedRaw && !r} />
+                        </td>
+                        <td className="num" title={!storedRaw ? 'Saved as cooked' : r ? `Cooked = raw × ${r1(r * 100)}% yield` : (mode === 'pct' ? 'Set the yield %' : 'Per-line cooked weight needs «Yield %» mode')}>
+                          <NumText value={cookedOf(l)} onChange={(v) => setCooked(l, v)} width={76} disabled={storedRaw && !r} />
+                        </td>
+                      </>)}
+                      <td className="cst-muted" style={{ whiteSpace: 'nowrap' }}>{pcs ? '' : `g${r ? ` · ${r1(r * 100)}%` : ''}`}{!pcs && unitLabel(l.ref) === 'ml' ? ' (ml)' : ''}</td>
                       <td><input className="admin-input cst-input" value={l.note} onChange={(e) => setLine(l.key, { note: e.target.value })} style={{ width: '100%' }} /></td>
                       <td><button className="admin-btn admin-btn-ghost admin-btn-sm" title="Remove line" onClick={() => setLines((ls) => ls.filter((x) => x.key !== l.key))}>×</button></td>
                     </tr>
-                  ))}
-                  {!lines.length && <tr><td colSpan={5} className="cst-muted">No lines yet.</td></tr>}
+                    )
+                  })}
+                  {!lines.length && <tr><td colSpan={6} className="cst-muted">No lines yet.</td></tr>}
                 </tbody>
               </table>
               <button className="admin-btn admin-btn-ghost admin-btn-sm" style={{ marginTop: 6 }}
                       onClick={() => setLines((ls) => [...ls, { key: lineSeq++, ref: null, qty: null, note: '' }])}>
                 + Add line
               </button>
+              <p className="cst-note" style={{ marginTop: 4 }}>
+                Type in either column — the other follows the yield. A cost item is saved as raw (as bought) and uses this component's yield %;
+                a component is saved as cooked and uses its own yield.
+              </p>
             </div>
           )}
 
