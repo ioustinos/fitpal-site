@@ -101,3 +101,12 @@ Scripts: `scripts/costing-seed/groups/` (parse → match → plan → build_payl
   8 suppliers «Γενικός προμηθευτής · <category>», invoices `ΤΙΜΕΣ-2026-10-12` (428 lines = every priced item incl. packaging, the seed's Excel prices) and `ΤΙΜΕΣ-2026-11-10` (390 food items, the sheet's current prices). 90 simple components changed price; Φέτα light yield 80% → 100% (v2 from 10/11).
 - Checks after `cost_rebuild_all()`: nightly check 0 mismatches (4,936 values); recipe-tree Σ leaves = food cost for a 300-variant sample; 0 composites still «estimated» among the 226.
 - Dish impact today vs before: 1,369 variants — 353 same to the cent, 389 up, 627 down, average −€0.033, median 0%.
+
+## 11/11/2026 — 100% «wrapper» lines inside recipes replaced by cost items (dev)
+
+🟢 Ioustinos: «yes» — replace each 100% wrapper line inside recipes with its cost item directly; the wrappers stay for the dish links.
+
+- Wrapper = component whose version in force is yield 100% with a single cost-item line (231, all but one from the Excel «Index» sheet).
+- `scripts/costing-seed/06_flatten_wrappers.sql`: for every component whose latest published version used wrappers, a new published version with the same effective date, same yield and line order, wrapper lines → the cost item (qty unchanged at 100%).
+- Result: 218 components re-versioned, 1,010 lines swapped, 0 wrapper lines left inside recipes. Wrappers untouched: 267 dish links still use them. Drafts untouched.
+- Checks: Σ component €/unit today 5.58030546 before = after; Σ variant food cost today 3,463.944225 before = after; nightly check run 8: 0 mismatches over 6,356 values.
