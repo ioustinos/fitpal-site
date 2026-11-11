@@ -639,7 +639,7 @@ function ComponentDrawer(p: DrawerProps) {
                       <div className="cst-tile-v">{fmtEurFine(total, 3)}</div>
                       <div className="cst-tile-s">
                         {b.yield_mode === 'pct'
-                          ? (U === 'pcs' ? `${fmtQtyUnit(b.raw_pieces, 'pcs')} in → ${fmtOut(b.output_g)} (${Number(b.yield_pct)}%)` : `${fmtG(b.raw_weight_g)} raw → ${fmtG(b.output_g)} cooked (${Number(b.yield_pct)}%)`)
+                          ? (U === 'pcs' ? `${fmtQtyUnit(b.raw_pieces, 'pcs')} in → ${fmtOut(b.output_g)} (${Number(b.yield_pct)}%)` : `${fmtG(b.raw_weight_g)} in the pot → ${fmtG(b.output_g)} cooked (${Number(b.yield_pct)}% pot yield)`)
                           : `${b.lines.length} lines → ${fmtOut(b.output_g)}${U === 'g' ? ' cooked' : ''}`}
                       </div>
                     </>)}
@@ -760,6 +760,7 @@ function EditPane({ init, d, lower, back, onBack, onClose, opts, optsErr, catego
   // ── linked Raw ↔ Cooked (WEC-864, Ioustinos 11/11) ──
   // stored quantity: cost item → raw (as bought); component → cooked (its output unit)
   const setLine = (key: number, patch: Partial<EdLine>) => setF((x) => ({ ...x, lines: x.lines.map((l) => (l.key === key ? { ...l, ...patch } : l)) }))
+  const singleItem = f.lines.filter((l) => l.ref).length <= 1 && f.lines.every((l) => !l.ref || l.ref.startsWith('i:'))
   const lineRatio = (l: EdLine): number | null => {
     const ref = l.ref
     if (!ref) return null
@@ -770,7 +771,11 @@ function EditPane({ init, d, lower, back, onBack, onClose, opts, optsErr, catego
       const r = fromPv ?? ratios.get(ref.slice(2)); return r && r > 0 ? r : null
     }
     if (unitOf.get(ref.slice(2)) === 'pcs') return null
-    return f.mode === 'pct' && f.pct && f.pct > 0 ? f.pct / 100 : null
+    // single-ingredient component: the yield % IS this item's cooking yield.
+    // In a mixed recipe a cost item goes into the pot as it is (salt, pepper, cream…);
+    // any pot-level % applies to the whole pot, after the lines (Ioustinos 11/11).
+    if (singleItem) return f.mode === 'pct' && f.pct && f.pct > 0 ? f.pct / 100 : null
+    return 1
   }
   const r1 = (v: number) => Math.round(v * 10) / 10
   const r4 = (v: number) => Math.round(v * 10000) / 10000
@@ -908,7 +913,7 @@ function EditPane({ init, d, lower, back, onBack, onClose, opts, optsErr, catego
   // ── preview tiles ──
   const fmtC = (v: number | null | undefined) => fmtCompCost(v, U)
   const fmtOut = (v: number | null | undefined) => (U === 'g' ? fmtG(v) : fmtQtyUnit(v, U))
-  const rawIn = U === 'pcs' ? `${fmtQtyUnit(pvd?.raw_pieces, 'pcs')} in` : `${fmtG(pvd?.raw_weight_g)} raw`
+  const rawIn = U === 'pcs' ? `${fmtQtyUnit(pvd?.raw_pieces, 'pcs')} in` : `${fmtG(pvd?.raw_weight_g)} ${singleItem ? 'raw' : 'in the pot'}`
 
   const rows: ReactNode[] = []
   f.lines.forEach((l) => {
@@ -949,7 +954,7 @@ function EditPane({ init, d, lower, back, onBack, onClose, opts, optsErr, catego
           </td>
           <td className="num" title={!raw ? 'Saved as cooked' : r ? `Cooked = raw × ${r1(r * 100)}% yield` : (f.mode === 'pct' ? 'Set the yield %' : 'Per-line cooked weight needs «Yield %» mode')}>
             <NumText value={cookedOf(l)} onChange={(v) => setCooked(l, v)} width={84} disabled={raw && !r} />
-            <div className="cst-note" style={{ textAlign: 'right' }}>{isMl(l.ref) ? 'ml' : 'g'}{r ? ` · ${r1(r * 100)}%` : ''}</div>
+            <div className="cst-note" style={{ textAlign: 'right' }}>{isMl(l.ref) ? 'ml' : 'g'}{raw && !singleItem ? ' · as is' : r ? ` · ${r1(r * 100)}%` : ''}</div>
           </td>
         </>)}
         <td className="num">{n ? nodeUnitCost(n) : ''}</td>
@@ -1020,7 +1025,7 @@ function EditPane({ init, d, lower, back, onBack, onClose, opts, optsErr, catego
         <div className="cst-tile">
           <div className="cst-tile-k">
             <select className="cst-tile-select" value={f.mode} onChange={(e) => set({ mode: e.target.value as YieldMode })}>
-              <option value="pct">Yield %</option>
+              <option value="pct">{singleItem ? 'Yield %' : 'Pot yield %'}</option>
               <option value="output_weight">Batch output</option>
               <option value="fixed">Fixed € per {perWord}</option>
             </select>
@@ -1088,7 +1093,10 @@ function EditPane({ init, d, lower, back, onBack, onClose, opts, optsErr, catego
                       title={sums.missing ? `${sums.missing} line(s) have no cooked weight yet (no yield known) — not counted` : 'Σ of the Cooked column'}>
                     {sums.missing ? '≥ ' : ''}{fmtG(sums.cooked)}</td>
                   <td colSpan={4} className="cst-muted" style={{ fontSize: 11.5 }}>
-                    {sums.missing > 0 && `${sums.missing} line(s) without a cooked weight not counted`}</td>
+                    {!singleItem && f.mode === 'pct' && f.pct !== null && `→ × ${f.pct}% pot yield = ${fmtOut(pvd?.output_g)}`}
+                    {f.mode === 'output_weight' && f.outW !== null && sums.cooked > 0 && !sums.missing &&
+                      `→ batch output ${fmtOut(f.outW)} (${f.outW >= sums.cooked ? '+' : ''}${r1((f.outW / sums.cooked - 1) * 100)}% vs the lines)`}
+                    {sums.missing > 0 && ` · ${sums.missing} line(s) without a cooked weight not counted`}</td>
                 </tr>
                 <tr>
                   <td colSpan={6} style={{ fontWeight: 600 }}>Cost of this batch

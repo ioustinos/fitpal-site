@@ -157,8 +157,18 @@ export function RecipeBreakdown({ variantId, componentId, componentUnit, asOf, r
               {isComp && ct && ct.root.children.length > 0 && (() => {
                 // Σ Raw / Σ Cooked of the recipe lines (Ioustinos 11/11)
                 let raw = 0, cooked = 0, missing = 0
-                for (const n of ct.root.children) {
-                  if (n.kind === 'item') { if (n.unit !== 'pcs') raw += Number(n.qty); missing++; continue }
+                const kids = ct.root.children
+                const single = kids.length === 1 && kids[0].kind === 'item'
+                for (const n of kids) {
+                  if (n.kind === 'item') {
+                    // single-ingredient component: its yield %; in a mixed recipe an item goes in as it is
+                    if (n.unit === 'pcs') { missing++; continue }
+                    raw += Number(n.qty)
+                    if (single && ct.root.yield_mode === 'pct') cooked += Number(n.qty) * Number(ct.root.yield_pct ?? 0) / 100
+                    else if (single) missing++
+                    else cooked += Number(n.qty)
+                    continue
+                  }
                   if ((n.unit ?? 'g') === 'pcs') continue
                   const r = nodeRatio(n)
                   if (r) raw += Number(n.grams) / r
@@ -168,7 +178,7 @@ export function RecipeBreakdown({ variantId, componentId, componentUnit, asOf, r
                   <tr>
                     <td colSpan={2} style={{ fontWeight: 600 }}>Total weight</td>
                     <td className="num" style={{ fontWeight: 600 }}>{fmtQty(raw, 'g')}</td>
-                    <td className="num" style={{ fontWeight: 600 }} title={missing ? 'Cost items are shown raw only — their cooked weight is not counted' : 'Σ of the Cooked column'}>
+                    <td className="num" style={{ fontWeight: 600 }} title={missing ? 'Some lines have no cooked weight (pieces, or no yield) — not counted' : 'Σ of what goes into the pot: components at their cooked weight, cost items as they are'}>
                       {missing ? (cooked > 0 ? `≥ ${fmtQty(cooked, 'g')}` : '—') : fmtQty(cooked, 'g')}</td>
                     <td colSpan={4} />
                   </tr>
