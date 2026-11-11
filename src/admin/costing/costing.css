@@ -182,3 +182,8 @@ details.cst-sec > summary::-webkit-details-marker { display: none; }
 details.cst-sec > summary h3::before { content: '▸'; font-size: 11px; color: #94a3b8; margin-right: 2px; }
 details.cst-sec[open] > summary h3::before { content: '▾'; }
 .cst-tile-select { appearance: none; padding: 0 18px 0 4px !important; background: #fff url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 24 24' fill='none' stroke='%236b7280' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'><polyline points='6 9 12 15 18 9'/></svg>") no-repeat right 4px center; }
+/* drawer header actions: date + buttons live in the header row, not a second bar (Ioustinos 11/11) */
+.cst-head-actions { margin-left: auto; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
+.cst-head-actions label { font-size: 12px; color: #475569; display: inline-flex; align-items: center; gap: 6px; }
+.cst-head-actions .admin-input { height: 30px; padding: 4px 8px; font-size: 13px; }
+.cst-head-actions + .admin-drawer-close { margin-left: 8px; }

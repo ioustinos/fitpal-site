@@ -579,6 +579,10 @@ function DishDrawer({ view, asOf, base, packOptions, onClose, onSaved }: {
         <header className="admin-drawer-head">
           <h2 style={{ fontSize: 16 }}>{d.name}</h2>
           <span className="cst-muted" style={{ fontSize: 12, marginLeft: 8 }}>{d.category_id ?? ''} · as of {fmtDate(asOf)}</span>
+          <div className="cst-head-actions">
+            <Link to={`/admin/costing/links?dish=${encodeURIComponent(d.id)}`} className="admin-btn admin-btn-secondary admin-btn-sm"
+                  title="Which component each ingredient of this dish is costed with">Edit dish links</Link>
+          </div>
           <button className="admin-drawer-close" onClick={onClose}>×</button>
         </header>
         <div className="admin-drawer-body" style={{ fontSize: 13 }}>
@@ -603,9 +607,6 @@ function DishDrawer({ view, asOf, base, packOptions, onClose, onSaved }: {
                   <span className="cst-count">{i + 1} of {view.variants.length}</span>
                 </>)
               })()}
-              <span className="cst-spacer" />
-              <Link to={`/admin/costing/links?dish=${encodeURIComponent(d.id)}`} className="admin-btn admin-btn-secondary admin-btn-sm"
-                    title="Which component each ingredient of this dish is costed with">Edit dish links</Link>
             </div>
           )}
 

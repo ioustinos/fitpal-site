@@ -576,6 +576,27 @@ function ComponentDrawer(p: DrawerProps) {
               </div>
               {comp?.category && <span className="cst-note">{comp.category}</span>}
             </div>
+            {d && b && comp && kind && (
+            <div className="cst-head-actions">
+              <label>Costs as of
+                <input type="date" className="admin-input" value={asOf || d.as_of} onChange={(e) => setAsOf(e.target.value)} style={{ width: 145 }} />
+              </label>
+              {asOf && <button className="admin-btn admin-btn-ghost admin-btn-sm" onClick={() => setAsOf('')}>Today</button>}
+              {loading && <span className="cst-count">Loading…</span>}
+              <button className="admin-btn admin-btn-primary admin-btn-sm"
+                      title={openDraft ? `Continue the saved draft v${openDraft.version_no}` : 'Edit here; Save draft as often as you like, Publish when done'}
+                      onClick={() => startEdit(openDraft ? initFrom(comp, openDraft, 'draft') : initFrom(comp, inForce, 'version'))}>
+                {openDraft ? `Continue draft v${openDraft.version_no}` : kind === 'fixed' ? 'Add recipe' : 'Edit'}
+              </button>
+              <button className="admin-btn admin-btn-secondary admin-btn-sm" title="Start a new component pre-filled with this recipe"
+                      onClick={() => { p.needOptions(); p.onDuplicate(initFrom(comp, openDraft ?? inForce, 'duplicate'), { id: comp.id, name: comp.name }) }}>
+                Duplicate
+              </button>
+              <button className="admin-btn admin-btn-ghost admin-btn-sm" disabled={busy} onClick={toggleActive}>
+                {comp.active ? 'Deactivate' : 'Activate'}
+              </button>
+            </div>
+            )}
             <button className="admin-drawer-close" onClick={onClose}>×</button>
           </header>
           <div className="admin-drawer-body" style={{ padding: '12px 18px 24px' }}>
@@ -583,27 +604,6 @@ function ComponentDrawer(p: DrawerProps) {
             {loading && !d && <div className="admin-loading">Loading…</div>}
             {d && b && comp && kind && (
               <>
-                <div className="cst-drawer-bar">
-                  <label>Costs as of
-                    <input type="date" className="admin-input" value={asOf || d.as_of} onChange={(e) => setAsOf(e.target.value)} style={{ width: 145 }} />
-                  </label>
-                  {asOf && <button className="admin-btn admin-btn-ghost admin-btn-sm" onClick={() => setAsOf('')}>Today</button>}
-                  {loading && <span className="cst-count">Loading…</span>}
-                  <span className="cst-spacer" />
-                  <button className="admin-btn admin-btn-primary admin-btn-sm"
-                          title={openDraft ? `Continue the saved draft v${openDraft.version_no}` : 'Edit here; Save draft as often as you like, Publish when done'}
-                          onClick={() => startEdit(openDraft ? initFrom(comp, openDraft, 'draft') : initFrom(comp, inForce, 'version'))}>
-                    {openDraft ? `Continue draft v${openDraft.version_no}` : kind === 'fixed' ? 'Add recipe' : 'Edit'}
-                  </button>
-                  <button className="admin-btn admin-btn-secondary admin-btn-sm" title="Start a new component pre-filled with this recipe"
-                          onClick={() => { p.needOptions(); p.onDuplicate(initFrom(comp, openDraft ?? inForce, 'duplicate'), { id: comp.id, name: comp.name }) }}>
-                    Duplicate
-                  </button>
-                  <button className="admin-btn admin-btn-ghost admin-btn-sm" disabled={busy} onClick={toggleActive}>
-                    {comp.active ? 'Deactivate' : 'Activate'}
-                  </button>
-                </div>
-
                 {/* ── summary ── */}
                 <div className="cst-tiles cst-tiles-tight">
                   <div className="cst-tile">
