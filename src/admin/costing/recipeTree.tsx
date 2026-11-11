@@ -79,7 +79,7 @@ export function treeNodeRows(node: RecipeNode, path: string, depth: number, open
                   onClick={() => toggle(path)} aria-expanded={isOpen}>{isOpen ? '▾' : '▸'}</button>
         )}
       </td>
-      <td className="cst-muted" style={{ fontSize: 11.5 }}>{yieldLabel(node)}</td>
+      <td className="cst-muted" style={{ fontSize: 11.5, minWidth: 150 }}>{yieldLabel(node)}</td>
       <td className="num">{u === 'pcs' ? '—' : r ? fmtQty(Number(node.grams) / r, 'g') : '—'}</td>
       <td className="num">{fmtQtyUnit(node.grams, u)}</td>
       <td className="num">{nodeUnitCost(node)}</td>

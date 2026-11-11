@@ -95,6 +95,10 @@ export function RecipeBreakdown({ variantId, componentId, componentUnit, asOf, r
             {l.ingredient} <span className="cst-muted" style={{ fontWeight: 400 }}>· {Number(l.grams)} g on the plate{l.unit === 'pcs' && <> = {l.qty === null || l.qty === undefined ? '? pieces' : fmtQtyUnit(l.qty, 'pcs')}</>}</span>
             {l.flags?.no_piece_weight && <span className="cst-inline-err" style={{ marginLeft: 6, fontWeight: 400 }}>set «grams per piece» on the component — counted €0</span>}
             <span style={{ marginLeft: 6 }}>{linkBadge(l.link_source)}</span>
+            {!l.unlinked && dishId && (
+              <Link to={`/admin/costing/links?dish=${encodeURIComponent(dishId)}`} className="cst-note" style={{ marginLeft: 8, fontWeight: 400 }}
+                    title="Change which component this ingredient is costed with">change link →</Link>
+            )}
             {l.unlinked && (
               <Link to={`/admin/costing/links?dish=${encodeURIComponent(dishId)}`} className="cst-inline-err" style={{ marginLeft: 6, fontWeight: 400 }}>
                 unlinked — counted €0, link it →
@@ -124,6 +128,10 @@ export function RecipeBreakdown({ variantId, componentId, componentUnit, asOf, r
           <a href="#" className={view === 'items' ? 'on' : ''} onClick={(e) => { e.preventDefault(); setView('items') }}>By cost item</a>
         </span>
         <span className="cst-spacer" />
+        {!isComp && dishId && (
+          <Link to={`/admin/costing/links?dish=${encodeURIComponent(dishId)}`} className="admin-btn admin-btn-secondary admin-btn-sm"
+                title="Which component each ingredient of this dish is costed with">Edit dish links</Link>
+        )}
         {view === 'recipe' && t && (
           <>
             <button type="button" className="admin-btn admin-btn-ghost admin-btn-sm" onClick={() => setOpen(new Set(allPaths()))}>Expand all</button>
