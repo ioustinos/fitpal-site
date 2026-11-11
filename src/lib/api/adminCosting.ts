@@ -476,6 +476,10 @@ export const fetchVariantDetail = (variantId: string, date?: string | null) =>
   rpc<{ breakdown: VariantBreakdown; history: Array<{ date: string; product_cost: number; food_cost: number; packaging_cost: number; flags: CostFlags; cause: string | null }> }>(
     'admin_cost_variant_detail', { p_variant: variantId, p_date: date ?? null })
 
+/** WEC-866: selling-price history of a variant (€), from the audit log — for the Food cost % chart */
+export const fetchVariantPriceHistory = (variantId: string) =>
+  rpc<Array<{ date: string; price: number }>>('admin_cost_variant_price_history', { p_variant: variantId })
+
 export interface DishPackagingRow { dish_id: string; cost_item_id: string; qty_per_portion: number }
 export async function fetchDishPackaging(dishId: string): Promise<Res<DishPackagingRow[]>> {
   const { data, error } = await supabase.from('cost_dish_packaging').select('dish_id, cost_item_id, qty_per_portion').eq('dish_id', dishId)

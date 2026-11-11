@@ -124,11 +124,12 @@ export function Sparkline({ points, current, days = 90, width = 90, height = 22 
 }
 
 // ── what moved a cost (chart dots + legend) ─────────────────────────────────
-export type ChangeKind = 'price' | 'recipe' | 'dish' | 'recalc' | 'other'
+export type ChangeKind = 'price' | 'recipe' | 'dish' | 'sale' | 'recalc' | 'other'
 export const CHANGE_KINDS: Record<ChangeKind, { label: string; hint: string; color: string }> = {
   price: { label: 'Purchase price', hint: 'a new purchase (or fallback price) of a cost item', color: '#2563eb' },
   recipe: { label: 'Recipe change', hint: 'a new published version of a component recipe', color: '#f59e0b' },
   dish: { label: 'Dish change', hint: 'grams of a dish line, its component link or its packaging changed', color: '#a855f7' },
+  sale: { label: 'Selling price change', hint: 'the dish variant got a new selling price', color: '#0d9488' },
   recalc: { label: 'Full recalculation', hint: 'bulk import / rebuild — recalculated with the prices of that date', color: '#94a3b8' },
   other: { label: 'Manual fix', hint: 'a one-off correction', color: '#64748b' },
 }
@@ -137,6 +138,7 @@ export function changeKind(cause: string | null | undefined): ChangeKind {
   if (/^(purchase|invoice|item)/.test(c)) return 'price'
   if (/^(version|component)/.test(c)) return 'recipe'
   if (/^(grams|dish|cost_dish|packaging|link)/.test(c)) return 'dish'
+  if (c.startsWith('sale_price')) return 'sale'
   if (c.startsWith('rebuild')) return 'recalc'
   return 'other'
 }

@@ -6,6 +6,7 @@ import {
   fetchDishCosts,
   fetchDishPackaging,
   fetchVariantDetail,
+  fetchVariantPriceHistory,
   type CostFlags,
   type CostSource,
   type CostItemOption,
@@ -18,6 +19,7 @@ import {
   FlagBadges,
   HistoryChart,
   Section,
+  Segmented,
   ShareBar,
   Tile,
   NumText,
@@ -478,7 +480,7 @@ function validatePack(rows: PackRow[]): { items: Array<{ cost_item_id: string; q
 }
 
 // ── dish detail drawer ───────────────────────────────────────────────────────
-type Detail = { breakdown: VariantBreakdown; history: Array<{ date: string; product_cost: number; cause: string | null }> }
+type Detail = { breakdown: VariantBreakdown; history: Array<{ date: string; product_cost: number; food_cost: number; cause: string | null }> }
 type DetailRes = { key: string; data: Detail | null; error: string | null }
 
 function DishDrawer({ view, asOf, base, packOptions, onClose, onSaved }: {
@@ -496,7 +498,7 @@ function DishDrawer({ view, asOf, base, packOptions, onClose, onSaved }: {
       if (!alive) return
       setDet({
         key: detKey, error: r.error,
-        data: r.data ? { breakdown: r.data.breakdown, history: (r.data.history ?? []).map((h) => ({ date: h.date, product_cost: Number(h.product_cost), cause: h.cause })) } : null,
+        data: r.data ? { breakdown: r.data.breakdown, history: (r.data.history ?? []).map((h) => ({ date: h.date, product_cost: Number(h.product_cost), food_cost: Number(h.food_cost), cause: h.cause })) } : null,
       })
     })
     return () => { alive = false }
@@ -538,6 +540,34 @@ function DishDrawer({ view, asOf, base, packOptions, onClose, onSaved }: {
 
   const b = det?.data?.breakdown ?? null // stale breakdown stays visible (dimmed) while the next one loads
   const hist = det?.data?.history ?? []
+
+  // «Food cost %» chart: food cost ÷ selling price over time; a price change is its own event (Ioustinos 11/11)
+  const [chart, setChart] = useState<'cost' | 'pct'>('cost')
+  const [prices, setPrices] = useState<{ key: string; rows: Array<{ date: string; price: number }>; error: string | null } | null>(null)
+  useEffect(() => {
+    if (chart !== 'pct' || !variantId || prices?.key === variantId) return
+    let alive = true
+    void fetchVariantPriceHistory(variantId).then((r) => {
+      if (alive) setPrices({ key: variantId, rows: (r.data ?? []).map((x) => ({ date: x.date, price: Number(x.price) })), error: r.error })
+    })
+    return () => { alive = false }
+  }, [chart, variantId, prices?.key])
+  const pctRows = useMemo(() => {
+    if (!prices || prices.key !== variantId) return []
+    const pr = [...prices.rows].sort((a, c) => a.date.localeCompare(c.date))
+    const costs = hist.filter((h) => h.date >= '2000-01-01')
+    if (!costs.length) return []
+    const priceAt = (d: string) => { let p = pr[0]?.price ?? null; for (const x of pr) if (x.date <= d) p = x.price; return p }
+    const foodAt = (d: string) => { let f: number | null = null; for (const h of costs) if (h.date <= d) f = Number(h.food_cost); return f ?? Number(costs[0].food_cost) }
+    const start = costs[0].date
+    const events = [
+      ...costs.map((h) => ({ date: h.date, cause: h.cause })),
+      // the first recorded price is the starting point, not a change
+      ...pr.slice(1).filter((x) => x.date > start).map((x) => ({ date: x.date, cause: 'sale_price' })),
+    ].sort((a, c) => a.date.localeCompare(c.date))
+    const out = events.map((e) => ({ date: e.date, cause: e.cause, pct: pctOf(foodAt(e.date), priceAt(e.date), base) }))
+    return out
+  }, [prices, variantId, hist, base])
   const product = n(b?.product_cost) ?? 0
   const share = (c: number | null | undefined) => (product > 0 && c !== null && c !== undefined ? Number(c) / product : null)
   const packCosts = useMemo(() => new Map((b?.packaging ?? []).map((p) => [p.cost_item_id, {
@@ -604,8 +634,15 @@ function DishDrawer({ view, asOf, base, packOptions, onClose, onSaved }: {
               {/* recipe + cost per ingredient / cost item (replaces the flat «Food lines» table) */}
               {variantId && <RecipeBreakdown variantId={variantId} asOf={asOf} rev={rev} dishId={d.id} />}
 
-              <Section title="Product cost history" sub="food + packaging, this variant">
-                <HistoryChart rows={hist} valueKey="product_cost" />
+              <Section title={chart === 'cost' ? 'Product cost history' : 'Food cost % history'}
+                sub={chart === 'cost' ? 'food + packaging, this variant' : `food cost ${baseLabel(base)}, this variant`}
+                actions={<Segmented value={chart} onChange={setChart} options={[['cost', 'Cost €'], ['pct', 'Food cost %']]} />}>
+                {chart === 'cost' && <HistoryChart rows={hist} valueKey="product_cost" />}
+                {chart === 'pct' && (prices?.error
+                  ? <div className="admin-error-banner">Could not load the price history: {prices.error}</div>
+                  : !prices || prices.key !== variantId
+                    ? <div className="admin-loading">Loading…</div>
+                    : <HistoryChart rows={pctRows} valueKey="pct" fmt={(v) => fmtPct(v)} />)}
               </Section>
             </div>
           )}
