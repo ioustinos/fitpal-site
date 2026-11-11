@@ -551,13 +551,25 @@ function DishDrawer({ view, asOf, base, packOptions, onClose, onSaved }: {
         <div className="admin-drawer-body" style={{ fontSize: 13 }}>
           {!view.variants.length && <div className="admin-empty">This dish has no variants.</div>}
           {view.variants.length > 0 && (
-            <div className="cst-tabs" style={{ marginTop: 0 }}>
-              {view.variants.map((v) => (
-                <a key={v.id} href="#" className={v.id === variantId ? 'on' : ''}
-                  onClick={(e) => { e.preventDefault(); setVariantId(v.id) }}>
-                  {v.label || v.id} <span className="cst-muted">{fmtEur(v.price)}</span>
-                </a>
-              ))}
+            <div className="cst-toolbar" style={{ marginBottom: 10 }}>
+              <label style={{ fontWeight: 600 }}>Variant
+                <select className="admin-input" style={{ minWidth: 420, maxWidth: '100%', marginLeft: 6 }}
+                        value={variantId ?? ''} onChange={(e) => setVariantId(e.target.value)}>
+                  {view.variants.map((v) => (
+                    <option key={v.id} value={v.id}>{v.label || v.id} — {fmtEur(v.price)}</option>
+                  ))}
+                </select>
+              </label>
+              {view.variants.length > 1 && (() => {
+                const i = view.variants.findIndex((v) => v.id === variantId)
+                return (<>
+                  <button className="admin-btn admin-btn-ghost admin-btn-sm" disabled={i <= 0} title="Previous variant"
+                          onClick={() => setVariantId(view.variants[i - 1].id)}>‹</button>
+                  <button className="admin-btn admin-btn-ghost admin-btn-sm" disabled={i >= view.variants.length - 1} title="Next variant"
+                          onClick={() => setVariantId(view.variants[i + 1].id)}>›</button>
+                  <span className="cst-count">{i + 1} of {view.variants.length}</span>
+                </>)
+              })()}
             </div>
           )}
 
