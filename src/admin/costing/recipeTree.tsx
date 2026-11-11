@@ -14,7 +14,7 @@ export const fmtQty = (q: number, unit: string) => {
 export function yieldLabel(c: RecipeComponentNode): string {
   if (c.yield_mode === 'fixed') return 'fixed €/kg (Excel estimate, no recipe)'
   if (c.yield_mode === 'pct') return `yield ${Number(c.yield_pct)}%`
-  if (c.yield_mode === 'output_weight') return `batch ${Number(c.raw_weight_g ?? 0).toFixed(0)} g raw → ${Number(c.output_g ?? 0).toFixed(0)} g cooked`
+  if (c.yield_mode === 'output_weight') return `batch ${Number(c.raw_weight_g ?? 0).toFixed(0)} g raw → ${Number(c.output_g ?? 0).toFixed(0)} g processed`
   return ''
 }
 

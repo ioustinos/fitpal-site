@@ -65,7 +65,7 @@ export function RecipeBreakdown({ variantId, componentId, componentUnit, asOf, r
 
   const t = res?.data ?? null
   const ct = res?.comp ?? null
-  const where = isComp ? (scale === 'batch' ? 'this batch' : componentUnit === 'pcs' ? '1 piece' : '1 kg cooked') : 'this portion'
+  const where = isComp ? (scale === 'batch' ? 'this batch' : componentUnit === 'pcs' ? '1 piece' : '1 kg processed') : 'this portion'
   const loading = res?.key !== key
   // dish: share of the whole dish (food + packaging), so food lines and packaging add up to 100%;
   // component: share of the component's batch
@@ -116,11 +116,11 @@ export function RecipeBreakdown({ variantId, componentId, componentUnit, asOf, r
   return (
     <Section
       title={isComp ? 'Raw ingredients' : 'Recipe & cost per ingredient'}
-      sub={isComp ? (scale === 'batch' ? 'whole batch' : componentUnit === 'pcs' ? 'per piece' : 'per kg cooked') : 'this portion'}
+      sub={isComp ? (scale === 'batch' ? 'whole batch' : componentUnit === 'pcs' ? 'per piece' : 'per kg processed') : 'this portion'}
       actions={<>
         {isComp && (
           <Segmented value={scale} onChange={setScale}
-            options={[['batch', 'Whole batch'], ['unit', componentUnit === 'pcs' ? 'Per piece' : 'Per kg cooked']]} />
+            options={[['batch', 'Whole batch'], ['unit', componentUnit === 'pcs' ? 'Per piece' : 'Per kg processed']]} />
         )}
         <Segmented value={view} onChange={setView} options={[['recipe', 'Recipe'], ['items', 'By cost item']]} />
         {view === 'recipe' && t && (<>
@@ -136,8 +136,8 @@ export function RecipeBreakdown({ variantId, componentId, componentUnit, asOf, r
         <div style={{ opacity: loading ? 0.6 : 1, overflowX: 'auto' }}>
           <table className="cst-table">
             <thead>
-              <tr><th>Ingredient / component / cost item</th><th title="How each component is made: its yield, or its batch (raw → cooked). Purchased = a cost item bought as is.">Yield</th><th className="num">Raw <span className="cst-muted" style={{ fontWeight: 400 }}>· {where}</span></th>
-                <th className="num">Cooked</th><th className="num">Unit cost</th><th>Reference</th><th className="num">Cost</th><th className="num">{isComp ? 'Share of component' : 'Share of dish'}</th></tr>
+              <tr><th>Ingredient / component / cost item</th><th title="How each component is made: its yield, or its batch (raw → processed). Purchased = a cost item bought as is.">Yield</th><th className="num">Raw <span className="cst-muted" style={{ fontWeight: 400 }}>· {where}</span></th>
+                <th className="num">Processed</th><th className="num">Unit cost</th><th>Reference</th><th className="num">Cost</th><th className="num">{isComp ? 'Share of component' : 'Share of dish'}</th></tr>
             </thead>
             <tbody>
               {rows}
@@ -167,17 +167,17 @@ export function RecipeBreakdown({ variantId, componentId, componentUnit, asOf, r
                   <tr>
                     <td colSpan={2} style={{ fontWeight: 600 }}>Total weight</td>
                     <td className="num" style={{ fontWeight: 600 }}>{fmtQty(raw, 'g')}</td>
-                    <td className="num" style={{ fontWeight: 600 }} title={missing ? 'Some lines have no cooked weight (pieces, or no yield) — not counted' : 'Σ of what goes into the pot: components at their cooked weight, cost items as they are'}>
+                    <td className="num" style={{ fontWeight: 600 }} title={missing ? 'Some lines have no processed weight (pieces, or no yield) — not counted' : 'Σ of what goes into the pot: components at their processed weight, cost items as they are'}>
                       {missing ? (cooked > 0 ? `≥ ${fmtQty(cooked, 'g')}` : '—') : fmtQty(cooked, 'g')}</td>
                     <td colSpan={4} />
                   </tr>
                 )
               })()}
-              <tr><td colSpan={6} style={{ fontWeight: 600 }}>{isComp ? `Cost of ${where}` : 'Food cost'}{isComp && ct && <span className="cst-muted" style={{ fontWeight: 400 }}> · {fmtQtyUnit(ct.qty, ct.unit)}{ct.unit === 'g' ? ' cooked' : ''}</span>}</td><td className="num" style={{ fontWeight: 600 }}>{fmtEur(t.food_cost)}</td><td /></tr>
+              <tr><td colSpan={6} style={{ fontWeight: 600 }}>{isComp ? `Cost of ${where}` : 'Food cost'}{isComp && ct && <span className="cst-muted" style={{ fontWeight: 400 }}> · {fmtQtyUnit(ct.qty, ct.unit)}{ct.unit === 'g' ? ' processed' : ''}</span>}</td><td className="num" style={{ fontWeight: 600 }}>{fmtEur(t.food_cost)}</td><td /></tr>
             </tbody>
           </table>
           <p className="cst-note" style={{ marginTop: 4 }}>
-            Quantities are scaled to {where}: a component's recipe is multiplied by (quantity used ÷ cooked output of its batch).
+            Quantities are scaled to {where}: a component's recipe is multiplied by (quantity used ÷ processed output of its batch).
             Raw quantities are as purchased, before cooking loss.
           </p>
         </div>
@@ -210,7 +210,7 @@ export function RecipeBreakdown({ variantId, componentId, componentUnit, asOf, r
                     <Fragment key={c.id}>
                       <tr className="cst-sub">
                         <td><EntityDot kind="component" /> <Link to={`/admin/costing/components?id=${encodeURIComponent(c.id)}`}>{c.name}</Link>{' '}<FlagBadges flags={c.flags} /></td>
-                        <td className="num">{fmtQtyUnit(c.grams, c.unit)}{(c.unit ?? 'g') === 'g' && <span className="cst-muted"> cooked</span>}</td>
+                        <td className="num">{fmtQtyUnit(c.grams, c.unit)}{(c.unit ?? 'g') === 'g' && <span className="cst-muted"> processed</span>}</td>
                         <td className="num">{fmtCompCost(Number(c.cost) / Math.max(Number(c.grams), 1e-9), c.unit)}</td>
                         <td className="cst-muted" style={{ fontSize: 11.5 }}>{c.yield_mode === 'fixed' ? 'fixed (Excel)' : 'no recipe'}</td>
                         <td className="num">{fmtEurFine(c.cost, 3)}</td>

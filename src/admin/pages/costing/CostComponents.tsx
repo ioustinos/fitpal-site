@@ -195,7 +195,7 @@ export function CostComponents() {
       <div className="admin-page-head">
         <div>
           <h1 className="admin-page-title">Components</h1>
-          <p className="admin-page-sub">Anything that goes on a plate, costed per cooked gram — or per piece. Versions with an effective date.</p>
+          <p className="admin-page-sub">Anything that goes on a plate, costed per processed gram — or per piece. Versions with an effective date.</p>
         </div>
         <div className="admin-page-actions">
           <button className="admin-btn admin-btn-secondary admin-btn-sm" onClick={openQuick}>+ From a cost item</button>
@@ -231,7 +231,7 @@ export function CostComponents() {
             <tr>
               {th('name', 'Name')}
               {th('type', 'Type')}
-              {th('method', 'Cooking')}
+              {th('method', 'Processing')}
               {th('category', 'Category')}
               {th('cost', 'Cost', true)}
               {th('yield', 'Yield')}
@@ -348,7 +348,7 @@ const fmtG = (v: number | null | undefined) => {
   const r = round1(v)
   return r === null ? '—' : `${r.toLocaleString('el-GR')} g`
 }
-const perLabelOf = (u: BaseUnit) => (u === 'pcs' ? 'piece' : u === 'ml' ? 'litre' : 'cooked kg')
+const perLabelOf = (u: BaseUnit) => (u === 'pcs' ? 'piece' : u === 'ml' ? 'litre' : 'processed kg')
 
 // ── editor state (WEC-864, Ioustinos 11/11: view, edit, new and duplicate are the same drawer) ──
 interface EdLine { key: number; ref: string | null; qty: number | null; note: string }
@@ -478,6 +478,7 @@ function ComponentDrawer(p: DrawerProps) {
   const fmtC = (v: number | null | undefined) => fmtCompCost(v, U)
   const fmtOut = (v: number | null | undefined) => (U === 'g' ? fmtG(v) : fmtQtyUnit(v, U))
   const perLabel = perLabelOf(U)
+  const methodText = comp ? cookingLabel(comp.cooking_method, comp.cooking_method_other) : null
 
   // the ledger starts at 1900 with «no version yet» = 0 €/kg; that is not a price, drop it
   const histRows = useMemo(
@@ -614,20 +615,20 @@ function ComponentDrawer(p: DrawerProps) {
                   </div>
                   <div className="cst-tile">
                     {kind === 'single' ? (<>
-                      <div className="cst-tile-k">Yield</div>
+                      <div className="cst-tile-k">Yield{methodText && <span className="cst-method">{methodText}</span>}</div>
                       <div className="cst-tile-v">{Number(b.yield_pct)}%</div>
-                      <div className="cst-tile-s">{U === 'pcs' ? `${fmtQtyUnit(b.raw_pieces, 'pcs')} in → ${fmtOut(b.output_g)} out` : `${fmtG(b.raw_weight_g)} raw → ${fmtG(b.output_g)} cooked`}</div>
+                      <div className="cst-tile-s">{U === 'pcs' ? `${fmtQtyUnit(b.raw_pieces, 'pcs')} in → ${fmtOut(b.output_g)} out` : `${fmtG(b.raw_weight_g)} raw → ${fmtG(b.output_g)} processed`}</div>
                     </>) : kind === 'fixed' ? (<>
-                      <div className="cst-tile-k">Batch</div>
+                      <div className="cst-tile-k">Batch{methodText && <span className="cst-method">{methodText}</span>}</div>
                       <div className="cst-tile-v cst-muted">—</div>
                       <div className="cst-tile-s">no recipe lines</div>
                     </>) : (<>
-                      <div className="cst-tile-k">Batch</div>
+                      <div className="cst-tile-k">Batch{methodText && <span className="cst-method">{methodText}</span>}</div>
                       <div className="cst-tile-v">{fmtEurFine(total, 3)}</div>
                       <div className="cst-tile-s">
                         {b.yield_mode === 'pct'
-                          ? (U === 'pcs' ? `${fmtQtyUnit(b.raw_pieces, 'pcs')} in → ${fmtOut(b.output_g)} (${Number(b.yield_pct)}%)` : `${fmtG(b.raw_weight_g)} in the pot → ${fmtG(b.output_g)} cooked (${Number(b.yield_pct)}% pot yield)`)
-                          : `${b.lines.length} lines → ${fmtOut(b.output_g)}${U === 'g' ? ' cooked' : ''}`}
+                          ? (U === 'pcs' ? `${fmtQtyUnit(b.raw_pieces, 'pcs')} in → ${fmtOut(b.output_g)} (${Number(b.yield_pct)}%)` : `${fmtG(b.raw_weight_g)} in the pot → ${fmtG(b.output_g)} processed (${Number(b.yield_pct)}% pot yield)`)
+                          : `${b.lines.length} lines → ${fmtOut(b.output_g)}${U === 'g' ? ' processed' : ''}`}
                       </div>
                     </>)}
                   </div>
@@ -687,7 +688,7 @@ function EditPane({ init, d, lower, back, onBack, onClose, opts, optsErr, catego
   const dirty = JSON.stringify(f) !== snap
   const U = f.unit
   const perWord = perLabelOf(U)
-  const outWord = U === 'pcs' ? 'pieces' : U === 'ml' ? 'ml' : 'cooked g'
+  const outWord = U === 'pcs' ? 'pieces' : U === 'ml' ? 'ml' : 'processed g'
 
   const versions = d?.versions ?? []
   const draftNo = versions.find((v) => v.id === draftId)?.version_no ?? null
@@ -802,7 +803,7 @@ function EditPane({ init, d, lower, back, onBack, onClose, opts, optsErr, catego
   // ── save ──
   const validate = (strict: boolean): string | null => {
     if (!f.name.trim()) return 'Name is required.'
-    if (f.method === 'other' && !f.other.trim()) return 'Type the cooking method (or pick another).'
+    if (f.method === 'other' && !f.other.trim()) return 'Type the processing method (or pick another).'
     if (!f.effective) return 'Effective date is required.'
     if (U === 'pcs' && f.gpu !== null && f.gpu <= 0) return 'Grams per piece must be greater than 0.'
     if (f.mode === 'fixed') return f.fixed === null || f.fixed < 0 ? `Enter the fixed € per ${perWord}.` : null
@@ -935,10 +936,10 @@ function EditPane({ init, d, lower, back, onBack, onClose, opts, optsErr, catego
         {pcs ? (
           <td className="num" colSpan={2}><NumText value={l.qty} onChange={(v) => setLine(l.key, { qty: v })} width={70} /> <span className="cst-muted">pcs</span></td>
         ) : (<>
-          <td className="num" title={raw ? 'Saved as raw (as bought)' : r ? `Raw = cooked ÷ ${r1(r * 100)}% yield` : 'No yield known for this line'}>
+          <td className="num" title={raw ? 'Saved as raw (as bought)' : r ? `Raw = processed ÷ ${r1(r * 100)}% yield` : 'No yield known for this line'}>
             <NumText value={rawOf(l)} onChange={(v) => setRaw(l, v)} width={84} disabled={!raw && !r} />
           </td>
-          <td className="num" title={!raw ? 'Saved as cooked' : r ? `Cooked = raw × ${r1(r * 100)}% yield` : (f.mode === 'pct' ? 'Set the yield %' : 'Per-line cooked weight needs «Yield %» mode')}>
+          <td className="num" title={!raw ? 'Saved as processed' : r ? `Processed = raw × ${r1(r * 100)}% yield` : (f.mode === 'pct' ? 'Set the yield %' : 'Per-line processed weight needs «Yield %» mode')}>
             <NumText value={cookedOf(l)} onChange={(v) => setCooked(l, v)} width={84} disabled={raw && !r} />
             <div className="cst-note" style={{ textAlign: 'right' }}>{isMl(l.ref) ? 'ml' : 'g'}{raw && !singleItem ? ' · as is' : r ? ` · ${r1(r * 100)}%` : ''}</div>
           </td>
@@ -962,14 +963,6 @@ function EditPane({ init, d, lower, back, onBack, onClose, opts, optsErr, catego
           <EntityPill kind="component" />
           <input className="admin-input cst-title-input" value={f.name} placeholder="Component name, e.g. Καρότο σωτέ"
                  autoFocus={!compId} onChange={(e) => set({ name: e.target.value })} />
-          <select className="admin-input" style={{ width: 150 }} value={f.method} title="Cooking method"
-                  onChange={(e) => set({ method: e.target.value as MethodSel })}>
-            <option value="na">Cooking: N/A</option>
-            {COOKING_METHODS.map(([k, lbl]) => <option key={k} value={k}>{lbl}</option>)}
-          </select>
-          {f.method === 'other' && (
-            <input className="admin-input" style={{ width: 130 }} value={f.other} placeholder="which method?" onChange={(e) => set({ other: e.target.value })} />
-          )}
           <span className={`cst-badge ${KIND_BADGE[kind][0]}`}>{KIND_BADGE[kind][1]}</span>
         </div>
         <input className="admin-input" list="cst-comp-cats-e" style={{ width: 260 }} value={f.category} placeholder="Category"
@@ -997,7 +990,7 @@ function EditPane({ init, d, lower, back, onBack, onClose, opts, optsErr, catego
         <div className="cst-tile">
           <div className="cst-tile-k">Cost per{' '}
             <select className="cst-tile-select" value={U} onChange={(e) => set({ unit: e.target.value as BaseUnit })}>
-              <option value="g">cooked kg</option>
+              <option value="g">processed kg</option>
               <option value="ml">litre</option>
               <option value="pcs">piece</option>
             </select>
@@ -1010,19 +1003,29 @@ function EditPane({ init, d, lower, back, onBack, onClose, opts, optsErr, catego
           </div>
         </div>
         <div className="cst-tile">
-          <div className="cst-tile-k">
+          <div className="cst-tile-k" style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
             <select className="cst-tile-select" value={f.mode} onChange={(e) => set({ mode: e.target.value as YieldMode })}>
               <option value="pct">{singleItem ? 'Yield %' : 'Pot yield %'}</option>
               <option value="output_weight">Batch output</option>
-              <option value="fixed">Fixed € per {perWord}</option>
+              <option value="fixed">Fixed €/{U === 'pcs' ? 'piece' : U === 'ml' ? 'litre' : 'kg'}</option>
             </select>
+            {/* processing method sits with the yield it explains (Ioustinos 12/11) */}
+            <select className="cst-tile-select cst-method-select" value={f.method} title="Processing method"
+                    onChange={(e) => set({ method: e.target.value as MethodSel })}>
+              <option value="na">no processing</option>
+              {COOKING_METHODS.map(([k, lbl]) => <option key={k} value={k}>{lbl}</option>)}
+            </select>
+            {f.method === 'other' && (
+              <input className="admin-input" style={{ width: 120, height: 22, padding: '0 6px', fontSize: 12, marginLeft: 4, textTransform: 'none' }}
+                     value={f.other} placeholder="which method?" onChange={(e) => set({ other: e.target.value })} />
+            )}
           </div>
           <div className="cst-tile-v">
             {f.mode === 'pct' && <><NumText value={f.pct} onChange={(v) => set({ pct: v })} width={70} placeholder={U === 'pcs' ? '100' : '60'} /> <span className="cst-muted" style={{ fontSize: 14 }}>%</span></>}
             {f.mode === 'output_weight' && <><NumText value={f.outW} onChange={(v) => set({ outW: v })} width={80} placeholder={U === 'pcs' ? '40' : '350'} /> <span className="cst-muted" style={{ fontSize: 14 }}>{outWord}</span></>}
             {f.mode === 'fixed' && <><NumText value={f.fixed} onChange={(v) => set({ fixed: v })} width={80} placeholder="4,20" /> <span className="cst-muted" style={{ fontSize: 14 }}>€</span></>}
           </div>
-          <div className="cst-tile-s">{f.mode === 'fixed' ? 'no recipe lines' : `${rawIn} → ${fmtOut(pvd?.output_g)}${U === 'g' ? ' cooked' : ''} · batch ${fmtEurFine(pvd?.cost ?? null, 3)}`}</div>
+          <div className="cst-tile-s">{f.mode === 'fixed' ? 'no recipe lines' : `${rawIn} → ${fmtOut(pvd?.output_g)}${U === 'g' ? ' processed' : ''} · batch ${fmtEurFine(pvd?.cost ?? null, 3)}`}</div>
         </div>
         <div className="cst-tile">
           <div className="cst-tile-k">Effective from</div>
@@ -1052,9 +1055,9 @@ function EditPane({ init, d, lower, back, onBack, onClose, opts, optsErr, catego
           <div style={{ overflowX: 'auto', opacity: stale && pv ? 0.75 : 1 }}>
             <table className="cst-table">
               <thead>
-                <tr><th style={{ width: '30%' }}>Ingredient / component / cost item</th><th title="How each component is made: its yield, or its batch (raw → cooked). Purchased = a cost item bought as is.">Yield</th>
+                <tr><th style={{ width: '30%' }}>Ingredient / component / cost item</th><th title="How each component is made: its yield, or its batch (raw → processed). Purchased = a cost item bought as is.">Yield</th>
                   <th className="num">Raw <span className="cst-muted" style={{ fontWeight: 400 }}>· this batch</span></th>
-                  <th className="num">Cooked</th><th className="num">Unit cost</th><th>Reference</th><th className="num">Cost</th><th className="num">Share of component</th></tr>
+                  <th className="num">Processed</th><th className="num">Unit cost</th><th>Reference</th><th className="num">Cost</th><th className="num">Share of component</th></tr>
               </thead>
               <tbody>
                 {rows}
@@ -1072,24 +1075,24 @@ function EditPane({ init, d, lower, back, onBack, onClose, opts, optsErr, catego
                     {sums.pcs > 0 && <span className="cst-muted" style={{ fontWeight: 400 }}> · + {fmtQtyUnit(sums.pcs, 'pcs')} not in grams</span>}</td>
                   <td className="num" style={{ fontWeight: 600 }}>{fmtG(sums.raw)}</td>
                   <td className="num" style={{ fontWeight: 600 }}
-                      title={sums.missing ? `${sums.missing} line(s) have no cooked weight yet (no yield known) — not counted` : 'Σ of the Cooked column'}>
+                      title={sums.missing ? `${sums.missing} line(s) have no processed weight yet (no yield known) — not counted` : 'Σ of the Processed column'}>
                     {sums.missing ? '≥ ' : ''}{fmtG(sums.cooked)}</td>
                   <td colSpan={4} className="cst-muted" style={{ fontSize: 11.5 }}>
                     {!singleItem && f.mode === 'pct' && f.pct !== null && `→ × ${f.pct}% pot yield = ${fmtOut(pvd?.output_g)}`}
                     {f.mode === 'output_weight' && f.outW !== null && sums.cooked > 0 && !sums.missing &&
                       `→ batch output ${fmtOut(f.outW)} (${f.outW >= sums.cooked ? '+' : ''}${r1((f.outW / sums.cooked - 1) * 100)}% vs the lines)`}
-                    {sums.missing > 0 && ` · ${sums.missing} line(s) without a cooked weight not counted`}</td>
+                    {sums.missing > 0 && ` · ${sums.missing} line(s) without a processed weight not counted`}</td>
                 </tr>
                 <tr>
                   <td colSpan={6} style={{ fontWeight: 600 }}>Cost of this batch
-                    <span className="cst-muted" style={{ fontWeight: 400 }}> · {fmtOut(pvd?.output_g)}{U === 'g' ? ' cooked' : ''}</span></td>
+                    <span className="cst-muted" style={{ fontWeight: 400 }}> · {fmtOut(pvd?.output_g)}{U === 'g' ? ' processed' : ''}</span></td>
                   <td className="num" style={{ fontWeight: 600 }}>{fmtEur(pvd?.cost ?? 0)}</td><td />
                 </tr>
               </tbody>
             </table>
             <p className="cst-note" style={{ marginTop: 4 }}>
-              Type in Raw or Cooked — the other follows the yield. A cost item is saved as raw (as bought) and uses this component's yield %;
-              a component is saved as cooked and uses its own yield. Expand a component to see its own recipe.
+              Type in Raw or Processed — the other follows the yield. A cost item is saved as raw (as bought) and uses this component's yield %;
+              a component is saved as processed and uses its own yield. Expand a component to see its own recipe.
             </p>
           </div>
         )}
@@ -1130,9 +1133,9 @@ function QuickForm({ opts, optsErr, categories, presetItemId, onClose, onSaved }
 
   const save = async () => {
     if (!item) { setErr('Pick the raw item.'); return }
-    if (!method) { setErr('Pick the cooking method (or N/A).'); return }
+    if (!method) { setErr('Pick the processing method (or N/A).'); return }
     if (!baseName) { setErr('Name is required.'); return }
-    if (method === 'other' && !other.trim()) { setErr('Type the cooking method.'); return }
+    if (method === 'other' && !other.trim()) { setErr('Type the processing method.'); return }
     if (pct === null || pct <= 0) { setErr('Yield % must be greater than 0.'); return }
     if (!effective) { setErr('Effective date is required.'); return }
     setSaving(true); setErr(null)
@@ -1158,7 +1161,7 @@ function QuickForm({ opts, optsErr, categories, presetItemId, onClose, onSaved }
         </header>
         <div className="admin-drawer-body" style={{ padding: '10px 16px' }}>
           <p className="cst-note" style={{ marginTop: 0 }}>
-            One raw item + how it is cooked + yield (e.g. Καρότα, βραστό, 70%). Creates a published component with one line of {item?.base_unit === 'pcs' ? '1 piece' : `100 ${item?.base_unit ?? 'units'}`} of the item{item?.base_unit === 'pcs' ? ', costed per piece' : ''}.
+            One raw item + how it is processed + yield (e.g. Καρότα, βραστό, 70%). Creates a published component with one line of {item?.base_unit === 'pcs' ? '1 piece' : `100 ${item?.base_unit ?? 'units'}`} of the item{item?.base_unit === 'pcs' ? ', costed per piece' : ''}.
           </p>
           {optsErr && <div className="cst-inline-err">Could not load items: {optsErr}</div>}
           <div className="cst-grid-form" style={{ gridTemplateColumns: '1fr 1fr' }}>
@@ -1168,7 +1171,7 @@ function QuickForm({ opts, optsErr, categories, presetItemId, onClose, onSaved }
                     onChange={(v) => setItemId(v)} placeholder="Search cost item…" />
                 : <span className="cst-note">Loading…</span>}
             </label>
-            <label>Cooking method *
+            <label>Processing method *
               <select className="admin-input cst-input" value={method} onChange={(e) => setMethod(e.target.value as CookingMethod | 'na' | '')}>
                 <option value="">— pick —</option>
                 <option value="na">N/A (no method)</option>

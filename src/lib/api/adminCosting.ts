@@ -359,9 +359,9 @@ export const fetchComponentDetail = (id: string, date?: string | null) =>
 /** WEC-864 cooking method keys → Greek label (shown in parentheses after the item name). */
 export const COOKING_METHODS: Array<[CookingMethod, string]> = [
   ['raw', 'ωμό'], ['boiled', 'βραστό'], ['steamed', 'ατμού'], ['sauteed', 'σωτέ'], ['roasted', 'ψητό'],
-  ['baked', 'φούρνου'], ['pot', 'κατσαρόλας'], ['fried', 'τηγανητό'], ['cooked', 'μαγειρεμένο'], ['other', 'άλλο…'],
+  ['baked', 'φούρνου'], ['pot', 'κατσαρόλας'], ['fried', 'τηγανητό'], ['cooked', 'μαγειρεμένο'], ['mixed', 'μίξη'], ['cleaned', 'καθάρισμα'], ['other', 'άλλο…'],
 ]
-export type CookingMethod = 'raw' | 'boiled' | 'steamed' | 'sauteed' | 'roasted' | 'baked' | 'pot' | 'fried' | 'cooked' | 'other'
+export type CookingMethod = 'raw' | 'boiled' | 'steamed' | 'sauteed' | 'roasted' | 'baked' | 'pot' | 'fried' | 'cooked' | 'mixed' | 'cleaned' | 'other'
 export function cookingLabel(m: CookingMethod | null | undefined, other?: string | null): string | null {
   if (!m) return null
   if (m === 'other') return other?.trim() || null
