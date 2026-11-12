@@ -419,6 +419,10 @@
      back to static. */
   position: static;
   z-index: auto;
+  /* index.css also gives every <header> a fixed `height: var(--hdr)`; a head
+     with two rows (costing edit: name + category) overflowed onto the body. */
+  height: auto;
+  min-height: var(--hdr);
   padding: 12px 20px;
   border-bottom: 1px solid var(--a-border);
   display: flex; align-items: center; justify-content: space-between;

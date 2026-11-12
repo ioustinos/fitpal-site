@@ -308,7 +308,7 @@ export function CostDishes() {
 
   return (
     <div className="admin-page">
-      <h1 className="admin-page-title">Costing · Dishes</h1>
+      <h1 className="admin-page-title">Costing · Dish costs</h1>
       <CostingTabs />
 
       <div className="cst-toolbar">
@@ -369,9 +369,9 @@ export function CostDishes() {
                 {sortTh('food', 'Food cost')}
                 <th className="num">Packaging</th>
                 {sortTh('product', 'Product cost')}
-                <th className="num" title="Food cost ÷ selling price">Food % ({baseLabel(base)})</th>
-                {sortTh('pct', `Product % (${baseLabel(base)})`)}
-                {sortTh('profit', 'Net profit / portion')}
+                <th className="num" title={`Food cost ÷ selling price (${baseLabel(base)})`}>Food %</th>
+                {sortTh('pct', 'Product %')}
+                {sortTh('profit', 'Net profit')}
                 <th>Flags</th>
               </tr>
             </thead>
@@ -395,7 +395,7 @@ export function CostDishes() {
         </div>
       )}
       <div className="cst-note" style={{ marginTop: 6 }}>
-        Prices are gross selling prices (VAT incl.). Product cost = food + packaging. Net profit = price without 13% VAT − product cost. Ranges show min – max across variants;
+        Prices are gross selling prices (VAT incl.). Product cost = food + packaging. Net profit = price without 13% VAT − product cost. Food % and product % are of the price chosen in «% base». Net profit is per portion. Ranges show min – max across variants;
         product % sorts by the worst variant. Costs as of {fmtDate(asOf)}.
       </div>
 
@@ -540,7 +540,8 @@ function DishDrawer({ view, asOf, base, packOptions, onClose, onSaved }: {
   }
 
   const b = det?.data?.breakdown ?? null // stale breakdown stays visible (dimmed) while the next one loads
-  const hist = det?.data?.history ?? []
+  const histRaw = det?.data?.history
+  const hist = useMemo(() => histRaw ?? [], [histRaw])
 
   // «Food cost %» chart: food cost ÷ selling price over time; a price change is its own event (Ioustinos 11/11)
   const [chart, setChart] = useState<'cost' | 'pct'>('cost')

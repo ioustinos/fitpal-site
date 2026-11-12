@@ -5,16 +5,12 @@ import { EntityDot, FlagBadges, ShareBar, SourceBadge, fmtCompCost, fmtEurFine, 
 
 /** WEC-864: tree rows shared by the dish drawer, the component drawer and the component editor. */
 
-export const fmtQty = (q: number, unit: string) => {
-  const v = Number(q)
-  const s = Number.isInteger(Math.round(v * 100) / 100) || v >= 100 ? v.toFixed(0) : v >= 10 ? v.toFixed(1) : v.toFixed(2)
-  return `${s.replace('.', ',')} ${unit === 'pcs' ? 'pc' : unit}`
-}
+export const fmtQty = (q: number, unit: string) => fmtQtyUnit(q, unit)
 
 export function yieldLabel(c: RecipeComponentNode): string {
   if (c.yield_mode === 'fixed') return 'fixed €/kg (Excel estimate, no recipe)'
   if (c.yield_mode === 'pct') return `yield ${Number(c.yield_pct)}%`
-  if (c.yield_mode === 'output_weight') return `batch ${Number(c.raw_weight_g ?? 0).toFixed(0)} g raw → ${Number(c.output_g ?? 0).toFixed(0)} g processed`
+  if (c.yield_mode === 'output_weight') return `batch ${fmtQtyUnit(c.raw_weight_g ?? 0, 'g')} raw → ${fmtQtyUnit(c.output_g ?? 0, 'g')} processed`
   return ''
 }
 

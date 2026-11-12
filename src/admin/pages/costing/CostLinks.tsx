@@ -34,7 +34,7 @@ function gramsText(l: Line): string {
   const vals = l.grams.map((g) => Number(g.grams))
   if (!vals.length) return '—'
   const fmt = (v: number) => (Number.isInteger(v) ? String(v) : v.toFixed(1).replace('.', ','))
-  return vals.every((v) => v === vals[0]) ? fmt(vals[0]) : vals.map(fmt).join('/')
+  return vals.every((v) => v === vals[0]) ? fmt(vals[0]) : vals.map(fmt).join('/\u200b')
 }
 
 function SrcBadge({ line }: { line: Line }) {
@@ -60,7 +60,7 @@ const LineRow = memo(function LineRow({ dishId, dish, line, options, busy, actio
   return (
     <tr style={busy ? { opacity: 0.6 } : undefined}>
       <td style={{ paddingLeft: 18 }}>{line.ingredient}</td>
-      <td className="num" title={gramsTitle} style={{ whiteSpace: 'nowrap' }}>{gramsText(line)}</td>
+      <td className="num" title={gramsTitle} style={{ whiteSpace: 'normal', maxWidth: 120 }}>{gramsText(line)}</td>
       <td style={{ minWidth: 260 }}>
         <SearchPick
           options={options}
@@ -379,7 +379,7 @@ export function CostLinks() {
               </>
             )}
             <span className="cst-spacer" />
-            <span className="cst-count">{view.groups.length} dishes · {view.lineCount} lines{shown.n < view.lineCount ? ` (showing ${shown.n})` : ''}</span>
+            <span className="cst-count">{view.groups.length.toLocaleString('el-GR')} dishes · {view.lineCount.toLocaleString('el-GR')} lines{shown.n < view.lineCount ? ` (showing ${shown.n.toLocaleString('el-GR')})` : ''}</span>
           </div>
 
           <div className="cst-wrap">

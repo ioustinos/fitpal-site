@@ -343,11 +343,7 @@ function Chips({ items, more, onMore }: { items: ReactNode[]; more: boolean; onM
   )
 }
 
-const round1 = (v: number | null | undefined) => (v === null || v === undefined ? null : Math.round(Number(v) * 10) / 10)
-const fmtG = (v: number | null | undefined) => {
-  const r = round1(v)
-  return r === null ? '—' : `${r.toLocaleString('el-GR')} g`
-}
+const fmtG = (v: number | null | undefined) => fmtQtyUnit(v, 'g')
 const perLabelOf = (u: BaseUnit) => (u === 'pcs' ? 'piece' : u === 'ml' ? 'litre' : 'processed kg')
 
 // ── editor state (WEC-864, Ioustinos 11/11: view, edit, new and duplicate are the same drawer) ──
@@ -494,7 +490,7 @@ function ComponentDrawer(p: DrawerProps) {
     </Section>
 
     {(d.dishes.length > 0 || d.parents.length > 0) && (
-      <Section title="Used in" sub={`${d.dishes.length} dish lines · ${d.parents.length} recipes`}>
+      <Section title="Used in" sub={`${d.dishes.length} ${d.dishes.length === 1 ? 'dish line' : 'dish lines'} · ${d.parents.length} ${d.parents.length === 1 ? 'recipe' : 'recipes'}`}>
         {d.dishes.length > 0 && (<>
           <div className="cst-sublbl">Dishes</div>
           <Chips more={showAll} onMore={() => setShowAll(true)} items={d.dishes.map((x, i) => (
@@ -640,7 +636,7 @@ function ComponentDrawer(p: DrawerProps) {
                   <div className="cst-tile">
                     <div className="cst-tile-k">Used in</div>
                     <div className="cst-tile-v">{d.dishes.length}</div>
-                    <div className="cst-tile-s">{d.dishes.length === 1 ? 'dish line' : 'dish lines'} · {d.parents.length} recipes</div>
+                    <div className="cst-tile-s">{d.dishes.length === 1 ? 'dish line' : 'dish lines'} · {d.parents.length} {d.parents.length === 1 ? 'recipe' : 'recipes'}</div>
                   </div>
                 </div>
 
@@ -1035,7 +1031,7 @@ function EditPane({ init, d, lower, back, onBack, onClose, opts, optsErr, catego
         <div className="cst-tile">
           <div className="cst-tile-k">Used in</div>
           <div className="cst-tile-v">{d ? d.dishes.length : '—'}</div>
-          <div className="cst-tile-s">{d ? `${d.dishes.length === 1 ? 'dish line' : 'dish lines'} · ${d.parents.length} recipes` : 'new component'}</div>
+          <div className="cst-tile-s">{d ? `${d.dishes.length === 1 ? 'dish line' : 'dish lines'} · ${d.parents.length} ${d.parents.length === 1 ? 'recipe' : 'recipes'}` : 'new component'}</div>
         </div>
       </div>
 

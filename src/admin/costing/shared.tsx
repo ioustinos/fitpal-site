@@ -39,9 +39,13 @@ export const fmtCompCost = (v: number | null | undefined, unit: BaseUnit | strin
 /** «2 pcs» / «120 g» / «50 ml» */
 export function fmtQtyUnit(q: number | null | undefined, unit: BaseUnit | string | null | undefined): string {
   if (q === null || q === undefined) return '—'
-  const r = Math.round(Number(q) * 100) / 100
+  const v = Number(q)
   const u = unit || 'g'
-  return `${r.toLocaleString('el-GR')} ${u === 'pcs' ? (r === 1 ? 'pc' : 'pcs') : u}`
+  // One rule everywhere (grams/ml): ≥100 whole, ≥10 one decimal, else two — always with the Greek thousands dot.
+  const a = Math.abs(v)
+  const digits = u === 'g' || u === 'ml' ? (a >= 100 ? 0 : a >= 10 ? 1 : 2) : 2
+  const s = v.toLocaleString('el-GR', { maximumFractionDigits: digits })
+  return `${s} ${u === 'pcs' ? (Math.round(a * 100) === 100 ? 'pc' : 'pcs') : u}`
 }
 /** Component cost per cooked g → €/kg. */
 export const fmtPerKg = (perG: number | null | undefined) =>
@@ -492,7 +496,7 @@ export function NumText({ value, onChange, width = 80, placeholder, align = 'rig
 /** Tabs strip used at the top of every costing page. */
 export function CostingTabs() {
   const tabs: Array<[string, string]> = [
-    ['/admin/costing', 'Overview'], ['/admin/costing/dishes', 'Dishes'], ['/admin/costing/links', 'Dish links'],
+    ['/admin/costing', 'Overview'], ['/admin/costing/dishes', 'Dish costs'], ['/admin/costing/links', 'Dish links'],
     ['/admin/costing/components', 'Components'], ['/admin/costing/items', 'Cost items'], ['/admin/costing/purchases', 'Purchases'],
     ['/admin/costing/suppliers', 'Suppliers'], ['/admin/costing/guide', 'Οδηγός'],
   ]

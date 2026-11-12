@@ -6,7 +6,7 @@ import {
 } from '../../../lib/api/adminCosting'
 import {
   CostingTabs, EntityPill, HistoryChart, NumText, Section, SourceBadge, Sparkline,
-  fmtDate, fmtEur, fmtEurFine, fmtUnitCost, skey, useUrlState,
+  fmtDate, fmtEur, fmtUnitCost, skey, useUrlState,
 } from '../../costing/shared'
 
 /**
@@ -432,8 +432,8 @@ function ItemDrawer({ row, categories, onClose, onSaved }: {
               {!detail && !detailErr && <div className="cst-muted" style={{ marginTop: 10 }}>Loading history…</div>}
               {detail && (
                 <>
-                  <Section title="Price history" sub={`€ per ${row.base_unit}, net`}>
-                    <HistoryChart rows={chartRows} valueKey="unit_cost" fmt={(v) => fmtEurFine(v, 4)} />
+                  <Section title="Price history" sub={`${row.base_unit === 'g' ? '€/kg' : row.base_unit === 'ml' ? '€/L' : '€ per piece'}, net`}>
+                    <HistoryChart rows={chartRows} valueKey="unit_cost" fmt={(v) => fmtUnitCost(v, row.base_unit)} />
                   </Section>
 
                   <Section title="Purchases" sub={String(detail.purchases.length)}
@@ -474,7 +474,7 @@ function ItemDrawer({ row, categories, onClose, onSaved }: {
                       )}
                   </Section>
 
-                  <Section title="Where used" sub={`${detail.components.length} components · ${detail.dishes.length} dishes`}>
+                  <Section title="Where used" sub={`${detail.components.length} ${detail.components.length === 1 ? 'component' : 'components'} · ${detail.dishes.length} ${detail.dishes.length === 1 ? 'dish' : 'dishes'}`}>
                     {detail.components.length > 0 && (<>
                       <div className="cst-sublbl">Components</div>
                       <div className="cst-chips">
