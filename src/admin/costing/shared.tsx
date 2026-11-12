@@ -492,9 +492,9 @@ export function NumText({ value, onChange, width = 80, placeholder, align = 'rig
 /** Tabs strip used at the top of every costing page. */
 export function CostingTabs() {
   const tabs: Array<[string, string]> = [
-    ['/admin/costing', 'Overview'], ['/admin/costing/dishes', 'Dishes'], ['/admin/costing/components', 'Components'],
-    ['/admin/costing/items', 'Cost items'], ['/admin/costing/purchases', 'Purchases'], ['/admin/costing/suppliers', 'Suppliers'],
-    ['/admin/costing/links', 'Dish links'], ['/admin/costing/guide', 'Οδηγός'],
+    ['/admin/costing', 'Overview'], ['/admin/costing/dishes', 'Dishes'], ['/admin/costing/links', 'Dish links'],
+    ['/admin/costing/components', 'Components'], ['/admin/costing/items', 'Cost items'], ['/admin/costing/purchases', 'Purchases'],
+    ['/admin/costing/suppliers', 'Suppliers'], ['/admin/costing/guide', 'Οδηγός'],
   ]
   return (
     <nav className="cst-tabs">

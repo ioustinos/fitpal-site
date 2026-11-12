@@ -105,11 +105,11 @@ const NAV: NavEntry[] = [
     items: [
       { path: '/admin/costing',            label: 'Overview',     icon: 'costing', end: true },
       { path: '/admin/costing/dishes',     label: 'Dish costs',   icon: 'dishes' },
+      { path: '/admin/costing/links',      label: 'Dish links',   icon: 'tags' },
       { path: '/admin/costing/components', label: 'Components',   icon: 'ingredients' },
       { path: '/admin/costing/items',      label: 'Cost items',   icon: 'categories' },
       { path: '/admin/costing/purchases',  label: 'Purchases',    icon: 'import' },
       { path: '/admin/costing/suppliers',  label: 'Suppliers',    icon: 'users' },
-      { path: '/admin/costing/links',      label: 'Dish links',   icon: 'tags' },
       { path: '/admin/costing/guide',      label: 'Οδηγός χρήσης', icon: 'catalogue' },
     ],
   },
