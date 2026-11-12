@@ -242,3 +242,31 @@ details.cst-sec[open] > summary h3::before { content: '▾'; }
 .cg-card .cg-steps { font-size: 13px; margin-bottom: 0; }
 .cg-faq dt { font-weight: 700; color: #0f172a; margin-top: 14px; }
 .cg-faq dd { margin: 4px 0 0; color: #334155; }
+
+/* ── section headers, v2 (Ioustinos 12/11: «not very distinguishable … a line, colour, maybe a background») ──
+   a soft brand-green band with an accent bar on the left; the title in dark green.
+   Sections are separated by space now, not a grey rule. */
+.cst-sec, .cst-section { border-top: 0; padding-top: 0; margin-top: 26px; }
+.cst-sec:first-child { margin-top: 4px; }
+.cst-sec-h {
+  background: linear-gradient(90deg, var(--a-primary-lt, #e8f5ef) 0%, #f6faf8 55%, rgba(246, 250, 248, 0) 100%);
+  border-left: 3px solid var(--a-primary, #0a7b4a);
+  border-radius: 0 8px 8px 0;
+  padding: 7px 10px 7px 12px;
+  margin-bottom: 12px;
+  min-height: 40px;
+}
+.cst-sec-h h3 { color: var(--a-primary-dk, #086237); font-size: 15px; }
+.cst-sec-h .cst-sec-sub { color: #4b6b5c; }
+.cst-sec-h .cst-seg { background: rgba(255, 255, 255, .7); }
+/* older h4-style sections get the same band */
+.cst-section > h4, .cst-section > .cst-toolbar > h4 {
+  background: linear-gradient(90deg, var(--a-primary-lt, #e8f5ef) 0%, #f6faf8 55%, rgba(246, 250, 248, 0) 100%);
+  border-left: 3px solid var(--a-primary, #0a7b4a);
+  border-radius: 0 8px 8px 0;
+  padding: 8px 12px;
+  color: var(--a-primary-dk, #086237);
+  font-size: 15px;
+}
+details.cst-sec > summary.cst-sec-h { margin-bottom: 0; }
+details.cst-sec[open] > summary.cst-sec-h { margin-bottom: 12px; }
