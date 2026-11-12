@@ -169,9 +169,10 @@ const DishRows = memo(function DishRows({ v, base, open, selected, onToggleOpen,
           )}
           {!d.active && <span className="cst-badge" style={{ marginLeft: 6 }}>inactive</span>}
           {d.on_menu && <span className="cst-badge cst-ok" style={{ marginLeft: 6 }} title="On a current or future menu">menu</span>}
+          <div className="cst-muted" style={{ fontSize: 11, marginTop: 1 }}>
+            {d.category_id ?? 'no category'} · {v.variants.length} {v.variants.length === 1 ? 'variant' : 'variants'}
+          </div>
         </td>
-        <td className="cst-muted">{d.category_id ?? '—'}</td>
-        <td className="num">{v.variants.length}</td>
         <td style={{ whiteSpace: 'nowrap' }} className="num">{fmtRange(v.price, fmtEur)}</td>
         <td style={{ whiteSpace: 'nowrap' }} className="num">{fmtRange(v.food, fmtEur)}</td>
         <td style={{ whiteSpace: 'nowrap' }} className="num">{fmtRange(v.pack, fmtEur)}</td>
@@ -188,8 +189,6 @@ const DishRows = memo(function DishRows({ v, base, open, selected, onToggleOpen,
           <tr key={x.id} className="cst-sub cst-click" onClick={() => onOpen(d.id)}>
             <td />
             <td style={{ paddingLeft: 34 }}>{x.label || x.id}</td>
-            <td />
-            <td />
             <td className="num">{fmtEur(x.price)}</td>
             <td className="num">{fmtEur(x.food_cost)}</td>
             <td className="num">{fmtEur(x.packaging_cost)}</td>
@@ -365,8 +364,6 @@ export function CostDishes() {
                   <input type="checkbox" checked={allShownSel} onChange={toggleAllShown} title="Select all shown" />
                 </th>
                 {sortTh('name', 'Dish', false, false)}
-                <th>Category</th>
-                <th className="num">Var.</th>
                 <th className="num">Price</th>
                 {sortTh('food', 'Food cost')}
                 <th className="num">Packaging</th>
@@ -383,7 +380,7 @@ export function CostDishes() {
                   onToggleOpen={toggleOpen} onToggleSel={toggleSel} onOpen={openDish} />
               ))}
               {!shown.length && !loading && (
-                <tr><td colSpan={12} className="admin-empty">No dishes match.</td></tr>
+                <tr><td colSpan={10} className="admin-empty">No dishes match.</td></tr>
               )}
             </tbody>
           </table>
