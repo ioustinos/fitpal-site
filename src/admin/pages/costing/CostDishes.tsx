@@ -120,10 +120,12 @@ function buildView(d: DishCostRow, b: Base): DishView {
   }
 }
 
+// Compact ranges that fit on one line in the list: «7,34–12,21 €», «50.5–54.6%» (unit only once).
+const noUnit = (t: string) => t.replace(/\s*(€|%)\s*$/u, '').replace(/^\s*€\s*/u, '')
 const fmtRange = (r: Range, f: (v: number) => string) =>
-  r.min === null ? '—' : r.max === null || Math.abs(r.max - r.min) < 0.005 ? f(r.min) : `${f(r.min)} – ${f(r.max as number)}`
+  r.min === null ? '—' : r.max === null || Math.abs(r.max - r.min) < 0.005 ? f(r.min) : `${noUnit(f(r.min))}–${f(r.max as number)}`
 const fmtPctRange = (r: Range) =>
-  r.min === null ? '—' : r.max === null || Math.abs(r.max - r.min) < 0.0005 ? fmtPct(r.min) : `${fmtPct(r.min)} – ${fmtPct(r.max)}`
+  r.min === null ? '—' : r.max === null || Math.abs(r.max - r.min) < 0.0005 ? fmtPct(r.min) : `${noUnit(fmtPct(r.min))}–${fmtPct(r.max)}`
 
 /** Colour a cost % — green ≤30%, amber ≤40%, red above (visual cue only). */
 const pctColor = (v: number | null) => (v === null ? undefined : v > 0.4 ? '#b91c1c' : v > 0.3 ? '#b45309' : '#15803d')
@@ -170,13 +172,13 @@ const DishRows = memo(function DishRows({ v, base, open, selected, onToggleOpen,
         </td>
         <td className="cst-muted">{d.category_id ?? '—'}</td>
         <td className="num">{v.variants.length}</td>
-        <td className="num">{fmtRange(v.price, fmtEur)}</td>
-        <td className="num">{fmtRange(v.food, fmtEur)}</td>
-        <td className="num">{fmtRange(v.pack, fmtEur)}</td>
-        <td className="num cst-strong">{fmtRange(v.product, fmtEur)}</td>
-        <td className="num">{fmtPctRange(v.foodPct)}</td>
-        <td className="num cst-strong" style={{ color: pctColor(v.productPct.max) }}>{fmtPctRange(v.productPct)}</td>
-        <td className="num cst-strong" style={{ color: v.profit.min !== null && v.profit.min < 0 ? '#b91c1c' : undefined }}>{fmtRange(v.profit, fmtEur)}</td>
+        <td style={{ whiteSpace: 'nowrap' }} className="num">{fmtRange(v.price, fmtEur)}</td>
+        <td style={{ whiteSpace: 'nowrap' }} className="num">{fmtRange(v.food, fmtEur)}</td>
+        <td style={{ whiteSpace: 'nowrap' }} className="num">{fmtRange(v.pack, fmtEur)}</td>
+        <td style={{ whiteSpace: 'nowrap' }} className="num cst-strong">{fmtRange(v.product, fmtEur)}</td>
+        <td style={{ whiteSpace: 'nowrap' }} className="num">{fmtPctRange(v.foodPct)}</td>
+        <td className="num cst-strong" style={{ whiteSpace: 'nowrap', color: pctColor(v.productPct.max) }}>{fmtPctRange(v.productPct)}</td>
+        <td className="num cst-strong" style={{ whiteSpace: 'nowrap', color: v.profit.min !== null && v.profit.min < 0 ? '#b91c1c' : undefined }}>{fmtRange(v.profit, fmtEur)}</td>
         <td><Flags dishId={d.id} flags={v.flags} /></td>
       </tr>
       {open && v.variants.map((x) => {
