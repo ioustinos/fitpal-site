@@ -35,6 +35,7 @@ import { orderTypeCode, ORDER_TYPE_LABELS, type OrderTypeCode } from '../../lib/
 // WEC-749: the single pricing rule, shared with submit-order and menu-quote.
 import { unitPriceCents, type PricingChannel } from '../../lib/pricing'
 import { supabase } from '../../lib/supabase'
+import { pushOrderToAirtableSoon } from '../../lib/api/airtablePush'  // WEC-914
 // WEC-577/499: single source of truth for payment-method labels
 import { paymentShort, PAYMENT_METHOD_IDS } from '../../lib/paymentMethods'
 // WEC-799 [Refactor A]: shared payment UI (orders + subscriptions).
@@ -549,7 +550,7 @@ export function Orders() {
           adminUser={user?.email ?? 'admin'}
           adminUserId={user?.id ?? ''}
           onClose={closeDetail}
-          onRefresh={() => { refreshDetail(selectedId); refresh() }}
+          onRefresh={() => { refreshDetail(selectedId); refresh(); pushOrderToAirtableSoon(selectedId) /* WEC-914 */ }}
         />
       )}
     </div>

@@ -315,7 +315,8 @@ interface SaveDishInput {
 
 /**
  * Create or update a dish + its variants + its tag associations.
- * For updates, we replace all variants and tag associations (simpler than diff).
+ * Variants are upserted by id and only removed ones deleted (WEC-915); tag
+ * associations are still replaced wholesale (nothing references them).
  */
 export async function saveDish(input: SaveDishInput): Promise<{ data: { id: string } | null; error: string | null }> {
   const isNew = !input.id
@@ -354,13 +355,23 @@ export async function saveDish(input: SaveDishInput): Promise<{ data: { id: stri
     if (error) return { data: null, error: error.message }
   }
 
-  // Replace variants
-  const { error: delVarErr } = await supabase.from('dish_variants').delete().eq('dish_id', id)
-  if (delVarErr) return { data: null, error: delVarErr.message }
-
+  // WEC-915: variants are UPDATED IN PLACE, never deleted and re-inserted.
+  //
+  // order_items.variant_id → dish_variants(id) is ON DELETE SET NULL. The old
+  // "delete every variant, insert them again" save therefore wiped the variant
+  // off EVERY past order line of the dish on every save (1,145 lines across
+  // 132 dishes by 12/11/2026). Each wipe also re-flagged all those orders for
+  // Airtable (the order_items trigger), where they were re-pushed with no dish
+  // code and no Menu Reference link — and, queued oldest-first, they held new
+  // orders back from reaching Airtable for hours.
+  //
+  // Now: upsert by id (same ids, so order lines keep their link), then delete
+  // only the variants the admin actually removed from the dish.
+  const newVariantIds: string[] = []
   if (input.variants.length > 0) {
     const variantRows = input.variants.map((v, i) => {
       const variantId = v.id ?? makeVariantId(id)
+      newVariantIds.push(variantId)
       // WEC-474: same trim + default-to-id treatment as dish level.
       const vExt = (v.externalId ?? '').trim()
       return {
@@ -376,16 +387,25 @@ export async function saveDish(input: SaveDishInput): Promise<{ data: { id: stri
         sort_order: i,
         is_default: !!v.isDefault,
         external_id: vExt.length > 0 ? vExt : variantId,
-        // WEC-747: saveDish DELETES every variant and re-inserts it. Any column
-        // missing from this object is therefore silently wiped on the next save
-        // of the dish — the same trap `promote_draft_atomic` sprang on
-        // `store_id`. The wholesale pair has to be carried through explicitly.
+        // WEC-747: an upsert writes every column in this object, so any column
+        // missing here would be reset on the next save of the dish. The
+        // wholesale pair has to be carried through explicitly.
         reseller_available: !!v.resellerAvailable,
         reseller_price: typeof v.resellerPrice === 'number' ? Math.round(v.resellerPrice) : null,
       }
     })
-    const { error: insVarErr } = await supabase.from('dish_variants').insert(variantRows)
-    if (insVarErr) return { data: null, error: insVarErr.message }
+    const { error: upVarErr } = await supabase.from('dish_variants').upsert(variantRows, { onConflict: 'id' })
+    if (upVarErr) return { data: null, error: upVarErr.message }
+  }
+  // Delete only the variants that are no longer on the dish. newVariantIds
+  // holds every id just upserted (existing + newly generated).
+  {
+    let del = supabase.from('dish_variants').delete().eq('dish_id', id)
+    if (newVariantIds.length > 0) {
+      del = del.not('id', 'in', `(${newVariantIds.map((x) => `"${x.replace(/"/g, '')}"`).join(',')})`)
+    }
+    const { error: delVarErr } = await del
+    if (delVarErr) return { data: null, error: delVarErr.message }
   }
 
   // Replace tag associations

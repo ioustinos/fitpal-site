@@ -6,15 +6,34 @@ import { AIRTABLE_API, AIRTABLE_BASE_ID, getAirtablePat } from './env'
 
 type Json = Record<string, unknown>
 
+// WEC-914: count of Airtable HTTP calls made by this container. pushOrder
+// reads it before/after to log how many round-trips one push cost.
+let callCount = 0
+export function airtableCallCount(): number { return callCount }
+
+// WEC-914: Airtable allows 5 requests/second per base and answers 429 above
+// that. Pushes now also run straight after admin edits (alongside the 5-min
+// sweep), so two can overlap. Retry a 429 a few times with backoff instead of
+// failing the whole push; if it still fails the row stays dirty and the next
+// sweep retries it — the existing contract.
+const RETRY_DELAYS_MS = [1000, 2500, 5000]
+
 async function atFetch(path: string, init: RequestInit): Promise<any> {
-  const res = await fetch(`${AIRTABLE_API}/${AIRTABLE_BASE_ID}/${path}`, {
-    ...init,
-    headers: {
-      Authorization: `Bearer ${getAirtablePat()}`,
-      'Content-Type': 'application/json',
-      ...(init.headers ?? {}),
-    },
-  })
+  let res: Response
+  for (let attempt = 0; ; attempt++) {
+    callCount++
+    res = await fetch(`${AIRTABLE_API}/${AIRTABLE_BASE_ID}/${path}`, {
+      ...init,
+      headers: {
+        Authorization: `Bearer ${getAirtablePat()}`,
+        'Content-Type': 'application/json',
+        ...(init.headers ?? {}),
+      },
+    })
+    if (res.status !== 429 || attempt >= RETRY_DELAYS_MS.length) break
+    console.warn('[airtable] 429 on %s — retry %d in %dms', path.split('?')[0], attempt + 1, RETRY_DELAYS_MS[attempt])
+    await new Promise((r) => setTimeout(r, RETRY_DELAYS_MS[attempt]))
+  }
   const text = await res.text()
   let json: any
   try {
@@ -78,11 +97,15 @@ export async function createRecord(tableId: string, fields: Json): Promise<strin
 export async function listRecords(
   tableId: string,
   formula: string,
+  // WEC-914: optional field whitelist — a Μenu Reference row carries every
+  // Order Item ever linked to it, so fetching all fields is a large payload.
+  fields?: string[],
 ): Promise<Array<{ id: string; fields: Json }>> {
   const out: Array<{ id: string; fields: Json }> = []
   let offset: string | undefined
   do {
     const params = new URLSearchParams({ filterByFormula: formula, pageSize: '100' })
+    for (const f of fields ?? []) params.append('fields[]', f)
     if (offset) params.set('offset', offset)
     const data = await atFetch(`${tableId}?${params.toString()}`, { method: 'GET' })
     out.push(...(data.records ?? []))
