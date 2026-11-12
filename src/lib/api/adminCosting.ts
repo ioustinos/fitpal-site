@@ -208,7 +208,10 @@ export interface InvoiceHeader {
   supplier_id: string | null
   invoice_date: string
   invoice_number: string | null
+  /** first file — kept in sync with attachment_paths[0] (the list's paper-clip uses it) */
   attachment_path: string | null
+  /** every file of the invoice, in page order (WEC-863, 12/11) */
+  attachment_paths: string[]
   notes: string | null
 }
 export interface InvoiceLine {
@@ -229,7 +232,7 @@ export interface InvoiceLine {
 
 export async function fetchInvoice(id: string): Promise<Res<{ header: InvoiceHeader & { id: string }; lines: InvoiceLine[] }>> {
   const [h, l] = await Promise.all([
-    supabase.from('cost_purchase_invoices').select('id, supplier_id, invoice_date, invoice_number, attachment_path, notes').eq('id', id).single(),
+    supabase.from('cost_purchase_invoices').select('id, supplier_id, invoice_date, invoice_number, attachment_path, attachment_paths, notes').eq('id', id).single(),
     supabase.from('cost_purchase_lines').select('*').eq('invoice_id', id).order('sort_order').order('created_at'),
   ])
   if (h.error) return { data: null, error: h.error.message }
@@ -257,7 +260,9 @@ export async function fetchInvoice(id: string): Promise<Res<{ header: InvoiceHea
  * the ledger rebuilds after every statement.
  */
 export async function saveInvoice(header: InvoiceHeader, lines: InvoiceLine[]): Promise<Res<{ id: string }>> {
-  const { id, ...h } = header
+  const { id, ...rest } = header
+  const paths = rest.attachment_paths ?? []
+  const h = { ...rest, attachment_paths: paths, attachment_path: paths[0] ?? null }
   let invoiceId = id
   if (invoiceId) {
     const { error } = await supabase.from('cost_purchase_invoices').update(h).eq('id', invoiceId)
@@ -296,7 +301,9 @@ export async function deleteInvoice(id: string): Promise<Res<true>> {
 /** Upload a photo / PDF to the private bucket; returns the storage path. */
 export async function uploadInvoiceAttachment(file: File): Promise<Res<string>> {
   const ext = (file.name.split('.').pop() || 'bin').toLowerCase().replace(/[^a-z0-9]/g, '')
-  const path = `${new Date().toISOString().slice(0, 10)}/${crypto.randomUUID()}.${ext}`
+  // keep a readable copy of the original name after «__» so the editor can show it
+  const base = file.name.replace(/\.[^.]*$/, '').normalize('NFKD').replace(/[^\w-]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 60) || 'file'
+  const path = `${new Date().toISOString().slice(0, 10)}/${crypto.randomUUID()}__${base}.${ext}`
   const { error } = await supabase.storage.from('cost-invoices').upload(path, file, { contentType: file.type || undefined })
   if (error) return { data: null, error: error.message }
   return { data: path, error: null }

@@ -270,3 +270,14 @@ details.cst-sec[open] > summary h3::before { content: '▾'; }
 }
 details.cst-sec > summary.cst-sec-h { margin-bottom: 0; }
 details.cst-sec[open] > summary.cst-sec-h { margin-bottom: 12px; }
+/* invoice files: drop zone + page chips (WEC-863, 12/11) */
+.cst-drop { margin-top: 10px; border: 1.5px dashed #cbd5e1; border-radius: 10px; padding: 14px; text-align: center; cursor: pointer; background: #fafbfc; transition: background .12s, border-color .12s; }
+.cst-drop:hover { border-color: #94a3b8; background: #f5f7fa; }
+.cst-drop.on { border-color: var(--a-primary, #0a7b4a); background: var(--a-primary-lt, #e8f5ef); }
+.cst-drop-t { font-weight: 600; color: #0f172a; font-size: 13px; margin-bottom: 2px; }
+.cst-files { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.cst-file { display: inline-flex; align-items: center; gap: 2px; border: 1px solid #e2e8f0; border-radius: 999px; padding: 2px 4px 2px 10px; background: #fff; font-size: 12.5px; }
+.cst-file a { display: inline-flex; align-items: center; gap: 4px; max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cst-file-btn { border: 0; background: transparent; cursor: pointer; color: #64748b; font-size: 13px; padding: 0 5px; border-radius: 999px; }
+.cst-file-btn:hover:not(:disabled) { background: #f1f5f9; color: #0f172a; }
+.cst-file-btn:disabled { opacity: .3; cursor: default; }

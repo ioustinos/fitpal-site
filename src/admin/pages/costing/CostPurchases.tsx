@@ -240,7 +240,7 @@ function InvoiceEditor({ invoiceId, defaultSupplier, presetItemId, suppliers, it
 }) {
   const [loading, setLoading] = useState(!!invoiceId)
   const [header, setHeader] = useState<InvoiceHeader>({
-    supplier_id: defaultSupplier, invoice_date: todayAthens(), invoice_number: null, attachment_path: null, notes: null,
+    supplier_id: defaultSupplier, invoice_date: todayAthens(), invoice_number: null, attachment_path: null, attachment_paths: [], notes: null,
   })
   const [lines, setLines] = useState<DraftLine[]>(() => {
     const it = presetItemId ? items.find((i) => i.id === presetItemId) : undefined
@@ -278,7 +278,9 @@ function InvoiceEditor({ invoiceId, defaultSupplier, presetItemId, suppliers, it
       const h = res.data.header
       setHeader({
         id: h.id, supplier_id: h.supplier_id, invoice_date: h.invoice_date, invoice_number: h.invoice_number,
-        attachment_path: h.attachment_path, notes: h.notes,
+        attachment_path: h.attachment_path,
+        attachment_paths: h.attachment_paths?.length ? h.attachment_paths : h.attachment_path ? [h.attachment_path] : [],
+        notes: h.notes,
       })
       const ls = res.data.lines.map((l): DraftLine => ({
         k: newKey(), id: l.id, cost_item_id: l.cost_item_id, qty_packs: l.qty_packs, pack_label: l.pack_label ?? '',
@@ -350,14 +352,30 @@ function InvoiceEditor({ invoiceId, defaultSupplier, presetItemId, suppliers, it
     setH({ supplier_id: res.data.id })
   }
 
-  const onFile = async (f: File | undefined) => {
-    if (!f) return
-    setUploading(true)
-    const res = await uploadInvoiceAttachment(f)
-    setUploading(false)
+  // several files per invoice (one per page), from the picker or dropped anywhere on the drawer (WEC-863, 12/11)
+  const [dragOver, setDragOver] = useState(false)
+  const [upCount, setUpCount] = useState(0)
+  const onFiles = async (list: FileList | File[] | null | undefined) => {
+    const files = Array.from(list ?? []).filter((f) => f.type.startsWith('image/') || f.type === 'application/pdf')
     if (fileRef.current) fileRef.current.value = ''
-    if (res.error || !res.data) { setErr(`Upload: ${res.error}`); return }
-    setH({ attachment_path: res.data })
+    if (!files.length) { if (list && Array.from(list).length) setErr('Only photos and PDF files can be attached.'); return }
+    setUploading(true); setUpCount(files.length)
+    const results = await Promise.all(files.map((f) => uploadInvoiceAttachment(f)))
+    setUploading(false); setUpCount(0)
+    const ok = results.filter((r) => r.data).map((r) => r.data as string)
+    const failed = results.filter((r) => r.error)
+    if (failed.length) setErr(`Upload: ${failed.length} of ${files.length} file(s) failed — ${failed[0].error}`)
+    if (ok.length) setHeader((x) => { dirty.current = true; const paths = [...x.attachment_paths, ...ok]; return { ...x, attachment_paths: paths, attachment_path: paths[0] ?? null } })
+  }
+  const setPaths = (paths: string[]) => setH({ attachment_paths: paths, attachment_path: paths[0] ?? null })
+  const movePath = (i: number, d: -1 | 1) => {
+    const p = [...header.attachment_paths]; const j = i + d
+    if (j < 0 || j >= p.length) return
+    ;[p[i], p[j]] = [p[j], p[i]]; setPaths(p)
+  }
+  const fileLabel = (path: string, i: number) => {
+    const m = /__([^/]+)$/.exec(path)
+    return m ? `${i + 1}. ${m[1]}` : `Σελίδα ${i + 1}`
   }
 
   const lastFieldEnter = (e: KeyboardEvent, idx: number) => {
@@ -436,11 +454,14 @@ function InvoiceEditor({ invoiceId, defaultSupplier, presetItemId, suppliers, it
           </div>
           <button className="admin-drawer-close" onClick={close}>×</button>
         </header>
-        <div className="admin-drawer-body" style={{ padding: '12px 16px' }}>
+        <div className="admin-drawer-body" style={{ padding: '12px 16px' }}
+             onDragOver={(e) => { if (e.dataTransfer.types.includes('Files')) { e.preventDefault(); if (!dragOver) setDragOver(true) } }}
+             onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setDragOver(false) }}
+             onDrop={(e) => { if (e.dataTransfer.files.length) { e.preventDefault(); setDragOver(false); void onFiles(e.dataTransfer.files) } }}>
           {err && <div className="admin-error-banner" style={{ marginBottom: 10 }}>{err}</div>}
           {loading ? <div className="admin-loading">Loading…</div> : (
             <>
-              <div className="cst-grid-form" style={{ gridTemplateColumns: 'minmax(220px, 2fr) 150px 160px minmax(200px, 2fr)' }}>
+              <div className="cst-grid-form" style={{ gridTemplateColumns: 'minmax(220px, 2fr) 150px 200px' }}>
                 <label>Supplier
                   <SearchPick options={supplierOptions} value={header.supplier_id} placeholder="Search or create supplier…"
                     onChange={(id) => setH({ supplier_id: id })} onCreate={(t) => void createSupplier(t)} />
@@ -454,24 +475,30 @@ function InvoiceEditor({ invoiceId, defaultSupplier, presetItemId, suppliers, it
                   <input className="admin-input cst-input" value={header.invoice_number ?? ''}
                     onChange={(e) => setH({ invoice_number: e.target.value })} />
                 </label>
-                <label>Attachment (photo / PDF)
-                  <span style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-                    <input ref={fileRef} type="file" accept="image/*,application/pdf" style={{ display: 'none' }}
-                      onChange={(e) => void onFile(e.target.files?.[0])} />
-                    <button type="button" className="admin-btn admin-btn-secondary admin-btn-sm" disabled={uploading}
-                      onClick={() => fileRef.current?.click()}>
-                      {uploading ? 'Uploading…' : header.attachment_path ? 'Replace' : 'Upload'}
-                    </button>
-                    {header.attachment_path && (
-                      <>
-                        <a href="#" onClick={(e) => { e.preventDefault(); void openAttachment(header.attachment_path as string, setErr) }}>View</a>
-                        <button type="button" className="admin-btn admin-btn-ghost admin-btn-sm" title="Remove attachment from invoice"
-                          onClick={() => setH({ attachment_path: null })}>×</button>
-                      </>
-                    )}
-                  </span>
-                </label>
               </div>
+              <div className={`cst-drop${dragOver ? ' on' : ''}`}
+                   onClick={() => !uploading && fileRef.current?.click()}
+                   role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') fileRef.current?.click() }}>
+                <input ref={fileRef} type="file" accept="image/*,application/pdf" multiple style={{ display: 'none' }}
+                  onChange={(e) => void onFiles(e.target.files)} />
+                <div className="cst-drop-t">
+                  {uploading ? `Uploading ${upCount} file(s)…` : 'Drop the invoice pages here, or click to choose'}
+                </div>
+                <div className="cst-note">Photos or PDF · several files allowed (one per page) · you can drop them anywhere on this panel</div>
+              </div>
+              {header.attachment_paths.length > 0 && (
+                <div className="cst-files">
+                  {header.attachment_paths.map((path, i) => (
+                    <span key={path} className="cst-file">
+                      <a href="#" title="Open" onClick={(e) => { e.preventDefault(); void openAttachment(path, setErr) }}><ClipIcon /> {fileLabel(path, i)}</a>
+                      <button type="button" className="cst-file-btn" title="Move earlier" disabled={i === 0} onClick={() => movePath(i, -1)}>‹</button>
+                      <button type="button" className="cst-file-btn" title="Move later" disabled={i === header.attachment_paths.length - 1} onClick={() => movePath(i, 1)}>›</button>
+                      <button type="button" className="cst-file-btn" title="Remove from this invoice"
+                        onClick={() => setPaths(header.attachment_paths.filter((x) => x !== path))}>×</button>
+                    </span>
+                  ))}
+                </div>
+              )}
               <label style={{ display: 'flex', flexDirection: 'column', gap: 3, fontSize: 12, color: '#4b5563', marginTop: 8 }}>Notes
                 <input className="admin-input cst-input" value={header.notes ?? ''} onChange={(e) => setH({ notes: e.target.value })} />
               </label>
